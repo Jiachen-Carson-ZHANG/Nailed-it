@@ -50,7 +50,7 @@ Build a clear, maintainable codebase for BT5151:
 
 ## Documentation rules
 - Update `docs/architecture/current-state.md` when the system design changes materially, perserved the previous state for future auditing.
-- Update `docs/changes/implementation-log.md` for meaningful changes.
+- Update `docs/changes/implementation-log.md` for meaningful changes. It should capture: what changed, why, tradeoff, and what must remain true (Aligned assumptions).
 - Add an ADR in `docs/decisions/` for major architectural decisions.
 - Keep docs short, concrete, and current.
 
@@ -71,7 +71,7 @@ A change is not done unless:
 - Before changing architecture, workflow, cache, retrieval, eval, observability, or persistence logic, read the relevant docs if they exist.
 - When a material architecture change is made, update `docs/architecture/current-state.md`.
 - When a major technical decision is made, add or update an ADR in `docs/decisions/`.
-- When a meaningful implementation change is completed, append a concise entry to `docs/changes/implementation-log.md`.
+- When a meaningful implementation change is completed, append a concise entry to `docs/changes/implementation-log.md`. It should capture: what changed, why, tradeoff, and what must remain true (Aligned assumptions).
 - Do not treat chat history as the source of truth for project design; the docs folder is the persistent source of truth.
 
 ## graphify
