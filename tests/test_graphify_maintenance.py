@@ -149,6 +149,20 @@ def test_check_stale_detects_missing_and_newer_manifest_paths(tmp_path, monkeypa
     assert result.newer_paths == ("docs/current.md",)
 
 
+def test_refresh_manifest_writes_tracked_paths(tmp_path, monkeypatch):
+    gm = _load_module()
+    _patch_paths(monkeypatch, gm, tmp_path)
+    (tmp_path / "graphify-out").mkdir()
+    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+    monkeypatch.setattr(gm, "MANIFEST_PATHS", ("AGENTS.md",))
+
+    payload = gm.refresh_manifest()
+
+    assert "AGENTS.md" in payload
+    assert gm.SHARED_MANIFEST.exists()
+    assert "AGENTS.md" in gm.SHARED_MANIFEST.read_text()
+
+
 def test_check_stale_accepts_current_manifest(tmp_path, monkeypatch):
     gm = _load_module()
     _patch_paths(monkeypatch, gm, tmp_path)

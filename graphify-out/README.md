@@ -23,6 +23,13 @@ Run `graphify update .` after code-only changes when a local graph exists. Run a
 
 Semantic updates for architecture docs, ADRs, prompts, skills, or references must be intentional. Run `/graphify . --update` only when the team wants to refresh semantic graph content, then commit the regenerated `GRAPH_REPORT.md` and `manifest.json` only.
 
-For PRs, run `python scripts/graphify_maintenance.py check-stale` before review. If it reports missing or newer manifest paths, refresh the report and manifest before merging.
+For PRs, after changing tracked architecture or tooling files:
+
+```bash
+python scripts/graphify_maintenance.py refresh-manifest
+python scripts/graphify_maintenance.py check-stale
+```
+
+If `check-stale` still fails, refresh `GRAPH_REPORT.md` with `graphify update . --force` (local only), then commit the updated report and manifest.
 
 See `docs/architecture/graphify-ingestion-policy.md` for the full policy.
