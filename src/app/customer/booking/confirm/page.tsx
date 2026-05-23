@@ -1,23 +1,45 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Toast } from '@/components/ui/Toast';
-import { calculateEstimate } from '@/domain/pricing';
+import { getCustomerBookingDraft } from '@/domain/booking-draft';
+import { getCustomerBookingPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import { availableSlots } from '@/mock/bookings';
-import { mockAIResult } from '@/mock/ai';
-import { defaultPricingRules } from '@/mock/pricing';
 
 export default function CustomerBookingConfirmPage() {
-  const [notes, setNotes] = useState('Prefer a softer pink tone.');
+  const draft = getCustomerBookingDraft();
+  const [notes, setNotes] = useState(
+    draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
+  );
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [toastMessage, setToastMessage] = useState('');
-  const estimate = useMemo(
-    () => calculateEstimate(mockAIResult, defaultPricingRules),
-    []
-  );
+
+  if (!draft) {
+    return (
+      <MobileLayout
+        role="customer"
+        subtitle="This lightweight flow keeps the current booking draft in memory until you move into confirmation."
+        title="Nailed-it"
+      >
+        <section className="page-heading">
+          <p className="section-eyebrow">Confirm booking</p>
+          <h1>Booking draft unavailable</h1>
+        </section>
+        <EmptyState
+          body="Start from the booking step so the current recognition result and estimate can be carried into confirmation."
+          title="No active booking draft"
+        />
+        <Link className="button button-primary" href={getCustomerBookingPath()}>
+          Back to booking
+        </Link>
+      </MobileLayout>
+    );
+  }
 
   function confirmAppointment() {
     if (!selectedSlot) {
@@ -45,11 +67,14 @@ export default function CustomerBookingConfirmPage() {
       </section>
 
       <section className="summary-card">
-        <strong>Rose Cat Eye Shine</strong>
-        <p>{mockAIResult.selection.otherNotes}</p>
+        <strong>Current AI booking draft</strong>
+        <p>{draft.recognition.selection.otherNotes}</p>
         <p>
-          Estimated: SGD {estimate.price} · {estimate.duration} min
+          Estimated: SGD {draft.estimate.price} · {draft.estimate.duration} min
         </p>
+        {draft.imageUrl ? (
+          <img alt="Booking draft reference" className="booking-draft-image" src={draft.imageUrl} />
+        ) : null}
       </section>
 
       <BookingTimeSelector days={availableSlots} value={selectedSlot} onChange={setSelectedSlot} />

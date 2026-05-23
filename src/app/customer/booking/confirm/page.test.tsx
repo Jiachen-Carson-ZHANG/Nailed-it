@@ -1,6 +1,9 @@
+import { beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
+import { mockAIResult } from '@/mock/ai';
 import CustomerBookingConfirmPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -8,8 +11,49 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerBookingConfirmPage', () => {
+  beforeEach(() => {
+    clearCustomerBookingDraft();
+  });
+
+  it('renders the current booking draft summary instead of reconstructing from mock ai defaults', () => {
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: mockMeta(),
+        selection: {
+          ...mockSelection(),
+          otherNotes: 'Edited note carried into confirmation.'
+        }
+      }
+    });
+
+    render(<CustomerBookingConfirmPage />);
+
+    expect(screen.getByText(/current ai booking draft/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/edited note carried into confirmation/i)).toBeInTheDocument();
+    expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
+  });
+
   it('lets the customer pick a slot and confirm the appointment with a toast', async () => {
     const user = userEvent.setup();
+
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: mockMeta(),
+        selection: mockSelection()
+      }
+    });
 
     render(<CustomerBookingConfirmPage />);
 
@@ -24,3 +68,15 @@ describe('CustomerBookingConfirmPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/booking request sent to merchant for today at 10:00/i);
   });
 });
+
+function mockMeta() {
+  return {
+    ...mockAIResult.meta
+  };
+}
+
+function mockSelection() {
+  return {
+    ...mockAIResult.selection
+  };
+}

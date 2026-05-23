@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ImageUploader } from '@/components/ui/ImageUploader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
+import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
 import { NailAttributeEditor } from '@/features/customer/NailAttributeEditor';
@@ -35,6 +36,14 @@ export default function CustomerBookingPage() {
       setHasRecognitionResult(true);
       setIsSheetOpen(true);
     }, 700);
+  }
+
+  function persistCurrentDraft() {
+    saveCustomerBookingDraft({
+      estimate,
+      imageUrl,
+      recognition
+    });
   }
 
   return (
@@ -97,6 +106,7 @@ export default function CustomerBookingPage() {
           actionHref={getCustomerBookingConfirmPath()}
           actionLabel="Next: choose time"
           duration={estimate.duration}
+          onAction={persistCurrentDraft}
           price={estimate.price}
         />
       ) : null}

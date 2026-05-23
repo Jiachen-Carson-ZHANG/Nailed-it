@@ -38,6 +38,12 @@ export type BookingQuote = QuoteValue & {
   source: 'booking_snapshot';
 };
 
+export type CustomerBookingDraft = {
+  estimate: RuleBasedQuote;
+  imageUrl: string;
+  recognition: AIRecognitionResult;
+};
+
 export type StyleDiscoveryFacetKind = 'style' | 'addon' | 'shape' | 'mood' | 'lifestyle';
 
 export type StyleDiscoveryFacet = {

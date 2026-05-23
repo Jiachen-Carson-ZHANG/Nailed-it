@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
+import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import CustomerBookingPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -27,10 +28,22 @@ describe('CustomerBookingPage', () => {
 
     expect(screen.getByRole('dialog', { name: /ai recognition result/i })).toBeInTheDocument();
     expect(screen.getByText(/live estimate/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /next: choose time/i })).toHaveAttribute(
-      'href',
-      '/customer/booking/confirm'
-    );
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Edited note carried into confirmation.' }
+    });
+
+    const nextLink = screen.getByRole('link', { name: /next: choose time/i });
+    expect(nextLink).toHaveAttribute('href', '/customer/booking/confirm');
+
+    fireEvent.click(nextLink);
+
+    expect(getCustomerBookingDraft()).toMatchObject({
+      recognition: {
+        selection: {
+          otherNotes: 'Edited note carried into confirmation.'
+        }
+      }
+    });
 
     vi.useRealTimers();
   });
