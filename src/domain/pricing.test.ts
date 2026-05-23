@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculateEstimate, getAiSuggestedQuote } from './pricing';
-import type { AIRecognitionResult, PricingItem, StylePreviewQuote } from './nail';
+import type { AIRecognitionResult, BookingQuote, PricingItem, StylePreviewQuote } from './nail';
 
 const baseRecognition: AIRecognitionResult = {
   selection: {
@@ -97,11 +97,16 @@ describe('calculateEstimate', () => {
     });
   });
 
-  it('keeps AI suggested quotes separate from rule-based and preview quotes', () => {
+  it('keeps AI, preview, rule-based, and booking snapshot quotes separate', () => {
     const aiSuggestedQuote = getAiSuggestedQuote(baseRecognition);
     const ruleBasedQuote = calculateEstimate(baseRecognition, pricingRules);
     const previewQuote: StylePreviewQuote = {
       source: 'style_preview',
+      price: 30,
+      duration: 40
+    };
+    const bookingSnapshotQuote: BookingQuote = {
+      source: 'booking_snapshot',
       price: 30,
       duration: 40
     };
@@ -113,7 +118,12 @@ describe('calculateEstimate', () => {
     });
     expect(ruleBasedQuote.source).toBe('pricing_rules');
     expect(previewQuote.source).toBe('style_preview');
+    expect(bookingSnapshotQuote.source).toBe('booking_snapshot');
     expect(aiSuggestedQuote.source).not.toBe(ruleBasedQuote.source);
     expect(aiSuggestedQuote.source).not.toBe(previewQuote.source);
+    expect(aiSuggestedQuote.source).not.toBe(bookingSnapshotQuote.source);
+    expect(ruleBasedQuote.source).not.toBe(previewQuote.source);
+    expect(ruleBasedQuote.source).not.toBe(bookingSnapshotQuote.source);
+    expect(previewQuote.source).not.toBe(bookingSnapshotQuote.source);
   });
 });
