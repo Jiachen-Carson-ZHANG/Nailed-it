@@ -37,6 +37,8 @@ type MockSessionTemplate = {
 
 const customerPaths = {
   home: '/customer/home',
+  booking: '/customer/booking',
+  bookingConfirm: '/customer/booking/confirm',
   styleDetail: (id: string) => `/customer/style/${id}`
 };
 
@@ -53,8 +55,9 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
       booking: {
         key: 'booking',
         label: 'Booking flow',
-        note: 'Booking is staged through the shared customer session model and will appear here once enabled.',
-        status: 'planned'
+        href: customerPaths.booking,
+        note: 'Customer booking starts with a mock upload and AI recognition pass before time selection.',
+        status: 'available'
       },
       messages: {
         key: 'messages',
@@ -71,7 +74,13 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
     },
     tabs: [
       { href: customerPaths.home, label: 'Home', glyph: '⌂', available: true },
-      { href: '/customer/booking', label: 'Book', glyph: '✦', available: false },
+      {
+        href: customerPaths.booking,
+        label: 'Book',
+        glyph: '✦',
+        matchPrefix: customerPaths.booking,
+        available: true
+      },
       { href: '/customer/messages', label: 'Messages', glyph: '✉', available: false },
       { href: '/customer/profile', label: 'Me', glyph: '◉', available: false }
     ]
@@ -130,6 +139,14 @@ export function homePathForRole(role: UserRole): string {
 
 export function getCustomerStylePath(id: string): string {
   return customerPaths.styleDetail(id);
+}
+
+export function getCustomerBookingPath(): string {
+  return customerPaths.booking;
+}
+
+export function getCustomerBookingConfirmPath(): string {
+  return customerPaths.bookingConfirm;
 }
 
 export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import StyleDetailPage from './page';
 import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
-import { getMockSession } from '@/domain/session';
+import { getCustomerBookingPath, getMockSession } from '@/domain/session';
 
 describe('StyleDetailPage', () => {
   it('renders style detail content from the shared style source of truth', async () => {
@@ -24,7 +24,9 @@ describe('StyleDetailPage', () => {
       'href',
       getMockSession('customer').homePath
     );
-    expect(screen.queryByRole('button', { name: /booking opens in the next flow/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/booking is staged through the shared customer session model/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /booking flow/i })).toHaveAttribute(
+      'href',
+      getCustomerBookingPath()
+    );
   });
 });

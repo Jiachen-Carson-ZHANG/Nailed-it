@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getCustomerStylePath, getMockSession, getRouteIntent } from '@/domain/session';
+import {
+  getCustomerBookingConfirmPath,
+  getCustomerBookingPath,
+  getCustomerStylePath,
+  getMockSession,
+  getRouteIntent
+} from '@/domain/session';
 import { defaultPricingRules } from './pricing';
 import { availableSlots, mockBookings } from './bookings';
 import { getStyleDefinitionById, getTrendingStyles } from './styles';
@@ -50,11 +56,14 @@ describe('mock data coherence', () => {
       brandHref: '/customer/home',
       homePath: '/customer/home'
     });
-    expect(getMockSession('customer').tabs).toHaveLength(1);
+    expect(getMockSession('customer').tabs).toHaveLength(2);
+    expect(getCustomerBookingPath()).toBe('/customer/booking');
+    expect(getCustomerBookingConfirmPath()).toBe('/customer/booking/confirm');
     expect(getCustomerStylePath('rose-cat-eye')).toBe('/customer/style/rose-cat-eye');
     expect(getRouteIntent('customer', 'booking')).toMatchObject({
       key: 'booking',
-      status: 'planned'
+      href: '/customer/booking',
+      status: 'available'
     });
     expect(getMockSession('merchant')).toMatchObject({
       role: 'merchant',
