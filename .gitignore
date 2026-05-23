@@ -28,3 +28,13 @@ graphify-out/.needs_clean_rebuild
 *.log
 *.jsonl
 *:Zone.Identifier
+
+# Local Claude Code config — not shared with team
+# Exceptions: .claude/rules/ (project-wide rules) + .claude/skills/ (project-scoped skills)
+.claude/*
+!.claude/rules/
+!.claude/skills/
+!.claude/agents/
+.agents/
+CLAUDE.md
+AGENTS.md
