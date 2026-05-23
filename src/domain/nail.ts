@@ -9,38 +9,86 @@ export type NailShape =
   | 'coffin'
   | 'stiletto';
 
+export type BaseServiceName = 'removal' | 'extension' | 'builderGel';
+
+export type NailStyleName = 'solid' | 'catEye' | 'french' | 'chrome' | 'rhinestone';
+
+export type NailAddonName = 'rhinestone' | 'charms' | 'glitter';
+
 export type PricingCategory = 'base' | 'shape' | 'style' | 'addon';
+
+export type QuoteValue = {
+  price: number;
+  duration: number;
+};
+
+export type RuleBasedQuote = QuoteValue & {
+  source: 'pricing_rules';
+};
+
+export type BookingQuote = QuoteValue & {
+  source: 'booking_snapshot';
+};
 
 export type NailStyleCard = {
   id: string;
   imageUrl: string;
   title: string;
   tags: string[];
-  estimatedPrice: number;
-  estimatedDuration: number;
+  previewQuote: QuoteValue;
   popularityScore: number;
 };
 
-export type AIRecognitionResult = {
-  removal: boolean;
-  extension: boolean;
-  builderGel: boolean;
+export type AIRecognitionSelection = {
+  baseServices: BaseServiceName[];
   nailShape: NailShape;
-  styles: string[];
+  styles: NailStyleName[];
+  addons: NailAddonName[];
   otherNotes: string;
-  confidence: number;
-  estimatedPrice: number;
-  estimatedDuration: number;
 };
 
-export type PricingItem = {
+export type AIRecognitionMeta = {
+  confidence: number;
+  aiSuggestedQuote: QuoteValue;
+};
+
+export type AIRecognitionResult = {
+  selection: AIRecognitionSelection;
+  meta: AIRecognitionMeta;
+};
+
+type PricingItemBase = {
   id: string;
-  category: PricingCategory;
-  name: string;
   price: number;
   duration: number;
   enabled: boolean;
 };
+
+export type BasePricingItem = PricingItemBase & {
+  category: 'base';
+  target: BaseServiceName;
+};
+
+export type ShapePricingItem = PricingItemBase & {
+  category: 'shape';
+  target: NailShape;
+};
+
+export type StylePricingItem = PricingItemBase & {
+  category: 'style';
+  target: NailStyleName;
+};
+
+export type AddonPricingItem = PricingItemBase & {
+  category: 'addon';
+  target: NailAddonName;
+};
+
+export type PricingItem =
+  | BasePricingItem
+  | ShapePricingItem
+  | StylePricingItem
+  | AddonPricingItem;
 
 export type BookingStatus =
   | 'pending'
@@ -57,8 +105,7 @@ export type Booking = {
   styleImageUrl: string;
   date: string;
   time: string;
-  price: number;
-  duration: number;
+  quote: BookingQuote;
   status: BookingStatus;
   notes: string;
   recognition: AIRecognitionResult;

@@ -1,46 +1,52 @@
-import type { AIRecognitionResult, PricingItem } from './nail';
+import type {
+  AIRecognitionResult,
+  BaseServiceName,
+  NailAddonName,
+  NailStyleName,
+  PricingItem,
+  RuleBasedQuote
+} from './nail';
 
-export type PriceEstimate = {
-  price: number;
-  duration: number;
-};
-
-const baseServiceNames: Array<
-  keyof Pick<AIRecognitionResult, 'removal' | 'extension' | 'builderGel'>
-> = ['removal', 'extension', 'builderGel'];
+function toSelectionSet<T extends string>(items: T[]): Set<T> {
+  return new Set(items);
+}
 
 export function calculateEstimate(
   recognition: AIRecognitionResult,
   pricingRules: PricingItem[]
-): PriceEstimate {
-  const enabledRules = pricingRules.filter((rule) => rule.enabled);
-  const selectedNames = new Set<string>();
+): RuleBasedQuote {
+  const { baseServices, nailShape, styles, addons } = recognition.selection;
+  const selectedBaseServices = toSelectionSet<BaseServiceName>(baseServices);
+  const selectedStyles = toSelectionSet<NailStyleName>(styles);
+  const selectedAddons = toSelectionSet<NailAddonName>(addons);
 
-  // 中文注释：先把识别结果里被勾选的基础服务提取出来，后续统一和 shape/style 规则做匹配。
-  for (const serviceName of baseServiceNames) {
-    if (recognition[serviceName]) {
-      selectedNames.add(serviceName);
-    }
-  }
+  // 中文注释：不同 category 使用各自的选择集合匹配，避免 style/addon/base 因为同名字符串互相串价。
+  return pricingRules.reduce<RuleBasedQuote>(
+    (quote, rule) => {
+      if (!rule.enabled) {
+        return quote;
+      }
 
-  selectedNames.add(recognition.nailShape);
+      const isSelected =
+        (rule.category === 'base' && selectedBaseServices.has(rule.target)) ||
+        (rule.category === 'shape' && nailShape === rule.target) ||
+        (rule.category === 'style' && selectedStyles.has(rule.target)) ||
+        (rule.category === 'addon' && selectedAddons.has(rule.target));
 
-  for (const styleName of recognition.styles) {
-    selectedNames.add(styleName);
-  }
-
-  // 中文注释：这里只聚合已启用且命中的规则，避免把禁用项或未选择项混进估价结果。
-  return enabledRules.reduce<PriceEstimate>(
-    (estimate, rule) => {
-      if (!selectedNames.has(rule.name)) {
-        return estimate;
+      if (!isSelected) {
+        return quote;
       }
 
       return {
-        price: estimate.price + rule.price,
-        duration: estimate.duration + rule.duration
+        source: 'pricing_rules',
+        price: quote.price + rule.price,
+        duration: quote.duration + rule.duration
       };
     },
-    { price: 0, duration: 0 }
+    {
+      source: 'pricing_rules',
+      price: 0,
+      duration: 0
+    }
   );
 }
