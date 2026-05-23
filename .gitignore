@@ -33,8 +33,6 @@ graphify-out/.needs_clean_rebuild
 # Exceptions: .claude/rules/ (project-wide rules) + .claude/skills/ (project-scoped skills)
 .claude/*
 !.claude/rules/
-!.claude/skills/
-!.claude/agents/
 .agents/
 CLAUDE.md
 AGENTS.md
