@@ -10,7 +10,11 @@ export function BottomTabBar({ role }: { role: UserRole }) {
   const tabs = getMockSession(role).tabs;
 
   return (
-    <nav aria-label={`${role} navigation`} className="bottom-tab-bar">
+    <nav
+      aria-label={`${role} navigation`}
+      className="bottom-tab-bar"
+      style={{ ['--tab-count' as string]: String(Math.max(tabs.length, 1)) }}
+    >
       {tabs.map((tab) => {
         // 中文注释：这里用 startsWith 保持后续子路由也能点亮对应 tab，比如 /customer/messages/123。
         const active = pathname.startsWith(tab.matchPrefix ?? tab.href);

@@ -219,7 +219,7 @@ select {
 .bottom-tab-bar {
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--tab-count, 4), minmax(0, 1fr));
   gap: 0.25rem;
   min-height: var(--tab-bar-height);
   border-top: 1px solid var(--color-border);
