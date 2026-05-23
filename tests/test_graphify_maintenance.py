@@ -20,6 +20,8 @@ def _patch_paths(monkeypatch, module, tmp_path):
     monkeypatch.setattr(module, "STATE_DIR", tmp_path / ".graphify-state")
     monkeypatch.setattr(module, "CHANGED_FILES", tmp_path / ".graphify-state" / "changed-files.txt")
     monkeypatch.setattr(module, "GRAPH_DIR", tmp_path / "graphify-out")
+    monkeypatch.setattr(module, "SHARED_REPORT", tmp_path / "graphify-out" / "GRAPH_REPORT.md")
+    monkeypatch.setattr(module, "SHARED_MANIFEST", tmp_path / "graphify-out" / "manifest.json")
     monkeypatch.setattr(module, "SEMANTIC_MARKER", tmp_path / "graphify-out" / ".semantic_update_needed")
     monkeypatch.setattr(module, "CLEAN_REBUILD_MARKER", tmp_path / "graphify-out" / ".needs_clean_rebuild")
 
@@ -31,6 +33,7 @@ def test_code_only_flush_runs_ast_update(tmp_path, monkeypatch):
     (tmp_path / "src" / "app.py").write_text("print('hello')\n")
     calls = []
     monkeypatch.setattr(gm.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(gm, "_graphify_update_command", lambda: ["graphify", "update", "."])
 
     gm.record_paths(["src/app.py"])
     result = gm.flush()
@@ -120,3 +123,58 @@ def test_missing_recorded_file_marks_clean_rebuild(tmp_path, monkeypatch):
     assert result.missing_paths == ("src/deleted.py",)
     assert gm.CLEAN_REBUILD_MARKER.exists()
     assert calls == []
+
+
+def test_check_stale_detects_missing_and_newer_manifest_paths(tmp_path, monkeypatch):
+    gm = _load_module()
+    _patch_paths(monkeypatch, gm, tmp_path)
+    (tmp_path / "graphify-out").mkdir()
+    gm.SHARED_REPORT.write_text("# Graph Report\n")
+    (tmp_path / "docs").mkdir()
+    current = tmp_path / "docs" / "current.md"
+    current.write_text("# Current\n")
+    gm.SHARED_MANIFEST.write_text(
+        json.dumps(
+            {
+                "docs/current.md": {"mtime": 0, "ast_hash": "", "semantic_hash": ""},
+                "docs/missing.md": {"mtime": 0, "ast_hash": "", "semantic_hash": ""},
+            }
+        )
+    )
+
+    result = gm.check_stale()
+
+    assert result.report_exists
+    assert result.missing_paths == ("docs/missing.md",)
+    assert result.newer_paths == ("docs/current.md",)
+
+
+def test_refresh_manifest_writes_tracked_paths(tmp_path, monkeypatch):
+    gm = _load_module()
+    _patch_paths(monkeypatch, gm, tmp_path)
+    (tmp_path / "graphify-out").mkdir()
+    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+    monkeypatch.setattr(gm, "MANIFEST_PATHS", ("AGENTS.md",))
+
+    payload = gm.refresh_manifest()
+
+    assert "AGENTS.md" in payload
+    assert gm.SHARED_MANIFEST.exists()
+    assert "AGENTS.md" in gm.SHARED_MANIFEST.read_text()
+
+
+def test_check_stale_accepts_current_manifest(tmp_path, monkeypatch):
+    gm = _load_module()
+    _patch_paths(monkeypatch, gm, tmp_path)
+    (tmp_path / "graphify-out").mkdir()
+    gm.SHARED_REPORT.write_text("# Graph Report\n")
+    (tmp_path / "docs").mkdir()
+    current = tmp_path / "docs" / "current.md"
+    current.write_text("# Current\n")
+    gm.SHARED_MANIFEST.write_text(json.dumps({"docs/current.md": {"mtime": current.stat().st_mtime}}))
+
+    result = gm.check_stale()
+
+    assert result.report_exists
+    assert result.missing_paths == ()
+    assert result.newer_paths == ()
