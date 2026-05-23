@@ -1,3 +1,5 @@
+import { StrictMode } from 'react';
+import { act } from '@testing-library/react';
 import { beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -49,7 +51,7 @@ describe('CustomerBookingConfirmPage', () => {
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
-  it('consumes the draft so a later fresh visit falls back to the empty state', () => {
+  it('consumes the draft so a later fresh visit falls back to the empty state', async () => {
     saveCustomerBookingDraft({
       estimate: {
         source: 'pricing_rules',
@@ -66,10 +68,38 @@ describe('CustomerBookingConfirmPage', () => {
     const firstRender = render(<CustomerBookingConfirmPage />);
     expect(firstRender.getByText(/current ai booking draft/i)).toBeInTheDocument();
 
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
     firstRender.unmount();
 
     render(<CustomerBookingConfirmPage />);
     expect(screen.getByText(/no active booking draft/i)).toBeInTheDocument();
+  });
+
+  it('still shows the draft on the first valid visit inside StrictMode', () => {
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: mockMeta(),
+        selection: mockSelection()
+      }
+    });
+
+    render(
+      <StrictMode>
+        <CustomerBookingConfirmPage />
+      </StrictMode>
+    );
+
+    expect(screen.getByText(/current ai booking draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
   it('lets the customer pick a slot and confirm the appointment with a toast', async () => {

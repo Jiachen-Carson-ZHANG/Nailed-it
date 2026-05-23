@@ -5,6 +5,7 @@ import {
   clearCustomerBookingDraft,
   consumeCustomerBookingDraft,
   getCustomerBookingDraft,
+  readCustomerBookingDraftSnapshot,
   saveCustomerBookingDraft
 } from './booking-draft';
 
@@ -101,5 +102,25 @@ describe('customer booking draft store', () => {
     firstRead.recognition.selection.otherNotes = 'Mutated after read.';
 
     expect(getCustomerBookingDraft()?.recognition.selection.otherNotes).toBe('Original note.');
+  });
+
+  it('supports guarded consumption using a read snapshot version', () => {
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: mockAIResult
+    });
+
+    const snapshot = readCustomerBookingDraftSnapshot();
+
+    expect(snapshot).not.toBeNull();
+    expect(consumeCustomerBookingDraft((snapshot?.version ?? 0) + 1)).toBeNull();
+    expect(getCustomerBookingDraft()).not.toBeNull();
+    expect(consumeCustomerBookingDraft(snapshot?.version)).not.toBeNull();
+    expect(getCustomerBookingDraft()).toBeNull();
   });
 });
