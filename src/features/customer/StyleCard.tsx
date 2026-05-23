@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { NailStyleCard } from '@/domain/nail';
+import { getCustomerStylePath } from '@/domain/session';
 
 type StyleCardProps = {
   style: NailStyleCard;
@@ -10,7 +11,7 @@ export function StyleCard({ style }: StyleCardProps) {
     <Link
       aria-label={style.title}
       className="style-card"
-      href={`/customer/style/${style.id}`}
+      href={getCustomerStylePath(style.id)}
     >
       <div className="style-card-media">
         <img
@@ -29,9 +30,9 @@ export function StyleCard({ style }: StyleCardProps) {
           <span className="style-score">{style.popularityScore}%</span>
         </div>
         <div className="style-tag-row" aria-label={`${style.title} tags`}>
-          {style.tags.map((tag) => (
-            <span key={tag} className="style-tag">
-              {tag}
+          {style.discoveryFacets.map((facet) => (
+            <span key={`${facet.kind}-${facet.label}`} className={`style-tag style-tag-${facet.kind}`}>
+              {facet.label}
             </span>
           ))}
         </div>

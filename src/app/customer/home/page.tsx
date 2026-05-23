@@ -4,9 +4,25 @@ import { StyleWaterfallGrid } from '@/features/customer/StyleWaterfallGrid';
 
 export default function CustomerHomePage() {
   const styles = getTrendingStyles();
-  const prices = styles.map((style) => style.previewQuote.price);
-  const lowestPrice = Math.min(...prices);
-  const highestPrice = Math.max(...prices);
+  const priceRange = styles.reduce<
+    | {
+        lowestPrice: number;
+        highestPrice: number;
+      }
+    | undefined
+  >((range, style) => {
+    if (!range) {
+      return {
+        lowestPrice: style.previewQuote.price,
+        highestPrice: style.previewQuote.price
+      };
+    }
+
+    return {
+      lowestPrice: Math.min(range.lowestPrice, style.previewQuote.price),
+      highestPrice: Math.max(range.highestPrice, style.previewQuote.price)
+    };
+  }, undefined);
 
   return (
     <MobileLayout
@@ -28,10 +44,14 @@ export default function CustomerHomePage() {
             <strong>{styles.length}</strong>
           </div>
           <div className="discovery-stat-card">
-            <span>Preview range</span>
-            <strong>
-              ${lowestPrice} - ${highestPrice}
-            </strong>
+            <span>{priceRange ? 'Preview range' : 'Feed status'}</span>
+            {priceRange ? (
+              <strong>
+                ${priceRange.lowestPrice} - ${priceRange.highestPrice}
+              </strong>
+            ) : (
+              <strong>Waiting for styles</strong>
+            )}
           </div>
         </div>
       </section>

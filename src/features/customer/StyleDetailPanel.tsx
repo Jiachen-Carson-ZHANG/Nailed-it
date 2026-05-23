@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import type { AIRecognitionResult, NailStyleCard } from '@/domain/nail';
+import type { MockRouteIntent } from '@/domain/session';
 
 type StyleDetailPanelProps = {
+  backHref: string;
+  bookingIntent: MockRouteIntent;
   recognition: AIRecognitionResult;
   style: NailStyleCard;
 };
@@ -10,7 +13,12 @@ function formatConfidence(confidence: number): string {
   return `${Math.round(confidence * 100)}%`;
 }
 
-export function StyleDetailPanel({ recognition, style }: StyleDetailPanelProps) {
+export function StyleDetailPanel({
+  backHref,
+  bookingIntent,
+  recognition,
+  style
+}: StyleDetailPanelProps) {
   const selectionGroups = [
     { label: 'Base', values: recognition.selection.baseServices },
     { label: 'Shape', values: [recognition.selection.nailShape] },
@@ -70,12 +78,19 @@ export function StyleDetailPanel({ recognition, style }: StyleDetailPanelProps) 
       </section>
 
       <div className="detail-actions">
-        <Link className="button button-primary" href="/customer/home">
+        <Link className="button button-primary" href={backHref}>
           Back to discovery
         </Link>
-        <button className="button button-secondary" disabled type="button">
-          Booking opens in the next flow
-        </button>
+        {bookingIntent.href ? (
+          <Link className="button button-secondary" href={bookingIntent.href}>
+            {bookingIntent.label}
+          </Link>
+        ) : (
+          <section className="detail-flow-note" aria-label={bookingIntent.label}>
+            <strong>{bookingIntent.label}</strong>
+            <p>{bookingIntent.note}</p>
+          </section>
+        )}
       </div>
     </article>
   );

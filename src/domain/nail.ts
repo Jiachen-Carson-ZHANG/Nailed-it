@@ -38,11 +38,18 @@ export type BookingQuote = QuoteValue & {
   source: 'booking_snapshot';
 };
 
+export type StyleDiscoveryFacetKind = 'style' | 'addon' | 'shape' | 'mood' | 'lifestyle';
+
+export type StyleDiscoveryFacet = {
+  kind: StyleDiscoveryFacetKind;
+  label: string;
+};
+
 export type NailStyleCard = {
+  discoveryFacets: StyleDiscoveryFacet[];
   id: string;
   imageUrl: string;
   title: string;
-  tags: string[];
   previewQuote: StylePreviewQuote;
   popularityScore: number;
 };

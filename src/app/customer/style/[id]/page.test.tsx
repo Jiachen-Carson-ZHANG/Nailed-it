@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import StyleDetailPage from './page';
 import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
+import { getMockSession } from '@/domain/session';
 
 describe('StyleDetailPage', () => {
   it('renders style detail content from the shared style source of truth', async () => {
@@ -19,5 +20,11 @@ describe('StyleDetailPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(definition?.recognition.selection.otherNotes ?? '')).toBeInTheDocument();
     expect(screen.getByText(new RegExp(String(style?.previewQuote.price ?? ''), 'i'))).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to discovery/i })).toHaveAttribute(
+      'href',
+      getMockSession('customer').homePath
+    );
+    expect(screen.queryByRole('button', { name: /booking opens in the next flow/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/booking is staged through the shared customer session model/i)).toBeInTheDocument();
   });
 });

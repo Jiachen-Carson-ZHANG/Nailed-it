@@ -1,6 +1,8 @@
 import type { UserRole } from './nail';
 
 export const defaultMockRole: UserRole = 'customer';
+export type MockRouteIntentKey = 'booking' | 'messages' | 'profile';
+export type MockRouteIntentStatus = 'available' | 'planned';
 
 export type ShellTab = {
   glyph: string;
@@ -9,10 +11,19 @@ export type ShellTab = {
   matchPrefix?: string;
 };
 
+export type MockRouteIntent = {
+  href?: string;
+  key: MockRouteIntentKey;
+  label: string;
+  note: string;
+  status: MockRouteIntentStatus;
+};
+
 export type MockSession = {
   brandHref: string;
   homePath: string;
   role: UserRole;
+  routeIntents: Record<MockRouteIntentKey, MockRouteIntent>;
   tabs: ShellTab[];
 };
 
@@ -20,16 +31,46 @@ type MockSessionTemplate = {
   brandHref: string;
   homePath: string;
   role: UserRole;
+  routeIntents: Record<MockRouteIntentKey, MockRouteIntent>;
   tabs: Array<ShellTab & { available: boolean }>;
+};
+
+const customerPaths = {
+  home: '/customer/home',
+  styleDetail: (id: string) => `/customer/style/${id}`
+};
+
+const merchantPaths = {
+  home: '/merchant/calendar'
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
   customer: {
     role: 'customer',
-    brandHref: '/customer/home',
-    homePath: '/customer/home',
+    brandHref: customerPaths.home,
+    homePath: customerPaths.home,
+    routeIntents: {
+      booking: {
+        key: 'booking',
+        label: 'Booking flow',
+        note: 'Booking is staged through the shared customer session model and will appear here once enabled.',
+        status: 'planned'
+      },
+      messages: {
+        key: 'messages',
+        label: 'Messages',
+        note: 'Customer messages are still planned in the shared session model.',
+        status: 'planned'
+      },
+      profile: {
+        key: 'profile',
+        label: 'Profile',
+        note: 'Customer profile is still planned in the shared session model.',
+        status: 'planned'
+      }
+    },
     tabs: [
-      { href: '/customer/home', label: 'Home', glyph: '⌂', available: true },
+      { href: customerPaths.home, label: 'Home', glyph: '⌂', available: true },
       { href: '/customer/booking', label: 'Book', glyph: '✦', available: false },
       { href: '/customer/messages', label: 'Messages', glyph: '✉', available: false },
       { href: '/customer/profile', label: 'Me', glyph: '◉', available: false }
@@ -37,10 +78,30 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
   },
   merchant: {
     role: 'merchant',
-    brandHref: '/merchant/calendar',
-    homePath: '/merchant/calendar',
+    brandHref: merchantPaths.home,
+    homePath: merchantPaths.home,
+    routeIntents: {
+      booking: {
+        key: 'booking',
+        label: 'Booking flow',
+        note: 'Merchant booking flow is still planned in the shared session model.',
+        status: 'planned'
+      },
+      messages: {
+        key: 'messages',
+        label: 'Messages',
+        note: 'Merchant messages are still planned in the shared session model.',
+        status: 'planned'
+      },
+      profile: {
+        key: 'profile',
+        label: 'Profile',
+        note: 'Merchant profile is still planned in the shared session model.',
+        status: 'planned'
+      }
+    },
     tabs: [
-      { href: '/merchant/calendar', label: 'Calendar', glyph: '◫', available: true },
+      { href: merchantPaths.home, label: 'Calendar', glyph: '◫', available: true },
       { href: '/merchant/manage', label: 'Manage', glyph: '⚙', available: false },
       { href: '/merchant/messages', label: 'Messages', glyph: '✉', available: false },
       { href: '/merchant/profile', label: 'Me', glyph: '◉', available: false }
@@ -65,6 +126,14 @@ export function getMockSession(role: UserRole): MockSession {
 
 export function homePathForRole(role: UserRole): string {
   return getMockSession(role).homePath;
+}
+
+export function getCustomerStylePath(id: string): string {
+  return customerPaths.styleDetail(id);
+}
+
+export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {
+  return getMockSession(role).routeIntents[key];
 }
 
 export function isCustomerPath(pathname: string): boolean {

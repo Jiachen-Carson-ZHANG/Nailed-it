@@ -1,5 +1,10 @@
 import { calculateEstimate } from '@/domain/pricing';
-import type { AIRecognitionResult, NailStyleCard, StylePreviewQuote } from '@/domain/nail';
+import type {
+  AIRecognitionResult,
+  NailStyleCard,
+  StyleDiscoveryFacet,
+  StylePreviewQuote
+} from '@/domain/nail';
 import {
   chromeMirrorAIResult,
   dailySolidAIResult,
@@ -37,37 +42,53 @@ function createStyleCard(style: StyleDefinition, pricingRules = defaultPricingRu
 export const styleDefinitions: StyleDefinition[] = [
   {
     id: 'rose-cat-eye',
+    discoveryFacets: [
+      { kind: 'style', label: 'Cat eye' },
+      { kind: 'addon', label: 'Rhinestone' },
+      { kind: 'mood', label: 'Sweet' }
+    ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=80',
     title: 'Rose Cat Eye Shine',
-    tags: ['catEye', 'rhinestone', 'sweet'],
     popularityScore: 96,
     recognition: mockAIResult
   },
   {
     id: 'soft-french',
+    discoveryFacets: [
+      { kind: 'style', label: 'French' },
+      { kind: 'lifestyle', label: 'Commute' },
+      { kind: 'mood', label: 'Clean' }
+    ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1610992015732-2449b76344bc?auto=format&fit=crop&w=900&q=80',
     title: 'Soft Studio French',
-    tags: ['french', 'commute', 'clean'],
     popularityScore: 90,
     recognition: softFrenchAIResult
   },
   {
     id: 'chrome-mirror',
+    discoveryFacets: [
+      { kind: 'style', label: 'Chrome' },
+      { kind: 'shape', label: 'Almond' },
+      { kind: 'lifestyle', label: 'Party' }
+    ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1519014816548-bf5fe059798b?auto=format&fit=crop&w=900&q=80',
     title: 'Chrome Mirror Almond',
-    tags: ['chrome', 'almond', 'party'],
     popularityScore: 88,
     recognition: chromeMirrorAIResult
   },
   {
     id: 'minimal-solid',
+    discoveryFacets: [
+      { kind: 'style', label: 'Solid' },
+      { kind: 'mood', label: 'Minimal' },
+      { kind: 'lifestyle', label: 'Daily' }
+    ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1599948128020-9a44505b0d1b?auto=format&fit=crop&w=900&q=80',
     title: 'Clean Daily Solid',
-    tags: ['solid', 'minimal', 'daily'],
     popularityScore: 82,
     recognition: dailySolidAIResult
   }

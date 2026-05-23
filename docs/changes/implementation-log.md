@@ -28,6 +28,23 @@
 
 **Must remain true:** Customer discovery/detail must keep using the shared mock style helpers as the source of truth; preview quotes must continue to derive from current pricing rules rather than duplicated page-local data.
 
+## 2026-05-24 - Customer Discovery Quality Follow-up
+
+**Context:** The first discovery/detail slice still duplicated route strings in page/components, mixed marketing and domain labels in one raw tag list, and rendered brittle mobile stats/CTAs when data or downstream flows were unavailable.
+
+**Changes (contract and UI hardening):**
+- Moved customer style detail paths and planned-flow placeholders into the shared session model so discovery/detail reuse one navigation source.
+- Replaced raw `tags: string[]` with typed discovery facets in the nail/style contracts while keeping the rendered UI lightweight.
+- Added a real empty-state path for discovery and removed invalid price-range math for empty style lists.
+- Relaxed discovery/detail mobile layout defaults to single-column first, letting later booking flow surfaces reuse the same shell more naturally.
+
+**Verification:**
+- `npm test -- src/app/customer/home/page.test.tsx src/app/customer/style/[id]/page.test.tsx src/mock/mock-data.test.ts`
+- `npm test`
+- `npm run build`
+
+**Must remain true:** Future booking activation should come from the shared session/navigation model; customer discovery tags must stay typed enough to distinguish domain attributes from marketing/lifestyle labels.
+
 ## 2026-05-19 - Graphify Collaboration Refresh
 
 **Context:** Migrated Graphify artifacts described the old BT5151 codebase and included machine-local paths, making agent orientation misleading in the Nailed-it scaffold.

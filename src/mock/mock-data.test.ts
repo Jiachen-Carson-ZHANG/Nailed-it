@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getMockSession } from '@/domain/session';
+import { getCustomerStylePath, getMockSession, getRouteIntent } from '@/domain/session';
 import { defaultPricingRules } from './pricing';
 import { availableSlots, mockBookings } from './bookings';
 import { getStyleDefinitionById, getTrendingStyles } from './styles';
@@ -51,11 +51,29 @@ describe('mock data coherence', () => {
       homePath: '/customer/home'
     });
     expect(getMockSession('customer').tabs).toHaveLength(1);
+    expect(getCustomerStylePath('rose-cat-eye')).toBe('/customer/style/rose-cat-eye');
+    expect(getRouteIntent('customer', 'booking')).toMatchObject({
+      key: 'booking',
+      status: 'planned'
+    });
     expect(getMockSession('merchant')).toMatchObject({
       role: 'merchant',
       brandHref: '/merchant/calendar',
       homePath: '/merchant/calendar'
     });
     expect(getMockSession('merchant').tabs).toHaveLength(1);
+  });
+
+  it('keeps discovery facets typed so UI tags do not mix concerns in one raw string list', () => {
+    const style = getStyleDefinitionById('rose-cat-eye');
+
+    expect(style).toBeDefined();
+    expect(style?.discoveryFacets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'style', label: 'Cat eye' }),
+        expect.objectContaining({ kind: 'addon', label: 'Rhinestone' }),
+        expect.objectContaining({ kind: 'mood', label: 'Sweet' })
+      ])
+    );
   });
 });

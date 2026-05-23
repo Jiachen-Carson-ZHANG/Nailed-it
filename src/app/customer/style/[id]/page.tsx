@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { MobileLayout } from '@/components/layout/MobileLayout';
+import { getRouteIntent, homePathForRole } from '@/domain/session';
 import { StyleDetailPanel } from '@/features/customer/StyleDetailPanel';
 import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
 
@@ -20,13 +21,18 @@ export default async function StyleDetailPage({ params }: StyleDetailPageProps) 
 
   return (
     <MobileLayout
-      brandHref="/customer/home"
+      brandHref={homePathForRole('customer')}
       role="customer"
       showTabs={false}
       subtitle="Detail view wired to the current mock recognition and quote contracts."
       title="Nailed-it"
     >
-      <StyleDetailPanel recognition={definition.recognition} style={style} />
+      <StyleDetailPanel
+        backHref={homePathForRole('customer')}
+        bookingIntent={getRouteIntent('customer', 'booking')}
+        recognition={definition.recognition}
+        style={style}
+      />
     </MobileLayout>
   );
 }
