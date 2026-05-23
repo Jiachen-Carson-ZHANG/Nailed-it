@@ -5,6 +5,10 @@ __pycache__/
 .pytest_cache/
 .vscode/
 .gstack/
+node_modules/
+.next/
+coverage/
+npm-debug.log*
 
 # Generated / bulky project artifacts
 lab/cache/
