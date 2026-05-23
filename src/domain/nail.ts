@@ -22,6 +22,14 @@ export type QuoteValue = {
   duration: number;
 };
 
+export type AISuggestedQuote = QuoteValue & {
+  source: 'ai_suggestion';
+};
+
+export type StylePreviewQuote = QuoteValue & {
+  source: 'style_preview';
+};
+
 export type RuleBasedQuote = QuoteValue & {
   source: 'pricing_rules';
 };
@@ -35,7 +43,7 @@ export type NailStyleCard = {
   imageUrl: string;
   title: string;
   tags: string[];
-  previewQuote: QuoteValue;
+  previewQuote: StylePreviewQuote;
   popularityScore: number;
 };
 
@@ -49,7 +57,7 @@ export type AIRecognitionSelection = {
 
 export type AIRecognitionMeta = {
   confidence: number;
-  aiSuggestedQuote: QuoteValue;
+  aiSuggestedQuote: AISuggestedQuote;
 };
 
 export type AIRecognitionResult = {

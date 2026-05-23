@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { calculateEstimate } from './pricing';
-import type { AIRecognitionResult, PricingItem } from './nail';
+import { calculateEstimate, getAiSuggestedQuote } from './pricing';
+import type { AIRecognitionResult, PricingItem, StylePreviewQuote } from './nail';
 
 const baseRecognition: AIRecognitionResult = {
   selection: {
@@ -13,6 +13,7 @@ const baseRecognition: AIRecognitionResult = {
   meta: {
     confidence: 0.86,
     aiSuggestedQuote: {
+      source: 'ai_suggestion',
       price: 0,
       duration: 0
     }
@@ -94,5 +95,25 @@ describe('calculateEstimate', () => {
       price: 35,
       duration: 45
     });
+  });
+
+  it('keeps AI suggested quotes separate from rule-based and preview quotes', () => {
+    const aiSuggestedQuote = getAiSuggestedQuote(baseRecognition);
+    const ruleBasedQuote = calculateEstimate(baseRecognition, pricingRules);
+    const previewQuote: StylePreviewQuote = {
+      source: 'style_preview',
+      price: 30,
+      duration: 40
+    };
+
+    expect(aiSuggestedQuote).toEqual({
+      source: 'ai_suggestion',
+      price: 0,
+      duration: 0
+    });
+    expect(ruleBasedQuote.source).toBe('pricing_rules');
+    expect(previewQuote.source).toBe('style_preview');
+    expect(aiSuggestedQuote.source).not.toBe(ruleBasedQuote.source);
+    expect(aiSuggestedQuote.source).not.toBe(previewQuote.source);
   });
 });

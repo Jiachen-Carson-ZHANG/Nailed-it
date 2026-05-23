@@ -1,5 +1,6 @@
 import type {
   AIRecognitionResult,
+  AISuggestedQuote,
   BaseServiceName,
   NailAddonName,
   NailStyleName,
@@ -9,6 +10,10 @@ import type {
 
 function toSelectionSet<T extends string>(items: T[]): Set<T> {
   return new Set(items);
+}
+
+export function getAiSuggestedQuote(recognition: AIRecognitionResult): AISuggestedQuote {
+  return recognition.meta.aiSuggestedQuote;
 }
 
 export function calculateEstimate(
