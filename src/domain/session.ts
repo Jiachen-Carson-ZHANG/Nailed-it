@@ -43,7 +43,9 @@ const customerPaths = {
 };
 
 const merchantPaths = {
-  home: '/merchant/calendar'
+  home: '/merchant/calendar',
+  bookingDetail: (id: string) => `/merchant/booking/${id}`,
+  manage: '/merchant/manage'
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
@@ -111,7 +113,13 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
     },
     tabs: [
       { href: merchantPaths.home, label: 'Calendar', glyph: '◫', available: true },
-      { href: '/merchant/manage', label: 'Manage', glyph: '⚙', available: false },
+      {
+        href: merchantPaths.manage,
+        label: 'Manage',
+        glyph: '⚙',
+        matchPrefix: merchantPaths.manage,
+        available: true
+      },
       { href: '/merchant/messages', label: 'Messages', glyph: '✉', available: false },
       { href: '/merchant/profile', label: 'Me', glyph: '◉', available: false }
     ]
@@ -147,6 +155,14 @@ export function getCustomerBookingPath(): string {
 
 export function getCustomerBookingConfirmPath(): string {
   return customerPaths.bookingConfirm;
+}
+
+export function getMerchantBookingPath(id: string): string {
+  return merchantPaths.bookingDetail(id);
+}
+
+export function getMerchantManagePath(): string {
+  return merchantPaths.manage;
 }
 
 export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {

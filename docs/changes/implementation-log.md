@@ -45,6 +45,23 @@
 
 **Must remain true:** Future booking activation should come from the shared session/navigation model; customer discovery tags must stay typed enough to distinguish domain attributes from marketing/lifestyle labels.
 
+## 2026-05-24 - Merchant Calendar And Pricing Slice
+
+**Context:** Merchant routes were still placeholders, so the shared booking snapshots and pricing rules had no merchant-side operational surface.
+
+**Changes (merchant core):**
+- Replaced the merchant calendar placeholder with a mobile-shell calendar view backed by shared mock bookings and a day-level bottom sheet.
+- Added merchant booking detail and pricing management pages, plus focused merchant components for daily booking cards, calendar interaction, and pricing rule editing.
+- Exposed merchant manage and booking detail paths through the shared session/navigation helpers so merchant navigation stays coherent with the existing shell.
+- Extended global styles for calendar, booking detail, and pricing rule layouts without introducing a separate merchant-only style system.
+
+**Verification:**
+- `npm test -- src/app/merchant/calendar/page.test.tsx src/app/merchant/manage/page.test.tsx src/app/merchant/booking/[id]/page.test.tsx`
+- `npm test`
+- `npm run build`
+
+**Must remain true:** Merchant scheduling and pricing views must continue to read the same booking snapshots and pricing rules used elsewhere in the app; avoid creating a second merchant-only source of truth for quotes or appointments.
+
 ## 2026-05-19 - Graphify Collaboration Refresh
 
 **Context:** Migrated Graphify artifacts described the old BT5151 codebase and included machine-local paths, making agent orientation misleading in the Nailed-it scaffold.

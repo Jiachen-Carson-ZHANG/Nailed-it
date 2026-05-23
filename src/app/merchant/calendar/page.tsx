@@ -1,24 +1,31 @@
 import Link from 'next/link';
+import { MobileLayout } from '@/components/layout/MobileLayout';
+import { getMerchantManagePath } from '@/domain/session';
+import { MonthlyCalendar } from '@/features/merchant/MonthlyCalendar';
+import { mockBookings } from '@/mock/bookings';
 
-export default function MerchantCalendarPlaceholderPage() {
+export default function MerchantCalendarPage() {
+  const todayCount = mockBookings.filter((booking) => booking.date === '2026-05-23').length;
+
   return (
-    <main className="landing-page">
-      <section className="landing-hero" aria-labelledby="merchant-calendar-title">
-        <span className="eyebrow">Merchant placeholder</span>
-        <h1 id="merchant-calendar-title">Merchant calendar is ready for Task 2</h1>
-        <p className="subtitle">
-          This temporary route prevents a dead-end from the landing page while the scheduling
-          workspace is still being built.
-        </p>
+    <MobileLayout
+      role="merchant"
+      subtitle="Monthly calendar, day sheet, and booking details all read from the shared mock booking snapshots."
+      title="Nailed-it"
+    >
+      <section className="page-heading">
+        <p className="section-eyebrow">May 2026</p>
+        <h1>Appointment calendar</h1>
+        <p className="section-copy">Tap a day to inspect the appointment sheet for that date.</p>
       </section>
-
-      <section className="role-panel" aria-label="Merchant placeholder actions">
-        <Link className="role-card" href="/">
-          <span>Back</span>
-          <strong>Return to landing</strong>
-          <p>Go back to the scaffold entry page and continue from there.</p>
+      <section className="summary-card">
+        <strong>{todayCount} bookings on today&apos;s board</strong>
+        <p>Use the calendar to inspect daily workload, then switch to manage when pricing rules need tuning.</p>
+        <Link className="button button-secondary" href={getMerchantManagePath()}>
+          Open pricing rules
         </Link>
       </section>
-    </main>
+      <MonthlyCalendar bookings={mockBookings} />
+    </MobileLayout>
   );
 }

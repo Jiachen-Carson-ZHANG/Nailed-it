@@ -3,6 +3,8 @@ import {
   getCustomerBookingConfirmPath,
   getCustomerBookingPath,
   getCustomerStylePath,
+  getMerchantBookingPath,
+  getMerchantManagePath,
   getMockSession,
   getRouteIntent
 } from '@/domain/session';
@@ -70,7 +72,9 @@ describe('mock data coherence', () => {
       brandHref: '/merchant/calendar',
       homePath: '/merchant/calendar'
     });
-    expect(getMockSession('merchant').tabs).toHaveLength(1);
+    expect(getMerchantBookingPath('booking-001')).toBe('/merchant/booking/booking-001');
+    expect(getMerchantManagePath()).toBe('/merchant/manage');
+    expect(getMockSession('merchant').tabs).toHaveLength(2);
   });
 
   it('keeps discovery facets typed so UI tags do not mix concerns in one raw string list', () => {

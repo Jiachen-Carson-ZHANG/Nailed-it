@@ -690,6 +690,149 @@ select {
   object-fit: cover;
 }
 
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.calendar-day {
+  display: grid;
+  min-height: 4.5rem;
+  align-content: start;
+  gap: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  padding: 0.55rem 0.35rem;
+  text-align: left;
+}
+
+.calendar-day strong {
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.calendar-day span,
+.booking-card span,
+.booking-card small,
+.booking-detail p {
+  color: var(--color-muted);
+}
+
+.calendar-day span {
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+
+.calendar-day-busy {
+  background: rgba(236, 93, 123, 0.08);
+  border-color: rgba(236, 93, 123, 0.18);
+}
+
+.booking-list,
+.pricing-section,
+.booking-detail {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.booking-card,
+.pricing-card {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  padding: 0.8rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.booking-card strong,
+.booking-detail h1,
+.pricing-section h2 {
+  margin: 0;
+}
+
+.booking-card span,
+.booking-card small {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.booking-detail {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  padding: 0.9rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.booking-detail img {
+  width: 100%;
+  max-height: 16rem;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.booking-detail-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.booking-detail p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pricing-section {
+  margin-bottom: 0.5rem;
+}
+
+.pricing-section h2 {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.pricing-card-toggle,
+.pricing-fields {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pricing-card-toggle span,
+.pricing-fields label span {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.pricing-fields {
+  align-items: start;
+}
+
+.pricing-fields label {
+  display: grid;
+  flex: 1;
+  gap: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.pricing-fields input[type='number'] {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface-strong);
+  padding: 0.6rem;
+  color: var(--color-text);
+}
+
+.pricing-fields input[type='range'] {
+  width: 100%;
+}
+
 @media (min-width: 28rem) {
   .discovery-stat-grid,
   .detail-quote-grid,
