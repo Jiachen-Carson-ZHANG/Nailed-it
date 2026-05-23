@@ -14,25 +14,6 @@ Use one narrow always-on graph at `graphify-out/`. It should contain stable arch
 
 Temporary broader graphs are allowed for forensic investigations, but durable findings should be promoted into current architecture docs or ADRs before entering the canonical graph.
 
-## Shared Artifacts
-
-Commit only the human-readable report and manifest:
-
-- `graphify-out/GRAPH_REPORT.md`
-- `graphify-out/manifest.json`
-
-Keep raw and machine-local outputs out of git:
-
-- `graphify-out/graph.json`
-- `graphify-out/graph.html`
-- `graphify-out/.graphify_python`
-- `graphify-out/.graphify_labels.json`
-- `graphify-out/.graphify_root`
-- `graphify-out/cost.json`
-- `graphify-out/cache/`
-
-This keeps collaborators aligned on the architecture summary without forcing large generated files, absolute local paths, or machine-specific Graphify metadata into shared history.
-
 ## Exclusions
 
 Exclude generated and runtime-heavy material from the canonical graph:
@@ -54,10 +35,8 @@ Use a clean `/graphify .` rebuild after `.graphifyignore` changes, deleted or re
 
 Do not silently run semantic extraction from hooks. Hooks may run code-only AST updates or mark semantic staleness, but LLM-backed semantic extraction must be intentional.
 
-For multi-person work, the PR author refreshes `GRAPH_REPORT.md` and `manifest.json` when changing architecture docs, ADRs, runtime prompts, skills, agent instructions, or graph scope. CI may run `python scripts/graphify_maintenance.py check-stale` to catch missing files and stale manifests.
-
 ## Agent Usage
 
-Agents should read `graphify-out/GRAPH_REPORT.md` for orientation before architecture/codebase work, then verify assumptions against actual source files before editing. If local `graph.json` is missing, use the shared report and source files; do not assume the raw graph is committed.
+Agents should read `graphify-out/GRAPH_REPORT.md` for orientation before architecture/codebase work, then verify assumptions against actual source files before editing.
 
 Absence from the graph does not mean absence from the repository. The graph is deliberately scoped.

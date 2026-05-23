@@ -1,8 +1,0 @@
-[project]
-name = "nailed-it"
-version = "0.0.0"
-description = "Nailed-it project scaffold and tooling"
-requires-python = ">=3.10"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

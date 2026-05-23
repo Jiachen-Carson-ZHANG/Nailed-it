@@ -7,12 +7,20 @@ __pycache__/
 
 graphify-out/
 
+plexe-main/
+BT5151_GroupProject_Source/
+BT5151_GroupProject_Source.zip
+
 docs/plans/
 docs/changes/implementation-log.md
-docs/decisions/sample-scaffold-decision.md
 
 tests/
 lab/
+feature_engineering_runs/
+generated_preprocessing_runs/
+generated_feature_engineering_runs/
+
+XAI Case Study/
 
 *.pyc
 *.pkl
@@ -25,4 +33,11 @@ lab/
 *.Zone.Identifier
 
 .env
+README.md
 ASSIGNMENT_README.md
+requirements.txt
+Learn_From_Plexe.md
+Some additional direction from outsider.md
+can you check log.md
+credit-rik-improving log.md
+train_model.md

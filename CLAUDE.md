@@ -80,8 +80,6 @@ Rules:
 - Before editing code, verify graph-derived assumptions against the actual source files.
 - Code-only graph maintenance can use `graphify update .`; semantic doc/prompt/reference updates should be explicit and batched, not silently run from hooks.
 - If `.graphifyignore` changes, files are deleted/renamed, or graph pollution is suspected, prefer a clean `/graphify .` rebuild over incremental update.
-- Only `graphify-out/GRAPH_REPORT.md` and `graphify-out/manifest.json` are shared Graphify artifacts. Raw graph files such as `graph.json`, `graph.html`, and machine-local metadata are local-only.
-- If `graphify-out/graph.json` is absent, use `GRAPH_REPORT.md` plus direct source inspection; do not assume missing raw graph files mean Graphify is disabled.
 
 ## Project MCP memory scope: Mem0 and Honcho
 
