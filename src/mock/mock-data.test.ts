@@ -45,13 +45,17 @@ describe('mock data coherence', () => {
   });
 
   it('models route selection through a mock session object', () => {
-    expect(getMockSession('customer')).toEqual({
+    expect(getMockSession('customer')).toMatchObject({
       role: 'customer',
+      brandHref: '/customer/home',
       homePath: '/customer/home'
     });
-    expect(getMockSession('merchant')).toEqual({
+    expect(getMockSession('customer').tabs).toHaveLength(1);
+    expect(getMockSession('merchant')).toMatchObject({
       role: 'merchant',
+      brandHref: '/merchant/calendar',
       homePath: '/merchant/calendar'
     });
+    expect(getMockSession('merchant').tabs).toHaveLength(1);
   });
 });

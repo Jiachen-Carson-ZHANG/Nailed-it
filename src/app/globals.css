@@ -168,6 +168,8 @@ select {
 .mobile-shell {
   min-height: 100vh;
   min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   max-width: var(--shell-max-width);
   margin: 0 auto;
   background:
@@ -206,17 +208,15 @@ select {
 }
 
 .mobile-content {
-  min-height: calc(100dvh - var(--top-bar-height));
+  min-height: 0;
   padding: 1rem;
 }
 
 .mobile-content-with-tabs {
-  padding-bottom: calc(var(--tab-bar-height) + 1rem);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 .bottom-tab-bar {
-  position: sticky;
-  bottom: 0;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

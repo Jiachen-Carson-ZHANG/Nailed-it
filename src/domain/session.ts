@@ -2,26 +2,65 @@ import type { UserRole } from './nail';
 
 export const defaultMockRole: UserRole = 'customer';
 
-export type MockSession = {
-  role: UserRole;
-  homePath: string;
+export type ShellTab = {
+  glyph: string;
+  href: string;
+  label: string;
+  matchPrefix?: string;
 };
 
-const mockSessionsByRole: Record<UserRole, MockSession> = {
+export type MockSession = {
+  brandHref: string;
+  homePath: string;
+  role: UserRole;
+  tabs: ShellTab[];
+};
+
+type MockSessionTemplate = {
+  brandHref: string;
+  homePath: string;
+  role: UserRole;
+  tabs: Array<ShellTab & { available: boolean }>;
+};
+
+const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
   customer: {
     role: 'customer',
-    homePath: '/customer/home'
+    brandHref: '/customer/home',
+    homePath: '/customer/home',
+    tabs: [
+      { href: '/customer/home', label: 'Home', glyph: '⌂', available: true },
+      { href: '/customer/booking', label: 'Book', glyph: '✦', available: false },
+      { href: '/customer/messages', label: 'Messages', glyph: '✉', available: false },
+      { href: '/customer/profile', label: 'Me', glyph: '◉', available: false }
+    ]
   },
   merchant: {
     role: 'merchant',
-    homePath: '/merchant/calendar'
+    brandHref: '/merchant/calendar',
+    homePath: '/merchant/calendar',
+    tabs: [
+      { href: '/merchant/calendar', label: 'Calendar', glyph: '◫', available: true },
+      { href: '/merchant/manage', label: 'Manage', glyph: '⚙', available: false },
+      { href: '/merchant/messages', label: 'Messages', glyph: '✉', available: false },
+      { href: '/merchant/profile', label: 'Me', glyph: '◉', available: false }
+    ]
   }
 };
 
-export const defaultMockSession: MockSession = mockSessionsByRole[defaultMockRole];
+function toMockSession({ tabs, ...template }: MockSessionTemplate): MockSession {
+  return {
+    ...template,
+    tabs: tabs.filter((tab) => tab.available).map(({ available: _available, ...tab }) => tab)
+  };
+}
+
+export const defaultMockSession: MockSession = toMockSession(
+  mockSessionTemplatesByRole[defaultMockRole]
+);
 
 export function getMockSession(role: UserRole): MockSession {
-  return mockSessionsByRole[role];
+  return toMockSession(mockSessionTemplatesByRole[role]);
 }
 
 export function homePathForRole(role: UserRole): string {
