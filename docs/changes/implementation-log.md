@@ -10,21 +10,20 @@
 
 **Must remain true:**
 
-## 2026-05-19 - Graphify Collaboration Refresh
+## 2026-05-23 - Graphify Removal
 
-**Context:** Migrated Graphify artifacts described the old BT5151 codebase and included machine-local paths, making agent orientation misleading in the Nailed-it scaffold.
+**Context:** Graphify infrastructure (knowledge graph, hooks, CI, ADR, policy doc, scripts, tests) was removed from the repository as no longer needed.
 
-**Changes (Graphify governance):**
-- Removed stale raw graph artifacts from the shared commit surface and made them local-only.
-- Rebuilt the shared report for the current scaffold with a zero-token AST update.
-- Added a report-and-manifest-only collaboration policy, stale-check tooling, CI validation, and an ADR.
+**Changes (tooling/governance):**
+- Deleted `graphify-out/`, `.graphifyignore`, `scripts/graphify_maintenance.py`, `tests/test_graphify_maintenance.py`, `.github/workflows/graphify.yml`, `docs/architecture/graphify-ingestion-policy.md`, and `docs/decisions/0002-graphify-collaboration.md`.
+- Removed `## graphify` sections and Graphify references from `CLAUDE.md` and `AGENTS.md`.
+- Removed Graphify-related hooks from `.codex/hooks.json` (and noted `.claude/settings.json` for manual cleanup).
+- Refreshed `docs/architecture/current-state.md` and stripped Graphify-only patterns from `.gitignore` and `pyproject.toml`.
 
 **Verification:**
-- `graphify update . --force`
-- `python scripts/graphify_maintenance.py check-stale`
-- `python -m pytest tests/test_graphify_maintenance.py`
+- `rg -i graphify` returns no results in tracked files (excluding this log entry and any remaining agent-config residue).
 
-**Must remain true:** `GRAPH_REPORT.md` and `manifest.json` are the only committed Graphify outputs; raw graph files remain local-only and semantic extraction is intentional.
+**Must remain true:** No Graphify tooling, hooks, CI, or documentation remains; agent orientation now relies on direct file inspection and project docs only.
 
 ## 2026-05-19 - Python Version Contract
 
@@ -33,9 +32,5 @@
 **Changes (tooling):**
 - Added `pyproject.toml` with `requires-python = ">=3.10"`.
 - Added `.python-version` (`3.10`) for pyenv/asdf defaults.
-- Documented the contract in `graphify-out/README.md`; CI continues to run on 3.10 as the minimum supported version.
 
-**Verification:**
-- `python -m pytest tests/test_graphify_maintenance.py`
-
-**Must remain true:** Repository tooling and maintenance scripts target Python 3.10+; CI validates the floor on 3.10.
+**Must remain true:** Repository tooling targets Python 3.10+.

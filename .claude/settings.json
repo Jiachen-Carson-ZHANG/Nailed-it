@@ -1,41 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "includeCoAuthoredBy": false
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Glob|Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if (Test-Path 'graphify-out/GRAPH_REPORT.md') { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"graphify: Shared report exists. Read graphify-out/GRAPH_REPORT.md for orientation, then verify against source files before editing. Raw graph files may be local-only.\"}}' }"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|MultiEdit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python scripts/graphify_maintenance.py record --from-hook; exit 0"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python scripts/graphify_maintenance.py flush --hook; exit 0"
-          }
-        ]
-      }
-    ]
   }
 }
+
