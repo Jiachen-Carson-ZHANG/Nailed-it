@@ -3,8 +3,10 @@ import { render, screen } from '@testing-library/react';
 import LandingPage from './page';
 
 vi.mock('@/domain/session', () => ({
-  homePathForRole: (role: 'customer' | 'merchant') =>
-    role === 'customer' ? '/mock-customer-home' : '/mock-merchant-calendar'
+  getMockSession: (role: 'customer' | 'merchant') => ({
+    role,
+    homePath: role === 'customer' ? '/mock-customer-home' : '/mock-merchant-calendar'
+  })
 }));
 
 describe('LandingPage', () => {

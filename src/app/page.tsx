@@ -1,15 +1,15 @@
 import Link from 'next/link';
-import { homePathForRole } from '@/domain/session';
+import { getMockSession } from '@/domain/session';
 
 const roleCards = [
   {
-    href: homePathForRole('customer'),
+    href: getMockSession('customer').homePath,
     label: 'Customer',
     title: 'Find styles and book',
     description: 'Upload a reference, review the AI breakdown, and move straight into a booking flow.'
   },
   {
-    href: homePathForRole('merchant'),
+    href: getMockSession('merchant').homePath,
     label: 'Merchant',
     title: 'Manage prices and bookings',
     description: 'Keep pricing rules, appointment demand, and daily scheduling in one mobile workspace.'

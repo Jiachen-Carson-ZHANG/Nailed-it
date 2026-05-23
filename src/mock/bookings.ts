@@ -1,12 +1,7 @@
 import { calculateEstimate } from '@/domain/pricing';
 import type { AIRecognitionResult, Booking, BookingQuote } from '@/domain/nail';
-import {
-  chromeMirrorAIResult,
-  dailySolidAIResult,
-  mockAIResult,
-  softFrenchAIResult
-} from './ai';
 import { defaultPricingRules } from './pricing';
+import { getStyleDefinitionById } from './styles';
 
 function createBookingQuote(recognition: AIRecognitionResult): BookingQuote {
   const quote = calculateEstimate(recognition, defaultPricingRules);
@@ -18,66 +13,106 @@ function createBookingQuote(recognition: AIRecognitionResult): BookingQuote {
   };
 }
 
+function createBookingFromStyle({
+  customerName,
+  date,
+  id,
+  merchantName,
+  notes,
+  status,
+  styleId,
+  time
+}: {
+  customerName: string;
+  date: string;
+  id: string;
+  merchantName: string;
+  notes: string;
+  status: Booking['status'];
+  styleId: string;
+  time: string;
+}): Booking {
+  const style = getStyleDefinitionById(styleId);
+
+  if (!style) {
+    throw new Error(`Unknown style definition: ${styleId}`);
+  }
+
+  return {
+    id,
+    customerName,
+    merchantName,
+    styleTitle: style.title,
+    styleImageUrl: style.imageUrl,
+    date,
+    time,
+    quote: createBookingQuote(style.recognition),
+    status,
+    notes,
+    recognition: style.recognition
+  };
+}
+
 export const mockBookings: Booking[] = [
-  {
+  createBookingFromStyle({
     id: 'booking-001',
     customerName: 'Melissa Tan',
     merchantName: 'Nailed-it Studio',
-    styleTitle: 'Rose Cat Eye Shine',
-    styleImageUrl:
-      'https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=80',
+    styleId: 'rose-cat-eye',
     date: '2026-05-23',
     time: '14:00',
-    quote: createBookingQuote(mockAIResult),
     status: 'pending',
-    notes: 'Prefer a softer pink tone and lighter crystal placement.',
-    recognition: mockAIResult
-  },
-  {
+    notes: 'Prefer a softer pink tone and lighter crystal placement.'
+  }),
+  createBookingFromStyle({
     id: 'booking-002',
     customerName: 'Amy Lim',
     merchantName: 'Nailed-it Studio',
-    styleTitle: 'Soft Studio French',
-    styleImageUrl:
-      'https://images.unsplash.com/photo-1610992015732-2449b76344bc?auto=format&fit=crop&w=900&q=80',
+    styleId: 'soft-french',
     date: '2026-05-23',
     time: '16:00',
-    quote: createBookingQuote(softFrenchAIResult),
     status: 'confirmed',
-    notes: 'Keep the line thin and natural.',
-    recognition: softFrenchAIResult
-  },
-  {
+    notes: 'Keep the line thin and natural.'
+  }),
+  createBookingFromStyle({
     id: 'booking-003',
     customerName: 'Zoe Wong',
     merchantName: 'Nailed-it Studio',
-    styleTitle: 'Chrome Mirror Almond',
-    styleImageUrl:
-      'https://images.unsplash.com/photo-1519014816548-bf5fe059798b?auto=format&fit=crop&w=900&q=80',
+    styleId: 'chrome-mirror',
     date: '2026-05-24',
     time: '11:00',
-    quote: createBookingQuote(chromeMirrorAIResult),
     status: 'completed',
-    notes: 'Short almond shape, keep the chrome reflection clean.',
-    recognition: chromeMirrorAIResult
-  },
-  {
+    notes: 'Short almond shape, keep the chrome reflection clean.'
+  }),
+  createBookingFromStyle({
     id: 'booking-004',
     customerName: 'Rachel Goh',
     merchantName: 'Nailed-it Studio',
-    styleTitle: 'Clean Daily Solid',
-    styleImageUrl:
-      'https://images.unsplash.com/photo-1599948128020-9a44505b0d1b?auto=format&fit=crop&w=900&q=80',
+    styleId: 'minimal-solid',
     date: '2026-05-24',
     time: '15:30',
-    quote: createBookingQuote(dailySolidAIResult),
     status: 'pending',
-    notes: 'A quick after-work appointment would be ideal.',
-    recognition: dailySolidAIResult
-  }
+    notes: 'A quick after-work appointment would be ideal.'
+  })
 ];
 
-export const availableSlots = [
-  { label: 'Today', date: '2026-05-23', slots: ['14:00', '16:00'] },
-  { label: 'Tomorrow', date: '2026-05-24', slots: ['11:00', '15:30', '18:00'] }
+const slotTemplates = [
+  { label: 'Today', date: '2026-05-23', slots: ['10:00', '12:30', '14:00', '16:00', '18:00'] },
+  { label: 'Tomorrow', date: '2026-05-24', slots: ['11:00', '13:30', '15:30', '18:00'] }
 ] as const;
+
+export function getAvailableSlots(bookings: Booking[]) {
+  return slotTemplates.map((day) => {
+    const occupiedTimes = new Set(
+      bookings.filter((booking) => booking.date === day.date).map((booking) => booking.time)
+    );
+
+    return {
+      label: day.label,
+      date: day.date,
+      slots: day.slots.filter((slot) => !occupiedTimes.has(slot))
+    };
+  });
+}
+
+export const availableSlots = getAvailableSlots(mockBookings);
