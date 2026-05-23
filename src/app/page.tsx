@@ -1,14 +1,15 @@
 import Link from 'next/link';
+import { homePathForRole } from '@/domain/session';
 
 const roleCards = [
   {
-    href: '/customer/home',
+    href: homePathForRole('customer'),
     label: 'Customer',
     title: 'Find styles and book',
     description: 'Upload a reference, review the AI breakdown, and move straight into a booking flow.'
   },
   {
-    href: '/merchant/calendar',
+    href: homePathForRole('merchant'),
     label: 'Merchant',
     title: 'Manage prices and bookings',
     description: 'Keep pricing rules, appointment demand, and daily scheduling in one mobile workspace.'

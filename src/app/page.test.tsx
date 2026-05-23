@@ -1,5 +1,11 @@
+import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import LandingPage from './page';
+
+vi.mock('@/domain/session', () => ({
+  homePathForRole: (role: 'customer' | 'merchant') =>
+    role === 'customer' ? '/mock-customer-home' : '/mock-merchant-calendar'
+}));
 
 describe('LandingPage', () => {
   it('renders the landing shell with both role entry points', () => {
@@ -14,11 +20,11 @@ describe('LandingPage', () => {
       screen.getByRole('link', {
         name: /customer find styles and book/i
       })
-    ).toHaveAttribute('href', '/customer/home');
+    ).toHaveAttribute('href', '/mock-customer-home');
     expect(
       screen.getByRole('link', {
         name: /merchant manage prices and bookings/i
       })
-    ).toHaveAttribute('href', '/merchant/calendar');
+    ).toHaveAttribute('href', '/mock-merchant-calendar');
   });
 });
