@@ -15,6 +15,16 @@ describe('CustomerBookingConfirmPage', () => {
     clearCustomerBookingDraft();
   });
 
+  it('shows the empty state when no draft is available', () => {
+    render(<CustomerBookingConfirmPage />);
+
+    expect(screen.getByText(/no active booking draft/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to booking/i })).toHaveAttribute(
+      'href',
+      '/customer/booking'
+    );
+  });
+
   it('renders the current booking draft summary instead of reconstructing from mock ai defaults', () => {
     saveCustomerBookingDraft({
       estimate: {
@@ -37,6 +47,29 @@ describe('CustomerBookingConfirmPage', () => {
     expect(screen.getByText(/current ai booking draft/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/edited note carried into confirmation/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
+  });
+
+  it('consumes the draft so a later fresh visit falls back to the empty state', () => {
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: mockMeta(),
+        selection: mockSelection()
+      }
+    });
+
+    const firstRender = render(<CustomerBookingConfirmPage />);
+    expect(firstRender.getByText(/current ai booking draft/i)).toBeInTheDocument();
+
+    firstRender.unmount();
+
+    render(<CustomerBookingConfirmPage />);
+    expect(screen.getByText(/no active booking draft/i)).toBeInTheDocument();
   });
 
   it('lets the customer pick a slot and confirm the appointment with a toast', async () => {

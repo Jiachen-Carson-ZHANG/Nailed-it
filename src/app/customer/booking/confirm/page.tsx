@@ -6,13 +6,13 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Toast } from '@/components/ui/Toast';
-import { getCustomerBookingDraft } from '@/domain/booking-draft';
+import { consumeCustomerBookingDraft } from '@/domain/booking-draft';
 import { getCustomerBookingPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import { availableSlots } from '@/mock/bookings';
 
 export default function CustomerBookingConfirmPage() {
-  const draft = getCustomerBookingDraft();
+  const [draft] = useState(() => consumeCustomerBookingDraft());
   const [notes, setNotes] = useState(
     draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
   );
