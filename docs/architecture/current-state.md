@@ -1,21 +1,26 @@
 # Architecture: Current State
 
-Last updated: 2026-05-19
-
-Nailed-it is currently a scaffolded repository. The previous BT5151 application code and generated Graphify map have been removed from the active architecture surface; this document now records the current source of truth until product code is added.
+Last updated: 2026-05-24
 
 ## Pipeline
 
-No runtime application pipeline exists yet.
+The active frontend is a Next.js App Router application with a mobile-first shell:
+
+1. `src/app/page.tsx` routes users into role-specific flows through `src/domain/session.ts`.
+2. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
+3. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time.
+4. Customer style detail combines the card-level view (`findStyleById`) with the underlying mock recognition payload (`getStyleDefinitionById`) so detail UI and pricing stay tied to one shared mock source of truth.
 
 ## Key modules
 
-- `AGENTS.md` and `CLAUDE.md`: project-level agent guidance.
-- `.claude/settings.json` and `.codex/hooks.json`: agent hook configuration for Graphify orientation and maintenance.
-- `scripts/graphify_maintenance.py`: hook-safe Graphify change classifier and updater.
-- `docs/architecture/graphify-ingestion-policy.md`: canonical Graphify scope, exclusions, and maintenance policy.
-- `graphify-out/GRAPH_REPORT.md` and `graphify-out/manifest.json`: shared Graphify orientation artifacts; raw graph files are local-only.
+- `src/app/customer/home/page.tsx`: customer discovery entry using the shared mobile shell.
+- `src/app/customer/style/[id]/page.tsx`: style detail route backed by shared mock style helpers.
+- `src/features/customer/StyleCard.tsx`, `StyleWaterfallGrid.tsx`, `StyleDetailPanel.tsx`: focused customer presentation components.
+- `src/mock/styles.ts`: canonical mock style dataset and read helpers for trending cards and style detail lookup.
+- `src/domain/pricing.ts`: rule-based quote calculator used by mock style previews and bookings.
+- `src/components/layout/*`: shared shell primitives for both customer and merchant role surfaces.
+- `docs/architecture/graphify-ingestion-policy.md` and `graphify-out/*`: Graphify collaboration policy and shared orientation artifacts.
 
 ## LLM integration
 
-No product LLM integration exists yet. Current LLM-related behavior is limited to agent guidance and Graphify semantic extraction, which must be run intentionally rather than from hooks.
+No live product LLM integration exists yet. The current product-facing AI surface is mocked through `src/mock/ai.ts`, which feeds recognition payloads into customer discovery/detail and pricing flows. Graphify semantic extraction remains an intentional maintenance tool rather than a runtime dependency.
