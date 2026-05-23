@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `cc-guide` is **not an application** — it's a distribution of Claude Code configuration (skills, sub-agents, MCP server config) plus documentation and slides aimed at SAP developers. The bundled `.claude/` directory is the *deliverable*: users either run `./setup` to merge it into `~/.claude/` or copy it into a project root. Treat `.claude/` as user-facing artifact, not internal tooling.
 
+## Product
+
+Building Nailed It — an AI-powered nail salon operations platform that provides virtual try-ons, auto-quotes, books, and maintains a style library by decomposing nail style images into structured attributes.
+Target users: nail salon owners and technicians (B side), end customers (C side); B2B2C model.
+Full PRD: [docs/prds/nailed-it-prd1.0.md](docs/prds/nailed-it-prd1.0.md)
+
+
 ## Commands
 
 ```bash
@@ -34,11 +41,3 @@ The `docs/` folder has its own [CLAUDE.md](docs/CLAUDE.md). Quick version: `road
 ## Contribution rules
 
 See [docs/RULES.md](docs/RULES.md) for contribution rules — how to add skills/agents, the non-destructive `setup` contract, vendored-skill tracking via `skills-lock.json`, commit style, and pre-commit expectations. Follow it when changing anything under `.claude/`, `.mcp.json`, or `setup`.
-
-## Pre-commit
-
-`shellcheck` runs on shell scripts (`setup`). `check-added-large-files` caps at 500kb. Markdown is intentionally not linted — most skills are vendored from upstream repos with varying styles, and enforcing a single ruleset turns syncs into churn.
-
-## Setup script behavior — keep dynamic
-
-`setup` enumerates `.claude/skills/*/` and `.claude/agents/*.md` at runtime — it does not hardcode skill names. When adding or renaming a bundled skill, only the directory needs to move; the installer picks it up automatically. The one place skill names appear literally is the "Next steps" hint in `setup` (currently `/to-onboard`, `/to-prd`, `/to-sap-plan`) — keep it pointing at the most useful entry points.
