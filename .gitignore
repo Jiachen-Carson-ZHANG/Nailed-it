@@ -14,16 +14,10 @@ npm-debug.log*
 lab/cache/
 lab/logs/
 
-# Graphify — entirely local, no graphify artifacts in GitHub
+# Graphify — entirely local, all files live under graphify-out/ or .graphify-state/
 graphify-out/
 .graphify-state/
 .graphifyignore
-scripts/graphify_maintenance.py
-scripts/graphify-out/
-tests/test_graphify_maintenance.py
-docs/architecture/graphify-ingestion-policy.md
-docs/decisions/0002-graphify-collaboration.md
-.github/workflows/graphify.yml
 *.pkl
 *.zip
 *.csv
