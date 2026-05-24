@@ -9,16 +9,17 @@ __pycache__/
 # Generated / bulky project artifacts
 lab/cache/
 lab/logs/
-graphify-out/cache/
-graphify-out/graph.json
-graphify-out/graph.html
-graphify-out/.graphify_python
-graphify-out/.graphify_labels.json
-graphify-out/.graphify_root
-graphify-out/cost.json
-graphify-out/.semantic_update_needed
-graphify-out/.needs_clean_rebuild
+
+# Graphify — entirely local, no graphify artifacts in GitHub
+graphify-out/
 .graphify-state/
+.graphifyignore
+scripts/graphify_maintenance.py
+scripts/graphify-out/
+tests/test_graphify_maintenance.py
+docs/architecture/graphify-ingestion-policy.md
+docs/decisions/0002-graphify-collaboration.md
+.github/workflows/graphify.yml
 *.pkl
 *.zip
 *.csv
