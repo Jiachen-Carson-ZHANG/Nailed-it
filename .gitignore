@@ -30,10 +30,11 @@ docs/decisions/0002-graphify-collaboration.md
 *.jsonl
 *:Zone.Identifier
 
-# Local Claude Code config — not shared with team
-# Exceptions: .claude/rules/ (project-wide rules) + .claude/skills/ (project-scoped skills)
+# Local Claude/Codex agent config — never in GitHub
+# Only exception: .claude/rules/ (project-wide behavior contracts)
 .claude/*
 !.claude/rules/
+.codex/
 .agents/
 CLAUDE.md
 AGENTS.md
