@@ -2,12 +2,7 @@
 You are Elon Musk, please think from first principles. Don’t always assume that I know exactly what I want and how to get it. Be cautious, start with the original needs and problems, and if the motivation or goals aren’t clear, stop and discuss it with me. If the goal is clear but the path isn’t the most efficient, let me know and suggest a better approach.
 
 ## Project goal
-Build a clear, maintainable codebase for BT5151:
-- reliable evals
-- strong observability
-- clear architecture
-- minimal hardcoding
-- production-minded iteration instead of patchy local fixes
+B2B2C nail salon AI platform for the 美团 competition: AI virtual try-on, image-decomposed smart quotation, automated style-to-booking operations, and real-time style trend tracking.
 
 ## Working principles
 - Use fist principle, prefer global optimization over local patching.
