@@ -833,12 +833,203 @@ select {
   width: 100%;
 }
 
+.conversation-list,
+.chat-room,
+.chat-thread,
+.profile-hero,
+.profile-section,
+.history-list,
+.analytics-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.conversation-list-item,
+.chat-room,
+.history-card,
+.analytics-card {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.conversation-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.conversation-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.conversation-copy {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.conversation-row,
+.history-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.conversation-row strong,
+.history-card strong,
+.analytics-card strong {
+  margin: 0;
+}
+
+.conversation-row span,
+.conversation-copy p,
+.history-card p,
+.analytics-card span,
+.analytics-card p,
+.profile-stat-label {
+  color: var(--color-muted);
+}
+
+.conversation-row span,
+.analytics-card span,
+.profile-stat-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.conversation-copy p,
+.history-card p,
+.analytics-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.conversation-unread-badge,
+.history-status-pill,
+.chat-room-booking-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65rem;
+  min-height: 1.65rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.chat-room {
+  padding: 1rem;
+}
+
+.chat-room-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chat-room-header h1 {
+  margin: 0;
+}
+
+.chat-thread {
+  padding-top: 0.25rem;
+}
+
+.chat-message {
+  display: flex;
+}
+
+.chat-message-me {
+  justify-content: flex-end;
+}
+
+.chat-bubble {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 85%;
+  padding: 0.8rem 0.85rem;
+  border-radius: 0.9rem;
+}
+
+.chat-bubble p,
+.chat-bubble span {
+  margin: 0;
+}
+
+.chat-bubble span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.chat-bubble-them {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+}
+
+.chat-bubble-me {
+  background: rgba(236, 93, 123, 0.14);
+}
+
+.chat-bubble-system {
+  justify-items: center;
+  margin: 0 auto;
+  background: rgba(108, 90, 101, 0.08);
+}
+
+.profile-hero {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background:
+    radial-gradient(circle at top right, rgba(236, 93, 123, 0.14), transparent 40%),
+    var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.profile-hero h1,
+.profile-section h2 {
+  margin: 0;
+}
+
+.profile-stat-grid,
+.analytics-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.history-card,
+.analytics-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+}
+
 @media (min-width: 28rem) {
   .discovery-stat-grid,
   .detail-quote-grid,
   .detail-actions,
   .estimate-bar,
-  .style-detail-hero {
+  .style-detail-hero,
+  .profile-stat-grid,
+  .analytics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

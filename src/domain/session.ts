@@ -39,13 +39,19 @@ const customerPaths = {
   home: '/customer/home',
   booking: '/customer/booking',
   bookingConfirm: '/customer/booking/confirm',
-  styleDetail: (id: string) => `/customer/style/${id}`
+  messages: '/customer/messages',
+  profile: '/customer/profile',
+  styleDetail: (id: string) => `/customer/style/${id}`,
+  messageDetail: (conversationId: string) => `/customer/messages/${conversationId}`
 };
 
 const merchantPaths = {
   home: '/merchant/calendar',
   bookingDetail: (id: string) => `/merchant/booking/${id}`,
-  manage: '/merchant/manage'
+  manage: '/merchant/manage',
+  messages: '/merchant/messages',
+  profile: '/merchant/profile',
+  messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
@@ -64,14 +70,16 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
       messages: {
         key: 'messages',
         label: 'Messages',
-        note: 'Customer messages are still planned in the shared session model.',
-        status: 'planned'
+        href: customerPaths.messages,
+        note: 'Customer messages expose booking-linked threads from the shared conversation snapshots.',
+        status: 'available'
       },
       profile: {
         key: 'profile',
         label: 'Profile',
-        note: 'Customer profile is still planned in the shared session model.',
-        status: 'planned'
+        href: customerPaths.profile,
+        note: 'Customer profile summarizes active bookings and recent history from the shared mock booking source.',
+        status: 'available'
       }
     },
     tabs: [
@@ -83,8 +91,20 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
         matchPrefix: customerPaths.booking,
         available: true
       },
-      { href: '/customer/messages', label: 'Messages', glyph: '✉', available: false },
-      { href: '/customer/profile', label: 'Me', glyph: '◉', available: false }
+      {
+        href: customerPaths.messages,
+        label: 'Messages',
+        glyph: '✉',
+        matchPrefix: customerPaths.messages,
+        available: true
+      },
+      {
+        href: customerPaths.profile,
+        label: 'Me',
+        glyph: '◉',
+        matchPrefix: customerPaths.profile,
+        available: true
+      }
     ]
   },
   merchant: {
@@ -101,14 +121,16 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
       messages: {
         key: 'messages',
         label: 'Messages',
-        note: 'Merchant messages are still planned in the shared session model.',
-        status: 'planned'
+        href: merchantPaths.messages,
+        note: 'Merchant messages stay tied to customer threads and nearby appointment context.',
+        status: 'available'
       },
       profile: {
         key: 'profile',
         label: 'Profile',
-        note: 'Merchant profile is still planned in the shared session model.',
-        status: 'planned'
+        href: merchantPaths.profile,
+        note: 'Merchant profile summarizes workload, unread demand, and shortcuts to operational controls.',
+        status: 'available'
       }
     },
     tabs: [
@@ -120,8 +142,20 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
         matchPrefix: merchantPaths.manage,
         available: true
       },
-      { href: '/merchant/messages', label: 'Messages', glyph: '✉', available: false },
-      { href: '/merchant/profile', label: 'Me', glyph: '◉', available: false }
+      {
+        href: merchantPaths.messages,
+        label: 'Messages',
+        glyph: '✉',
+        matchPrefix: merchantPaths.messages,
+        available: true
+      },
+      {
+        href: merchantPaths.profile,
+        label: 'Me',
+        glyph: '◉',
+        matchPrefix: merchantPaths.profile,
+        available: true
+      }
     ]
   }
 };
@@ -157,12 +191,28 @@ export function getCustomerBookingConfirmPath(): string {
   return customerPaths.bookingConfirm;
 }
 
+export function getCustomerMessagesPath(conversationId?: string): string {
+  return conversationId ? customerPaths.messageDetail(conversationId) : customerPaths.messages;
+}
+
+export function getCustomerProfilePath(): string {
+  return customerPaths.profile;
+}
+
 export function getMerchantBookingPath(id: string): string {
   return merchantPaths.bookingDetail(id);
 }
 
 export function getMerchantManagePath(): string {
   return merchantPaths.manage;
+}
+
+export function getMerchantMessagesPath(conversationId?: string): string {
+  return conversationId ? merchantPaths.messageDetail(conversationId) : merchantPaths.messages;
+}
+
+export function getMerchantProfilePath(): string {
+  return merchantPaths.profile;
 }
 
 export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {

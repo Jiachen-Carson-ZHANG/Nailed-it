@@ -9,14 +9,17 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('BottomTabBar', () => {
-  it('renders only currently available tabs for the active role', () => {
+  it('renders the full customer tab set once the routes are available', () => {
     mockedPathname = '/customer/home';
     render(<BottomTabBar role="customer" />);
 
     expect(screen.getByRole('link', { name: /home/i })).toHaveAttribute('href', '/customer/home');
     expect(screen.getByRole('link', { name: /book/i })).toHaveAttribute('href', '/customer/booking');
-    expect(screen.queryByRole('link', { name: /messages/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^me$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /messages/i })).toHaveAttribute(
+      'href',
+      '/customer/messages'
+    );
+    expect(screen.getByRole('link', { name: /^me$/i })).toHaveAttribute('href', '/customer/profile');
   });
 
   it('keeps the booking tab active on nested booking routes', () => {
@@ -24,5 +27,12 @@ describe('BottomTabBar', () => {
     render(<BottomTabBar role="customer" />);
 
     expect(screen.getByRole('link', { name: /book/i })).toHaveClass('tab-item-active');
+  });
+
+  it('keeps the messages tab active on nested message routes', () => {
+    mockedPathname = '/customer/messages/conv-merchant';
+    render(<BottomTabBar role="customer" />);
+
+    expect(screen.getByRole('link', { name: /messages/i })).toHaveClass('tab-item-active');
   });
 });

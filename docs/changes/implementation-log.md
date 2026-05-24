@@ -10,6 +10,24 @@
 
 **Must remain true:**
 
+## 2026-05-24 - Messages And Profile Slice
+
+**Context:** Task 8 was the last missing frontend slice in the shared mobile shell. Messages and profile routes were still marked planned in the session contract, so both roles lacked a complete navigation loop and no UI existed yet for conversation continuity or profile-level summaries.
+
+**Changes (messages/profile):**
+- Opened customer and merchant `messages` / `profile` routes in `src/domain/session.ts`, including tab visibility, active-match prefixes, and shared path helpers for list/detail routes.
+- Added focused shared components for conversation list rows, chat room rendering, customer booking history cards, and merchant analytics cards instead of embedding message/profile logic directly in route pages.
+- Implemented six new app routes for customer and merchant message list/detail pages plus profile pages, all reading from existing shared mock conversations and bookings.
+- Extended `src/app/globals.css` with message, chat, history, and analytics styles that stay inside the existing mobile-shell design language.
+- Added focused route tests for the new pages and updated session/tab coherence tests to lock the navigation contract.
+
+**Verification:**
+- `npm test -- src/components/layout/BottomTabBar.test.tsx src/mock/mock-data.test.ts src/app/customer/messages/page.test.tsx src/app/customer/messages/[conversationId]/page.test.tsx src/app/customer/profile/page.test.tsx src/app/merchant/messages/page.test.tsx src/app/merchant/messages/[conversationId]/page.test.tsx src/app/merchant/profile/page.test.tsx`
+- `npm test`
+- `npm run build`
+
+**Must remain true:** Messages and profile surfaces must keep reading the shared conversation and booking mocks instead of introducing page-local copies; route availability and bottom-tab visibility must continue to derive from the shared session contract.
+
 ## 2026-05-24 - Customer Discovery And Style Detail Slice
 
 **Context:** The customer home route was still a placeholder and the style detail route did not exist, so the shared mobile shell and mock style contracts were not yet exercised through a real customer flow.

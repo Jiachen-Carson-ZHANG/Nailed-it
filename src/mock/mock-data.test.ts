@@ -58,13 +58,23 @@ describe('mock data coherence', () => {
       brandHref: '/customer/home',
       homePath: '/customer/home'
     });
-    expect(getMockSession('customer').tabs).toHaveLength(2);
+    expect(getMockSession('customer').tabs).toHaveLength(4);
     expect(getCustomerBookingPath()).toBe('/customer/booking');
     expect(getCustomerBookingConfirmPath()).toBe('/customer/booking/confirm');
     expect(getCustomerStylePath('rose-cat-eye')).toBe('/customer/style/rose-cat-eye');
     expect(getRouteIntent('customer', 'booking')).toMatchObject({
       key: 'booking',
       href: '/customer/booking',
+      status: 'available'
+    });
+    expect(getRouteIntent('customer', 'messages')).toMatchObject({
+      key: 'messages',
+      href: '/customer/messages',
+      status: 'available'
+    });
+    expect(getRouteIntent('customer', 'profile')).toMatchObject({
+      key: 'profile',
+      href: '/customer/profile',
       status: 'available'
     });
     expect(getMockSession('merchant')).toMatchObject({
@@ -74,7 +84,17 @@ describe('mock data coherence', () => {
     });
     expect(getMerchantBookingPath('booking-001')).toBe('/merchant/booking/booking-001');
     expect(getMerchantManagePath()).toBe('/merchant/manage');
-    expect(getMockSession('merchant').tabs).toHaveLength(2);
+    expect(getMockSession('merchant').tabs).toHaveLength(4);
+    expect(getRouteIntent('merchant', 'messages')).toMatchObject({
+      key: 'messages',
+      href: '/merchant/messages',
+      status: 'available'
+    });
+    expect(getRouteIntent('merchant', 'profile')).toMatchObject({
+      key: 'profile',
+      href: '/merchant/profile',
+      status: 'available'
+    });
   });
 
   it('keeps discovery facets typed so UI tags do not mix concerns in one raw string list', () => {
