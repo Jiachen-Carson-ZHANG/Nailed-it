@@ -13,6 +13,9 @@ describe('BottomTabBar', () => {
     mockedPathname = '/customer/home';
     render(<BottomTabBar role="customer" />);
 
+    expect(screen.getByRole('navigation', { name: /customer navigation/i })).toHaveClass(
+      'bottom-tab-bar-fixed'
+    );
     expect(screen.getByRole('link', { name: /home/i })).toHaveAttribute('href', '/customer/home');
     expect(screen.getByRole('link', { name: /book/i })).toHaveAttribute('href', '/customer/booking');
     expect(screen.getByRole('link', { name: /messages/i })).toHaveAttribute(

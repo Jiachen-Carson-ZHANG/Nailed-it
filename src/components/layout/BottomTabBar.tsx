@@ -12,7 +12,7 @@ export function BottomTabBar({ role }: { role: UserRole }) {
   return (
     <nav
       aria-label={`${role} navigation`}
-      className="bottom-tab-bar"
+      className="bottom-tab-bar bottom-tab-bar-fixed"
       style={{ ['--tab-count' as string]: String(Math.max(tabs.length, 1)) }}
     >
       {tabs.map((tab) => {
