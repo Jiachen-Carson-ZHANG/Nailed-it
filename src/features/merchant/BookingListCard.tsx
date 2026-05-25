@@ -13,9 +13,11 @@ export function BookingListCard({ booking }: BookingListCardProps) {
         {booking.time} · {booking.customerName}
       </strong>
       <span>
-        {booking.styleTitle} · {booking.quote.duration} min · SGD {booking.quote.price}
+        {booking.technician.name} · {booking.quote.duration} min · SGD {booking.quote.price}
       </span>
-      <small>{booking.status}</small>
+      <small>
+        {booking.styleTitle} · {booking.status}
+      </small>
     </Link>
   );
 }

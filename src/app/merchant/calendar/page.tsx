@@ -1,16 +1,20 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getMerchantManagePath } from '@/domain/session';
 import { MonthlyCalendar } from '@/features/merchant/MonthlyCalendar';
-import { mockBookings } from '@/mock/bookings';
+import { getBookingsSnapshot } from '@/mock/operations-store';
 
 export default function MerchantCalendarPage() {
-  const todayCount = mockBookings.filter((booking) => booking.date === '2026-05-23').length;
+  const [bookings] = useState(() => getBookingsSnapshot());
+  const todayCount = bookings.filter((booking) => booking.date === '2026-05-23').length;
 
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Monthly calendar, day sheet, and booking details all read from the shared mock booking snapshots."
+      subtitle="Monthly calendar, day sheet, and booking details all read from the shared booking session."
       title="Nailed-it"
     >
       <section className="page-heading">
@@ -25,7 +29,7 @@ export default function MerchantCalendarPage() {
           Open pricing rules
         </Link>
       </section>
-      <MonthlyCalendar bookings={mockBookings} />
+      <MonthlyCalendar bookings={bookings} />
     </MobileLayout>
   );
 }
