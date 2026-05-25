@@ -10,6 +10,21 @@
 
 **Must remain true:**
 
+## 2026-05-25 - Gemini Recognition Wiring
+
+**Context:** The current main branch had a frontend/mock booking loop but no live product LLM path. The old Sprint 1 backend branch could not be merged directly because it rewrites frontend surfaces and `globals.css`, which is now owned by the frontend design merge.
+
+**Changes (AI recognition/env):**
+- Added a server-side Gemini image-recognition adapter using `gemini-2.5-flash-lite` by default.
+- Added `/api/ai/recognize-nail-style` so uploaded customer photos can be recognized without exposing the provider key to the browser.
+- Wired the current customer booking page to either use a sample mock image or send a real uploaded image to the live API.
+- Added `.env.local.example` and a local `.env.local` placeholder for `GEMINI_API_KEY`, plus gitignore coverage for local env files.
+
+**Verification:**
+- `npm test -- src/lib/ai/nail-recognition.test.ts src/app/customer/booking/page.test.tsx`
+
+**Must remain true:** The image model returns attributes and confidence only. Pricing, duration, availability, and booking decisions must stay in deterministic app/domain logic, and `src/app/globals.css` remains untouched by this backend-wiring change.
+
 ## 2026-05-24 - Messages And Profile Slice
 
 **Context:** Task 8 was the last missing frontend slice in the shared mobile shell. Messages and profile routes were still marked planned in the session contract, so both roles lacked a complete navigation loop and no UI existed yet for conversation continuity or profile-level summaries.

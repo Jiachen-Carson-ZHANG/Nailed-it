@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import CustomerBookingPage from './page';
 
@@ -8,6 +8,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerBookingPage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   it('runs the mock recognition flow and shows a live estimate with a confirm CTA', async () => {
     vi.useFakeTimers();
 
@@ -16,7 +21,7 @@ describe('CustomerBookingPage', () => {
     const recognizeButton = screen.getByRole('button', { name: /smart recognition/i });
     expect(recognizeButton).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /upload or take photo/i }));
+    fireEvent.click(screen.getByRole('button', { name: /use sample image/i }));
     expect(screen.getByRole('button', { name: /smart recognition/i })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: /smart recognition/i }));
@@ -44,7 +49,61 @@ describe('CustomerBookingPage', () => {
         }
       }
     });
+  });
 
-    vi.useRealTimers();
+  it('sends a selected image to the live recognition API before opening the editable result', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          recognition: {
+            selection: {
+              baseServices: ['extension'],
+              nailShape: 'oval',
+              styles: ['french'],
+              addons: [],
+              otherNotes: 'Thin white French tips from Gemini.'
+            },
+            meta: {
+              confidence: 0.91,
+              aiSuggestedQuote: {
+                source: 'ai_suggestion',
+                price: 0,
+                duration: 0
+              }
+            }
+          }
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    );
+
+    render(<CustomerBookingPage />);
+
+    const file = new File(['fake image bytes'], 'french.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText(/choose nail reference photo/i), {
+      target: { files: [file] }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /smart recognition/i })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /smart recognition/i }));
+
+    await screen.findByRole('dialog', { name: /ai recognition result/i });
+    expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/ai/recognize-nail-style',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    );
   });
 });

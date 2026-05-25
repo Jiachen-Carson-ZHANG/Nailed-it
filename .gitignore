@@ -1,4 +1,6 @@
 .env
+.env.local
+.env*.local
 .venv/
 __pycache__/
 *.pyc
@@ -8,6 +10,7 @@ __pycache__/
 node_modules/
 .next/
 coverage/
+tsconfig.tsbuildinfo
 npm-debug.log*
 
 # Generated / bulky project artifacts
