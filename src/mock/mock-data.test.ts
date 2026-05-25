@@ -14,17 +14,15 @@ import { getStyleDefinitionById, getTrendingStyles } from './styles';
 
 describe('mock data coherence', () => {
   it('does not expose already-booked times as available slots', () => {
-    const occupiedTimesByDate = new Map<string, Set<string>>();
+    const occupiedKeys = new Set<string>();
 
     for (const booking of mockBookings) {
-      const occupiedTimes = occupiedTimesByDate.get(booking.date) ?? new Set<string>();
-      occupiedTimes.add(booking.time);
-      occupiedTimesByDate.set(booking.date, occupiedTimes);
+      occupiedKeys.add(`${booking.date}-${booking.time}-${booking.technician.id}`);
     }
 
     for (const day of availableSlots) {
       for (const slot of day.slots) {
-        expect(occupiedTimesByDate.get(day.date)?.has(slot) ?? false).toBe(false);
+        expect(occupiedKeys.has(`${day.date}-${slot.time}-${slot.technician.id}`)).toBe(false);
       }
     }
   });

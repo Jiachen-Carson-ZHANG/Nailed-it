@@ -1,13 +1,16 @@
 import { calculateEstimate } from '@/domain/pricing';
-import type { AIRecognitionResult, Booking, BookingQuote, TechnicianSnapshot } from '@/domain/nail';
+import { findTechnicianSlots } from '@/domain/availability';
+import type { AIRecognitionResult, Booking, BookingQuote } from '@/domain/nail';
 import { defaultPricingRules } from './pricing';
 import { getStyleDefinitionById } from './styles';
+import { mockTechnicians } from './technicians';
 
-const technicianSnapshots: Record<string, TechnicianSnapshot> = {
-  mei: { id: 'tech-mei', name: 'Mei Chen', initials: 'MC' },
-  lina: { id: 'tech-lina', name: 'Lina Park', initials: 'LP' },
-  anna: { id: 'tech-anna', name: 'Anna Lim', initials: 'AL' }
-};
+const technicianSnapshots = Object.fromEntries(
+  mockTechnicians.map((technician) => [
+    technician.id,
+    { id: technician.id, name: technician.name, initials: technician.initials }
+  ])
+);
 
 function createBookingQuote(recognition: AIRecognitionResult): BookingQuote {
   const quote = calculateEstimate(recognition, defaultPricingRules);
@@ -71,7 +74,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-23',
     time: '14:00',
     status: 'pending_review',
-    technician: technicianSnapshots.mei,
+    technician: technicianSnapshots['tech-mei'],
     notes: 'Prefer a softer pink tone and lighter crystal placement.'
   }),
   createBookingFromStyle({
@@ -82,7 +85,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-23',
     time: '16:00',
     status: 'confirmed',
-    technician: technicianSnapshots.lina,
+    technician: technicianSnapshots['tech-lina'],
     notes: 'Keep the line thin and natural.'
   }),
   createBookingFromStyle({
@@ -93,7 +96,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-24',
     time: '11:00',
     status: 'completed',
-    technician: technicianSnapshots.anna,
+    technician: technicianSnapshots['tech-anna'],
     notes: 'Short almond shape, keep the chrome reflection clean.'
   }),
   createBookingFromStyle({
@@ -104,7 +107,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-24',
     time: '15:30',
     status: 'pending_review',
-    technician: technicianSnapshots.mei,
+    technician: technicianSnapshots['tech-mei'],
     notes: 'A quick after-work appointment would be ideal.'
   })
 ];
@@ -115,17 +118,15 @@ const slotTemplates = [
 ] as const;
 
 export function getAvailableSlots(bookings: Booking[]) {
-  return slotTemplates.map((day) => {
-    const occupiedTimes = new Set(
-      bookings.filter((booking) => booking.date === day.date).map((booking) => booking.time)
-    );
+  return getAvailableBookingDays(bookings);
+}
 
-    return {
-      label: day.label,
-      date: day.date,
-      slots: day.slots.filter((slot) => !occupiedTimes.has(slot))
-    };
+export function getAvailableBookingDays(bookings: Booking[] = mockBookings) {
+  return findTechnicianSlots({
+    bookings,
+    days: [...slotTemplates],
+    technicians: mockTechnicians
   });
 }
 
-export const availableSlots = getAvailableSlots(mockBookings);
+export const availableSlots = getAvailableBookingDays(mockBookings);

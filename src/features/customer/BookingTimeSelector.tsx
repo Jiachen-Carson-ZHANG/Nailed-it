@@ -1,18 +1,15 @@
 'use client';
 
 import { ChipButton } from '@/components/ui/ChipButton';
+import type { TechnicianSlot } from '@/domain/nail';
 
-export type BookingSlotChoice = {
-  date: string;
-  label: string;
-  time: string;
-};
+export type BookingSlotChoice = TechnicianSlot;
 
 type BookingTimeSelectorProps = {
   days: Array<{
     date: string;
     label: string;
-    slots: string[];
+    slots: TechnicianSlot[];
   }>;
   onChange: (nextValue: BookingSlotChoice) => void;
   value: BookingSlotChoice | null;
@@ -26,20 +23,17 @@ export function BookingTimeSelector({ days, onChange, value }: BookingTimeSelect
           <h2>{day.label}</h2>
           <div className="chip-row">
             {day.slots.map((slot) => {
-              const selected = value?.date === day.date && value.time === slot;
+              const selected =
+                value?.date === day.date &&
+                value.time === slot.time &&
+                value.technician.id === slot.technician.id;
 
               return (
                 <ChipButton
-                  key={`${day.date}-${slot}`}
-                  label={slot}
+                  key={`${day.date}-${slot.time}-${slot.technician.id}`}
+                  label={`${slot.time} · ${slot.technician.name}`}
                   selected={selected}
-                  onClick={() =>
-                    onChange({
-                      date: day.date,
-                      label: day.label,
-                      time: slot
-                    })
-                  }
+                  onClick={() => onChange(slot)}
                 />
               );
             })}
