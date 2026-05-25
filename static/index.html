@@ -35,16 +35,23 @@
 
     /* multi-upload thumbnails */
     #thumb-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-    .thumb { width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1.5px solid #ddd; }
+    .thumb-wrapper { position: relative; display: inline-block; }
+    .thumb { width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1.5px solid #ddd; display: block; }
+    .thumb-remove { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; border: none; background: #111; color: #fff; cursor: pointer; font-size: 12px; line-height: 18px; padding: 0; text-align: center; }
 
     /* breakdown table */
     #breakdown-output { display: none; flex-direction: column; gap: 16px; width: 100%; }
+    #styles-container { display: flex; flex-direction: column; gap: 0; width: 100%; }
+    .style-heading { font-size: 0.95rem; font-weight: 600; color: #333; margin-bottom: 8px; }
+    hr.style-divider { width: 100%; border: none; border-top: 1px dashed #ddd; margin: 16px 0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
     th { background: #f5f5f5; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #ddd; }
     td { padding: 7px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr.subtotals-row td { font-weight: 500; background: #f5f5f5; border-top: 1.5px solid #eee; color: #555; font-size: 0.85rem; }
     tr.totals-row td { font-weight: 600; background: #fafafa; border-top: 2px solid #ddd; }
     input.qty-input, input.price-input { width: 70px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.875rem; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+    .text-zh { display: block; font-size: 0.75rem; color: #999; margin-top: 2px; }
     .badge-length { background: #e0f0ff; color: #1a6fa8; }
     .badge-shape  { background: #fce8ff; color: #8b2fa8; }
     .badge-color  { background: #fff3e0; color: #a05c00; }
@@ -98,22 +105,11 @@
     <button id="analyse" class="btn-primary" disabled>Analyse Components</button>
     <p id="breakdown-status" class="status"></p>
     <div id="breakdown-output">
-      <table id="breakdown-table">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Component</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th>Unit Price ($)</th>
-            <th>Total Price ($)</th>
-            <th>Time (min)</th>
-          </tr>
-        </thead>
-        <tbody id="breakdown-body"></tbody>
+      <div id="styles-container"></div>
+      <table>
         <tfoot>
           <tr class="totals-row">
-            <td colspan="5">Total</td>
+            <td colspan="5">Grand Total</td>
             <td id="total-price">—</td>
             <td id="total-time">—</td>
           </tr>
@@ -176,85 +172,157 @@
     const analyseBtn      = document.getElementById('analyse');
     const breakdownStatus = document.getElementById('breakdown-status');
     const breakdownOutput = document.getElementById('breakdown-output');
-    const breakdownBody   = document.getElementById('breakdown-body');
+    const stylesContainer = document.getElementById('styles-container');
     const totalPriceEl    = document.getElementById('total-price');
     const totalTimeEl     = document.getElementById('total-time');
     const notesEl         = document.getElementById('breakdown-notes');
 
-    breakdownInput.addEventListener('change', () => {
-      const files = Array.from(breakdownInput.files);
+    let breakdownFiles = [];
+
+    function renderThumbs() {
       thumbRow.querySelectorAll('img').forEach(img => URL.revokeObjectURL(img.src));
       thumbRow.innerHTML = '';
-      files.forEach(f => {
+      breakdownFiles.forEach((file, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'thumb-wrapper';
         const img = document.createElement('img');
         img.className = 'thumb';
-        img.src = URL.createObjectURL(f);
-        thumbRow.appendChild(img);
+        img.src = URL.createObjectURL(file);
+        const btn = document.createElement('button');
+        btn.className = 'thumb-remove';
+        btn.textContent = '×';
+        btn.title = 'Remove';
+        btn.addEventListener('click', () => {
+          URL.revokeObjectURL(img.src);
+          breakdownFiles.splice(i, 1);
+          renderThumbs();
+        });
+        wrapper.append(img, btn);
+        thumbRow.appendChild(wrapper);
       });
-      analyseBtn.disabled = files.length === 0;
+      analyseBtn.disabled = breakdownFiles.length === 0;
+    }
+
+    breakdownInput.addEventListener('change', () => {
+      const existing = new Set(breakdownFiles.map(f => `${f.name}:${f.size}`));
+      Array.from(breakdownInput.files).forEach(f => {
+        if (!existing.has(`${f.name}:${f.size}`)) breakdownFiles.push(f);
+      });
+      breakdownInput.value = '';
+      renderThumbs();
     });
 
     function recalcTotals() {
-      let totalPrice = 0, totalTime = 0;
-      breakdownBody.querySelectorAll('tr').forEach(row => {
-        const qty       = parseFloat(row.querySelector('.qty-input').value)   || 0;
-        const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
-        const time      = parseFloat(row.dataset.timePerUnit) || 0;
-        const rowTotal  = qty * unitPrice;
-        row.querySelector('.row-total').textContent = rowTotal.toFixed(2);
-        row.querySelector('.row-time').textContent  = (qty * time).toFixed(1);
-        totalPrice += rowTotal;
-        totalTime  += qty * time;
+      let grandPrice = 0, grandTime = 0;
+      stylesContainer.querySelectorAll('.style-section').forEach(section => {
+        let subtotalPrice = 0, subtotalTime = 0;
+        section.querySelectorAll('tbody tr').forEach(row => {
+          const qty       = parseFloat(row.querySelector('.qty-input').value)   || 0;
+          const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
+          const time      = parseFloat(row.dataset.timePerUnit) || 0;
+          const rowTotal  = qty * unitPrice;
+          row.querySelector('.row-total').textContent = rowTotal.toFixed(2);
+          row.querySelector('.row-time').textContent  = (qty * time).toFixed(1);
+          subtotalPrice += rowTotal;
+          subtotalTime  += qty * time;
+        });
+        section.querySelector('.style-subtotal-price').textContent = subtotalPrice.toFixed(2);
+        section.querySelector('.style-subtotal-time').textContent  = subtotalTime.toFixed(1);
+        grandPrice += subtotalPrice;
+        grandTime  += subtotalTime;
       });
-      totalPriceEl.textContent = totalPrice.toFixed(2);
-      totalTimeEl.textContent  = totalTime.toFixed(1);
+      totalPriceEl.textContent = grandPrice.toFixed(2);
+      totalTimeEl.textContent  = grandTime.toFixed(1);
     }
 
-    function renderTable(data) {
-      breakdownBody.innerHTML = '';
-      data.components.forEach(c => {
-        const tr = document.createElement('tr');
-        // store per-unit time; use 1 as denominator when qty is 0 to preserve editability
+    function buildStyleTable(style) {
+      const table = document.createElement('table');
+
+      const thead = table.createTHead();
+      const hrow = thead.insertRow();
+      ['Category', 'Component', 'Qty', 'Unit', 'Unit Price ($)', 'Total Price ($)', 'Time (min)'].forEach(label => {
+        const th = document.createElement('th');
+        th.textContent = label;
+        hrow.appendChild(th);
+      });
+
+      const tbody = table.createTBody();
+      style.components.forEach(c => {
+        const tr = tbody.insertRow();
         tr.dataset.timePerUnit = c.time_minutes / Math.max(c.quantity, 1);
 
         const badge = document.createElement('span');
         badge.className = `badge badge-${c.category}`;
         badge.textContent = c.category;
-        const tdCat = document.createElement('td');
+        const tdCat = tr.insertCell();
         tdCat.appendChild(badge);
+        if (c.category_zh) {
+          const zh = document.createElement('span');
+          zh.className = 'text-zh';
+          zh.textContent = c.category_zh;
+          tdCat.appendChild(zh);
+        }
 
-        const tdName = document.createElement('td');
+        const tdName = tr.insertCell();
         tdName.textContent = c.name;
+        if (c.name_zh) {
+          const zh = document.createElement('span');
+          zh.className = 'text-zh';
+          zh.textContent = c.name_zh;
+          tdName.appendChild(zh);
+        }
 
         const qtyInput = document.createElement('input');
         qtyInput.className = 'qty-input';
         qtyInput.type = 'number'; qtyInput.min = '0'; qtyInput.step = '0.1';
         qtyInput.value = c.quantity;
-        const tdQty = document.createElement('td');
-        tdQty.appendChild(qtyInput);
+        const tdQty = tr.insertCell(); tdQty.appendChild(qtyInput);
 
-        const tdUnit = document.createElement('td');
-        tdUnit.textContent = c.unit;
+        const tdUnit = tr.insertCell(); tdUnit.textContent = c.unit;
 
         const priceInput = document.createElement('input');
         priceInput.className = 'price-input';
         priceInput.type = 'number'; priceInput.min = '0'; priceInput.step = '0.01';
         priceInput.value = c.unit_price;
-        const tdUnitPrice = document.createElement('td');
-        tdUnitPrice.appendChild(priceInput);
+        const tdUnitPrice = tr.insertCell(); tdUnitPrice.appendChild(priceInput);
 
-        const tdTotal = document.createElement('td');
-        tdTotal.className = 'row-total';
+        const tdTotal = tr.insertCell(); tdTotal.className = 'row-total';
         tdTotal.textContent = c.total_price.toFixed(2);
 
-        const tdTime = document.createElement('td');
-        tdTime.className = 'row-time';
+        const tdTime = tr.insertCell(); tdTime.className = 'row-time';
         tdTime.textContent = c.time_minutes.toFixed(1);
 
-        tr.append(tdCat, tdName, tdQty, tdUnit, tdUnitPrice, tdTotal, tdTime);
         qtyInput.addEventListener('input', recalcTotals);
         priceInput.addEventListener('input', recalcTotals);
-        breakdownBody.appendChild(tr);
+      });
+
+      const tfoot = table.createTFoot();
+      const subtotalRow = tfoot.insertRow();
+      subtotalRow.className = 'subtotals-row';
+      const tdLabel = subtotalRow.insertCell(); tdLabel.colSpan = 5; tdLabel.textContent = 'Subtotal';
+      const tdSubPrice = subtotalRow.insertCell(); tdSubPrice.className = 'style-subtotal-price';
+      tdSubPrice.textContent = style.subtotal_price.toFixed(2);
+      const tdSubTime = subtotalRow.insertCell(); tdSubTime.className = 'style-subtotal-time';
+      tdSubTime.textContent = style.subtotal_time_minutes.toFixed(1);
+
+      return table;
+    }
+
+    function renderTable(data) {
+      stylesContainer.innerHTML = '';
+      data.styles.forEach((style, idx) => {
+        if (idx > 0) {
+          const hr = document.createElement('hr');
+          hr.className = 'style-divider';
+          stylesContainer.appendChild(hr);
+        }
+        const section = document.createElement('div');
+        section.className = 'style-section';
+        const h3 = document.createElement('h3');
+        h3.className = 'style-heading';
+        h3.textContent = style.style_name;
+        section.append(h3, buildStyleTable(style));
+        stylesContainer.appendChild(section);
       });
       totalPriceEl.textContent = data.total_price.toFixed(2);
       totalTimeEl.textContent  = data.total_time_minutes.toFixed(1);
@@ -266,7 +334,7 @@
       breakdownOutput.style.display = 'none';
       breakdownStatus.textContent = 'Analysing… this may take ~20 seconds';
       const form = new FormData();
-      Array.from(breakdownInput.files).forEach(f => form.append('files', f));
+      breakdownFiles.forEach(f => form.append('files', f));
       try {
         const res = await fetch(`/api/v1/breakdown?free_mode=${freeModeChk.checked}`, { method: 'POST', body: form });
         if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }

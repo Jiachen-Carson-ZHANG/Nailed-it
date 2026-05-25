@@ -8,29 +8,42 @@ from src.breakdown.schemas import BreakdownResponse
 from src.shared.openrouter import MODEL, post_chat
 
 _JSON_SCHEMA = """{
-  "components": [
+  "styles": [
     {
-      "category": "<category string>",
-      "name": "<component name in English>",
-      "quantity": <number>,
-      "unit": "<layer|finger|piece|set|...>",
-      "unit_price": <dummy USD price per unit>,
-      "total_price": <quantity * unit_price>,
-      "time_minutes": <dummy minutes to apply>
+      "style_name": "Nail Style 1",
+      "components": [
+        {
+          "category": "<category in English>",
+          "category_zh": "<category in Chinese, e.g. 长度>",
+          "name": "<component name in English>",
+          "name_zh": "<component name in Chinese, e.g. 磨砂, 本甲，法式>",
+          "quantity": <number>,
+          "unit": "<layer|finger|piece|set|...>",
+          "unit_price": <dummy USD price per unit>,
+          "total_price": <quantity * unit_price>,
+          "time_minutes": <dummy minutes to apply>
+        }
+      ],
+      "subtotal_price": <sum of this style's total_price>,
+      "subtotal_time_minutes": <sum of this style's time_minutes>
     }
   ],
-  "total_price": <sum of all total_price>,
-  "total_time_minutes": <sum of all time_minutes>,
-  "notes": "<any observations about the style>"
+  "total_price": <sum of all styles subtotal_price>,
+  "total_time_minutes": <sum of all styles subtotal_time_minutes>,
+  "notes": "<any observations about the styles>"
 }"""
 
-_PROMPT_FREE = f"""You are a nail technician assistant. Analyze the nail style image(s) and freely identify every component, material, technique, and decorative element you can observe — do not limit yourself to any predefined list.
+_PROMPT_FREE = f"""You are a nail technician assistant. You are given one or more nail style images. Analyze each image separately and freely identify every component, material, technique, and decorative element you can observe — do not limit yourself to any predefined list.
+
+Return one entry in the "styles" array for each image, in the same order as the images provided.
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
 {_JSON_SCHEMA}
 Use realistic dummy prices and times."""
 
-_PROMPT = f"""You are a nail technician assistant. Analyze the nail style image(s) and identify all components present.
+_PROMPT = f"""You are a nail technician assistant. You are given one or more nail style images. Analyze each image separately and identify all components present.
+
+Return one entry in the "styles" array for each image, in the same order as the images provided.
 
 Use components from these known categories. If you identify components that are not in the categories, please feel free to add too:
 
