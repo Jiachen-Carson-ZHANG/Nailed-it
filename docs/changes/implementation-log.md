@@ -10,6 +10,25 @@
 
 **Must remain true:**
 
+## 2026-05-25 - Round 2 Technician Auto-Booking
+
+**Context:** Round 1 could recognize a nail image and price the editable attributes, but booking still stopped at a request toast. Merchant screens also lacked technician visibility and messages were static snapshots, so the demo did not yet show the style-to-booking operating loop.
+
+**Changes (auto-booking/operations):**
+- Added technician contracts, technician seeds, and pure availability assignment so customer slot choices include staff and avoid same-technician conflicts.
+- Added a browser-session operations store for booking snapshots, booking-linked conversation threads, instant booking creation, and demo message sending.
+- Changed customer confirmation to auto-confirm normal-confidence bookings and route low-confidence recognition results into `pending_review`.
+- Updated merchant calendar, booking detail, manage, and profile surfaces to show technician assignment, workload, and message-thread links.
+- Replaced static message route reads with role-aware operations-store conversations and a demo composer for customer and merchant replies.
+
+**Verification:**
+- `npm test -- src/domain/availability.test.ts src/app/customer/booking/confirm/page.test.tsx src/mock/operations-store.test.ts src/domain/messaging.test.ts`
+- `npm test -- src/app/merchant/manage/page.test.tsx src/app/merchant/profile/page.test.tsx src/app/merchant/calendar/page.test.tsx`
+- `npm test -- src/app/customer/messages/page.test.tsx src/app/customer/messages/[conversationId]/page.test.tsx src/app/merchant/messages/page.test.tsx src/app/merchant/messages/[conversationId]/page.test.tsx`
+- `npm test -- src/app/merchant/booking/[id]/page.test.tsx`
+
+**Must remain true:** The app remains a no-backend demo; operations-store state is session-local and must not be mistaken for persistence. AI output stays limited to attributes/confidence, while pricing, duration, availability, auto-confirmation, and review fallback remain deterministic app logic. `src/app/globals.css` must stay owned by the frontend design work and was not changed in this round.
+
 ## 2026-05-25 - Gemini Recognition Wiring
 
 **Context:** The current main branch had a frontend/mock booking loop but no live product LLM path. The old Sprint 1 backend branch could not be merged directly because it rewrites frontend surfaces and `globals.css`, which is now owned by the frontend design merge.
