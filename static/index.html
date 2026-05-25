@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nailed It — Try-On</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #fff; color: #111; display: flex; flex-direction: column; align-items: center; padding: 48px 24px; gap: 32px; }
+    h1 { font-size: 1.5rem; font-weight: 600; }
+    .uploads { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+    .upload-card { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .upload-card label { font-size: 0.85rem; color: #555; }
+    .preview { width: 220px; height: 220px; border: 1.5px dashed #ccc; border-radius: 8px; object-fit: cover; background: #f9f9f9; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 0.8rem; overflow: hidden; }
+    .preview img { width: 100%; height: 100%; object-fit: cover; }
+    input[type="file"] { display: none; }
+    .btn-upload { padding: 8px 18px; border: 1.5px solid #111; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; }
+    .btn-upload:hover { background: #f0f0f0; }
+    button#generate { padding: 12px 36px; background: #111; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    button#generate:hover:not(:disabled) { background: #333; }
+    button#generate:disabled { background: #999; cursor: not-allowed; }
+    #status { font-size: 0.85rem; color: #666; min-height: 1.2em; }
+    #output { display: none; flex-direction: column; align-items: center; gap: 12px; }
+    #output p { font-size: 0.85rem; color: #555; }
+    #result-img { max-width: 480px; border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,0.12); }
+  </style>
+</head>
+<body>
+  <h1>Nailed It — Virtual Try-On</h1>
+
+  <div class="uploads">
+    <div class="upload-card">
+      <label>Hand photo</label>
+      <div class="preview" id="hand-preview">no image</div>
+      <label class="btn-upload" for="hand-input">Choose file</label>
+      <input type="file" id="hand-input" accept="image/jpeg,image/png" />
+    </div>
+    <div class="upload-card">
+      <label>Nail style</label>
+      <div class="preview" id="style-preview">no image</div>
+      <label class="btn-upload" for="style-input">Choose file</label>
+      <input type="file" id="style-input" accept="image/jpeg,image/png" />
+    </div>
+  </div>
+
+  <button id="generate" disabled>Generate</button>
+  <p id="status"></p>
+
+  <div id="output">
+    <p>Result</p>
+    <img id="result-img" alt="Try-on result" />
+  </div>
+
+  <script>
+    const handInput = document.getElementById('hand-input');
+    const styleInput = document.getElementById('style-input');
+    const generateBtn = document.getElementById('generate');
+    const status = document.getElementById('status');
+    const output = document.getElementById('output');
+    const resultImg = document.getElementById('result-img');
+
+    function setPreview(inputEl, previewId) {
+      const file = inputEl.files[0];
+      if (!file) return;
+      const div = document.getElementById(previewId);
+      div.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      div.appendChild(img);
+      checkReady();
+    }
+
+    function checkReady() {
+      generateBtn.disabled = !(handInput.files[0] && styleInput.files[0]);
+    }
+
+    handInput.addEventListener('change', () => setPreview(handInput, 'hand-preview'));
+    styleInput.addEventListener('change', () => setPreview(styleInput, 'style-preview'));
+
+    generateBtn.addEventListener('click', async () => {
+      generateBtn.disabled = true;
+      output.style.display = 'none';
+      status.textContent = 'Generating… this may take ~20 seconds';
+
+      const form = new FormData();
+      form.append('hand_image', handInput.files[0]);
+      form.append('nail_style_image', styleInput.files[0]);
+
+      try {
+        const res = await fetch('/api/v1/try-on', { method: 'POST', body: form });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        resultImg.src = `data:${data.mime_type};base64,${data.image_b64}`;
+        output.style.display = 'flex';
+        status.textContent = '';
+      } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+      } finally {
+        generateBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
