@@ -1,9 +1,14 @@
+'use client';
+
+import { useState } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getMerchantMessagesPath } from '@/domain/session';
 import { ConversationListItem } from '@/features/messages/ConversationListItem';
-import { merchantConversations } from '@/mock/conversations';
+import { getConversationsForRole } from '@/mock/operations-store';
 
 export default function MerchantMessagesPage() {
+  const [conversations] = useState(() => getConversationsForRole('merchant'));
+
   return (
     <MobileLayout
       role="merchant"
@@ -16,7 +21,7 @@ export default function MerchantMessagesPage() {
         <p className="section-copy">Review customer updates before they turn into schedule changes.</p>
       </section>
       <section className="conversation-list">
-        {merchantConversations.map((conversation) => (
+        {conversations.map((conversation) => (
           <ConversationListItem
             key={conversation.id}
             conversation={conversation}

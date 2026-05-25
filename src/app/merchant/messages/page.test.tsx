@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { resetOperationsStoreForTests } from '@/mock/operations-store';
 import MerchantMessagesPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -7,6 +8,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('MerchantMessagesPage', () => {
+  beforeEach(() => {
+    resetOperationsStoreForTests();
+  });
+
   it('renders merchant conversations with booking context', () => {
     render(<MerchantMessagesPage />);
 

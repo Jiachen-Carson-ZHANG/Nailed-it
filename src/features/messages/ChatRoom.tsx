@@ -1,10 +1,31 @@
+'use client';
+
+import { useState } from 'react';
 import type { Conversation } from '@/domain/nail';
 
 type ChatRoomProps = {
   conversation: Conversation;
+  onSend?: (body: string) => void;
 };
 
-export function ChatRoom({ conversation }: ChatRoomProps) {
+export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
+  const [draftMessage, setDraftMessage] = useState('');
+
+  function sendDraftMessage() {
+    if (!onSend) {
+      return;
+    }
+
+    const trimmedMessage = draftMessage.trim();
+
+    if (!trimmedMessage) {
+      return;
+    }
+
+    onSend(trimmedMessage);
+    setDraftMessage('');
+  }
+
   return (
     <section className="chat-room" aria-labelledby={`chat-room-${conversation.id}`}>
       <div className="chat-room-header">
@@ -37,6 +58,25 @@ export function ChatRoom({ conversation }: ChatRoomProps) {
           );
         })}
       </div>
+      {onSend ? (
+        <div className="chat-composer">
+          <label className="field">
+            <span>Message</span>
+            <textarea
+              value={draftMessage}
+              onChange={(event) => setDraftMessage(event.target.value)}
+            />
+          </label>
+          <button
+            className="button"
+            disabled={!draftMessage.trim()}
+            type="button"
+            onClick={sendDraftMessage}
+          >
+            Send
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

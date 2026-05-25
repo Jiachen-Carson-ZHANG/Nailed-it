@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, vi } from 'vitest';
+import { resetOperationsStoreForTests } from '@/mock/operations-store';
 import CustomerConversationPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -7,10 +9,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerConversationPage', () => {
+  beforeEach(() => {
+    resetOperationsStoreForTests();
+  });
+
   it('renders the selected customer chat room', async () => {
     render(
       await CustomerConversationPage({
-        params: Promise.resolve({ conversationId: 'conv-merchant' })
+        params: Promise.resolve({ conversationId: 'conv-melissa' })
       })
     );
 
@@ -19,6 +25,27 @@ describe('CustomerConversationPage', () => {
     expect(
       screen.getByText(/reduce the crystal count and keep the placement near the ring finger only/i)
     ).toBeInTheDocument();
+  });
+
+  it('lets the customer send a demo message into the booking thread', async () => {
+    const user = userEvent.setup();
+
+    render(
+      await CustomerConversationPage({
+        params: Promise.resolve({ conversationId: 'conv-melissa' })
+      })
+    );
+
+    await user.type(
+      screen.getByRole('textbox', { name: /message/i }),
+      'Can I arrive 10 minutes early?'
+    );
+    await user.click(screen.getByRole('button', { name: /send/i }));
+
+    expect(screen.getByText(/arrive 10 minutes early/i)).toBeInTheDocument();
+    expect(screen.getByText(/arrive 10 minutes early/i).closest('article')).toHaveClass(
+      'chat-message-me'
+    );
   });
 
   it('shows an empty state when the conversation id is unknown', async () => {
