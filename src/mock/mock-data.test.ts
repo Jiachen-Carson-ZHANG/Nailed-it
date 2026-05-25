@@ -43,7 +43,7 @@ describe('mock data coherence', () => {
   });
 
   it('uses explicit review status instead of generic pending for active bookings', () => {
-    const statuses = new Set(mockBookings.map((booking) => booking.status));
+    const statuses = new Set<string>(mockBookings.map((booking) => booking.status));
 
     expect(statuses.has('pending')).toBe(false);
   });

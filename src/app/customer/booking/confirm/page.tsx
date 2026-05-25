@@ -65,7 +65,7 @@ export default function CustomerBookingConfirmPage() {
   }
 
   function confirmAppointment() {
-    if (!selectedSlot) {
+    if (!selectedSlot || !draft) {
       return;
     }
 

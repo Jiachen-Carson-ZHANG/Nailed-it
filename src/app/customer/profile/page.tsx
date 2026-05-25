@@ -10,7 +10,7 @@ export default function CustomerProfilePage() {
   const customerBookings = mockBookings.filter((booking) => booking.customerName === customerName);
   // 中文注释：这里按“仍会占用用户心智”的状态聚合 upcoming，后续接真实后端也能复用同一口径。
   const upcomingBookings = customerBookings.filter((booking) =>
-    ['pending', 'confirmed', 'in_progress'].includes(booking.status)
+    ['pending_review', 'confirmed'].includes(booking.status)
   );
 
   return (

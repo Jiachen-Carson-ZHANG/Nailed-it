@@ -1,9 +1,8 @@
 import type { Booking } from '@/domain/nail';
 
 const statusLabels: Record<Booking['status'], string> = {
-  pending: 'Pending',
+  pending_review: 'Review needed',
   confirmed: 'Confirmed',
-  in_progress: 'In progress',
   completed: 'Completed',
   cancelled: 'Cancelled'
 };

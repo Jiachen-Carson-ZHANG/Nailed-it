@@ -1,6 +1,6 @@
 import { calculateEstimate } from '@/domain/pricing';
 import { findTechnicianSlots } from '@/domain/availability';
-import type { AIRecognitionResult, Booking, BookingQuote } from '@/domain/nail';
+import type { AIRecognitionResult, Booking, BookingQuote, TechnicianSnapshot } from '@/domain/nail';
 import { defaultPricingRules } from './pricing';
 import { getStyleDefinitionById } from './styles';
 import { mockTechnicians } from './technicians';
@@ -10,7 +10,7 @@ const technicianSnapshots = Object.fromEntries(
     technician.id,
     { id: technician.id, name: technician.name, initials: technician.initials }
   ])
-);
+) as Record<string, TechnicianSnapshot>;
 
 function createBookingQuote(recognition: AIRecognitionResult): BookingQuote {
   const quote = calculateEstimate(recognition, defaultPricingRules);
@@ -124,7 +124,7 @@ export function getAvailableSlots(bookings: Booking[]) {
 export function getAvailableBookingDays(bookings: Booking[] = mockBookings) {
   return findTechnicianSlots({
     bookings,
-    days: [...slotTemplates],
+    days: slotTemplates.map((day) => ({ ...day, slots: [...day.slots] })),
     technicians: mockTechnicians
   });
 }
