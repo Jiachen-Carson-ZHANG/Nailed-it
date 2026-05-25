@@ -21,10 +21,7 @@ describe('CustomerConversationPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: /nailed-it studio/i })).toBeInTheDocument();
-    expect(screen.getByText(/can the rhinestones be a little more subtle/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/reduce the crystal count and keep the placement near the ring finger only/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/appointment confirmed for today 14:00 with mei chen/i)).toBeInTheDocument();
   });
 
   it('lets the customer send a demo message into the booking thread', async () => {
@@ -60,5 +57,15 @@ describe('CustomerConversationPage', () => {
       'href',
       '/customer/messages'
     );
+  });
+
+  it('does not let the customer open another customer appointment thread directly', async () => {
+    render(
+      await CustomerConversationPage({
+        params: Promise.resolve({ conversationId: 'conv-amy' })
+      })
+    );
+
+    expect(screen.getByText(/conversation not found/i)).toBeInTheDocument();
   });
 });

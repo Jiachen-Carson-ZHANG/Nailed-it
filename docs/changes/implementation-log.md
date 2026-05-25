@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-05-25 - Customer Journey QA And Message Thread Cleanup
+
+**Context:** Playwright QA showed that the customer inbox exposed other customers' appointment threads, the confirm action could be clicked again after booking, and module-only demo state disappeared on reload. The seeded message content also looked like unrelated fake chat instead of one operational thread per appointment.
+
+**Changes (customer journey/messaging):**
+- Added Playwright coverage for the customer inbox, mocked AI upload booking, low-confidence review fallback, direct thread access denial, message-thread handoff, and post-booking profile continuity without calling the live Gemini API.
+- Filtered customer conversations to the current demo customer while keeping the merchant inbox shop-wide.
+- Simplified seeded message threads to one system event per appointment and kept customer/merchant replies as demo composer actions.
+- Locked the confirmation screen after a booking is created so one customer action creates one booking and one message thread.
+- Persisted the browser-session operations store in a versioned `localStorage` snapshot so no-backend demo bookings, threads, and sent messages survive reloads in the same browser session.
+
+**Verification:**
+- `npm test -- src/mock/operations-store.test.ts src/app/customer/booking/confirm/page.test.tsx src/app/customer/messages/page.test.tsx src/app/customer/messages/[conversationId]/page.test.tsx src/app/merchant/messages/[conversationId]/page.test.tsx src/app/customer/profile/page.test.tsx src/app/merchant/profile/page.test.tsx`
+- `npx playwright test`
+
+**Must remain true:** The message system remains a demo-level browser-session store, not a backend service. Customer role visibility must stay scoped to the active customer identity, merchant visibility must remain shop-wide, and Playwright recognition tests must keep mocking `/api/ai/recognize-nail-style` so they never spend provider tokens.
+
 ## Date - Wave
 
 **Context:** 

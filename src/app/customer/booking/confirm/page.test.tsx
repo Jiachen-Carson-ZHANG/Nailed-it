@@ -6,7 +6,12 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { mockAIResult } from '@/mock/ai';
-import { resetOperationsStoreForTests } from '@/mock/operations-store';
+import { mockBookings } from '@/mock/bookings';
+import {
+  getBookingsSnapshot,
+  getConversationThreads,
+  resetOperationsStoreForTests
+} from '@/mock/operations-store';
 import CustomerBookingConfirmPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -133,6 +138,10 @@ describe('CustomerBookingConfirmPage', () => {
     await user.click(confirmButton);
 
     expect(screen.getByRole('status')).toHaveTextContent(/confirmed with mei chen/i);
+    expect(confirmButton).toBeDisabled();
+    expect(confirmButton).toHaveTextContent(/appointment confirmed/i);
+    expect(getBookingsSnapshot()).toHaveLength(mockBookings.length + 1);
+    expect(getConversationThreads().filter((thread) => thread.id.startsWith('conv-auto'))).toHaveLength(1);
     expect(screen.getByRole('link', { name: /open booking messages/i })).toHaveAttribute(
       'href',
       '/customer/messages/conv-auto-4'
@@ -161,9 +170,12 @@ describe('CustomerBookingConfirmPage', () => {
     render(<CustomerBookingConfirmPage />);
 
     await user.click(screen.getByRole('button', { name: /10:00 .* mei chen/i }));
-    await user.click(screen.getByRole('button', { name: /confirm appointment/i }));
+    const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
+    await user.click(confirmButton);
 
     expect(screen.getByRole('status')).toHaveTextContent(/pending review with mei chen/i);
+    expect(confirmButton).toBeDisabled();
+    expect(confirmButton).toHaveTextContent(/pending review/i);
   });
 });
 

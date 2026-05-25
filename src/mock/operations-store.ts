@@ -15,7 +15,17 @@ import { seedConversationThreads } from './conversations';
 
 const confidenceReviewThreshold = 0.75;
 const merchantName = 'Nailed-it Studio';
-const demoCustomerName = 'Carson Lee';
+export const demoCustomerName = 'Melissa Tan';
+const operationsStorageKey = 'nailed-it.operations-store.v1';
+
+type PersistedOperationsStore = {
+  bookingState: Booking[];
+  nextBookingNumber: number;
+  nextMessageNumber: number;
+  nextThreadNumber: number;
+  threadState: BookingConversationThread[];
+  version: 1;
+};
 
 let nextBookingNumber = mockBookings.length + 1;
 let nextThreadNumber = seedConversationThreads.length + 1;
@@ -23,14 +33,19 @@ let nextMessageNumber = seedConversationThreads.reduce(
   (count, thread) => count + thread.messages.length,
   1
 );
+let hasHydratedOperationsStore = false;
 let bookingState = cloneBookings(mockBookings);
 let threadState = cloneThreads(seedConversationThreads);
 
 export function getBookingsSnapshot(): Booking[] {
+  ensureHydratedOperationsStore();
+
   return cloneBookings(bookingState);
 }
 
 export function getAvailableBookingDays() {
+  ensureHydratedOperationsStore();
+
   return getSeedAvailableBookingDays(bookingState);
 }
 
@@ -43,6 +58,8 @@ export function createBookingFromDraft({
   notes: string;
   slot: TechnicianSlot;
 }): Booking {
+  ensureHydratedOperationsStore();
+
   const status: Booking['status'] =
     draft.recognition.meta.confidence < confidenceReviewThreshold ? 'pending_review' : 'confirmed';
   const bookingId = `booking-auto-${nextBookingNumber}`;
@@ -91,22 +108,31 @@ export function createBookingFromDraft({
   nextMessageNumber += 1;
   bookingState = [...bookingState, booking];
   threadState = [...threadState, thread];
+  persistOperationsStore();
 
   return cloneBooking(booking);
 }
 
 export function getConversationThreads(): BookingConversationThread[] {
+  ensureHydratedOperationsStore();
+
   return cloneThreads(threadState);
 }
 
 export function getConversationForRole(conversationId: string, role: UserRole) {
+  ensureHydratedOperationsStore();
+
   const thread = threadState.find((item) => item.id === conversationId);
 
-  return thread ? toConversationForRole(thread, role) : null;
+  return thread && canRoleViewThread(thread, role) ? toConversationForRole(thread, role) : null;
 }
 
 export function getConversationsForRole(role: UserRole) {
-  return threadState.map((thread) => toConversationForRole(thread, role));
+  ensureHydratedOperationsStore();
+
+  return threadState
+    .filter((thread) => canRoleViewThread(thread, role))
+    .map((thread) => toConversationForRole(thread, role));
 }
 
 export function sendMessage({
@@ -118,6 +144,8 @@ export function sendMessage({
   body: string;
   conversationId: string;
 }): BookingConversationThread | null {
+  ensureHydratedOperationsStore();
+
   const trimmedBody = body.trim();
 
   if (!trimmedBody) {
@@ -144,11 +172,23 @@ export function sendMessage({
   };
   nextMessageNumber += 1;
   threadState = threadState.map((item) => (item.id === conversationId ? updatedThread : item));
+  persistOperationsStore();
 
   return cloneThread(updatedThread);
 }
 
 export function resetOperationsStoreForTests() {
+  resetInMemoryOperationsStore();
+  hasHydratedOperationsStore = true;
+  clearPersistedOperationsStore();
+}
+
+export function reloadOperationsStoreFromStorageForTests() {
+  resetInMemoryOperationsStore();
+  hasHydratedOperationsStore = false;
+}
+
+function resetInMemoryOperationsStore() {
   nextBookingNumber = mockBookings.length + 1;
   nextThreadNumber = seedConversationThreads.length + 1;
   nextMessageNumber = seedConversationThreads.reduce(
@@ -157,6 +197,106 @@ export function resetOperationsStoreForTests() {
   );
   bookingState = cloneBookings(mockBookings);
   threadState = cloneThreads(seedConversationThreads);
+}
+
+function ensureHydratedOperationsStore() {
+  if (hasHydratedOperationsStore) {
+    return;
+  }
+
+  hasHydratedOperationsStore = true;
+
+  const storage = getOperationsStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const rawSnapshot = storage.getItem(operationsStorageKey);
+
+  if (!rawSnapshot) {
+    return;
+  }
+
+  try {
+    const parsedSnapshot: unknown = JSON.parse(rawSnapshot);
+
+    if (!isPersistedOperationsStore(parsedSnapshot)) {
+      storage.removeItem(operationsStorageKey);
+      return;
+    }
+
+    nextBookingNumber = parsedSnapshot.nextBookingNumber;
+    nextThreadNumber = parsedSnapshot.nextThreadNumber;
+    nextMessageNumber = parsedSnapshot.nextMessageNumber;
+    bookingState = cloneBookings(parsedSnapshot.bookingState);
+    threadState = cloneThreads(parsedSnapshot.threadState);
+  } catch (error) {
+    console.warn('Unable to hydrate Nailed-it operations store from browser storage.', error);
+    storage.removeItem(operationsStorageKey);
+  }
+}
+
+function persistOperationsStore() {
+  const storage = getOperationsStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const snapshot: PersistedOperationsStore = {
+    bookingState,
+    nextBookingNumber,
+    nextMessageNumber,
+    nextThreadNumber,
+    threadState,
+    version: 1
+  };
+
+  try {
+    storage.setItem(operationsStorageKey, JSON.stringify(snapshot));
+  } catch (error) {
+    console.warn('Unable to persist Nailed-it operations store to browser storage.', error);
+  }
+}
+
+function clearPersistedOperationsStore() {
+  const storage = getOperationsStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  storage.removeItem(operationsStorageKey);
+}
+
+function getOperationsStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function isPersistedOperationsStore(value: unknown): value is PersistedOperationsStore {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const snapshot = value as Partial<PersistedOperationsStore>;
+
+  return (
+    snapshot.version === 1 &&
+    Array.isArray(snapshot.bookingState) &&
+    Array.isArray(snapshot.threadState) &&
+    typeof snapshot.nextBookingNumber === 'number' &&
+    typeof snapshot.nextThreadNumber === 'number' &&
+    typeof snapshot.nextMessageNumber === 'number'
+  );
 }
 
 function cloneBookings(bookings: Booking[]) {
@@ -190,6 +330,10 @@ function cloneRecognition(recognition: Booking['recognition']) {
 
 function cloneThreads(threads: BookingConversationThread[]) {
   return threads.map(cloneThread);
+}
+
+function canRoleViewThread(thread: BookingConversationThread, role: UserRole) {
+  return role === 'merchant' || thread.customerName === demoCustomerName;
 }
 
 function cloneThread(thread: BookingConversationThread): BookingConversationThread {

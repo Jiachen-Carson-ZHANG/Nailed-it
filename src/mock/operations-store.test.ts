@@ -7,7 +7,9 @@ import {
   getAvailableBookingDays,
   getBookingsSnapshot,
   getConversationForRole,
+  getConversationsForRole,
   getConversationThreads,
+  reloadOperationsStoreFromStorageForTests,
   resetOperationsStoreForTests
 } from './operations-store';
 
@@ -39,6 +41,7 @@ describe('operations store', () => {
     });
 
     expect(booking).toMatchObject({
+      customerName: 'Melissa Tan',
       status: 'confirmed',
       date: slot.date,
       time: slot.time,
@@ -69,6 +72,47 @@ describe('operations store', () => {
     expect(
       getConversationForRole(booking.conversationId ?? '', 'customer')?.lastMessage
     ).toMatch(/review/i);
+  });
+
+  it('shows only the current customer threads to the customer role', () => {
+    expect(getConversationsForRole('customer').map((conversation) => conversation.id)).toEqual([
+      'conv-melissa'
+    ]);
+    expect(getConversationsForRole('merchant').map((conversation) => conversation.id)).toEqual([
+      'conv-melissa',
+      'conv-amy',
+      'conv-rachel'
+    ]);
+  });
+
+  it('blocks the customer role from opening another customer appointment thread', () => {
+    expect(getConversationForRole('conv-amy', 'customer')).toBeNull();
+    expect(getConversationForRole('conv-amy', 'merchant')?.participantName).toBe('Amy Lim');
+  });
+
+  it('adds newly created bookings to the current customer inbox and merchant inbox', () => {
+    const slot = getAvailableBookingDays()[0].slots[0];
+    const booking = createBookingFromDraft({ draft: baseDraft, notes: '', slot });
+
+    expect(getConversationsForRole('customer').map((conversation) => conversation.id)).toEqual([
+      'conv-melissa',
+      booking.conversationId
+    ]);
+    expect(getConversationsForRole('merchant').map((conversation) => conversation.id)).toContain(
+      booking.conversationId
+    );
+  });
+
+  it('hydrates current session bookings and threads from browser storage after reload', () => {
+    const slot = getAvailableBookingDays()[0].slots[0];
+    const booking = createBookingFromDraft({ draft: baseDraft, notes: 'Keep this after reload.', slot });
+
+    reloadOperationsStoreFromStorageForTests();
+
+    expect(getBookingsSnapshot().some((item) => item.id === booking.id)).toBe(true);
+    expect(getConversationForRole(booking.conversationId ?? '', 'customer')?.lastMessage).toMatch(
+      /confirmed/i
+    );
   });
 
   it('resets created bookings and conversations back to seeds', () => {

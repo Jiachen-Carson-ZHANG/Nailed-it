@@ -6,16 +6,16 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getMerchantManagePath } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
 import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
-import { merchantConversations } from '@/mock/conversations';
-import { getBookingsSnapshot } from '@/mock/operations-store';
+import { getBookingsSnapshot, getConversationsForRole } from '@/mock/operations-store';
 import { mockTechnicians } from '@/mock/technicians';
 
 export default function MerchantProfilePage() {
   const [bookings] = useState(() => getBookingsSnapshot());
+  const [conversations] = useState(() => getConversationsForRole('merchant'));
   const pendingBookings = bookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)
   );
-  const unreadThreads = merchantConversations.filter((conversation) => conversation.unreadCount > 0);
+  const unreadThreads = conversations.filter((conversation) => conversation.unreadCount > 0);
 
   return (
     <MobileLayout

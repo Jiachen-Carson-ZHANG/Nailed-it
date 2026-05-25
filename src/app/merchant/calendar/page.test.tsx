@@ -53,7 +53,7 @@ describe('MerchantCalendarPage', () => {
 
     await user.click(screen.getByRole('button', { name: /23 3 bookings/i }));
 
-    expect(screen.getByRole('link', { name: /10:00 · carson lee/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /10:00 · melissa tan/i })).toHaveAttribute(
       'href',
       `/merchant/booking/${booking.id}`
     );

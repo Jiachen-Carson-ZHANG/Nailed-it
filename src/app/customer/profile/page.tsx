@@ -1,13 +1,15 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getCustomerBookingPath } from '@/domain/session';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
-import { mockBookings } from '@/mock/bookings';
-
-const customerName = 'Melissa Tan';
+import { demoCustomerName, getBookingsSnapshot } from '@/mock/operations-store';
 
 export default function CustomerProfilePage() {
-  const customerBookings = mockBookings.filter((booking) => booking.customerName === customerName);
+  const [bookings] = useState(() => getBookingsSnapshot());
+  const customerBookings = bookings.filter((booking) => booking.customerName === demoCustomerName);
   // 中文注释：这里按“仍会占用用户心智”的状态聚合 upcoming，后续接真实后端也能复用同一口径。
   const upcomingBookings = customerBookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)
@@ -21,7 +23,7 @@ export default function CustomerProfilePage() {
     >
       <section className="profile-hero">
         <p className="section-eyebrow">Customer profile</p>
-        <h1>{customerName}</h1>
+        <h1>{demoCustomerName}</h1>
         <p className="section-copy">Keep track of upcoming visits, design notes, and your latest booking context.</p>
       </section>
 

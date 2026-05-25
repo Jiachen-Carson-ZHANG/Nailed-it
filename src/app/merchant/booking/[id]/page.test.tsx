@@ -50,7 +50,7 @@ describe('MerchantBookingDetailPage', () => {
 
     render(await MerchantBookingDetailPage({ params: Promise.resolve({ id: booking.id }) }));
 
-    expect(screen.getByRole('heading', { name: /carson lee/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`technician: ${booking.technician.name}`, 'i'))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open message thread/i })).toHaveAttribute(
       'href',

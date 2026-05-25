@@ -21,8 +21,7 @@ describe('MerchantConversationPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: /rachel goh/i })).toBeInTheDocument();
-    expect(screen.getByText(/could i switch to the 6pm slot if it opens up/i)).toBeInTheDocument();
-    expect(screen.getByText(/i will message you if the evening slot becomes available/i)).toBeInTheDocument();
+    expect(screen.getByText(/appointment pending review for tomorrow 15:30 with mei chen/i)).toBeInTheDocument();
   });
 
   it('lets the merchant reply as the current sender', async () => {

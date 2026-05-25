@@ -11,11 +11,17 @@ type BookingTimeSelectorProps = {
     label: string;
     slots: TechnicianSlot[];
   }>;
+  disabled?: boolean;
   onChange: (nextValue: BookingSlotChoice) => void;
   value: BookingSlotChoice | null;
 };
 
-export function BookingTimeSelector({ days, onChange, value }: BookingTimeSelectorProps) {
+export function BookingTimeSelector({
+  days,
+  disabled = false,
+  onChange,
+  value
+}: BookingTimeSelectorProps) {
   return (
     <section className="time-selector" aria-label="Available appointment times">
       {days.map((day) => (
@@ -31,6 +37,7 @@ export function BookingTimeSelector({ days, onChange, value }: BookingTimeSelect
               return (
                 <ChipButton
                   key={`${day.date}-${slot.time}-${slot.technician.id}`}
+                  disabled={disabled}
                   label={`${slot.time} · ${slot.technician.name}`}
                   selected={selected}
                   onClick={() => onChange(slot)}

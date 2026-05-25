@@ -1,5 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { mockAIResult } from '@/mock/ai';
+import {
+  createBookingFromDraft,
+  getAvailableBookingDays,
+  resetOperationsStoreForTests
+} from '@/mock/operations-store';
 import CustomerProfilePage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -7,6 +13,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerProfilePage', () => {
+  beforeEach(() => {
+    resetOperationsStoreForTests();
+  });
+
   it('renders customer profile summary and booking history from shared bookings', () => {
     render(<CustomerProfilePage />);
 
@@ -18,5 +28,22 @@ describe('CustomerProfilePage', () => {
       'href',
       '/customer/booking'
     );
+  });
+
+  it('includes the latest booking created in the current session', () => {
+    const slot = getAvailableBookingDays()[0].slots[0];
+    createBookingFromDraft({
+      draft: {
+        estimate: { source: 'pricing_rules', price: 123, duration: 88 },
+        imageUrl: 'https://example.com/reference.png',
+        recognition: mockAIResult
+      },
+      notes: 'Profile should show this booking.',
+      slot
+    });
+
+    render(<CustomerProfilePage />);
+
+    expect(screen.getByText(/profile should show this booking/i)).toBeInTheDocument();
   });
 });

@@ -25,6 +25,7 @@ export default function CustomerBookingConfirmPage() {
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
+  const bookingLocked = Boolean(createdBooking);
 
   useEffect(() => {
     if (!draftSnapshot) {
@@ -65,7 +66,7 @@ export default function CustomerBookingConfirmPage() {
   }
 
   function confirmAppointment() {
-    if (!selectedSlot || !draft) {
+    if (!selectedSlot || !draft || createdBooking) {
       return;
     }
 
@@ -81,7 +82,7 @@ export default function CustomerBookingConfirmPage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Pick an open slot from the shared mock availability, then send a lightweight confirmation request."
+      subtitle="Pick an assigned technician slot. Confirmed bookings immediately open a message thread; low-confidence results stay in review."
       title="Nailed-it"
     >
       <section className="page-heading">
@@ -104,15 +105,28 @@ export default function CustomerBookingConfirmPage() {
         ) : null}
       </section>
 
-      <BookingTimeSelector days={availableDays} value={selectedSlot} onChange={setSelectedSlot} />
+      <BookingTimeSelector
+        days={availableDays}
+        disabled={bookingLocked}
+        value={selectedSlot}
+        onChange={setSelectedSlot}
+      />
 
       <label className="field">
         <span>Notes</span>
-        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
+        <textarea
+          disabled={bookingLocked}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
       </label>
 
-      <Button disabled={!selectedSlot} onClick={confirmAppointment}>
-        Confirm appointment
+      <Button disabled={!selectedSlot || bookingLocked} onClick={confirmAppointment}>
+        {createdBooking?.status === 'pending_review'
+          ? 'Pending review'
+          : createdBooking
+            ? 'Appointment confirmed'
+            : 'Confirm appointment'}
       </Button>
       {createdBooking?.conversationId ? (
         <Link
