@@ -164,3 +164,21 @@ export type ChatMessage = {
   body: string;
   sentAt: string;
 };
+
+export type MessageAuthorRole = UserRole | 'system';
+
+export type BookingMessage = {
+  id: string;
+  authorRole: MessageAuthorRole;
+  body: string;
+  sentAt: string;
+};
+
+export type BookingConversationThread = {
+  id: string;
+  bookingId: string;
+  customerName: string;
+  merchantName: string;
+  relatedBookingTime: string;
+  messages: BookingMessage[];
+};

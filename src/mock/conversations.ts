@@ -1,4 +1,66 @@
-import type { ChatMessage, Conversation } from '@/domain/nail';
+import type { BookingConversationThread, ChatMessage, Conversation } from '@/domain/nail';
+
+export const seedConversationThreads: BookingConversationThread[] = [
+  {
+    id: 'conv-melissa',
+    bookingId: 'booking-001',
+    customerName: 'Melissa Tan',
+    merchantName: 'Nailed-it Studio',
+    relatedBookingTime: 'Today 14:00',
+    messages: [
+      {
+        id: 'm1',
+        authorRole: 'merchant',
+        body: 'Hi Melissa, we reviewed your reference image and can keep the cat-eye shine soft.',
+        sentAt: '13:10'
+      },
+      {
+        id: 'm2',
+        authorRole: 'customer',
+        body: 'Can the rhinestones be a little more subtle?',
+        sentAt: '13:12'
+      },
+      {
+        id: 'm3',
+        authorRole: 'merchant',
+        body: 'Yes, we can reduce the crystal count and keep the placement near the ring finger only.',
+        sentAt: '13:14'
+      }
+    ]
+  },
+  {
+    id: 'conv-amy',
+    bookingId: 'booking-002',
+    customerName: 'Amy Lim',
+    merchantName: 'Nailed-it Studio',
+    relatedBookingTime: 'Today 16:00',
+    messages: [
+      { id: 'a1', authorRole: 'customer', body: 'See you at 4pm.', sentAt: '10:08' },
+      { id: 'a2', authorRole: 'merchant', body: 'Confirmed. Thank you.', sentAt: '10:09' }
+    ]
+  },
+  {
+    id: 'conv-rachel',
+    bookingId: 'booking-004',
+    customerName: 'Rachel Goh',
+    merchantName: 'Nailed-it Studio',
+    relatedBookingTime: 'Tomorrow 15:30',
+    messages: [
+      {
+        id: 'r1',
+        authorRole: 'customer',
+        body: 'Could I switch to the 6pm slot if it opens up?',
+        sentAt: '18:41'
+      },
+      {
+        id: 'r2',
+        authorRole: 'merchant',
+        body: 'Noted. I will message you if the evening slot becomes available.',
+        sentAt: '18:43'
+      }
+    ]
+  }
+];
 
 const melissaThread: ChatMessage[] = [
   {
