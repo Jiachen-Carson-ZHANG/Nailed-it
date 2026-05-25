@@ -1,7 +1,13 @@
 import { calculateEstimate } from '@/domain/pricing';
-import type { AIRecognitionResult, Booking, BookingQuote } from '@/domain/nail';
+import type { AIRecognitionResult, Booking, BookingQuote, TechnicianSnapshot } from '@/domain/nail';
 import { defaultPricingRules } from './pricing';
 import { getStyleDefinitionById } from './styles';
+
+const technicianSnapshots: Record<string, TechnicianSnapshot> = {
+  mei: { id: 'tech-mei', name: 'Mei Chen', initials: 'MC' },
+  lina: { id: 'tech-lina', name: 'Lina Park', initials: 'LP' },
+  anna: { id: 'tech-anna', name: 'Anna Lim', initials: 'AL' }
+};
 
 function createBookingQuote(recognition: AIRecognitionResult): BookingQuote {
   const quote = calculateEstimate(recognition, defaultPricingRules);
@@ -21,6 +27,7 @@ function createBookingFromStyle({
   notes,
   status,
   styleId,
+  technician,
   time
 }: {
   customerName: string;
@@ -30,6 +37,7 @@ function createBookingFromStyle({
   notes: string;
   status: Booking['status'];
   styleId: string;
+  technician: TechnicianSnapshot;
   time: string;
 }): Booking {
   const style = getStyleDefinitionById(styleId);
@@ -48,6 +56,7 @@ function createBookingFromStyle({
     time,
     quote: createBookingQuote(style.recognition),
     status,
+    technician,
     notes,
     recognition: style.recognition
   };
@@ -61,7 +70,8 @@ export const mockBookings: Booking[] = [
     styleId: 'rose-cat-eye',
     date: '2026-05-23',
     time: '14:00',
-    status: 'pending',
+    status: 'pending_review',
+    technician: technicianSnapshots.mei,
     notes: 'Prefer a softer pink tone and lighter crystal placement.'
   }),
   createBookingFromStyle({
@@ -72,6 +82,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-23',
     time: '16:00',
     status: 'confirmed',
+    technician: technicianSnapshots.lina,
     notes: 'Keep the line thin and natural.'
   }),
   createBookingFromStyle({
@@ -82,6 +93,7 @@ export const mockBookings: Booking[] = [
     date: '2026-05-24',
     time: '11:00',
     status: 'completed',
+    technician: technicianSnapshots.anna,
     notes: 'Short almond shape, keep the chrome reflection clean.'
   }),
   createBookingFromStyle({
@@ -91,7 +103,8 @@ export const mockBookings: Booking[] = [
     styleId: 'minimal-solid',
     date: '2026-05-24',
     time: '15:30',
-    status: 'pending',
+    status: 'pending_review',
+    technician: technicianSnapshots.mei,
     notes: 'A quick after-work appointment would be ideal.'
   })
 ];

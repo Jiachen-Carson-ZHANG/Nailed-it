@@ -38,6 +38,24 @@ export type BookingQuote = QuoteValue & {
   source: 'booking_snapshot';
 };
 
+export type Technician = {
+  id: string;
+  name: string;
+  initials: string;
+  title: string;
+  active: boolean;
+};
+
+export type TechnicianSnapshot = Pick<Technician, 'id' | 'name' | 'initials'>;
+
+export type TechnicianSlot = {
+  date: string;
+  label: string;
+  time: string;
+  technician: TechnicianSnapshot;
+  rankReason?: 'shortest_wait' | 'earliest_available';
+};
+
 export type CustomerBookingDraft = {
   estimate: RuleBasedQuote;
   imageUrl: string;
@@ -111,12 +129,7 @@ export type PricingItem =
   | StylePricingItem
   | AddonPricingItem;
 
-export type BookingStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled';
+export type BookingStatus = 'confirmed' | 'pending_review' | 'completed' | 'cancelled';
 
 export type Booking = {
   id: string;
@@ -128,6 +141,8 @@ export type Booking = {
   time: string;
   quote: BookingQuote;
   status: BookingStatus;
+  technician: TechnicianSnapshot;
+  conversationId?: string;
   notes: string;
   recognition: AIRecognitionResult;
 };

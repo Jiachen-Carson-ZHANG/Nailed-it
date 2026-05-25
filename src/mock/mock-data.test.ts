@@ -40,6 +40,16 @@ describe('mock data coherence', () => {
     expect(booking?.recognition).toEqual(style?.recognition);
   });
 
+  it('keeps every booking tied to a technician snapshot', () => {
+    expect(mockBookings.every((booking) => booking.technician.name.length > 0)).toBe(true);
+  });
+
+  it('uses explicit review status instead of generic pending for active bookings', () => {
+    const statuses = new Set(mockBookings.map((booking) => booking.status));
+
+    expect(statuses.has('pending')).toBe(false);
+  });
+
   it('recomputes preview quotes from the pricing rules provided at read time', () => {
     const defaultCard = getTrendingStyles().find((style) => style.id === 'rose-cat-eye');
     const updatedRules = defaultPricingRules.map((rule) =>
