@@ -1,14 +1,19 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getMerchantManagePath } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
-import { mockBookings } from '@/mock/bookings';
+import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
 import { merchantConversations } from '@/mock/conversations';
+import { getBookingsSnapshot } from '@/mock/operations-store';
+import { mockTechnicians } from '@/mock/technicians';
 
 export default function MerchantProfilePage() {
-  // 中文注释：merchant profile 只做运营摘要，不复制 calendar 里的排班细节，避免第二套调度状态源。
-  const pendingBookings = mockBookings.filter((booking) =>
-    ['pending', 'confirmed', 'in_progress'].includes(booking.status)
+  const [bookings] = useState(() => getBookingsSnapshot());
+  const pendingBookings = bookings.filter((booking) =>
+    ['pending_review', 'confirmed'].includes(booking.status)
   );
   const unreadThreads = merchantConversations.filter((conversation) => conversation.unreadCount > 0);
 
@@ -28,7 +33,7 @@ export default function MerchantProfilePage() {
         <MerchantAnalyticsCard
           detail="All shared booking snapshots currently represented in the merchant workspace."
           title="Appointments this week"
-          value={String(mockBookings.length)}
+          value={String(bookings.length)}
         />
         <MerchantAnalyticsCard
           detail="Threads that likely need a reply before the next appointment window shifts."
@@ -41,6 +46,13 @@ export default function MerchantProfilePage() {
           value={String(pendingBookings.length)}
         />
       </section>
+
+      <TechnicianRosterCard
+        bookings={bookings}
+        description="Current active workload by technician from confirmed and review-needed bookings."
+        technicians={mockTechnicians}
+        title="Technician workload"
+      />
 
       <section className="summary-card">
         <strong>Pricing and bookings stay connected through one mock operating model</strong>

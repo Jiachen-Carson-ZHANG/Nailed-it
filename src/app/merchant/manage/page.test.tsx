@@ -20,6 +20,8 @@ describe('MerchantManagePage', () => {
         name: /configure estimate rules/i
       })
     ).toBeInTheDocument();
+    expect(screen.getByText(/technician roster/i)).toBeInTheDocument();
+    expect(screen.getByText(/mei chen/i)).toBeInTheDocument();
 
     const removalPriceInput = screen.getByLabelText(/removal sgd/i);
     await user.clear(removalPriceInput);
