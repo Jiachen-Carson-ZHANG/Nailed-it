@@ -10,9 +10,10 @@ import {
   consumeCustomerBookingDraft,
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
-import { getCustomerBookingPath } from '@/domain/session';
+import type { Booking } from '@/domain/nail';
+import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
-import { availableSlots } from '@/mock/bookings';
+import { createBookingFromDraft, getAvailableBookingDays } from '@/mock/operations-store';
 
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
@@ -20,7 +21,9 @@ export default function CustomerBookingConfirmPage() {
   const [notes, setNotes] = useState(
     draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
   );
+  const [availableDays] = useState(() => getAvailableBookingDays());
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
+  const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
@@ -66,8 +69,12 @@ export default function CustomerBookingConfirmPage() {
       return;
     }
 
+    const booking = createBookingFromDraft({ draft, notes, slot: selectedSlot });
+    setCreatedBooking(booking);
     setToastMessage(
-      `Booking request sent to merchant for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+      booking.status === 'confirmed'
+        ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+        : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
     );
   }
 
@@ -97,7 +104,7 @@ export default function CustomerBookingConfirmPage() {
         ) : null}
       </section>
 
-      <BookingTimeSelector days={availableSlots} value={selectedSlot} onChange={setSelectedSlot} />
+      <BookingTimeSelector days={availableDays} value={selectedSlot} onChange={setSelectedSlot} />
 
       <label className="field">
         <span>Notes</span>
@@ -107,6 +114,14 @@ export default function CustomerBookingConfirmPage() {
       <Button disabled={!selectedSlot} onClick={confirmAppointment}>
         Confirm appointment
       </Button>
+      {createdBooking?.conversationId ? (
+        <Link
+          className="button button-secondary"
+          href={getCustomerMessagesPath(createdBooking.conversationId)}
+        >
+          Open booking messages
+        </Link>
+      ) : null}
       <Toast message={toastMessage} />
     </MobileLayout>
   );

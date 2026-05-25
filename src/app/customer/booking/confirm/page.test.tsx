@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { mockAIResult } from '@/mock/ai';
+import { resetOperationsStoreForTests } from '@/mock/operations-store';
 import CustomerBookingConfirmPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -15,6 +16,7 @@ vi.mock('next/navigation', () => ({
 describe('CustomerBookingConfirmPage', () => {
   beforeEach(() => {
     clearCustomerBookingDraft();
+    resetOperationsStoreForTests();
   });
 
   it('shows the empty state when no draft is available', () => {
@@ -102,7 +104,7 @@ describe('CustomerBookingConfirmPage', () => {
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
-  it('lets the customer pick a slot and confirm the appointment with a toast', async () => {
+  it('lets the customer pick a technician-backed slot and auto-confirms the appointment', async () => {
     const user = userEvent.setup();
 
     saveCustomerBookingDraft({
@@ -123,12 +125,45 @@ describe('CustomerBookingConfirmPage', () => {
     const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
     expect(confirmButton).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: '10:00' }));
+    expect(screen.getByRole('button', { name: /10:00 .* mei chen/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /10:00 .* mei chen/i }));
     expect(confirmButton).toBeEnabled();
 
     await user.click(confirmButton);
 
-    expect(screen.getByRole('status')).toHaveTextContent(/booking request sent to merchant for today at 10:00/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/confirmed with mei chen/i);
+    expect(screen.getByRole('link', { name: /open booking messages/i })).toHaveAttribute(
+      'href',
+      '/customer/messages/conv-auto-4'
+    );
+  });
+
+  it('keeps low confidence bookings in pending review before quote confirmation', async () => {
+    const user = userEvent.setup();
+
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: {
+          ...mockMeta(),
+          confidence: 0.61
+        },
+        selection: mockSelection()
+      }
+    });
+
+    render(<CustomerBookingConfirmPage />);
+
+    await user.click(screen.getByRole('button', { name: /10:00 .* mei chen/i }));
+    await user.click(screen.getByRole('button', { name: /confirm appointment/i }));
+
+    expect(screen.getByRole('status')).toHaveTextContent(/pending review with mei chen/i);
   });
 });
 
