@@ -11,12 +11,17 @@ type StyleWaterfallGridClientProps = {
 
 const facetLabels: Partial<Record<StyleDiscoveryFacetKind, string>> = {
   style: 'Style',
-  mood: 'Mood',
+  mood: 'Vibe',
   lifestyle: 'Occasion',
-  shape: 'Shape'
+  shape: 'Shape',
+  addon: 'Add-ons'
 };
 
+const tabs = ['Trending', 'Saved'] as const;
+type TabLabel = typeof tabs[number];
+
 export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
+  const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
   const [activeKind, setActiveKind] = useState<StyleDiscoveryFacetKind | null>(null);
 
   const availableKinds = useMemo(() => {
@@ -25,59 +30,62 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
     return (Object.keys(facetLabels) as StyleDiscoveryFacetKind[]).filter((k) => kinds.has(k));
   }, [styles]);
 
-  const filtered = useMemo(
-    () =>
-      activeKind
-        ? styles.filter((s) => s.discoveryFacets.some((f) => f.kind === activeKind))
-        : styles,
-    [styles, activeKind]
-  );
-
-  if (styles.length === 0) {
-    return (
-      <section aria-labelledby="trending-style-grid-title" className="discovery-section">
-        <div className="section-heading">
-          <div>
-            <p className="section-eyebrow">Trending now</p>
-            <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
-          </div>
-        </div>
-        <EmptyState body="No trending styles right now — check back soon." title="No styles yet" />
-      </section>
-    );
-  }
+  const filtered = useMemo(() => {
+    if (activeTab === 'Saved') return [];
+    return activeKind
+      ? styles.filter((s) => s.discoveryFacets.some((f) => f.kind === activeKind))
+      : styles;
+  }, [styles, activeKind, activeTab]);
 
   return (
-    <section aria-labelledby="trending-style-grid-title" className="discovery-section">
-      <div className="section-heading">
-        <div>
-          <p className="section-eyebrow">Trending now</p>
-          <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
-        </div>
+    <section className="xhs-feed" aria-label="Style discovery feed">
+      {/* XHS-style top tab switcher */}
+      <div className="xhs-tab-row" role="tablist" aria-label="Feed type">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            role="tab"
+            type="button"
+            aria-selected={activeTab === tab}
+            className={activeTab === tab ? 'xhs-tab xhs-tab-active' : 'xhs-tab'}
+            onClick={() => { setActiveTab(tab); setActiveKind(null); }}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
-      <div className="chip-row" role="group" aria-label="Filter by type">
+
+      {/* Horizontally scrollable filter chips */}
+      <div className="xhs-chip-scroll" role="group" aria-label="Filter by type">
         <button
-          className={activeKind === null ? 'chip chip-selected' : 'chip'}
-          onClick={() => setActiveKind(null)}
           type="button"
+          className={activeKind === null ? 'xhs-chip xhs-chip-active' : 'xhs-chip'}
+          onClick={() => setActiveKind(null)}
         >
           All
         </button>
         {availableKinds.map((kind) => (
           <button
             key={kind}
-            className={activeKind === kind ? 'chip chip-selected' : 'chip'}
-            onClick={() => setActiveKind(kind)}
             type="button"
+            className={activeKind === kind ? 'xhs-chip xhs-chip-active' : 'xhs-chip'}
+            onClick={() => setActiveKind(activeKind === kind ? null : kind)}
           >
             {facetLabels[kind]}
           </button>
         ))}
       </div>
-      {filtered.length === 0 ? (
-        <EmptyState body="No styles match this filter." title="No matches" />
+
+      {/* 2-column masonry grid */}
+      {activeTab === 'Saved' ? (
+        <EmptyState
+          title="No saved looks yet"
+          body="Tap the heart on any style to save it here."
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState title="No matches" body="Try a different filter." />
       ) : (
-        <div className="style-waterfall-grid">
+        <div className="xhs-grid">
           {filtered.map((style) => (
             <StyleCard key={style.id} style={style} />
           ))}

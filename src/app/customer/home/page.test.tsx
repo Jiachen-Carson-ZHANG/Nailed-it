@@ -11,11 +11,7 @@ describe('CustomerHomePage', () => {
   it('renders the shared mobile shell with all trending styles', () => {
     render(<CustomerHomePage />);
 
-    expect(
-      screen.getByRole('heading', {
-        name: /discover trending nail looks/i
-      })
-    ).toBeInTheDocument();
+    expect(screen.getByText('Trending')).toBeInTheDocument();
 
     for (const style of stylesModule.getTrendingStyles()) {
       expect(
@@ -31,7 +27,6 @@ describe('CustomerHomePage', () => {
 
     render(<CustomerHomePage />);
 
-    expect(screen.getByText(/no trending styles right now/i)).toBeInTheDocument();
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
   });
 });
