@@ -15,7 +15,6 @@ export default async function MerchantBookingDetailPage({
       brandHref="/merchant/calendar"
       role="merchant"
       showTabs={false}
-      subtitle="Review the shared booking snapshot that customers and merchant tools both derive from."
       title="Nailed-it"
     >
       <MerchantBookingDetailClient id={id} />

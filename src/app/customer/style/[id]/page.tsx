@@ -24,7 +24,6 @@ export default async function StyleDetailPage({ params }: StyleDetailPageProps) 
       brandHref={homePathForRole('customer')}
       role="customer"
       showTabs={false}
-      subtitle="Detail view wired to the current mock recognition and quote contracts."
       title="Nailed-it"
     >
       <StyleDetailPanel

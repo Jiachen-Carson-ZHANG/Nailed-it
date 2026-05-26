@@ -18,20 +18,20 @@ describe('CustomerBookingPage', () => {
 
     render(<CustomerBookingPage />);
 
-    const recognizeButton = screen.getByRole('button', { name: /smart recognition/i });
+    const recognizeButton = screen.getByRole('button', { name: /analyze my photo/i });
     expect(recognizeButton).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /use sample image/i }));
-    expect(screen.getByRole('button', { name: /smart recognition/i })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /try with example/i }));
+    expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /smart recognition/i }));
+    fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
     expect(screen.getByText(/ai is recognizing the style/i)).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(700);
     });
 
-    expect(screen.getByRole('dialog', { name: /ai recognition result/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /your style breakdown/i })).toBeInTheDocument();
     expect(screen.getByText(/live estimate/i)).toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'Edited note carried into confirmation.' }
@@ -88,12 +88,12 @@ describe('CustomerBookingPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /smart recognition/i })).toBeEnabled();
+      expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /smart recognition/i }));
+    fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
 
-    await screen.findByRole('dialog', { name: /ai recognition result/i });
+    await screen.findByRole('dialog', { name: /your style breakdown/i });
     expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
 
     expect(fetch).toHaveBeenCalledWith(

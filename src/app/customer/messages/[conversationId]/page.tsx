@@ -13,7 +13,6 @@ export default async function CustomerConversationPage({
   return (
     <MobileLayout
       role="customer"
-      subtitle="Each message thread stays anchored to its booking snapshot and merchant context."
       title="Nailed-it"
     >
       <CustomerConversationClient conversationId={conversationId} />

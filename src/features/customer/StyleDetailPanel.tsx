@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { AIRecognitionResult, NailStyleCard } from '@/domain/nail';
 import type { MockRouteIntent } from '@/domain/session';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 type StyleDetailPanelProps = {
   backHref: string;
@@ -39,27 +40,29 @@ export function StyleDetailPanel({
 
       <section className="detail-surface" aria-labelledby="style-detail-pricing-title">
         <div className="detail-surface-header">
-          <h2 id="style-detail-pricing-title">Pricing snapshot</h2>
-          <span className="detail-confidence">AI confidence {formatConfidence(recognition.meta.confidence)}</span>
+          <h2 id="style-detail-pricing-title">Your quote</h2>
+          <Tooltip
+            content={`AI estimated $${recognition.meta.aiSuggestedQuote.price} for ${recognition.meta.aiSuggestedQuote.duration} min based on the image. The merchant applied current pricing rules to set the final number. Match confidence: ${formatConfidence(recognition.meta.confidence)}.`}
+          >
+            <button type="button" className="detail-price-info" aria-label="Why this price">
+              Why this price?
+            </button>
+          </Tooltip>
         </div>
-        <div className="detail-quote-grid">
-          <div className="detail-quote-card">
-            <span>Preview quote</span>
-            <strong>${style.previewQuote.price}</strong>
-            <p>{style.previewQuote.duration} min based on current pricing rules</p>
-          </div>
-          <div className="detail-quote-card">
-            <span>AI suggestion</span>
-            <strong>${recognition.meta.aiSuggestedQuote.price}</strong>
-            <p>{recognition.meta.aiSuggestedQuote.duration} min from the recognition result</p>
-          </div>
+        <div className="detail-final-quote">
+          <strong>${style.previewQuote.price}</strong>
+          <p>{style.previewQuote.duration} min · final price</p>
         </div>
       </section>
 
       <section className="detail-surface" aria-labelledby="style-detail-selection-title">
         <div className="detail-surface-header">
-          <h2 id="style-detail-selection-title">Recognized attributes</h2>
-          <span className="detail-popularity">Popularity {style.popularityScore}</span>
+          <h2 id="style-detail-selection-title">Style details</h2>
+          <Tooltip content={`Booked by ${style.popularityScore} customers in the last 30 days.`}>
+            <button type="button" className="detail-popularity-info" aria-label="What popularity means">
+              ★ {style.popularityScore} bookings
+            </button>
+          </Tooltip>
         </div>
         <div className="detail-selection-list">
           {selectionGroups.map((group) => (
@@ -67,7 +70,7 @@ export function StyleDetailPanel({
               <span>{group.label}</span>
               <div className="style-tag-row">
                 {group.values.map((value) => (
-                  <span key={value} className="style-tag">
+                  <span key={value} className="style-tag style-tag-readonly">
                     {value}
                   </span>
                 ))}
@@ -78,11 +81,8 @@ export function StyleDetailPanel({
       </section>
 
       <div className="detail-actions">
-        <Link className="button button-primary" href={backHref}>
-          Back to discovery
-        </Link>
         {bookingIntent.href ? (
-          <Link className="button button-secondary" href={bookingIntent.href}>
+          <Link className="button button-primary" href={bookingIntent.href}>
             {bookingIntent.label}
           </Link>
         ) : (
@@ -91,6 +91,9 @@ export function StyleDetailPanel({
             <p>{bookingIntent.note}</p>
           </section>
         )}
+        <Link className="button button-ghost" href={backHref}>
+          Back to discovery
+        </Link>
       </div>
     </article>
   );

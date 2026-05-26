@@ -12,7 +12,6 @@ export default function MerchantMessagesPage() {
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Merchant inbox keeps each conversation tied to a nearby appointment context."
       title="Nailed-it"
     >
       <section className="page-heading">

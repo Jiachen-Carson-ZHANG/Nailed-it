@@ -33,7 +33,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
   ) : (
     <section className="page-heading">
       <EmptyState
-        body="The selected customer thread is not available in the current merchant inbox snapshot."
+        body="We couldn't find that thread. Try the inbox again."
         title="Conversation not found"
       />
     </section>

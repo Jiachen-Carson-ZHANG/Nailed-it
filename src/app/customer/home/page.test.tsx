@@ -31,7 +31,7 @@ describe('CustomerHomePage', () => {
 
     render(<CustomerHomePage />);
 
-    expect(screen.getByText(/no styles are trending yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no trending styles right now/i)).toBeInTheDocument();
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
   });
 });

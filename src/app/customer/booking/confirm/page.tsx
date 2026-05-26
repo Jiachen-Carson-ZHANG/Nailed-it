@@ -47,19 +47,18 @@ export default function CustomerBookingConfirmPage() {
     return (
       <MobileLayout
         role="customer"
-        subtitle="This lightweight flow keeps the current booking draft in memory until you move into confirmation."
         title="Nailed-it"
       >
         <section className="page-heading">
           <p className="section-eyebrow">Confirm booking</p>
-          <h1>Booking draft unavailable</h1>
+          <h1>Pick a style first</h1>
         </section>
         <EmptyState
-          body="Start from the booking step so the current recognition result and estimate can be carried into confirmation."
-          title="No active booking draft"
+          body="Choose a look from the home page or upload your own photo to see your quote, then come back here to lock in the time."
+          title="No style selected yet"
         />
         <Link className="button button-primary" href={getCustomerBookingPath()}>
-          Back to booking
+          Start booking
         </Link>
       </MobileLayout>
     );
@@ -82,20 +81,18 @@ export default function CustomerBookingConfirmPage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Pick an assigned technician slot. Confirmed bookings immediately open a message thread; low-confidence results stay in review."
       title="Nailed-it"
     >
       <section className="page-heading">
         <p className="section-eyebrow">Confirm booking</p>
         <h1>Choose your appointment time</h1>
         <p className="section-copy">
-          This confirmation step stays on the current shell and reuses the same rule-based estimate
-          contract.
+          Select your preferred time slot below.
         </p>
       </section>
 
       <section className="summary-card">
-        <strong>Current AI booking draft</strong>
+        <strong>Your booking summary</strong>
         <p>{draft.recognition.selection.otherNotes}</p>
         <p>
           Estimated: SGD {draft.estimate.price} · {draft.estimate.duration} min

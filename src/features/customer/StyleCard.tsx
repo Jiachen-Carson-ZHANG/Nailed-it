@@ -27,7 +27,7 @@ export function StyleCard({ style }: StyleCardProps) {
             <h3>{style.title}</h3>
             <p>From ${style.previewQuote.price} · {style.previewQuote.duration} min</p>
           </div>
-          <span className="style-score">{style.popularityScore}%</span>
+          <span className="style-score" aria-label={`${style.popularityScore} recent bookings`}>★ {style.popularityScore}</span>
         </div>
         <div className="style-tag-row" aria-label={`${style.title} tags`}>
           {style.discoveryFacets.map((facet) => (

@@ -56,7 +56,7 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
         <p>
           {hasImage
             ? 'Swap the current image to compare another finish or shape.'
-            : 'Upload a nail photo for live recognition, or use the sample for local flow testing.'}
+            : 'Upload a nail photo to get your quote, or try with our example.'}
         </p>
       </div>
       <label className="button button-primary button-default">
@@ -69,8 +69,8 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
           onChange={handleFileChange}
         />
       </label>
-      <Button onClick={onMockUpload} variant={hasImage ? 'secondary' : 'primary'}>
-        Use sample image
+      <Button onClick={onMockUpload} variant="secondary">
+        Try with example
       </Button>
     </section>
   );

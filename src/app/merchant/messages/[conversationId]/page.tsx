@@ -13,7 +13,6 @@ export default async function MerchantConversationPage({
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Merchant chat threads surface customer intent without splitting data away from the shared mock source."
       title="Nailed-it"
     >
       <MerchantConversationClient conversationId={conversationId} />

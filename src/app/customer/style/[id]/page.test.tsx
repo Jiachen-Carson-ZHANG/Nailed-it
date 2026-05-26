@@ -24,7 +24,7 @@ describe('StyleDetailPage', () => {
       'href',
       getMockSession('customer').homePath
     );
-    expect(screen.getByRole('link', { name: /booking flow/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /book this look/i })).toHaveAttribute(
       'href',
       getCustomerBookingPath()
     );

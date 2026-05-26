@@ -14,7 +14,7 @@ export default function MerchantCalendarPage() {
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Monthly calendar, day sheet, and booking details all read from the shared booking session."
+      subtitle="Your daily schedule."
       title="Nailed-it"
     >
       <section className="page-heading">
@@ -24,9 +24,9 @@ export default function MerchantCalendarPage() {
       </section>
       <section className="summary-card">
         <strong>{todayCount} bookings on today&apos;s board</strong>
-        <p>Use the calendar to inspect daily workload, then switch to manage when pricing rules need tuning.</p>
-        <Link className="button button-secondary" href={getMerchantManagePath()}>
-          Open pricing rules
+        <p>Tap today on the calendar to see the sheet. Adjust pricing if a rule needs tuning.</p>
+        <Link className="button button-ghost" href={getMerchantManagePath()}>
+          Pricing rules
         </Link>
       </section>
       <MonthlyCalendar bookings={bookings} />

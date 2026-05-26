@@ -44,17 +44,24 @@ export default function MerchantManagePage() {
   const [bookings] = useState(() => getBookingsSnapshot());
   const [rules, setRules] = useState(defaultPricingRules);
   const [toastMessage, setToastMessage] = useState('');
+  const [dirty, setDirty] = useState(false);
 
   function updateRule(nextRule: PricingItem) {
     setRules((currentRules) =>
       currentRules.map((rule) => (rule.id === nextRule.id ? nextRule : rule))
     );
+    setDirty(true);
+  }
+
+  function saveRules() {
+    setToastMessage('Price list updated for customer estimates.');
+    setDirty(false);
   }
 
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Tune the shared pricing rules that feed both customer estimates and merchant booking snapshots."
+      subtitle="Pricing and team."
       title="Nailed-it"
     >
       <section className="page-heading">
@@ -85,9 +92,14 @@ export default function MerchantManagePage() {
         </section>
       ))}
 
-      <Button onClick={() => setToastMessage('Price list updated for customer estimates.')}>
-        Save price list
-      </Button>
+      <div className="pricing-save-bar" data-dirty={dirty}>
+        <span className="pricing-save-status">
+          {dirty ? 'Unsaved changes' : 'All changes saved'}
+        </span>
+        <Button onClick={saveRules} disabled={!dirty}>
+          {dirty ? 'Save price list' : 'Saved'}
+        </Button>
+      </div>
       <Toast message={toastMessage} />
     </MobileLayout>
   );

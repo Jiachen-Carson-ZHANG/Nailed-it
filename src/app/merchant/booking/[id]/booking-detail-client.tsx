@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/EmptyState';
 import type { Booking } from '@/domain/nail';
@@ -17,9 +18,17 @@ const bookingStatuses: Booking['status'][] = [
   'cancelled'
 ];
 
+const statusLabels: Record<Booking['status'], string> = {
+  pending_review: 'Pending review',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled'
+};
+
 export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientProps) {
   const bookings = getBookingsSnapshot();
   const booking = bookings.find((item) => item.id === id);
+  const [status, setStatus] = useState<Booking['status'] | undefined>(booking?.status);
 
   if (!booking) {
     return (
@@ -35,6 +44,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
   const conversationId =
     booking.conversationId ??
     getConversationThreads().find((thread) => thread.bookingId === booking.id)?.id;
+  const currentStatus = status ?? booking.status;
 
   return (
     <section className="booking-detail">
@@ -49,12 +59,19 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
       <p>{booking.styleTitle}</p>
       <p>{booking.notes}</p>
       <p>Technician: {booking.technician.name}</p>
-      <p>Status: {booking.status}</p>
-      <div className="chip-row" aria-label="Booking status">
-        {bookingStatuses.map((status) => (
-          <span key={status} className={booking.status === status ? 'chip chip-selected' : 'chip'}>
-            {status}
-          </span>
+      <p>Status: {statusLabels[currentStatus]}</p>
+      <div className="status-toggle" role="radiogroup" aria-label="Change booking status">
+        {bookingStatuses.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={currentStatus === option}
+            className={currentStatus === option ? 'status-toggle-option status-toggle-active' : 'status-toggle-option'}
+            onClick={() => setStatus(option)}
+          >
+            {statusLabels[option]}
+          </button>
         ))}
       </div>
       {conversationId ? (

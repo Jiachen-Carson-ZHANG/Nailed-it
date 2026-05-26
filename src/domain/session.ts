@@ -62,9 +62,9 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
     routeIntents: {
       booking: {
         key: 'booking',
-        label: 'Booking flow',
+        label: 'Book this look',
         href: customerPaths.booking,
-        note: 'Customer booking starts with a mock upload and AI recognition pass before time selection.',
+        note: 'Upload your photo to get an instant quote, then pick your time.',
         status: 'available'
       },
       messages: {

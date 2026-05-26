@@ -33,7 +33,7 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
   ) : (
     <section className="page-heading">
       <EmptyState
-        body="The requested booking conversation is not available in the current mock dataset."
+        body="We couldn't find that conversation. Try the list again."
         title="Conversation not found"
       />
     </section>

@@ -33,7 +33,7 @@ describe('MerchantBookingDetailPage', () => {
     expect(screen.getByText(new RegExp(`sgd ${booking?.quote.price ?? ''}`, 'i'))).toBeInTheDocument();
     expect(screen.getByText(/prefer a softer pink tone/i)).toBeInTheDocument();
     expect(screen.getByText(/technician: mei chen/i)).toBeInTheDocument();
-    expect(screen.getByText(/status: pending_review/i)).toBeInTheDocument();
+    expect(screen.getByText(/status: pending review/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open message thread/i })).toHaveAttribute(
       'href',
       '/merchant/messages/conv-melissa'

@@ -6,13 +6,13 @@ const roleCards = [
     href: getMockSession('customer').homePath,
     label: 'Customer',
     title: 'Find styles and book',
-    description: 'Upload a reference, review the AI breakdown, and move straight into a booking flow.'
+    description: 'Upload a nail photo, get an instant style estimate, and book your appointment in minutes.'
   },
   {
     href: getMockSession('merchant').homePath,
     label: 'Merchant',
     title: 'Manage prices and bookings',
-    description: 'Keep pricing rules, appointment demand, and daily scheduling in one mobile workspace.'
+    description: 'View your daily schedule, manage pricing, and stay on top of every booking — all in one place.'
   }
 ] as const;
 
@@ -20,7 +20,7 @@ export default function LandingPage() {
   return (
     <main className="landing-page">
       <section className="landing-hero" aria-labelledby="landing-title">
-        <span className="eyebrow">Mobile nail workflow</span>
+        <span className="eyebrow">AI nail booking</span>
         <div className="brand-mark" aria-hidden="true">
           N
         </div>

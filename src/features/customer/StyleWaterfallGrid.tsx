@@ -15,11 +15,10 @@ export function StyleWaterfallGrid({ styles }: StyleWaterfallGridProps) {
             <p className="section-eyebrow">Trending now</p>
             <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
           </div>
-          <p className="section-copy">Shared mock styles with live preview quotes from pricing rules.</p>
         </div>
         <EmptyState
-          body="Add new mock styles to the shared source of truth and this feed will populate automatically."
-          title="No styles are trending yet"
+          body="No trending styles right now — check back soon."
+          title="No styles yet"
         />
       </section>
     );
@@ -32,7 +31,6 @@ export function StyleWaterfallGrid({ styles }: StyleWaterfallGridProps) {
           <p className="section-eyebrow">Trending now</p>
           <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
         </div>
-        <p className="section-copy">Shared mock styles with live preview quotes from pricing rules.</p>
       </div>
       <div className="style-waterfall-grid">
         {styles.map((style) => (

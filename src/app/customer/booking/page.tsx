@@ -78,15 +78,13 @@ export default function CustomerBookingPage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Upload a reference, review the AI breakdown, then carry the current estimate into time selection."
       title="Nailed-it"
     >
       <section className="page-heading">
-        <p className="section-eyebrow">AI estimate</p>
+        <p className="section-eyebrow">Get your quote</p>
         <h1>Upload your nail reference</h1>
         <p className="section-copy">
-          Start with a mock image now. The editable breakdown keeps the pricing logic tied to the
-          current recognition contract.
+          Choose a nail photo below to get your instant style quote.
         </p>
       </section>
 
@@ -103,12 +101,17 @@ export default function CustomerBookingPage() {
         />
       ) : hasRecognitionResult ? (
         <Button onClick={() => setIsSheetOpen(true)} variant="secondary">
-          Review AI breakdown
+          View your estimate
         </Button>
       ) : (
-        <Button disabled={!imageUrl} onClick={startRecognition}>
-          Smart recognition
-        </Button>
+        <>
+          <Button disabled={!imageUrl} onClick={startRecognition}>
+            Analyze my photo
+          </Button>
+          {!imageUrl ? (
+            <p className="helper-copy">Add a photo above to get your quote.</p>
+          ) : null}
+        </>
       )}
 
       {recognitionError ? (
@@ -120,7 +123,7 @@ export default function CustomerBookingPage() {
 
       {hasRecognitionResult ? (
         <section className="summary-card">
-          <strong>Current recognition snapshot</strong>
+          <strong>Style detected</strong>
           <p>{recognition.selection.otherNotes}</p>
           <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
         </section>
@@ -128,12 +131,11 @@ export default function CustomerBookingPage() {
 
       <BottomSheet
         open={isSheetOpen}
-        title="AI recognition result"
+        title="Your style breakdown"
         onClose={() => setIsSheetOpen(false)}
       >
         <p className="helper-copy">
-          Review the extracted attributes. The rule-based estimate updates immediately as you edit
-          the recognition result.
+          Adjust the style details below — your quote updates instantly.
         </p>
         <NailAttributeEditor value={recognition} onChange={setRecognition} />
       </BottomSheet>

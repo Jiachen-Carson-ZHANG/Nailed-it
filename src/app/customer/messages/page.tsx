@@ -12,7 +12,6 @@ export default function CustomerMessagesPage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Booking-linked customer threads reuse the shared conversation snapshots."
       title="Nailed-it"
     >
       <section className="page-heading">

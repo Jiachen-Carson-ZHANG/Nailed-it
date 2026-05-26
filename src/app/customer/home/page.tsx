@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getTrendingStyles } from '@/mock/styles';
 import { StyleWaterfallGrid } from '@/features/customer/StyleWaterfallGrid';
+import { getCustomerBookingPath } from '@/domain/session';
 
 export default function CustomerHomePage() {
   const styles = getTrendingStyles();
@@ -27,15 +29,14 @@ export default function CustomerHomePage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Discovery feed built from the shared mock style source of truth."
       title="Nailed-it"
     >
       <section className="discovery-hero" aria-labelledby="customer-home-title">
         <div>
-          <p className="section-eyebrow">Customer home</p>
-          <h1 id="customer-home-title">Trending sets for your next appointment</h1>
+          <p className="section-eyebrow">For you</p>
+          <h1 id="customer-home-title">Pick a look. Get an instant quote.</h1>
           <p className="section-copy">
-            Browse live style previews before the booking flow is opened up.
+            Tap any style for the price and time. Or upload your own photo to start.
           </p>
         </div>
         <div className="discovery-stat-grid" aria-label="Discovery stats">
@@ -54,6 +55,9 @@ export default function CustomerHomePage() {
             )}
           </div>
         </div>
+        <Link className="button button-primary" href={getCustomerBookingPath()}>
+          Book from my own photo →
+        </Link>
       </section>
 
       <StyleWaterfallGrid styles={styles} />

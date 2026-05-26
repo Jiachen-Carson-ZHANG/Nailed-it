@@ -27,8 +27,8 @@ describe('CustomerBookingConfirmPage', () => {
   it('shows the empty state when no draft is available', () => {
     render(<CustomerBookingConfirmPage />);
 
-    expect(screen.getByText(/no active booking draft/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /back to booking/i })).toHaveAttribute(
+    expect(screen.getByText(/no style selected yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /start booking/i })).toHaveAttribute(
       'href',
       '/customer/booking'
     );
@@ -53,7 +53,7 @@ describe('CustomerBookingConfirmPage', () => {
 
     render(<CustomerBookingConfirmPage />);
 
-    expect(screen.getByText(/current ai booking draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/edited note carried into confirmation/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe('CustomerBookingConfirmPage', () => {
     });
 
     const firstRender = render(<CustomerBookingConfirmPage />);
-    expect(firstRender.getByText(/current ai booking draft/i)).toBeInTheDocument();
+    expect(firstRender.getByText(/your booking summary/i)).toBeInTheDocument();
 
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -82,7 +82,7 @@ describe('CustomerBookingConfirmPage', () => {
     firstRender.unmount();
 
     render(<CustomerBookingConfirmPage />);
-    expect(screen.getByText(/no active booking draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/no style selected yet/i)).toBeInTheDocument();
   });
 
   it('still shows the draft on the first valid visit inside StrictMode', () => {
@@ -105,7 +105,7 @@ describe('CustomerBookingConfirmPage', () => {
       </StrictMode>
     );
 
-    expect(screen.getByText(/current ai booking draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
