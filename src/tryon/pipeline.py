@@ -1,6 +1,8 @@
 import base64
 
-from src.shared.openrouter import MODEL, post_chat
+from src.shared.openrouter import post_chat
+
+_MODEL = "google/gemini-3.1-flash-image-preview"
 
 _PROMPT = (
     "Apply the nail style shown in the second image to the nails in the first image. "
@@ -21,7 +23,7 @@ async def run_tryon(
     style_b64 = base64.b64encode(style_bytes).decode()
 
     payload = {
-        "model": MODEL,
+        "model": _MODEL,
         "messages": [
             {
                 "role": "user",

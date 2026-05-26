@@ -4,11 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-`cc-guide` is **not an application** — it's a distribution of Claude Code configuration (skills, sub-agents, MCP server config) plus documentation and slides aimed at SAP developers. The bundled `.claude/` directory is the *deliverable*: users either run `./setup` to merge it into `~/.claude/` or copy it into a project root. Treat `.claude/` as user-facing artifact, not internal tooling.
-
-## Product
-
-Building Nailed It — an AI-powered nail salon operations platform that provides virtual try-ons, auto-quotes, books, and maintains a style library by decomposing nail style images into structured attributes.
+We are building the product: NailedIt — an AI-powered nail salon operations platform that provides virtual try-ons, auto-quotes, books, and maintains a style library by decomposing nail style images into structured attributes.
 Target users: nail salon owners and technicians (B side), end customers (C side); B2B2C model.
 Full PRD: [docs/prds/nailed-it-prd1.0.md](docs/prds/nailed-it-prd1.0.md)
 

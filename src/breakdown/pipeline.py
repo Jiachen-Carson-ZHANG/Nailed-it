@@ -5,7 +5,9 @@ import re
 from fastapi import HTTPException
 
 from src.breakdown.schemas import BreakdownResponse
-from src.shared.openrouter import MODEL, post_chat
+from src.shared.openrouter import post_chat
+
+_MODEL = "google/gemini-3.1-flash-image-preview"
 
 _JSON_SCHEMA = """{
   "styles": [
@@ -33,11 +35,23 @@ _JSON_SCHEMA = """{
   "notes": "<any observations about the styles>"
 }"""
 
-_PROMPT_FREE = f"""You are a nail technician assistant. You are given one or more nail style images. Analyze each image separately and freely identify every component, material, technique, and decorative element you can observe — do not limit yourself to any predefined list.
+_PROMPT_FREE = f"""You are a nail technician assistant. You are given one or more nail style images, provided in order as Image 1, Image 2, Image 3, etc.
 
-Return one entry in the "styles" array for each image, in the same order as the images provided.
+Follow these steps exactly:
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
+Step 1 — For each image independently, note:
+- Every color, finish, and texture visible on those nails only
+- Every technique (gradient, french, ombre, etc.) visible on those nails only
+- Every decoration (rhinestones, foil, stickers, 3D elements, etc.) visible on those nails only
+- The nail length and shape visible on those nails only
+Do NOT carry over any observation from one image to another.
+
+Step 2 — Write the JSON output per image.
+- The "styles" array must contain exactly one entry per image, in the same order.
+- Set each "style_name" to "Image 1", "Image 2", etc.
+- Each entry must reflect ONLY what is visible in that specific image.
+
+Return ONLY a valid JSON object containing all image analysis with this exact structure (no markdown, no explanation):
 {_JSON_SCHEMA}
 Use realistic dummy prices and times."""
 
@@ -68,7 +82,7 @@ async def run_breakdown(images: list[tuple[bytes, str]], free_mode: bool = False
     ]
     content.append({"type": "text", "text": prompt})
 
-    data = await post_chat({"model": MODEL, "messages": [{"role": "user", "content": content}]})
+    data = await post_chat({"model": _MODEL, "messages": [{"role": "user", "content": content}]})
     try:
         raw = data["choices"][0]["message"]["content"]
         raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())

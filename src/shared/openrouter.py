@@ -4,7 +4,6 @@ import httpx
 from fastapi import HTTPException
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-3.1-flash-image-preview"
 
 _client = httpx.AsyncClient(timeout=120)
 
