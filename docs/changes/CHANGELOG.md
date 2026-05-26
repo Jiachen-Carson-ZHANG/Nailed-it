@@ -11,6 +11,15 @@ Bullet format:
   - ✨ Feature · <Area Full Name> · [AREA-X#](PATCHES.md#anchor) — <Title>
 -->
 
+## 2026-05-27
+
+- ✨ Feature · Frontend / UI · [UI-F3](PATCHES.md#ui-f3--try-on-2-input-ritual) — Booking page 2-input ritual: nail style + hand photo slots
+- ✨ Feature · Frontend / UI · [UI-F2](PATCHES.md#ui-f2--style-detail-quotation-breakdown) — Style detail per-component price breakdown table
+- 🔧 Enhancement · Frontend / UI · [UI-E25](PATCHES.md#ui-e25--merchant-calendar-open-label-noise) — Merchant calendar removes Open label from empty days
+- 🔧 Enhancement · Frontend / UI · [UI-E24](PATCHES.md#ui-e24--landing-customer-primary-hierarchy) — Landing page Customer card promoted to primary
+- 🔧 Enhancement · Frontend / UI · [UI-E23](PATCHES.md#ui-e23--customer-profile-primary-cta) — Customer profile primary CTA above the fold
+- 🔧 Enhancement · Frontend / UI · [UI-E22](PATCHES.md#ui-e22--home-discovery-filter-chips) — Home discovery interactive filter chips
+
 ## 2026-05-26
 
 - 🔧 Enhancement · Frontend / UI · [UI-E21](PATCHES.md#ui-e21--booking-status-toggle-interactive) — Merchant booking status chips become interactive radio toggle

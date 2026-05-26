@@ -1,20 +1,8 @@
 import Link from 'next/link';
 import { getMockSession } from '@/domain/session';
 
-const roleCards = [
-  {
-    href: getMockSession('customer').homePath,
-    label: 'Customer',
-    title: 'Find styles and book',
-    description: 'Upload a nail photo, get an instant style estimate, and book your appointment in minutes.'
-  },
-  {
-    href: getMockSession('merchant').homePath,
-    label: 'Merchant',
-    title: 'Manage prices and bookings',
-    description: 'View your daily schedule, manage pricing, and stay on top of every booking — all in one place.'
-  }
-] as const;
+const customerPath = getMockSession('customer').homePath;
+const merchantPath = getMockSession('merchant').homePath;
 
 export default function LandingPage() {
   return (
@@ -33,13 +21,16 @@ export default function LandingPage() {
       </section>
 
       <section className="role-panel" aria-label="Choose role">
-        {roleCards.map((role) => (
-          <Link key={role.href} className="role-card" href={role.href}>
-            <span>{role.label}</span>
-            <strong>{role.title}</strong>
-            <p>{role.description}</p>
-          </Link>
-        ))}
+        <Link className="role-card role-card-primary" href={customerPath}>
+          <span className="eyebrow">Customer</span>
+          <strong>Find styles and book</strong>
+          <p>Upload a nail photo, get an instant style estimate, and book your appointment in minutes.</p>
+        </Link>
+        <Link className="role-card role-card-secondary" href={merchantPath}>
+          <span>Merchant</span>
+          <strong>Manage prices and bookings</strong>
+          <p>View your daily schedule, manage pricing, and stay on top of every booking — all in one place.</p>
+        </Link>
       </section>
     </main>
   );

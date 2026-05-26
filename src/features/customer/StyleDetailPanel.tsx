@@ -1,7 +1,40 @@
 import Link from 'next/link';
-import type { AIRecognitionResult, NailStyleCard } from '@/domain/nail';
+import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
 import type { MockRouteIntent } from '@/domain/session';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { defaultPricingRules } from '@/mock/pricing';
+
+type BreakdownRow = { label: string; price: number; duration: number };
+
+function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
+  const byTarget = new Map<string, PricingItem>(
+    defaultPricingRules.map((r) => [r.target, r])
+  );
+  const rows: BreakdownRow[] = [];
+
+  const labelMap: Record<string, string> = {
+    removal: 'Removal', extension: 'Extension', builderGel: 'Builder gel',
+    round: 'Round', square: 'Square', squoval: 'Squoval', oval: 'Oval',
+    almond: 'Almond', coffin: 'Coffin', stiletto: 'Stiletto',
+    solid: 'Solid', french: 'French', catEye: 'Cat eye', chrome: 'Chrome',
+    rhinestone: 'Rhinestone', charms: 'Charms', glitter: 'Glitter'
+  };
+
+  const candidates = [
+    ...recognition.selection.baseServices,
+    recognition.selection.nailShape,
+    ...recognition.selection.styles,
+    ...recognition.selection.addons
+  ];
+
+  for (const key of candidates) {
+    const rule = byTarget.get(key);
+    if (rule && rule.price > 0) {
+      rows.push({ label: labelMap[key] ?? key, price: rule.price, duration: rule.duration });
+    }
+  }
+  return rows;
+}
 
 type StyleDetailPanelProps = {
   backHref: string;
@@ -20,6 +53,10 @@ export function StyleDetailPanel({
   recognition,
   style
 }: StyleDetailPanelProps) {
+  const breakdown = buildBreakdown(recognition);
+  const breakdownTotal = breakdown.reduce((s, r) => s + r.price, 0);
+  const breakdownDuration = breakdown.reduce((s, r) => s + r.duration, 0);
+
   const selectionGroups = [
     { label: 'Base', values: recognition.selection.baseServices },
     { label: 'Shape', values: [recognition.selection.nailShape] },
@@ -49,9 +86,31 @@ export function StyleDetailPanel({
             </button>
           </Tooltip>
         </div>
+
+        {breakdown.length > 0 && (
+          <table className="breakdown-table" aria-label="Price breakdown">
+            <tbody>
+              {breakdown.map((row) => (
+                <tr key={row.label}>
+                  <td>{row.label}</td>
+                  <td className="breakdown-duration">{row.duration} min</td>
+                  <td className="breakdown-price">${row.price}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="breakdown-total">
+                <td>Total</td>
+                <td className="breakdown-duration">{breakdownDuration} min</td>
+                <td className="breakdown-price">${breakdownTotal}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+
         <div className="detail-final-quote">
           <strong>${style.previewQuote.price}</strong>
-          <p>{style.previewQuote.duration} min · final price</p>
+          <p>{style.previewQuote.duration} min · merchant price</p>
         </div>
       </section>
 

@@ -24,6 +24,9 @@ export default function CustomerProfilePage() {
         <p className="section-eyebrow">Your profile</p>
         <h1>{demoCustomerName}</h1>
         <p className="section-copy">Keep track of upcoming visits, design notes, and your latest booking context.</p>
+        <Link className="button button-primary" href={getCustomerBookingPath()}>
+          Start a new booking
+        </Link>
       </section>
 
       <section className="profile-stat-grid" aria-label="Customer profile stats">
@@ -61,9 +64,6 @@ export default function CustomerProfilePage() {
         </Link>
       </section>
 
-      <Link className="button" href={getCustomerBookingPath()}>
-        Start a new booking
-      </Link>
     </MobileLayout>
   );
 }

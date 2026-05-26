@@ -19,7 +19,7 @@ describe('StyleDetailPage', () => {
       })
     ).toBeInTheDocument();
     expect(screen.getByText(definition?.recognition.selection.otherNotes ?? '')).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(String(style?.previewQuote.price ?? ''), 'i'))).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(String(style?.previewQuote.price ?? ''), 'i')).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /back to discovery/i })).toHaveAttribute(
       'href',
       getMockSession('customer').homePath

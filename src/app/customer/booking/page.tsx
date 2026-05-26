@@ -21,6 +21,7 @@ const uploadedReferenceUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ??
 export default function CustomerBookingPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(null);
+  const [handImageUrl, setHandImageUrl] = useState('');
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [hasRecognitionResult, setHasRecognitionResult] = useState(false);
@@ -88,11 +89,55 @@ export default function CustomerBookingPage() {
         </p>
       </section>
 
-      <ImageUploader
-        imageUrl={imageUrl}
-        onImageSelected={handleImageSelected}
-        onMockUpload={selectSampleImage}
-      />
+      <div className="tryon-inputs">
+        <div className="tryon-input-slot">
+          <p className="tryon-input-label">1 · Nail style you like</p>
+          <ImageUploader
+            imageUrl={imageUrl}
+            onImageSelected={handleImageSelected}
+            onMockUpload={selectSampleImage}
+          />
+        </div>
+        <div className="tryon-input-slot">
+          <p className="tryon-input-label">2 · Your hand <span className="tryon-optional">(optional · try-on preview)</span></p>
+          <section className="image-uploader">
+            {handImageUrl ? (
+              <img alt="Hand photo" src={handImageUrl} />
+            ) : (
+              <div className="image-uploader-placeholder" aria-hidden="true">
+                <span className="image-uploader-mark">+</span>
+              </div>
+            )}
+            <div className="image-uploader-copy">
+              <strong>{handImageUrl ? 'Hand photo ready' : 'Add your hand'}</strong>
+              <p>{handImageUrl ? 'See how this look fits you.' : 'Upload to preview this style on your hand.'}</p>
+            </div>
+            <label className="button button-secondary button-default">
+              Upload hand photo
+              <input
+                aria-label="Choose hand photo"
+                accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+                hidden
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.addEventListener('load', () => {
+                    if (typeof reader.result === 'string') setHandImageUrl(reader.result);
+                  });
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+          </section>
+          {imageUrl && handImageUrl && (
+            <div className="tryon-cta-note">
+              Both photos ready — virtual try-on coming soon.
+            </div>
+          )}
+        </div>
+      </div>
 
       {isRecognizing ? (
         <LoadingState

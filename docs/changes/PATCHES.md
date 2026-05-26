@@ -20,6 +20,12 @@ Sorted by Priority (P0 → P3), then newest-first within each priority.
 | Priority | Type | ID | Title | Date |
 | -------- | ---- | -- | ----- | ---- |
 | **P1** | 🔧 Enhancement | [UI-E12](#ui-e12--customer-home-hero-headline) | Customer home hero headline — JTBD-driven rewrite | FIXED 2026-05-26 |
+| **P3** | ✨ Feature | [UI-F3](#ui-f3--try-on-2-input-ritual) | Booking page 2-input ritual: nail style + hand photo | FIXED 2026-05-27 |
+| **P3** | ✨ Feature | [UI-F2](#ui-f2--style-detail-quotation-breakdown) | Style detail per-component price breakdown table | FIXED 2026-05-27 |
+| **P3** | 🔧 Enhancement | [UI-E25](#ui-e25--merchant-calendar-open-label-noise) | Merchant calendar removes Open label from empty days | FIXED 2026-05-27 |
+| **P3** | 🔧 Enhancement | [UI-E24](#ui-e24--landing-customer-primary-hierarchy) | Landing page Customer card promoted to primary | FIXED 2026-05-27 |
+| **P3** | 🔧 Enhancement | [UI-E23](#ui-e23--customer-profile-primary-cta) | Customer profile primary CTA above the fold | FIXED 2026-05-27 |
+| **P3** | 🔧 Enhancement | [UI-E22](#ui-e22--home-discovery-filter-chips) | Home discovery interactive filter chips | FIXED 2026-05-27 |
 | **P2** | 🔧 Enhancement | [UI-E21](#ui-e21--booking-status-toggle-interactive) | Merchant booking status chips become interactive radio toggle | FIXED 2026-05-26 |
 | **P2** | 🔧 Enhancement | [UI-E20](#ui-e20--disabled-cta-stronger-affordance) | Disabled CTA affordance — opacity + grayscale | FIXED 2026-05-26 |
 | **P2** | 🔧 Enhancement | [UI-E19](#ui-e19--merchant-manage-sticky-save-bar) | Merchant manage sticky save bar with dirty indicator | FIXED 2026-05-26 |
@@ -52,6 +58,121 @@ Example: `### UI-E1 — Button alignment fix` → `#ui-e1--button-alignment-fix`
 -->
 
 ## Frontend / UI
+
+### UI-F3 — Try-on 2-input ritual
+**Type:** ✨ Feature · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** Booking upload page had a single "nail style" image slot. No affordance for a hand photo, which is the other half of the virtual try-on pair. Users couldn't tell the product was building toward hand + style = AI-rendered preview.
+- **Why it matters:** Porting the 2-input ritual from Joey's static prototype surfaces the full product promise (try-on, not just quote) without requiring the try-on backend to be live.
+- **Fix applied:**
+  - (frontend `src/app/customer/booking/page.tsx`): Added `handImageUrl` state. Wrapped existing `ImageUploader` and a new hand-photo upload section inside `.tryon-inputs` flex column. Numbered labels: "1 · Nail style you like" / "2 · Your hand (optional · try-on preview)". When both filled, shows pink "Both photos ready — virtual try-on coming soon." note.
+  - (frontend `src/app/globals.css`): `.tryon-inputs`, `.tryon-input-slot`, `.tryon-input-label`, `.tryon-optional`, `.tryon-cta-note` styles.
+- **Trade-off:** Try-on CTA is currently a placeholder ("coming soon") — backend not wired in main branch. Accepted — the ritual sets user expectation without breaking the quote flow.
+- **Must remain true:** Nail style upload is always input #1 (drives the quote). Hand photo is always optional. Quote / recognition flow must not be gated on hand photo.
+
+**Before**
+![](../screenshots/2026-05-26-ui-e11-after.png)
+*Single image slot with no try-on affordance.*
+
+**After**
+![](../screenshots/2026-05-27-ui-f3-after.png)
+*Two numbered input slots — nail style (primary) + hand photo (optional try-on).*
+
+---
+
+### UI-F2 — Style detail quotation breakdown
+**Type:** ✨ Feature · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** Style detail showed only a single final price ($120). No per-component breakdown visible — customer couldn't see what they were paying for (base service, shape, style, add-ons).
+- **Why it matters:** Porting Joey's "Component Breakdown" table from `feat/component-breakdown`. Transparency = trust. Per Mira persona: she wants to confirm the price makes sense before booking.
+- **Fix applied:**
+  - (frontend `src/features/customer/StyleDetailPanel.tsx`): Added `buildBreakdown()` — iterates `recognition.selection` (baseServices + nailShape + styles + addons), looks up each item in `defaultPricingRules` by target key, returns `{label, price, duration}[]` filtered to `price > 0`. Renders as `<table>` with per-row duration + price and a bold total row.
+  - (frontend `src/app/globals.css`): `.breakdown-table`, `.breakdown-duration`, `.breakdown-price`, `.breakdown-total` — clean table layout with right-aligned numbers, accent total.
+  - (test `src/app/customer/style/[id]/page.test.tsx`): Updated price assertion from `getByText` → `getAllByText` since price now appears in both breakdown total and final quote display.
+- **Trade-off:** Breakdown uses static `defaultPricingRules` — not merchant-adjusted live prices. Acceptable for MVP; when merchant-specific rules persist server-side, pass them through as prop.
+- **Must remain true:** Breakdown total must equal `style.previewQuote.price` (or be close — minor rounding). If they diverge, surface an explanatory note.
+
+**Before**
+![](../screenshots/2026-05-26-ui-e9-after.png)
+*Single $120 final price — no component visibility.*
+
+**After**
+![](../screenshots/2026-05-27-ui-f2-after.png)
+*Per-component table (Extension $25 + Builder gel $20 + Almond $5 + Cat eye $50 + Rhinestone $20 = $120 total, 135 min) above the merchant final price.*
+
+---
+
+### UI-E25 — Merchant calendar Open label noise
+**Type:** 🔧 Enhancement · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** Every day cell in the merchant calendar rendered the text "Open" when no bookings existed. With 31 cells and most empty, the grid was dominated by the word "Open" — visual noise that diluted the signal of actual booking counts.
+- **Fix applied:**
+  - (frontend `src/features/merchant/MonthlyCalendar.tsx`): Changed `label = bookingCount ? \`${bookingCount} bookings\` : 'Open'` → empty string `''` for zero-booking days. `aria-label` remains meaningful: `"${day} no bookings"`.
+
+**Before**
+![](../screenshots/2026-05-26-ui-e15-before.png)
+*Every empty cell showed "Open" — noisy grid.*
+
+**After**
+![](../screenshots/2026-05-27-ui-e25-after.png)
+*Empty cells are blank — booking counts stand out clearly.*
+
+---
+
+### UI-E24 — Landing Customer primary hierarchy
+**Type:** 🔧 Enhancement · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** Landing page showed Customer and Merchant role cards at equal visual weight. Yuki and Mira land here by default — neither should have to scan to find the customer path.
+- **Fix applied:**
+  - (frontend `src/app/page.tsx`): Added `role-card-primary` class to Customer card, `role-card-secondary` to Merchant.
+  - (frontend `src/app/globals.css`): `.role-card-primary` — accent border + soft accent background + larger heading. `.role-card-secondary` — 0.8 opacity.
+- **Trade-off:** Merchant surface is less prominent. Correct for typical user. Judges/reviewers can still tap the Merchant card clearly.
+
+**Before**
+![](../screenshots/2026-05-26-ui-e8-before.png)
+*Equal-weight cards — no visual default.*
+
+**After**
+![](../screenshots/2026-05-27-ui-e24-after.png)
+*Customer card prominent with pink accent; Merchant card secondary.*
+
+---
+
+### UI-E23 — Customer profile primary CTA
+**Type:** 🔧 Enhancement · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** "Start a new booking" was a plain unstyled `<Link>` at the bottom of the profile page — easy to miss, no visual weight.
+- **Fix applied:**
+  - (frontend `src/app/customer/profile/page.tsx`): Moved CTA into `.profile-hero` section at top. Changed class to `button button-primary`. Removed duplicate link at bottom.
+
+**Before**
+![](../screenshots/2026-05-26-ui-e15-before.png)
+*Plain link buried at page bottom.*
+
+**After**
+![](../screenshots/2026-05-27-ui-e23-after.png)
+*Primary button in hero — visible above fold.*
+
+---
+
+### UI-E22 — Home discovery filter chips
+**Type:** 🔧 Enhancement · **Status:** FIXED 2026-05-27 · **Priority:** P3
+
+- **What:** Discovery home had static stat cards ("Preview range $30–$120") with no filtering affordance. Audit finding: chips that look static but aren't tappable violate Nielsen B-#4.
+- **Fix applied:**
+  - (frontend `src/features/customer/StyleWaterfallGridClient.tsx`): New client component replacing `StyleWaterfallGrid`. Reads `discoveryFacets` from style data, derives unique `kind` values (style, mood, lifestyle, shape). Renders "All / Style / Mood / Occasion / Shape" chip buttons. Tapping a chip filters the waterfall in-place. Empty-filter state shows `EmptyState`.
+  - (frontend `src/app/customer/home/page.tsx`): Swapped import to `StyleWaterfallGridClient`.
+- **Trade-off:** Home page now requires JS for the filter interaction. `StyleWaterfallGrid` (server-side) still exists for any future RSC surface that doesn't need filtering.
+
+**Before**
+![](../screenshots/2026-05-27-ui-e22-before.png)
+*No filter chips — static grid.*
+
+**After**
+![](../screenshots/2026-05-27-ui-e22-after.png)
+*All / Style / Mood / Occasion / Shape chips filter the waterfall live.*
+
+---
 
 ### UI-E21 — Booking status toggle interactive
 **Type:** 🔧 Enhancement · **Status:** FIXED 2026-05-26 · **Priority:** P2

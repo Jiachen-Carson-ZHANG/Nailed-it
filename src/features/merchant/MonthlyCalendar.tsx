@@ -27,12 +27,12 @@ export function MonthlyCalendar({ bookings }: MonthlyCalendarProps) {
         {monthDays.map((day) => {
           const date = `2026-05-${String(day).padStart(2, '0')}`;
           const bookingCount = bookingsByDate[date]?.length ?? 0;
-          const label = bookingCount ? `${bookingCount} bookings` : 'Open';
+          const label = bookingCount ? `${bookingCount} bookings` : '';
 
           return (
             <button
               key={date}
-              aria-label={`${day} ${label}`}
+              aria-label={`${day} ${label || 'no bookings'}`}
               className={bookingCount ? 'calendar-day calendar-day-busy' : 'calendar-day'}
               type="button"
               onClick={() => {

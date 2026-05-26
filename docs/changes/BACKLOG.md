@@ -8,9 +8,7 @@ Full per-finding detail (RICE, lens, persona, fix line, effort) lives in [audit-
 
 | Priority | ID | Area | Status | Title |
 | -------- | -- | ---- | ------ | ----- |
-| **P3** | **UI-E22** | Frontend / UI | OPEN | Home filter chips static — make interactive or remove |
-| **P3** | **UI-E23** | Frontend / UI | OPEN | Customer profile lacks above-fold primary CTA |
-| **P3** | **UI-E24** | Frontend / UI | OPEN | Landing route — default to /customer/home |
-| **P3** | **UI-E25** | Frontend / UI | OPEN | Merchant calendar grid noisy with `Open` labels |
-| **P3** | **UI-F2** | Frontend / UI | OPEN | Style detail quotation breakdown — port Joey's table |
-| **P3** | **UI-F3** | Frontend / UI | OPEN | Booking try-on 2-input ritual — port Joey's pattern |
+| **P2** | **UI-X1** | Frontend / UI | OPEN | Lens D (trust) mini-audit — 0 findings captured in Phase 2 (sweep risk) |
+| **P3** | **UI-X2** | Frontend / UI | OPEN | Linlin persona (P3) — 0 findings; group-booking JTBD not exercised |
+| **P3** | **UI-X3** | Frontend / UI | OPEN | Wire try-on API (hand + style → rendered preview) when backend lands in main |
+| **P3** | **TEC-F1** | Technical | OPEN | Design token refactor — wire --space-*, --radius-*, --text-*, --motion-* into globals.css |

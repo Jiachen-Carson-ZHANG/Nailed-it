@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { getTrendingStyles } from '@/mock/styles';
-import { StyleWaterfallGrid } from '@/features/customer/StyleWaterfallGrid';
+import { StyleWaterfallGridClient } from '@/features/customer/StyleWaterfallGridClient';
 import { getCustomerBookingPath } from '@/domain/session';
 
 export default function CustomerHomePage() {
@@ -60,7 +60,7 @@ export default function CustomerHomePage() {
         </Link>
       </section>
 
-      <StyleWaterfallGrid styles={styles} />
+      <StyleWaterfallGridClient styles={styles} />
     </MobileLayout>
   );
 }
