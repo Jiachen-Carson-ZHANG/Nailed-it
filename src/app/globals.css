@@ -315,6 +315,10 @@ select {
 }
 
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   min-height: 2.75rem;
   border: 0;
   border-radius: var(--radius-md);
@@ -325,6 +329,9 @@ select {
     border-color var(--motion-fast) var(--motion-ease),
     transform var(--motion-fast) var(--motion-ease);
   font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .button:disabled {
@@ -332,6 +339,11 @@ select {
   opacity: 0.4;
   box-shadow: none;
   filter: grayscale(0.3);
+}
+
+.button-block {
+  display: flex;
+  width: 100%;
 }
 
 .button-default {
@@ -908,7 +920,9 @@ select {
 .helper-copy {
   margin: 0 0 1rem;
   color: var(--color-muted);
+  font-size: var(--text-sm);
   line-height: 1.5;
+  text-align: center;
 }
 
 .estimate-bar {

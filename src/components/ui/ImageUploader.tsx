@@ -59,7 +59,7 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
             : 'Upload a nail photo to get your quote, or try with our example.'}
         </p>
       </div>
-      <label className="button button-primary button-default">
+      <label className="button button-primary button-default button-block">
         Upload or take photo
         <input
           aria-label="Choose nail reference photo"
@@ -69,7 +69,7 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
           onChange={handleFileChange}
         />
       </label>
-      <Button onClick={onMockUpload} variant="secondary">
+      <Button block onClick={onMockUpload} variant="secondary">
         Try with example
       </Button>
     </section>

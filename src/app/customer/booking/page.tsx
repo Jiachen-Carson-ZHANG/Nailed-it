@@ -112,7 +112,7 @@ export default function CustomerBookingPage() {
               <strong>{handImageUrl ? 'Hand photo ready' : 'Add your hand'}</strong>
               <p>{handImageUrl ? 'See how this look fits you.' : 'Upload to preview this style on your hand.'}</p>
             </div>
-            <label className="button button-secondary button-default">
+            <label className="button button-secondary button-default button-block">
               Upload hand photo
               <input
                 aria-label="Choose hand photo"
@@ -145,12 +145,12 @@ export default function CustomerBookingPage() {
           title="AI is recognizing the style"
         />
       ) : hasRecognitionResult ? (
-        <Button onClick={() => setIsSheetOpen(true)} variant="secondary">
+        <Button block onClick={() => setIsSheetOpen(true)} variant="secondary">
           View your estimate
         </Button>
       ) : (
         <>
-          <Button disabled={!imageUrl} onClick={startRecognition}>
+          <Button block disabled={!imageUrl} onClick={startRecognition}>
             Analyze my photo
           </Button>
           {!imageUrl ? (

@@ -57,7 +57,7 @@ export default function CustomerBookingConfirmPage() {
           body="Choose a look from the home page or upload your own photo to see your quote, then come back here to lock in the time."
           title="No style selected yet"
         />
-        <Link className="button button-primary" href={getCustomerBookingPath()}>
+        <Link className="button button-primary button-block" href={getCustomerBookingPath()}>
           Start booking
         </Link>
       </MobileLayout>
@@ -118,7 +118,7 @@ export default function CustomerBookingConfirmPage() {
         />
       </label>
 
-      <Button disabled={!selectedSlot || bookingLocked} onClick={confirmAppointment}>
+      <Button block disabled={!selectedSlot || bookingLocked} onClick={confirmAppointment}>
         {createdBooking?.status === 'pending_review'
           ? 'Pending review'
           : createdBooking
@@ -127,7 +127,7 @@ export default function CustomerBookingConfirmPage() {
       </Button>
       {createdBooking?.conversationId ? (
         <Link
-          className="button button-secondary"
+          className="button button-secondary button-block"
           href={getCustomerMessagesPath(createdBooking.conversationId)}
         >
           Open booking messages

@@ -141,7 +141,7 @@ export function StyleDetailPanel({
 
       <div className="detail-actions">
         {bookingIntent.href ? (
-          <Link className="button button-primary" href={bookingIntent.href}>
+          <Link className="button button-primary button-block" href={bookingIntent.href}>
             {bookingIntent.label}
           </Link>
         ) : (
@@ -151,7 +151,7 @@ export function StyleDetailPanel({
           </section>
         )}
         <p className="detail-merchant-line">At <strong>Nailed-it Studio</strong> · Free cancellation up to 24 h before</p>
-        <Link className="button button-ghost" href={backHref}>
+        <Link className="button button-ghost button-block" href={backHref}>
           Back to discovery
         </Link>
       </div>

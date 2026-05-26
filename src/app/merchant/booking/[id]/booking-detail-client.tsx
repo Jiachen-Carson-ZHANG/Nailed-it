@@ -75,7 +75,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
         ))}
       </div>
       {conversationId ? (
-        <Link className="button button-secondary" href={getMerchantMessagesPath(conversationId)}>
+        <Link className="button button-secondary button-block" href={getMerchantMessagesPath(conversationId)}>
           Open message thread
         </Link>
       ) : null}

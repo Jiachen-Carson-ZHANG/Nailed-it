@@ -61,12 +61,12 @@ export default function MerchantProfilePage() {
       <section className="summary-card">
         <strong>Privacy and connected accounts</strong>
         <p>Review how optional Pinterest access and reference images are handled in this MVP.</p>
-        <Link className="button button-secondary" href="/privacy">
+        <Link className="button button-secondary button-block" href="/privacy">
           Privacy Policy
         </Link>
       </section>
 
-      <Link className="button" href={getMerchantManagePath()}>
+      <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         Open pricing rules
       </Link>
     </MobileLayout>

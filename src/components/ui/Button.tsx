@@ -4,6 +4,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 type ButtonSize = 'default' | 'compact';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  block?: boolean;
   children: ReactNode;
   size?: ButtonSize;
   variant?: ButtonVariant;
@@ -14,6 +15,7 @@ function joinClassNames(...classNames: Array<string | false | null | undefined>)
 }
 
 export function Button({
+  block = false,
   children,
   className,
   size = 'default',
@@ -23,7 +25,13 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={joinClassNames('button', `button-${variant}`, `button-${size}`, className)}
+      className={joinClassNames(
+        'button',
+        `button-${variant}`,
+        `button-${size}`,
+        block && 'button-block',
+        className
+      )}
       type={type}
       {...props}
     >

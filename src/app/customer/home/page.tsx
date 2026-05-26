@@ -52,7 +52,7 @@ export default function CustomerHomePage() {
             )}
           </div>
         </div>
-        <Link className="button button-primary" href={getCustomerBookingPath()}>
+        <Link className="button button-primary button-block" href={getCustomerBookingPath()}>
           Book from my own photo →
         </Link>
       </section>

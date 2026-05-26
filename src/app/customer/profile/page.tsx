@@ -24,7 +24,7 @@ export default function CustomerProfilePage() {
         <p className="section-eyebrow">Your profile</p>
         <h1>{demoCustomerName}</h1>
         <p className="section-copy">Keep track of upcoming visits, design notes, and your latest booking context.</p>
-        <Link className="button button-primary" href={getCustomerBookingPath()}>
+        <Link className="button button-primary button-block" href={getCustomerBookingPath()}>
           Start a new booking
         </Link>
       </section>
@@ -59,7 +59,7 @@ export default function CustomerProfilePage() {
       <section className="summary-card">
         <strong>Privacy and connected accounts</strong>
         <p>Review how optional Pinterest access and reference images are handled in this MVP.</p>
-        <Link className="button button-secondary" href="/privacy">
+        <Link className="button button-secondary button-block" href="/privacy">
           Privacy Policy
         </Link>
       </section>
