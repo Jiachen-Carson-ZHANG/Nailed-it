@@ -8,6 +8,7 @@
 - Added `/privacy` as a static public App Router page describing the MVP, optional Pinterest OAuth, read-only boards/Pins intent, reference-image use, local demo-state limitation, and disconnect path.
 - Added `/api/integrations/pinterest/callback` as a placeholder redirect endpoint so the future Pinterest OAuth URI is reachable on Vercel before token exchange is implemented.
 - Linked customer and merchant profile pages to the same privacy policy so the disclosure is also reachable from account surfaces.
+- Added a visible privacy contact email to reduce ambiguity during external review.
 - Added route/profile tests and short design/implementation docs for the approval surface.
 
 **Verification:**

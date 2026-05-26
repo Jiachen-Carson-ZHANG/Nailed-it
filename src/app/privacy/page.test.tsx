@@ -13,6 +13,11 @@ describe('PrivacyPage', () => {
     expect(screen.getByText(/pinterest connection is optional/i)).toBeInTheDocument();
     expect(screen.getByText(/does not collect pinterest passwords/i)).toBeInTheDocument();
     expect(screen.getByText(/local demo state/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', {
+        name: 'toughcookiezang@gmail.com'
+      })
+    ).toHaveAttribute('href', 'mailto:toughcookiezang@gmail.com');
     expect(screen.getByRole('link', { name: /back to app/i })).toHaveAttribute('href', '/');
   });
 });

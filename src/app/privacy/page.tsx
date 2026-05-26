@@ -60,8 +60,8 @@ export default function PrivacyPage() {
         <article className="role-card">
           <span>Contact</span>
           <p>
-            For privacy questions during the MVP review, use the contact email submitted in the
-            Pinterest developer application.
+            For privacy questions during the MVP review, contact{' '}
+            <a href="mailto:toughcookiezang@gmail.com">toughcookiezang@gmail.com</a>.
           </p>
         </article>
       </section>
