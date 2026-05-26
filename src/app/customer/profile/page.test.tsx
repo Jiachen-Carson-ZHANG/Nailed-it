@@ -23,7 +23,7 @@ describe('CustomerProfilePage', () => {
     expect(screen.getByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
     expect(screen.getByText(/upcoming bookings/i)).toBeInTheDocument();
     expect(screen.getByText(/rose cat eye shine/i)).toBeInTheDocument();
-    expect(screen.getByText(/review needed/i)).toBeInTheDocument();
+    expect(screen.getByText(/awaiting confirmation/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /start a new booking/i })).toHaveAttribute(
       'href',
       '/customer/booking'

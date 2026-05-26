@@ -497,6 +497,17 @@ select {
   text-align: center;
 }
 
+.detail-merchant-line {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.detail-merchant-line strong {
+  color: var(--color-text);
+}
+
 .breakdown-table {
   width: 100%;
   border-collapse: collapse;

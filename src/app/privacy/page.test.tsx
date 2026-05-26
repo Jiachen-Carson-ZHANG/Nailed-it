@@ -12,7 +12,7 @@ describe('PrivacyPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/pinterest connection is optional/i)).toBeInTheDocument();
     expect(screen.getByText(/does not collect pinterest passwords/i)).toBeInTheDocument();
-    expect(screen.getByText(/local demo state/i)).toBeInTheDocument();
+    expect(screen.getByText(/stored locally on your device/i)).toBeInTheDocument();
     expect(
       screen.getByRole('link', {
         name: 'toughcookiezang@gmail.com'

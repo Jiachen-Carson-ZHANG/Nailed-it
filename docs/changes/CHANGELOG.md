@@ -11,6 +11,13 @@ Bullet format:
   - ✨ Feature · <Area Full Name> · [AREA-X#](PATCHES.md#anchor) — <Title>
 -->
 
+## 2026-05-27 (trust audit)
+
+- 🔧 Enhancement · Frontend / UI · Lens D trust mini-audit — 4 findings shipped
+  - D1+D2: Style detail — merchant name + cancellation policy below Book CTA
+  - D3: Profile appointment badge — "Review needed" → "Awaiting confirmation"
+  - D4: Privacy page — removed dev-facing "MVP" and "before launch" language
+
 ## 2026-05-27
 
 - ✨ Feature · Frontend / UI · [UI-F3](PATCHES.md#ui-f3--try-on-2-input-ritual) — Booking page 2-input ritual: nail style + hand photo slots

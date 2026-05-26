@@ -150,6 +150,7 @@ export function StyleDetailPanel({
             <p>{bookingIntent.note}</p>
           </section>
         )}
+        <p className="detail-merchant-line">At <strong>Nailed-it Studio</strong> · Free cancellation up to 24 h before</p>
         <Link className="button button-ghost" href={backHref}>
           Back to discovery
         </Link>
