@@ -28,6 +28,10 @@ describe('CustomerProfilePage', () => {
       'href',
       '/customer/booking'
     );
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
+      'href',
+      '/privacy'
+    );
   });
 
   it('includes the latest booking created in the current session', () => {

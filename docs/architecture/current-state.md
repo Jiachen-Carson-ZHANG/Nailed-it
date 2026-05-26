@@ -1,23 +1,25 @@
 # Architecture: Current State
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 ## Pipeline
 
 The active frontend is a Next.js App Router application with a mobile-first shell:
 
 1. `src/app/page.tsx` routes users into role-specific flows through `src/domain/session.ts`.
-2. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
-3. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
-4. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
-5. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules.
-6. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
-7. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; normal-confidence bookings auto-confirm, while low-confidence recognition results become `pending_review`.
-8. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
-9. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
+2. `src/app/privacy/page.tsx` provides a public no-login privacy policy for external platform review and account-surface links.
+3. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
+4. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
+5. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
+6. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules.
+7. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
+8. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; normal-confidence bookings auto-confirm, while low-confidence recognition results become `pending_review`.
+9. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
+10. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
 
 ## Key modules
 
+- `src/app/privacy/page.tsx`: public privacy disclosure for Pinterest/Vercel review and account-link reuse.
 - `src/app/customer/home/page.tsx`: customer discovery entry using the shared mobile shell.
 - `src/app/customer/style/[id]/page.tsx`: style detail route backed by shared mock style helpers.
 - `src/app/customer/booking/page.tsx` and `src/app/customer/booking/confirm/page.tsx`: booking flow backed by an explicit in-memory draft contract, technician-assigned slots, instant confirmation, and low-confidence review fallback.

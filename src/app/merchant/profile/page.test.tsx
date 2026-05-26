@@ -18,5 +18,9 @@ describe('MerchantProfilePage', () => {
       'href',
       '/merchant/manage'
     );
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
+      'href',
+      '/privacy'
+    );
   });
 });

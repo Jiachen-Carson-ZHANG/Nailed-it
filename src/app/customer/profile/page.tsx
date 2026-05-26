@@ -54,6 +54,14 @@ export default function CustomerProfilePage() {
         </div>
       </section>
 
+      <section className="summary-card">
+        <strong>Privacy and connected accounts</strong>
+        <p>Review how optional Pinterest access and reference images are handled in this MVP.</p>
+        <Link className="button button-secondary" href="/privacy">
+          Privacy Policy
+        </Link>
+      </section>
+
       <Link className="button" href={getCustomerBookingPath()}>
         Start a new booking
       </Link>

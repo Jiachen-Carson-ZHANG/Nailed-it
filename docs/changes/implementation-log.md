@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-05-26 - Public Privacy Page For Pinterest Review
+
+**Context:** Pinterest Trial access review needs a public, no-login privacy-policy URL that clearly explains the MVP's optional Pinterest use before the OAuth integration exists.
+
+**Changes (external review/privacy):**
+- Added `/privacy` as a static public App Router page describing the MVP, optional Pinterest OAuth, read-only boards/Pins intent, reference-image use, local demo-state limitation, and disconnect path.
+- Linked customer and merchant profile pages to the same privacy policy so the disclosure is also reachable from account surfaces.
+- Added route/profile tests and short design/implementation docs for the approval surface.
+
+**Verification:**
+- `npm test -- src/app/privacy/page.test.tsx src/app/customer/profile/page.test.tsx src/app/merchant/profile/page.test.tsx`
+- `npm test`
+- `npx tsc --noEmit --pretty false`
+- `npm run build`
+
+**Must remain true:** `/privacy` must remain publicly reachable without login, role selection, localStorage state, or a Pinterest token. The page is an MVP disclosure and must be revised before adding production account storage, payments, or Pinterest write actions.
+
 ## 2026-05-25 - Customer Journey QA And Message Thread Cleanup
 
 **Context:** Playwright QA showed that the customer inbox exposed other customers' appointment threads, the confirm action could be clicked again after booking, and module-only demo state disappeared on reload. The seeded message content also looked like unrelated fake chat instead of one operational thread per appointment.

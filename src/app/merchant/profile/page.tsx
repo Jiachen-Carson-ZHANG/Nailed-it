@@ -59,6 +59,14 @@ export default function MerchantProfilePage() {
         <p>Adjust estimate rules only from the management surface so customer quotes and merchant expectations remain aligned.</p>
       </section>
 
+      <section className="summary-card">
+        <strong>Privacy and connected accounts</strong>
+        <p>Review how optional Pinterest access and reference images are handled in this MVP.</p>
+        <Link className="button button-secondary" href="/privacy">
+          Privacy Policy
+        </Link>
+      </section>
+
       <Link className="button" href={getMerchantManagePath()}>
         Open pricing rules
       </Link>
