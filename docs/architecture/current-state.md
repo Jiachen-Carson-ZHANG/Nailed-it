@@ -8,18 +8,20 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 
 1. `src/app/page.tsx` routes users into role-specific flows through `src/domain/session.ts`.
 2. `src/app/privacy/page.tsx` provides a public no-login privacy policy for external platform review and account-surface links.
-3. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
-4. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
-5. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
-6. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules.
-7. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
-8. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; normal-confidence bookings auto-confirm, while low-confidence recognition results become `pending_review`.
-9. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
-10. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
+3. `src/app/api/integrations/pinterest/callback/route.ts` reserves a public Pinterest redirect URI for Trial-access setup without performing OAuth token exchange yet.
+4. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
+5. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
+6. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
+7. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules.
+8. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
+9. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; normal-confidence bookings auto-confirm, while low-confidence recognition results become `pending_review`.
+10. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
+11. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
 
 ## Key modules
 
 - `src/app/privacy/page.tsx`: public privacy disclosure for Pinterest/Vercel review and account-link reuse.
+- `src/app/api/integrations/pinterest/callback/route.ts`: public placeholder for the future Pinterest OAuth redirect URI.
 - `src/app/customer/home/page.tsx`: customer discovery entry using the shared mobile shell.
 - `src/app/customer/style/[id]/page.tsx`: style detail route backed by shared mock style helpers.
 - `src/app/customer/booking/page.tsx` and `src/app/customer/booking/confirm/page.tsx`: booking flow backed by an explicit in-memory draft contract, technician-assigned slots, instant confirmation, and low-confidence review fallback.

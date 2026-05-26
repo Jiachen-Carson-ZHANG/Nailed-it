@@ -37,10 +37,13 @@
 ### Task 3: Documentation And Verification
 
 **Files:**
+- Create: `src/app/api/integrations/pinterest/callback/route.ts`
+- Create: `src/app/api/integrations/pinterest/callback/route.test.ts`
 - Modify: `docs/changes/implementation-log.md`
 - Optionally modify: `docs/architecture/current-state.md` if the public route should be listed as an app surface.
 
 **Steps:**
-1. Append a concise implementation-log entry.
-2. Run `npm test`, `npx tsc --noEmit --pretty false`, and `npm run build`.
-3. Commit and push to `main` for Vercel import/deployment.
+1. Add a placeholder callback endpoint so the future Pinterest redirect URI is reachable.
+2. Append a concise implementation-log entry.
+3. Run `npm test`, `npx tsc --noEmit --pretty false`, and `npm run build`.
+4. Commit and push to `main` for Vercel import/deployment.

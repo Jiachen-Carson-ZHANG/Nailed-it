@@ -7,12 +7,13 @@ Give Pinterest reviewers a public, no-login privacy-policy URL for the MVP while
 ## Approach
 
 - Add a standalone `src/app/privacy/page.tsx` route that does not depend on role selection, app state, OAuth, or browser storage.
+- Add a placeholder Pinterest callback endpoint so the registered redirect URI is publicly reachable before OAuth token exchange is implemented.
 - Keep the route copy narrow to the current MVP: optional Pinterest OAuth, read-only boards/Pins import, no password collection, no cookies, no scraping, and no posting to Pinterest.
 - Link to `/privacy` from customer and merchant profile screens so the same policy is visible inside the product later.
 
 ## Tradeoffs
 
-This is not a full legal program. It is an MVP disclosure page that is honest about the current product and suitable for a Trial-access review. If the app later stores accounts, payments, production bookings, or Pinterest write actions, the policy must be revised before those features ship.
+This is not a full legal program or a working Pinterest OAuth integration. It is an MVP disclosure page plus a reachable callback placeholder that is honest about the current product and suitable for a Trial-access review. If the app later stores accounts, payments, production bookings, or Pinterest write actions, the policy must be revised before those features ship.
 
 ## Review URLs
 
