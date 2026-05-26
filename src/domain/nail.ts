@@ -96,6 +96,14 @@ export type AIRecognitionResult = {
   meta: AIRecognitionMeta;
 };
 
+export const confidenceReviewThreshold = 0.75;
+
+export function requiresMerchantReview(recognition: AIRecognitionResult): boolean {
+  const { confidence } = recognition.meta;
+
+  return !Number.isFinite(confidence) || confidence < confidenceReviewThreshold;
+}
+
 type PricingItemBase = {
   id: string;
   price: number;

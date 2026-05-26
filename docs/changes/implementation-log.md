@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-05-26 - Gemini Cost Logging And Hardening
+
+**Context:** The live recognition path could spend provider tokens without per-call visibility, and review identified small reliability gaps around confidence policy ownership, Gemini malformed output coverage, and edge-case tests.
+
+**Changes (AI observability/domain hardening):**
+- Added server-side Gemini usage/cost telemetry based on `usageMetadata`, with env-overridable input/output token prices and compact `[nailed-it:vision-cost]` logs after successful live recognition.
+- Kept cost telemetry internal to the API route; customer responses still expose only the recognition contract.
+- Moved the review threshold into `src/domain/nail.ts` and made non-finite confidence require merchant review instead of auto-confirming.
+- Added regression coverage for malformed Gemini JSON, confidence clamping, empty pricing rules, no active technicians, and confidence threshold behavior.
+
+**Verification:**
+- `npm test -- src/mock/operations-store.test.ts src/domain/pricing.test.ts src/domain/availability.test.ts src/lib/ai/nail-recognition.test.ts src/lib/ai/usage-cost.test.ts`
+
+**Must remain true:** Gemini may extract attributes and confidence only. Cost logs must not include image data, API keys, or user-uploaded content, and cost estimates must be treated as observability until reconciled with provider billing.
+
 ## 2026-05-26 - Public Privacy Page For Pinterest Review
 
 **Context:** Pinterest Trial access review needs a public, no-login privacy-policy URL that clearly explains the MVP's optional Pinterest use before the OAuth integration exists.

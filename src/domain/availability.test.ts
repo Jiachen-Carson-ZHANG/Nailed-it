@@ -73,4 +73,14 @@ describe('findTechnicianSlots', () => {
       '2026-05-23 12:30 Lina Park'
     ]);
   });
+
+  it('returns no available days when there are no active technicians', () => {
+    const result = findTechnicianSlots({
+      bookings: [],
+      days,
+      technicians: technicians.map((technician) => ({ ...technician, active: false }))
+    });
+
+    expect(result).toEqual([]);
+  });
 });

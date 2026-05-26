@@ -74,6 +74,46 @@ describe('operations store', () => {
     ).toMatch(/review/i);
   });
 
+  it('creates a pending review booking when recognition confidence is not finite', () => {
+    const slot = getAvailableBookingDays()[0].slots[0];
+    const booking = createBookingFromDraft({
+      draft: {
+        ...baseDraft,
+        recognition: {
+          ...baseDraft.recognition,
+          meta: {
+            ...baseDraft.recognition.meta,
+            confidence: Number.NaN
+          }
+        }
+      },
+      notes: 'Unclear confidence should not auto-confirm.',
+      slot
+    });
+
+    expect(booking.status).toBe('pending_review');
+  });
+
+  it('keeps exact-threshold recognition eligible for auto-confirmation', () => {
+    const slot = getAvailableBookingDays()[0].slots[0];
+    const booking = createBookingFromDraft({
+      draft: {
+        ...baseDraft,
+        recognition: {
+          ...baseDraft.recognition,
+          meta: {
+            ...baseDraft.recognition.meta,
+            confidence: 0.75
+          }
+        }
+      },
+      notes: 'Threshold confidence can auto-confirm.',
+      slot
+    });
+
+    expect(booking.status).toBe('confirmed');
+  });
+
   it('shows only the current customer threads to the customer role', () => {
     expect(getConversationsForRole('customer').map((conversation) => conversation.id)).toEqual([
       'conv-melissa'

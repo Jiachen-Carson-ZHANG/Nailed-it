@@ -5,6 +5,14 @@ import type {
   NailShape,
   NailStyleName
 } from '@/domain/nail';
+import {
+  estimateVisionUsageCost,
+  getVisionTokenPricingFromEnv,
+  parseGeminiUsageMetadata,
+  type VisionCostEstimate,
+  type VisionTokenPricing,
+  type VisionTokenUsage
+} from './usage-cost';
 
 export const defaultGeminiVisionModel = 'gemini-2.5-flash-lite';
 
@@ -33,6 +41,19 @@ export type GeminiNailRecognitionProviderOptions = {
   apiKey: string;
   fetchImpl?: FetchLike;
   model?: string;
+  pricing?: VisionTokenPricing;
+};
+
+export type NailRecognitionTelemetry = {
+  costEstimate: VisionCostEstimate | null;
+  model: string;
+  provider: 'gemini';
+  usage: VisionTokenUsage | null;
+};
+
+export type NailRecognitionProviderResult = {
+  recognition: AIRecognitionResult;
+  telemetry: NailRecognitionTelemetry;
 };
 
 export class NailRecognitionError extends Error {
@@ -53,9 +74,10 @@ export class NailRecognitionError extends Error {
 export function createGeminiNailRecognitionProvider({
   apiKey,
   fetchImpl = fetch,
-  model = defaultGeminiVisionModel
+  model = defaultGeminiVisionModel,
+  pricing = getVisionTokenPricingFromEnv(process.env)
 }: GeminiNailRecognitionProviderOptions) {
-  return async (input: NailImageRecognitionInput): Promise<AIRecognitionResult> => {
+  return async (input: NailImageRecognitionInput): Promise<NailRecognitionProviderResult> => {
     const response = await fetchImpl(`${geminiGenerateContentBaseUrl}/${model}:generateContent`, {
       method: 'POST',
       headers: {
@@ -95,7 +117,17 @@ export function createGeminiNailRecognitionProvider({
       );
     }
 
-    return normalizeGeminiNailRecognition(parseGeminiResponseText(responseJson));
+    const usage = parseGeminiUsageMetadata(responseJson);
+
+    return {
+      recognition: normalizeGeminiNailRecognition(parseGeminiResponseText(responseJson)),
+      telemetry: {
+        provider: 'gemini',
+        model,
+        usage,
+        costEstimate: usage ? estimateVisionUsageCost(usage, pricing) : null
+      }
+    };
   };
 }
 
@@ -118,11 +150,18 @@ export function createConfiguredNailRecognitionProvider(env = process.env) {
 
   return createGeminiNailRecognitionProvider({
     apiKey: env.GEMINI_API_KEY,
-    model: env.VISION_MODEL_NAME || defaultGeminiVisionModel
+    model: env.VISION_MODEL_NAME || defaultGeminiVisionModel,
+    pricing: getVisionTokenPricingFromEnv(env)
   });
 }
 
 export async function recognizeNailImage(input: NailImageRecognitionInput) {
+  const result = await createConfiguredNailRecognitionProvider()(input);
+
+  return result.recognition;
+}
+
+export async function recognizeNailImageWithTelemetry(input: NailImageRecognitionInput) {
   return createConfiguredNailRecognitionProvider()(input);
 }
 

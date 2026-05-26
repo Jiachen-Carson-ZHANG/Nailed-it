@@ -97,6 +97,14 @@ describe('calculateEstimate', () => {
     });
   });
 
+  it('returns a zero estimate when no pricing rules are active', () => {
+    expect(calculateEstimate(baseRecognition, [])).toEqual({
+      source: 'pricing_rules',
+      price: 0,
+      duration: 0
+    });
+  });
+
   it('keeps AI, preview, rule-based, and booking snapshot quotes separate', () => {
     const aiSuggestedQuote = getAiSuggestedQuote(baseRecognition);
     const ruleBasedQuote = calculateEstimate(baseRecognition, pricingRules);

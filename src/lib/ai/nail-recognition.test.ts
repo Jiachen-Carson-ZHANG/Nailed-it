@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createGeminiNailRecognitionProvider,
   normalizeGeminiNailRecognition,
-  defaultGeminiVisionModel
+  defaultGeminiVisionModel,
+  NailRecognitionError
 } from './nail-recognition';
 
 describe('normalizeGeminiNailRecognition', () => {
@@ -36,6 +37,12 @@ describe('normalizeGeminiNailRecognition', () => {
       }
     });
   });
+
+  it('clamps malformed confidence values before app logic uses them', () => {
+    expect(normalizeGeminiNailRecognition({ confidence: Number.NaN }).meta.confidence).toBe(0.5);
+    expect(normalizeGeminiNailRecognition({ confidence: -1 }).meta.confidence).toBe(0);
+    expect(normalizeGeminiNailRecognition({ confidence: 2 }).meta.confidence).toBe(1);
+  });
 });
 
 describe('createGeminiNailRecognitionProvider', () => {
@@ -61,7 +68,13 @@ describe('createGeminiNailRecognitionProvider', () => {
               ]
             }
           }
-        ]
+        ],
+        usageMetadata: {
+          promptTokenCount: 1_200,
+          candidatesTokenCount: 80,
+          thoughtsTokenCount: 10,
+          totalTokenCount: 1_290
+        }
       })
     }));
 
@@ -75,11 +88,22 @@ describe('createGeminiNailRecognitionProvider', () => {
       mimeType: 'image/jpeg'
     });
 
-    expect(result.selection).toMatchObject({
+    expect(result.recognition.selection).toMatchObject({
       baseServices: ['extension'],
       nailShape: 'oval',
       styles: ['french']
     });
+    expect(result.telemetry).toMatchObject({
+      provider: 'gemini',
+      model: defaultGeminiVisionModel,
+      usage: {
+        promptTokenCount: 1_200,
+        candidatesTokenCount: 80,
+        thoughtsTokenCount: 10,
+        totalTokenCount: 1_290
+      }
+    });
+    expect(result.telemetry.costEstimate?.totalUsd).toBeCloseTo(0.000156);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
 
     const [url, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
@@ -101,5 +125,37 @@ describe('createGeminiNailRecognitionProvider', () => {
     expect(body.generationConfig).toMatchObject({
       responseMimeType: 'application/json'
     });
+  });
+
+  it('raises an invalid output error when Gemini returns malformed JSON text', async () => {
+    const provider = createGeminiNailRecognitionProvider({
+      apiKey: 'gemini-test-key',
+      fetchImpl: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: '{not valid json'
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      }))
+    });
+
+    await expect(
+      provider({
+        imageBase64: 'abc123',
+        mimeType: 'image/jpeg'
+      })
+    ).rejects.toMatchObject({
+      code: 'invalid_model_output'
+    } satisfies Partial<NailRecognitionError>);
   });
 });

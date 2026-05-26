@@ -1,4 +1,5 @@
 import { toConversationForRole } from '@/domain/messaging';
+import { requiresMerchantReview } from '@/domain/nail';
 import type {
   Booking,
   BookingConversationThread,
@@ -13,7 +14,6 @@ import {
 } from './bookings';
 import { seedConversationThreads } from './conversations';
 
-const confidenceReviewThreshold = 0.75;
 const merchantName = 'Nailed-it Studio';
 export const demoCustomerName = 'Melissa Tan';
 const operationsStorageKey = 'nailed-it.operations-store.v1';
@@ -60,8 +60,9 @@ export function createBookingFromDraft({
 }): Booking {
   ensureHydratedOperationsStore();
 
-  const status: Booking['status'] =
-    draft.recognition.meta.confidence < confidenceReviewThreshold ? 'pending_review' : 'confirmed';
+  const status: Booking['status'] = requiresMerchantReview(draft.recognition)
+    ? 'pending_review'
+    : 'confirmed';
   const bookingId = `booking-auto-${nextBookingNumber}`;
   const threadId = `conv-auto-${nextThreadNumber}`;
   nextBookingNumber += 1;

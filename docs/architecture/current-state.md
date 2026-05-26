@@ -12,9 +12,9 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 4. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
 5. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
 6. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
-7. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules.
+7. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules, while `src/lib/ai/usage-cost.ts` estimates provider spend from Gemini usage metadata for server logs.
 8. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
-9. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; normal-confidence bookings auto-confirm, while low-confidence recognition results become `pending_review`.
+9. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; `src/domain/nail.ts` owns the confidence review threshold so normal-confidence bookings auto-confirm, while low-confidence or non-finite confidence results become `pending_review`.
 10. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
 11. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
 
@@ -25,7 +25,7 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 - `src/app/customer/home/page.tsx`: customer discovery entry using the shared mobile shell.
 - `src/app/customer/style/[id]/page.tsx`: style detail route backed by shared mock style helpers.
 - `src/app/customer/booking/page.tsx` and `src/app/customer/booking/confirm/page.tsx`: booking flow backed by an explicit in-memory draft contract, technician-assigned slots, instant confirmation, and low-confidence review fallback.
-- `src/app/api/ai/recognize-nail-style/route.ts`: server-side image recognition endpoint that accepts inline image data and returns the app's `AIRecognitionResult` contract.
+- `src/app/api/ai/recognize-nail-style/route.ts`: server-side image recognition endpoint that accepts inline image data, returns the app's `AIRecognitionResult` contract, and logs Gemini token/cost telemetry when enabled.
 - `src/app/customer/messages/page.tsx`, `src/app/customer/messages/[conversationId]/page.tsx`, `src/app/customer/profile/page.tsx`: customer inbox, thread detail, and profile surfaces backed by role-filtered operations-store threads and browser-session booking snapshots.
 - `src/app/merchant/calendar/page.tsx`, `src/app/merchant/booking/[id]/page.tsx`, `src/app/merchant/manage/page.tsx`, `src/app/merchant/messages/page.tsx`, `src/app/merchant/messages/[conversationId]/page.tsx`, `src/app/merchant/profile/page.tsx`: merchant scheduling, technician roster/workload, pricing, inbox, and operational profile surfaces on the shared shell.
 - `src/features/customer/StyleCard.tsx`, `StyleWaterfallGrid.tsx`, `StyleDetailPanel.tsx`: focused customer presentation components.
@@ -36,8 +36,10 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 - `src/mock/bookings.ts`, `src/mock/conversations.ts`, `src/mock/technicians.ts`, `src/mock/operations-store.ts`, and `src/mock/pricing.ts`: shared merchant/customer mock sources for seed bookings, seed appointment threads, technician seeds, versioned browser-session booking/thread state, availability, and editable pricing rules.
 - `src/domain/availability.ts`: pure technician-slot assignment that blocks only same technician/date/time conflicts and ranks earliest/shortest-wait choices.
 - `src/domain/messaging.ts`: role-aware mapping from booking conversation threads to the shared `Conversation` UI contract.
+- `src/domain/nail.ts`: shared nail, booking, technician, and quote contracts plus the confidence-review policy used by booking creation.
 - `src/domain/pricing.ts`: rule-based quote calculator used by mock style previews, booking drafts, and merchant booking snapshots.
-- `src/lib/ai/nail-recognition.ts`: Gemini image-recognition adapter. The default model is `gemini-2.5-flash-lite`; it uses structured JSON output and normalizes provider output to supported nail attributes.
+- `src/lib/ai/nail-recognition.ts`: Gemini image-recognition adapter. The default model is `gemini-2.5-flash-lite`; it uses structured JSON output, normalizes provider output to supported nail attributes, and returns server-side telemetry with usage/cost data.
+- `src/lib/ai/usage-cost.ts`: Gemini usage metadata parser, per-request USD estimator, and compact server-log event builder.
 - `src/domain/session.ts`: shared session/navigation contract for route intents, tab visibility, home paths, and customer/merchant detail links.
 - `src/domain/booking-draft.ts`: lightweight in-memory draft boundary for the current no-backend customer booking flow.
 - `src/components/layout/*`: shared shell primitives for both customer and merchant role surfaces.
@@ -46,5 +48,7 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 ## LLM integration
 
 Live image recognition is wired for the customer booking upload path through Gemini. Configure `GEMINI_API_KEY` in `.env.local`; `VISION_MODEL_NAME` defaults to `gemini-2.5-flash-lite` when omitted. The model is only allowed to extract attributes and confidence; price, duration, availability, and booking decisions remain deterministic app logic.
+
+The server logs one compact `[nailed-it:vision-cost]` event after successful live recognition when `VISION_COST_LOGGING_ENABLED` is not `false`. Cost estimates use Gemini `usageMetadata`, defaulting to `gemini-2.5-flash-lite` standard paid pricing of $0.10 per 1M input tokens and $0.40 per 1M output/thinking tokens; override with `VISION_INPUT_PRICE_PER_1M_TOKENS` and `VISION_OUTPUT_PRICE_PER_1M_TOKENS` when pricing changes. These logs are observability only and are not shown to customers.
 
 The sample image path still uses `src/mock/ai.ts` so the local flow works without a provider key. Messaging is demo-functional only: it appends to the versioned browser-session operations store in `localStorage` and is not a backend service. Graphify semantic extraction remains an intentional maintenance tool rather than a runtime dependency.

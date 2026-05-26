@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
 import {
   NailRecognitionError,
-  recognizeNailImage,
+  recognizeNailImageWithTelemetry,
   type NailImageRecognitionInput
 } from '@/lib/ai/nail-recognition';
+import { createVisionUsageLogEvent, shouldLogVisionCost } from '@/lib/ai/usage-cost';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 
 export async function POST(request: Request) {
   try {
     const input = parseRequestBody(await request.json());
-    const recognition = await recognizeNailImage(input);
+    const result = await recognizeNailImageWithTelemetry(input);
 
-    return NextResponse.json({ recognition });
+    logVisionRecognitionUsage(result.telemetry);
+
+    return NextResponse.json({ recognition: result.recognition });
   } catch (error) {
     if (error instanceof NailRecognitionError) {
       return NextResponse.json(
@@ -32,6 +35,25 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+}
+
+function logVisionRecognitionUsage(telemetry: Awaited<ReturnType<typeof recognizeNailImageWithTelemetry>>['telemetry']) {
+  if (!shouldLogVisionCost(process.env)) {
+    return;
+  }
+
+  console.info(
+    '[nailed-it:vision-cost]',
+    JSON.stringify(
+      createVisionUsageLogEvent({
+        provider: telemetry.provider,
+        model: telemetry.model,
+        usage: telemetry.usage,
+        costEstimate: telemetry.costEstimate,
+        status: 'success'
+      })
+    )
+  );
 }
 
 function parseRequestBody(value: unknown): NailImageRecognitionInput {
