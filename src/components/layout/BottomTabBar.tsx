@@ -19,22 +19,17 @@ export function BottomTabBar({ role }: { role: UserRole }) {
         // 中文注释：这里用 startsWith 保持后续子路由也能点亮对应 tab，比如 /customer/messages/123。
         const active = pathname.startsWith(tab.matchPrefix ?? tab.href);
 
-        const isFab = tab.label === 'Book';
-
         return (
           <Link
             key={tab.href}
             aria-label={tab.label}
-            className={[
-              isFab ? 'tab-item tab-item-fab' : 'tab-item',
-              active && !isFab ? 'tab-item-active' : ''
-            ].filter(Boolean).join(' ')}
+            className={active ? 'tab-item tab-item-active' : 'tab-item'}
             href={tab.href}
           >
             <span aria-hidden="true" className="tab-glyph">
-              {isFab ? '+' : tab.glyph}
+              {tab.glyph}
             </span>
-            {!isFab && <span aria-hidden="true">{tab.label}</span>}
+            <span aria-hidden="true">{tab.label}</span>
           </Link>
         );
       })}

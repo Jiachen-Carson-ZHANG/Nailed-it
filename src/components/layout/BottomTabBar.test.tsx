@@ -26,7 +26,7 @@ describe('BottomTabBar', () => {
     mockedPathname = '/customer/booking/confirm';
     render(<BottomTabBar role="customer" />);
 
-    expect(screen.getByRole('link', { name: /^book$/i })).toHaveClass('tab-item-fab');
+    expect(screen.getByRole('link', { name: /^book$/i })).toHaveClass('tab-item-active');
   });
 
   it('keeps the messages tab active on nested message routes', () => {

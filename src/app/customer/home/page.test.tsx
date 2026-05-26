@@ -8,10 +8,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerHomePage', () => {
-  it('renders the shared mobile shell with all trending styles', () => {
+  it('renders the discovery hero with all trending styles', () => {
     render(<CustomerHomePage />);
 
-    expect(screen.getByText('Trending')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: /pick a look\. get an instant quote\./i
+      })
+    ).toBeInTheDocument();
 
     for (const style of stylesModule.getTrendingStyles()) {
       expect(
@@ -27,6 +31,7 @@ describe('CustomerHomePage', () => {
 
     render(<CustomerHomePage />);
 
+    expect(screen.getByText(/waiting for styles/i)).toBeInTheDocument();
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
   });
 });
