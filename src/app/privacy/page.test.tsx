@@ -18,6 +18,6 @@ describe('PrivacyPage', () => {
         name: 'toughcookiezang@gmail.com'
       })
     ).toHaveAttribute('href', 'mailto:toughcookiezang@gmail.com');
-    expect(screen.getByRole('link', { name: /back to app/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /back to nailed-it/i })).toHaveAttribute('href', '/');
   });
 });

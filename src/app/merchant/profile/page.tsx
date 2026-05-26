@@ -20,28 +20,27 @@ export default function MerchantProfilePage() {
   return (
     <MobileLayout
       role="merchant"
-      subtitle="Merchant profile summarizes current workload, inbound demand, and links back to pricing operations."
       title="Nailed-it"
     >
       <section className="profile-hero">
-        <p className="section-eyebrow">Merchant profile</p>
+        <p className="section-eyebrow">Your workspace</p>
         <h1>Studio profile</h1>
         <p className="section-copy">Use this view as a quick operating pulse before switching back into calendar or pricing work.</p>
       </section>
 
       <section className="analytics-grid" aria-label="Merchant analytics">
         <MerchantAnalyticsCard
-          detail="All shared booking snapshots currently represented in the merchant workspace."
+          detail="Bookings active this week across all technicians."
           title="Appointments this week"
           value={String(bookings.length)}
         />
         <MerchantAnalyticsCard
-          detail="Threads that likely need a reply before the next appointment window shifts."
+          detail="Conversations waiting for your reply."
           title="Unread conversations"
           value={String(unreadThreads.length)}
         />
         <MerchantAnalyticsCard
-          detail="Pending or confirmed work that still consumes near-term capacity."
+          detail="Active appointments on your schedule."
           title="Open bookings"
           value={String(pendingBookings.length)}
         />
@@ -55,8 +54,8 @@ export default function MerchantProfilePage() {
       />
 
       <section className="summary-card">
-        <strong>Pricing and bookings stay connected through one mock operating model</strong>
-        <p>Adjust estimate rules only from the management surface so customer quotes and merchant expectations remain aligned.</p>
+        <strong>Your pricing rules feed directly into customer quotes.</strong>
+        <p>Adjust pricing from the Manage tab — changes apply immediately to new estimates.</p>
       </section>
 
       <section className="summary-card">

@@ -18,11 +18,10 @@ export default function CustomerProfilePage() {
   return (
     <MobileLayout
       role="customer"
-      subtitle="Customer profile reads booking continuity from the shared booking snapshots."
       title="Nailed-it"
     >
       <section className="profile-hero">
-        <p className="section-eyebrow">Customer profile</p>
+        <p className="section-eyebrow">Your profile</p>
         <h1>{demoCustomerName}</h1>
         <p className="section-copy">Keep track of upcoming visits, design notes, and your latest booking context.</p>
       </section>

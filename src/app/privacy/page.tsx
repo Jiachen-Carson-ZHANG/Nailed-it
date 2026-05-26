@@ -66,9 +66,11 @@ export default function PrivacyPage() {
         </article>
       </section>
 
-      <Link className="button button-secondary" href="/">
-        Back to app
-      </Link>
+      <footer className="privacy-footer">
+        <Link className="button button-ghost" href="/">
+          ← Back to Nailed-it
+        </Link>
+      </footer>
     </main>
   );
 }

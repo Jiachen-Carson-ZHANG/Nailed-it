@@ -9,6 +9,7 @@ __pycache__/
 .gstack/
 node_modules/
 .next/
+.vercel/
 coverage/
 tsconfig.tsbuildinfo
 npm-debug.log*
