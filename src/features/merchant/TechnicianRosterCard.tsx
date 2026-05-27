@@ -30,20 +30,34 @@ export function TechnicianRosterCard({
     <section className="summary-card" aria-label={title}>
       <strong>{title}</strong>
       <p>{description}</p>
-      <div className="booking-list">
+      <ul className="technician-roster">
         {technicians.map((technician) => {
           const activeBookingCount = workloadByTechnician[technician.id] ?? 0;
           const activeBookingLabel =
             activeBookingCount === 1 ? '1 active booking' : `${activeBookingCount} active bookings`;
 
           return (
-            <p key={technician.id}>
-              {technician.name} · {technician.title} ·{' '}
-              {technician.active ? 'Active' : 'Inactive'} · {activeBookingLabel}
-            </p>
+            <li key={technician.id} className="technician-roster-row">
+              <div className="technician-roster-primary">
+                <strong>{technician.name}</strong>
+                <span>{technician.title}</span>
+              </div>
+              <div className="technician-roster-meta">
+                <span
+                  className={
+                    technician.active
+                      ? 'technician-status-badge technician-status-active'
+                      : 'technician-status-badge'
+                  }
+                >
+                  {technician.active ? 'Active' : 'Inactive'}
+                </span>
+                <span className="technician-roster-bookings">{activeBookingLabel}</span>
+              </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 }
