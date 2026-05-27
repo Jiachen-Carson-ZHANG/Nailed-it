@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-05-28 - Merchant Calendar: Spots-Left Month + Resource Day Grid
+
+**Context:** The month calendar showed a booking-count number per day, which does not answer the merchant's real question when new demand arrives: "can I still fit someone in that day?" A raw count is noise; free capacity is the decision.
+
+**Changes (frontend):**
+- Replaced `MonthlyCalendar` (count + load-shade dot) and its tap-to-open `BookingDaySheet` with `CalendarSchedule` (`src/features/merchant/CalendarSchedule.tsx`).
+- Month grid now shows **spots left per day** with a 4-step capacity tone (open / filling / almost full / full). Capacity model: active technicians × `SLOTS_PER_TECH` (6) = daily capacity; spots left = capacity − bookings that day.
+- Tapping a day selects it and renders a Google/Outlook-style **resource day grid**: time gutter (9:00–19:00), one column per active technician, appointment blocks positioned by `time` + `quote.duration`. Pending bookings render amber with a "confirm" flag.
+- Each appointment block links to `/merchant/booking/[id]`. Horizontal scroll for technician columns on narrow viewports.
+- Deleted dead `MonthlyCalendar.tsx` and `BookingDaySheet.tsx`; removed their CSS. Added `cal-*` styles.
+
+**Verification:**
+- `npm test -- src/app/merchant/calendar/page.test.tsx` (rewritten: spots-left cells, day switching, session bookings as detail links)
+- Browse check at 390×844: month tones render, day grid blocks link to booking detail, no console errors.
+
+**Must remain true:** Spots-left is derived from real bookings (not stored); day-grid blocks must keep linking to booking detail; capacity tone thresholds live in `spotsTone()`.
+
 ## 2026-05-26 - Gemini Cost Logging And Hardening
 
 **Context:** The live recognition path could spend provider tokens without per-call visibility, and review identified small reliability gaps around confidence policy ownership, Gemini malformed output coverage, and edge-case tests.

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { MonthlyCalendar } from '@/features/merchant/MonthlyCalendar';
+import { CalendarSchedule } from '@/features/merchant/CalendarSchedule';
 import { getBookingsSnapshot } from '@/mock/operations-store';
 
 export default function MerchantCalendarPage() {
@@ -18,7 +18,7 @@ export default function MerchantCalendarPage() {
         <p className="section-eyebrow">May 2026</p>
         <h1>Appointment calendar</h1>
       </section>
-      <MonthlyCalendar bookings={bookings} />
+      <CalendarSchedule bookings={bookings} />
     </MobileLayout>
   );
 }

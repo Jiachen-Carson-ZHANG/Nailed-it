@@ -19,9 +19,7 @@ describe('MerchantCalendarPage', () => {
     resetOperationsStoreForTests();
   });
 
-  it('renders the merchant calendar and opens a day sheet with bookings', async () => {
-    const user = userEvent.setup();
-
+  it('renders the spots-left month and shows the selected day schedule as booking links', async () => {
     render(<MerchantCalendarPage />);
 
     expect(
@@ -30,18 +28,30 @@ describe('MerchantCalendarPage', () => {
       })
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /23 2 bookings/i }));
+    // Default selected day is 2026-05-23, which has two seeded bookings.
+    expect(screen.getByRole('button', { name: /23 May, \d+ spots left/i })).toBeInTheDocument();
 
-    expect(screen.getByRole('dialog', { name: /2026-05-23/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /14:00 · melissa tan/i })).toHaveAttribute(
       'href',
       '/merchant/booking/booking-001'
     );
-    expect(screen.getByText(/mei chen · \d+ min · SGD/i)).toBeInTheDocument();
   });
 
-  it('shows newly created session bookings on the calendar', async () => {
+  it('switches the day schedule when another day is selected', async () => {
     const user = userEvent.setup();
+
+    render(<MerchantCalendarPage />);
+
+    // 2026-05-24 holds booking-003 (Zoe Wong, 11:00).
+    await user.click(screen.getByRole('button', { name: /24 May, \d+ spots left/i }));
+
+    expect(screen.getByRole('link', { name: /11:00 · zoe wong/i })).toHaveAttribute(
+      'href',
+      '/merchant/booking/booking-003'
+    );
+  });
+
+  it('shows newly created session bookings on the selected day', async () => {
     const slot = getAvailableBookingDays()[0].slots[0];
     const booking = createBookingFromDraft({
       draft: baseDraft,
@@ -51,15 +61,10 @@ describe('MerchantCalendarPage', () => {
 
     render(<MerchantCalendarPage />);
 
-    await user.click(screen.getByRole('button', { name: /23 3 bookings/i }));
-
-    expect(screen.getByRole('link', { name: /10:00 · melissa tan/i })).toHaveAttribute(
-      'href',
-      `/merchant/booking/${booking.id}`
-    );
+    // Newly created booking lands on 2026-05-23 (the default selected day).
     expect(
-      screen.getByText(new RegExp(`${booking.technician.name} .* 88 min .* SGD 123`, 'i'))
-    ).toBeInTheDocument();
+      screen.getByRole('link', { name: new RegExp(`${slot.time} · melissa tan`, 'i') })
+    ).toHaveAttribute('href', `/merchant/booking/${booking.id}`);
   });
 });
 
