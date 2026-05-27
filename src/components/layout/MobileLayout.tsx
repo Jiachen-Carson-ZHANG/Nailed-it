@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { UserRole } from '@/domain/nail';
-import { getMockSession, homePathForRole } from '@/domain/session';
+import {
+  getCustomerProfilePath,
+  getMerchantProfilePath,
+  getMockSession,
+  homePathForRole
+} from '@/domain/session';
 import { BottomTabBar } from './BottomTabBar';
 import { TopBar } from './TopBar';
 
@@ -25,14 +30,21 @@ export function MobileLayout({
   const session = getMockSession(role);
   const otherRole: UserRole = role === 'customer' ? 'merchant' : 'customer';
   const switchLabel = role === 'customer' ? 'Merchant' : 'Customer';
+  const profilePath = role === 'customer' ? getCustomerProfilePath() : getMerchantProfilePath();
+  const avatarInitial = role === 'customer' ? 'M' : 'N';
   const rightSlot = (
-    <Link
-      aria-label={`Switch to ${switchLabel.toLowerCase()} view`}
-      className="role-switch-pill"
-      href={homePathForRole(otherRole)}
-    >
-      {switchLabel} ↗
-    </Link>
+    <>
+      <Link
+        aria-label={`Switch to ${switchLabel.toLowerCase()} view`}
+        className="role-switch-pill"
+        href={homePathForRole(otherRole)}
+      >
+        {switchLabel} ↗
+      </Link>
+      <Link aria-label="Open profile" className="top-bar-avatar" href={profilePath}>
+        {avatarInitial}
+      </Link>
+    </>
   );
 
   return (

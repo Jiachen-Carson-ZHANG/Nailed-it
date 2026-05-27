@@ -294,6 +294,28 @@ select {
   outline: none;
 }
 
+.top-bar-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.top-bar-avatar:hover,
+.top-bar-avatar:focus-visible {
+  background: var(--color-accent);
+  color: #ffffff;
+  outline: none;
+}
+
 .top-brand {
   font-size: 1rem;
   font-weight: 800;
@@ -491,10 +513,10 @@ select {
 
 .home-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.25rem 0 0.75rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.85rem;
 }
 
 .home-header-text {
@@ -505,10 +527,7 @@ select {
 .home-header h1 {
   margin: 0;
   font-size: var(--text-xl);
-}
-
-.home-header .button-compact {
-  flex-shrink: 0;
+  line-height: 1.15;
 }
 
 .section-eyebrow {
