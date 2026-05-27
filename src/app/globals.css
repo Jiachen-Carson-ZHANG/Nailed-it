@@ -1371,6 +1371,29 @@ select {
   color: var(--color-success, #2e7d32);
 }
 
+.technician-booking-links {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.technician-booking-link {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft, rgba(123, 97, 255, 0.08));
+}
+
+.technician-booking-link:hover {
+  background: var(--color-accent-soft-hover, rgba(123, 97, 255, 0.16));
+}
+
 .empty-state-icon {
   display: inline-flex;
   align-items: center;

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Booking, Technician } from '@/domain/nail';
 
 type TechnicianRosterCardProps = {
@@ -15,14 +16,11 @@ export function TechnicianRosterCard({
   technicians,
   title
 }: TechnicianRosterCardProps) {
-  const workloadByTechnician = bookings.reduce<Record<string, number>>((workload, booking) => {
-    if (!activeBookingStatuses.has(booking.status)) {
-      return workload;
-    }
-
+  const bookingsByTechnician = bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
+    if (!activeBookingStatuses.has(booking.status)) return acc;
     return {
-      ...workload,
-      [booking.technician.id]: (workload[booking.technician.id] ?? 0) + 1
+      ...acc,
+      [booking.technician.id]: [...(acc[booking.technician.id] ?? []), booking]
     };
   }, {});
 
@@ -32,9 +30,9 @@ export function TechnicianRosterCard({
       {description ? <p>{description}</p> : null}
       <ul className="technician-roster">
         {technicians.map((technician) => {
-          const activeBookingCount = workloadByTechnician[technician.id] ?? 0;
+          const activeBookings = bookingsByTechnician[technician.id] ?? [];
           const activeBookingLabel =
-            activeBookingCount === 1 ? '1 active booking' : `${activeBookingCount} active bookings`;
+            activeBookings.length === 1 ? '1 active booking' : `${activeBookings.length} active bookings`;
 
           return (
             <li key={technician.id} className="technician-roster-row">
@@ -54,6 +52,17 @@ export function TechnicianRosterCard({
                 </span>
                 <span className="technician-roster-bookings">{activeBookingLabel}</span>
               </div>
+              {activeBookings.length > 0 && (
+                <ul className="technician-booking-links">
+                  {activeBookings.map((booking) => (
+                    <li key={booking.id}>
+                      <Link href={`/merchant/booking/${booking.id}`} className="technician-booking-link">
+                        {booking.styleTitle} · {booking.date} {booking.time}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}

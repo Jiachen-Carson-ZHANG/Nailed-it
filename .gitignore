@@ -31,6 +31,9 @@ graphify-out/
 *.log
 *.jsonl
 *:Zone.Identifier
+*.mp4
+*.mov
+*.avi
 
 # Local Claude/Codex agent config — never in GitHub
 # Only exception: .claude/rules/ (project-wide behavior contracts)
