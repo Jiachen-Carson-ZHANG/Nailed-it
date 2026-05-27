@@ -13,11 +13,12 @@ describe('CustomerBookingPage', () => {
     vi.useRealTimers();
   });
 
-  it('runs the mock recognition flow and shows a live estimate with a confirm CTA', async () => {
+  it('walks through the three-step booking flow and persists the draft', async () => {
     vi.useFakeTimers();
 
     render(<CustomerBookingPage />);
 
+    // Step 1: Upload
     const recognizeButton = screen.getByRole('button', { name: /analyze my photo/i });
     expect(recognizeButton).toBeDisabled();
 
@@ -31,11 +32,17 @@ describe('CustomerBookingPage', () => {
       vi.advanceTimersByTime(700);
     });
 
-    expect(screen.getByRole('dialog', { name: /your style breakdown/i })).toBeInTheDocument();
-    expect(screen.getByText(/live estimate/i)).toBeInTheDocument();
+    // Step 2: Result — style detected
+    expect(screen.getByRole('heading', { name: /style detected/i })).toBeInTheDocument();
+
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'Edited note carried into confirmation.' }
     });
+
+    fireEvent.click(screen.getByRole('button', { name: /see my quote/i }));
+
+    // Step 3: Quote
+    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
 
     const nextLink = screen.getByRole('link', { name: /next: choose time/i });
     expect(nextLink).toHaveAttribute('href', '/customer/booking/confirm');
@@ -51,7 +58,7 @@ describe('CustomerBookingPage', () => {
     });
   });
 
-  it('sends a selected image to the live recognition API before opening the editable result', async () => {
+  it('sends a selected image to the live recognition API', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -93,7 +100,8 @@ describe('CustomerBookingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
 
-    await screen.findByRole('dialog', { name: /your style breakdown/i });
+    // Should advance to step 2 with API result
+    await screen.findByRole('heading', { name: /style detected/i });
     expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
 
     expect(fetch).toHaveBeenCalledWith(

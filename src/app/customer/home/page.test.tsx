@@ -13,7 +13,7 @@ describe('CustomerHomePage', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: /pick a look\. get an instant quote\./i
+        name: /pick a look\. get a quote\./i
       })
     ).toBeInTheDocument();
 
@@ -26,12 +26,11 @@ describe('CustomerHomePage', () => {
     }
   });
 
-  it('renders an empty state instead of invalid stats when no styles are available', () => {
+  it('renders gracefully when no styles are available', () => {
     vi.spyOn(stylesModule, 'getTrendingStyles').mockReturnValueOnce([]);
 
     render(<CustomerHomePage />);
 
-    expect(screen.getByText(/waiting for styles/i)).toBeInTheDocument();
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
   });
 });

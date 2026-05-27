@@ -18,13 +18,15 @@ import { getStyleDefinitionById } from '@/mock/styles';
 
 const uploadedReferenceUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ?? '';
 
+type BookingStep = 'upload' | 'result' | 'quote';
+
 export default function CustomerBookingPage() {
+  const [step, setStep] = useState<BookingStep>('upload');
   const [imageUrl, setImageUrl] = useState('');
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(null);
   const [handImageUrl, setHandImageUrl] = useState('');
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [hasRecognitionResult, setHasRecognitionResult] = useState(false);
   const [recognition, setRecognition] = useState(mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
   const estimate = useMemo(
@@ -42,8 +44,7 @@ export default function CustomerBookingPage() {
         : await getSampleRecognition();
 
       setRecognition(nextRecognition);
-      setHasRecognitionResult(true);
-      setIsSheetOpen(true);
+      setStep('result');
     } catch (error) {
       setRecognitionError(
         error instanceof Error
@@ -65,7 +66,7 @@ export default function CustomerBookingPage() {
     setImageUrl(image.previewUrl);
     setSelectedImage(image);
     setRecognitionError('');
-    setHasRecognitionResult(false);
+    if (step !== 'upload') setStep('upload');
   }
 
   function persistCurrentDraft() {
@@ -76,124 +77,189 @@ export default function CustomerBookingPage() {
     });
   }
 
+  const stepIndex = step === 'upload' ? 0 : step === 'result' ? 1 : 2;
+
   return (
     <MobileLayout
       role="customer"
       title="Nailed-it"
     >
-      <section className="page-heading">
-        <p className="section-eyebrow">Get your quote</p>
-        <h1>Upload your nail reference</h1>
-        <p className="section-copy">
-          Choose a nail photo below to get your instant style quote.
-        </p>
-      </section>
-
-      <div className="tryon-inputs">
-        <div className="tryon-input-slot">
-          <p className="tryon-input-label">1 · Nail style you like</p>
-          <ImageUploader
-            imageUrl={imageUrl}
-            onImageSelected={handleImageSelected}
-            onMockUpload={selectSampleImage}
-          />
-        </div>
-        <div className="tryon-input-slot">
-          <p className="tryon-input-label">2 · Your hand <span className="tryon-optional">(optional · try-on preview)</span></p>
-          <section className="image-uploader">
-            {handImageUrl ? (
-              <img alt="Hand photo" src={handImageUrl} />
-            ) : (
-              <div className="image-uploader-placeholder" aria-hidden="true">
-                <span className="image-uploader-mark">+</span>
-              </div>
-            )}
-            <div className="image-uploader-copy">
-              <strong>{handImageUrl ? 'Hand photo ready' : 'Add your hand'}</strong>
-              <p>{handImageUrl ? 'See how this look fits you.' : 'Upload to preview this style on your hand.'}</p>
-            </div>
-            <label className="button button-secondary button-default button-block">
-              Upload hand photo
-              <input
-                aria-label="Choose hand photo"
-                accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-                hidden
-                type="file"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.addEventListener('load', () => {
-                    if (typeof reader.result === 'string') setHandImageUrl(reader.result);
-                  });
-                  reader.readAsDataURL(file);
-                }}
-              />
-            </label>
-          </section>
-          {imageUrl && handImageUrl && (
-            <div className="tryon-cta-note">
-              Both photos ready — virtual try-on coming soon.
-            </div>
-          )}
-        </div>
+      {/* Step indicator */}
+      <div className="booking-steps" aria-label="Booking progress">
+        {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
+          <span
+            key={label}
+            className={index <= stepIndex ? 'booking-step booking-step-active' : 'booking-step'}
+            aria-current={index === stepIndex ? 'step' : undefined}
+          >
+            {label}
+          </span>
+        ))}
       </div>
 
-      {isRecognizing ? (
-        <LoadingState
-          body="Breaking down services, shape, style details, and add-ons before computing the latest estimate."
-          title="AI is recognizing the style"
-        />
-      ) : hasRecognitionResult ? (
-        <Button block onClick={() => setIsSheetOpen(true)} variant="secondary">
-          View your estimate
-        </Button>
-      ) : (
+      {/* ─── Step 1: Upload ─── */}
+      {step === 'upload' && (
         <>
-          <Button block disabled={!imageUrl} onClick={startRecognition}>
-            Analyze my photo
-          </Button>
-          {!imageUrl ? (
+          <section className="page-heading">
+            <p className="section-eyebrow">Step 1</p>
+            <h1>Upload your nail reference</h1>
+          </section>
+
+          <div className="tryon-inputs">
+            <div className="tryon-input-slot">
+              <p className="tryon-input-label">Nail style you like</p>
+              <ImageUploader
+                imageUrl={imageUrl}
+                onImageSelected={handleImageSelected}
+                onMockUpload={selectSampleImage}
+              />
+            </div>
+            <div className="tryon-input-slot">
+              <p className="tryon-input-label">Your hand <span className="tryon-optional">(optional · try-on preview)</span></p>
+              <section className="image-uploader">
+                {handImageUrl ? (
+                  <img alt="Hand photo" src={handImageUrl} />
+                ) : (
+                  <div className="image-uploader-placeholder" aria-hidden="true">
+                    <span className="image-uploader-mark">+</span>
+                  </div>
+                )}
+                <div className="image-uploader-copy">
+                  <strong>{handImageUrl ? 'Hand photo ready' : 'Add your hand'}</strong>
+                  <p>{handImageUrl ? 'See how this look fits you.' : 'Upload to preview this style on your hand.'}</p>
+                </div>
+                <label className="button button-secondary button-default button-block">
+                  Upload hand photo
+                  <input
+                    aria-label="Choose hand photo"
+                    accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+                    hidden
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.addEventListener('load', () => {
+                        if (typeof reader.result === 'string') setHandImageUrl(reader.result);
+                      });
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+              </section>
+              {imageUrl && handImageUrl && (
+                <div className="tryon-cta-note">
+                  Both photos ready — virtual try-on coming soon.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {isRecognizing ? (
+            <LoadingState
+              body="Breaking down services, shape, style details, and add-ons."
+              title="AI is recognizing the style"
+            />
+          ) : (
+            <Button block disabled={!imageUrl} onClick={startRecognition}>
+              Analyze my photo
+            </Button>
+          )}
+
+          {!imageUrl && !isRecognizing ? (
             <p className="helper-copy">Add a photo above to get your quote.</p>
+          ) : null}
+
+          {recognitionError ? (
+            <section className="summary-card" role="alert">
+              <strong>Recognition needs attention</strong>
+              <p>{recognitionError}</p>
+            </section>
           ) : null}
         </>
       )}
 
-      {recognitionError ? (
-        <section className="summary-card" role="alert">
-          <strong>Recognition needs attention</strong>
-          <p>{recognitionError}</p>
-        </section>
-      ) : null}
+      {/* ─── Step 2: AI Result ─── */}
+      {step === 'result' && (
+        <>
+          <section className="page-heading">
+            <p className="section-eyebrow">Step 2</p>
+            <h1>Style detected</h1>
+          </section>
 
-      {hasRecognitionResult ? (
-        <section className="summary-card">
-          <strong>Style detected</strong>
-          <p>{recognition.selection.otherNotes}</p>
-          <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
-        </section>
-      ) : null}
+          {imageUrl && (
+            <div className="booking-result-preview">
+              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+            </div>
+          )}
 
-      <BottomSheet
-        open={isSheetOpen}
-        title="Your style breakdown"
-        onClose={() => setIsSheetOpen(false)}
-      >
-        <p className="helper-copy">
-          Adjust the style details below — your quote updates instantly.
-        </p>
-        <NailAttributeEditor value={recognition} onChange={setRecognition} />
-      </BottomSheet>
+          <section className="summary-card">
+            <strong>{recognition.selection.otherNotes}</strong>
+            <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
+          </section>
 
-      {hasRecognitionResult ? (
-        <PriceEstimateBar
-          actionHref={getCustomerBookingConfirmPath()}
-          actionLabel="Next: choose time"
-          duration={estimate.duration}
-          onAction={persistCurrentDraft}
-          price={estimate.price}
-        />
-      ) : null}
+          <NailAttributeEditor value={recognition} onChange={setRecognition} />
+
+          <div className="booking-step-actions">
+            <Button block variant="secondary" onClick={() => setStep('upload')}>
+              ← Change photo
+            </Button>
+            <Button block onClick={() => setStep('quote')}>
+              See my quote →
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* ─── Step 3: Quote ─── */}
+      {step === 'quote' && (
+        <>
+          <section className="page-heading">
+            <p className="section-eyebrow">Step 3</p>
+            <h1>Your quote</h1>
+          </section>
+
+          {imageUrl && (
+            <div className="booking-result-preview">
+              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+            </div>
+          )}
+
+          <section className="summary-card">
+            <strong>{recognition.selection.otherNotes}</strong>
+            <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
+          </section>
+
+          <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
+            Adjust style details
+          </Button>
+
+          <BottomSheet
+            open={isSheetOpen}
+            title="Your style breakdown"
+            onClose={() => setIsSheetOpen(false)}
+          >
+            <p className="helper-copy">
+              Adjust the style details below — your quote updates instantly.
+            </p>
+            <NailAttributeEditor value={recognition} onChange={setRecognition} />
+          </BottomSheet>
+
+          <div className="booking-step-actions">
+            <Button block variant="secondary" onClick={() => setStep('result')}>
+              ← Back to details
+            </Button>
+          </div>
+
+          <PriceEstimateBar
+            actionHref={getCustomerBookingConfirmPath()}
+            actionLabel="Next: choose time"
+            duration={estimate.duration}
+            onAction={persistCurrentDraft}
+            price={estimate.price}
+          />
+        </>
+      )}
     </MobileLayout>
   );
 }

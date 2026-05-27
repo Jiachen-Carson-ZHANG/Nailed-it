@@ -48,26 +48,16 @@ export default function MerchantProfilePage() {
 
       <TechnicianRosterCard
         bookings={bookings}
-        description="Current active workload by technician from confirmed and review-needed bookings."
         technicians={mockTechnicians}
         title="Technician workload"
       />
 
-      <section className="summary-card">
-        <strong>Your pricing rules feed directly into customer quotes.</strong>
-        <p>Adjust pricing from the Manage tab — changes apply immediately to new estimates.</p>
-      </section>
-
-      <section className="summary-card">
-        <strong>Privacy and connected accounts</strong>
-        <p>Review how optional Pinterest access and reference images are handled in this MVP.</p>
-        <Link className="button button-secondary button-block" href="/privacy">
-          Privacy Policy
-        </Link>
-      </section>
-
       <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         Open pricing rules
+      </Link>
+
+      <Link className="button button-secondary button-block" href="/privacy">
+        Privacy Policy
       </Link>
     </MobileLayout>
   );

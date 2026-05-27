@@ -48,6 +48,7 @@ export function MonthlyCalendar({ bookings }: MonthlyCalendarProps) {
               key={date}
               aria-label={`${day} ${label || 'no bookings'}`}
               className={bookingCount ? 'calendar-day calendar-day-busy' : 'calendar-day'}
+              data-load={bookingCount >= 3 ? 'high' : bookingCount >= 2 ? 'medium' : undefined}
               type="button"
               onClick={() => {
                 setSelectedDate(date);
@@ -55,7 +56,9 @@ export function MonthlyCalendar({ bookings }: MonthlyCalendarProps) {
               }}
             >
               <strong>{day}</strong>
-              {bookingCount ? <span className="calendar-day-dot" aria-hidden="true" /> : null}
+              {bookingCount ? (
+                <span className="calendar-day-count">{bookingCount}</span>
+              ) : null}
             </button>
           );
         })}

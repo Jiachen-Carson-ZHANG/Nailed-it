@@ -21,13 +21,10 @@ describe('CustomerProfilePage', () => {
     render(<CustomerProfilePage />);
 
     expect(screen.getByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /booking history/i })).toBeInTheDocument();
     expect(screen.getByText(/upcoming bookings/i)).toBeInTheDocument();
     expect(screen.getByText(/rose cat eye shine/i)).toBeInTheDocument();
     expect(screen.getByText(/awaiting confirmation/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /start a new booking/i })).toHaveAttribute(
-      'href',
-      '/customer/booking'
-    );
     expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
       'href',
       '/privacy'

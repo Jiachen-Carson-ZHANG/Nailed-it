@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
 import type { PricingCategory, PricingItem } from '@/domain/nail';
 import { PricingRuleCard } from '@/features/merchant/PricingRuleCard';
-import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
-import { getBookingsSnapshot } from '@/mock/operations-store';
 import { defaultPricingRules } from '@/mock/pricing';
-import { mockTechnicians } from '@/mock/technicians';
 
 const categoryLabels: Record<PricingCategory, string> = {
   base: 'Base services',
@@ -41,7 +38,6 @@ const targetLabels: Record<PricingItem['target'], string> = {
 const orderedCategories: PricingCategory[] = ['base', 'shape', 'style', 'addon'];
 
 export default function MerchantManagePage() {
-  const [bookings] = useState(() => getBookingsSnapshot());
   const [rules, setRules] = useState(defaultPricingRules);
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -68,13 +64,6 @@ export default function MerchantManagePage() {
         <p className="section-eyebrow">Price list</p>
         <h1>Configure estimate rules</h1>
       </section>
-
-      <TechnicianRosterCard
-        bookings={bookings}
-        description="Keep staff visibility beside pricing so quotation rules and actual capacity stay aligned."
-        technicians={mockTechnicians}
-        title="Technician roster"
-      />
 
       {orderedCategories.map((category) => (
         <section key={category} className="pricing-section">

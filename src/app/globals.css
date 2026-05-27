@@ -259,6 +259,40 @@ select {
   padding: 0.95rem 1rem 0.85rem;
 }
 
+.top-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.top-bar-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.top-bar-avatar:hover,
+.top-bar-avatar:focus-visible {
+  background: var(--color-accent);
+  color: #ffffff;
+  outline: none;
+}
+
 .top-brand {
   font-size: 1rem;
   font-weight: 800;
@@ -1063,15 +1097,11 @@ select {
   line-height: 1;
 }
 
-.calendar-day-dot {
-  position: absolute;
-  bottom: 0.4rem;
-  left: 50%;
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 50%;
-  background: var(--color-accent);
-  transform: translateX(-50%);
+.calendar-day-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  line-height: 1;
 }
 
 .booking-card span,
@@ -1083,6 +1113,16 @@ select {
 .calendar-day-busy {
   background: rgba(236, 93, 123, 0.08);
   border-color: rgba(236, 93, 123, 0.18);
+}
+
+.calendar-day[data-load="medium"] {
+  background: rgba(236, 93, 123, 0.14);
+  border-color: rgba(236, 93, 123, 0.25);
+}
+
+.calendar-day[data-load="high"] {
+  background: rgba(236, 93, 123, 0.22);
+  border-color: rgba(236, 93, 123, 0.35);
 }
 
 .booking-list,
@@ -1224,6 +1264,50 @@ select {
   text-align: center;
   font-size: var(--text-xs);
   color: var(--color-muted);
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.profile-identity-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.profile-identity-meta {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.profile-identity-meta h1 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.profile-identity-meta p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.profile-section h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
 }
 
 .technician-roster {
@@ -1887,5 +1971,44 @@ select {
   font-weight: 600;
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Booking step indicator ── */
+.booking-steps {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.booking-step {
+  flex: 1;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: 0.5rem 0;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.booking-step-active {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.booking-step-actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.booking-result-preview {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.booking-result-image {
+  width: 100%;
+  max-height: 14rem;
+  object-fit: cover;
+  display: block;
 }
 

@@ -2,7 +2,7 @@ import type { Booking, Technician } from '@/domain/nail';
 
 type TechnicianRosterCardProps = {
   bookings: Booking[];
-  description: string;
+  description?: string;
   technicians: Technician[];
   title: string;
 };
@@ -29,7 +29,7 @@ export function TechnicianRosterCard({
   return (
     <section className="summary-card" aria-label={title}>
       <strong>{title}</strong>
-      <p>{description}</p>
+      {description ? <p>{description}</p> : null}
       <ul className="technician-roster">
         {technicians.map((technician) => {
           const activeBookingCount = workloadByTechnician[technician.id] ?? 0;

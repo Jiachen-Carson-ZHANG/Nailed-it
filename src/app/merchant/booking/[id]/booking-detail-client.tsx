@@ -79,6 +79,9 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
           Open message thread
         </Link>
       ) : null}
+      <Link className="detail-back-link" href="/merchant/calendar">
+        ← Back to calendar
+      </Link>
     </section>
   );
 }
