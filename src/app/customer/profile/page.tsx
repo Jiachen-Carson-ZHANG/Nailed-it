@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
+import { homePathForRole } from '@/domain/session';
 import { demoCustomerName, getBookingsSnapshot } from '@/mock/operations-store';
 
 export default function CustomerProfilePage() {
@@ -51,6 +52,10 @@ export default function CustomerProfilePage() {
 
       <Link className="button button-secondary button-block" href="/privacy">
         Privacy Policy
+      </Link>
+
+      <Link className="button button-secondary button-block" href={homePathForRole('merchant')}>
+        Switch to merchant view ↗
       </Link>
     </MobileLayout>
   );

@@ -11,7 +11,7 @@ describe('CustomerHomePage', () => {
   it('renders the discovery feed with all trending styles and the upload CTA', () => {
     render(<CustomerHomePage />);
 
-    expect(screen.getByRole('link', { name: /upload my nail design/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /new nail design/i })).toHaveAttribute(
       'href',
       '/customer/booking'
     );

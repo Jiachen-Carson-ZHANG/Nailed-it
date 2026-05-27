@@ -273,41 +273,19 @@ select {
   gap: 0.5rem;
 }
 
-.role-switch-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-muted);
-  font-weight: 600;
-  font-size: var(--text-xs);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.role-switch-pill:hover,
-.role-switch-pill:focus-visible {
-  border-color: var(--color-accent);
-  color: var(--color-accent-strong);
-  outline: none;
-}
-
 .top-bar-cta {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
+  gap: 0.2rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: #ffffff;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: var(--text-xs);
   line-height: 1;
   text-decoration: none;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 

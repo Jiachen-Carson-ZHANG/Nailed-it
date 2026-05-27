@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { getMerchantManagePath } from '@/domain/session';
+import { getMerchantManagePath, homePathForRole } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
 import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
 import { getBookingsSnapshot, getConversationsForRole } from '@/mock/operations-store';
@@ -58,6 +58,10 @@ export default function MerchantProfilePage() {
 
       <Link className="button button-secondary button-block" href="/privacy">
         Privacy Policy
+      </Link>
+
+      <Link className="button button-secondary button-block" href={homePathForRole('customer')}>
+        Switch to customer view ↗
       </Link>
     </MobileLayout>
   );

@@ -5,8 +5,7 @@ import {
   getCustomerBookingPath,
   getCustomerProfilePath,
   getMerchantProfilePath,
-  getMockSession,
-  homePathForRole
+  getMockSession
 } from '@/domain/session';
 import { BottomTabBar } from './BottomTabBar';
 import { TopBar } from './TopBar';
@@ -29,24 +28,15 @@ export function MobileLayout({
   title
 }: MobileLayoutProps) {
   const session = getMockSession(role);
-  const otherRole: UserRole = role === 'customer' ? 'merchant' : 'customer';
-  const switchLabel = role === 'customer' ? 'Merchant' : 'Customer';
   const profilePath = role === 'customer' ? getCustomerProfilePath() : getMerchantProfilePath();
   const avatarInitial = role === 'customer' ? 'M' : 'N';
   const rightSlot = (
     <>
       {role === 'customer' ? (
-        <Link aria-label="Upload my nail design" className="top-bar-cta" href={getCustomerBookingPath()}>
-          ＋
+        <Link className="top-bar-cta" href={getCustomerBookingPath()}>
+          ＋ New Nail Design
         </Link>
       ) : null}
-      <Link
-        aria-label={`Switch to ${switchLabel.toLowerCase()} view`}
-        className="role-switch-pill"
-        href={homePathForRole(otherRole)}
-      >
-        {switchLabel} ↗
-      </Link>
       <Link aria-label="Open profile" className="top-bar-avatar" href={profilePath}>
         {avatarInitial}
       </Link>
