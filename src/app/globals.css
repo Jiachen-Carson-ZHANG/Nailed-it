@@ -488,6 +488,17 @@ select {
   box-shadow: var(--shadow-soft);
 }
 
+.home-header {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.home-header h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
 .section-eyebrow {
   margin: 0 0 0.35rem;
   color: var(--color-accent);
