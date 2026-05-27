@@ -54,6 +54,7 @@ export default function CustomerBookingConfirmPage() {
           <h1>Pick a style first</h1>
         </section>
         <EmptyState
+          icon="◔"
           body="Choose a look from the home page or upload your own photo to see your quote, then come back here to lock in the time."
           title="No style selected yet"
         />
