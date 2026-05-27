@@ -8,14 +8,13 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerHomePage', () => {
-  it('renders the discovery hero with all trending styles', () => {
+  it('renders the discovery feed with all trending styles and the upload CTA', () => {
     render(<CustomerHomePage />);
 
-    expect(
-      screen.getByRole('heading', {
-        name: /pick a look\. get a quote\./i
-      })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /upload my nail design/i })).toHaveAttribute(
+      'href',
+      '/customer/booking'
+    );
 
     for (const style of stylesModule.getTrendingStyles()) {
       expect(

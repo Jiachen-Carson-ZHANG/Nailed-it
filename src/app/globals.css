@@ -234,6 +234,7 @@ select {
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   max-width: var(--shell-max-width);
   margin: 0 auto;
   background:
@@ -291,6 +292,28 @@ select {
 .role-switch-pill:focus-visible {
   border-color: var(--color-accent);
   color: var(--color-accent-strong);
+  outline: none;
+}
+
+.top-bar-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.top-bar-cta:hover,
+.top-bar-cta:focus-visible {
+  filter: brightness(0.95);
   outline: none;
 }
 
@@ -509,25 +532,6 @@ select {
     radial-gradient(circle at top right, rgba(236, 93, 123, 0.14), transparent 40%),
     var(--color-surface);
   box-shadow: var(--shadow-soft);
-}
-
-.home-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.25rem 0 0.85rem;
-}
-
-.home-header-text {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.home-header h1 {
-  margin: 0;
-  font-size: var(--text-xl);
-  line-height: 1.15;
 }
 
 .section-eyebrow {

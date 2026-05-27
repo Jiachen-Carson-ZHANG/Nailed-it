@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { UserRole } from '@/domain/nail';
 import {
+  getCustomerBookingPath,
   getCustomerProfilePath,
   getMerchantProfilePath,
   getMockSession,
@@ -34,6 +35,11 @@ export function MobileLayout({
   const avatarInitial = role === 'customer' ? 'M' : 'N';
   const rightSlot = (
     <>
+      {role === 'customer' ? (
+        <Link aria-label="Upload my nail design" className="top-bar-cta" href={getCustomerBookingPath()}>
+          ＋
+        </Link>
+      ) : null}
       <Link
         aria-label={`Switch to ${switchLabel.toLowerCase()} view`}
         className="role-switch-pill"
