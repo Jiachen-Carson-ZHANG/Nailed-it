@@ -24,8 +24,9 @@ export function PricingRuleCard({ item, label, onChange }: PricingRuleCardProps)
       </label>
       <div className="pricing-fields">
         <label htmlFor={`${baseId}-price`}>
-          <span>{label} SGD</span>
+          <span>SGD</span>
           <input
+            aria-label={`${label} price (SGD)`}
             id={`${baseId}-price`}
             min="0"
             type="number"
@@ -34,8 +35,9 @@ export function PricingRuleCard({ item, label, onChange }: PricingRuleCardProps)
           />
         </label>
         <label htmlFor={`${baseId}-duration`}>
-          <span>{label} minutes</span>
+          <span>Minutes</span>
           <input
+            aria-label={`${label} duration (minutes)`}
             id={`${baseId}-duration`}
             max="180"
             min="0"

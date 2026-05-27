@@ -23,7 +23,7 @@ describe('MerchantManagePage', () => {
     expect(screen.getByText(/technician roster/i)).toBeInTheDocument();
     expect(screen.getByText(/mei chen/i)).toBeInTheDocument();
 
-    const removalPriceInput = screen.getByLabelText(/removal sgd/i);
+    const removalPriceInput = screen.getByLabelText(/removal price/i);
     await user.clear(removalPriceInput);
     await user.type(removalPriceInput, '12');
     await user.click(screen.getByRole('button', { name: /save price list/i }));

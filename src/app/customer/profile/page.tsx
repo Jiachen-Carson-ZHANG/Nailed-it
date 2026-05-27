@@ -30,15 +30,13 @@ export default function CustomerProfilePage() {
       </section>
 
       <section className="profile-stat-grid" aria-label="Customer profile stats">
-        <article className="summary-card">
+        <article className="summary-card stat-card">
           <span className="profile-stat-label">Upcoming bookings</span>
           <strong>{upcomingBookings.length}</strong>
-          <p>Active requests and confirmed appointments still on your calendar.</p>
         </article>
-        <article className="summary-card">
+        <article className="summary-card stat-card">
           <span className="profile-stat-label">Saved notes</span>
           <strong>{customerBookings.length}</strong>
-          <p>Booking snapshots retain the notes you used to brief the merchant.</p>
         </article>
       </section>
 
