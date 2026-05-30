@@ -57,12 +57,44 @@
     .badge-color  { background: #fff3e0; color: #a05c00; }
     .badge-style  { background: #e8f5e9; color: #2e7d32; }
     #breakdown-notes { font-size: 0.85rem; color: #555; font-style: italic; }
+
+    /* trending section */
+    #trending-section { width: 100%; max-width: 900px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .trending-header { display: flex; align-items: center; gap: 16px; }
+    .trending-header h2 { margin: 0; }
+    .btn-refresh { padding: 6px 14px; border: 1.5px solid #111; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.8rem; }
+    .btn-refresh:hover:not(:disabled) { background: #f0f0f0; }
+    .btn-refresh:disabled { border-color: #ccc; color: #999; cursor: not-allowed; }
+    #trending-status { font-size: 0.85rem; color: #666; min-height: 1.2em; }
+    #trending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; width: 100%; }
+    .trend-card { border: 1.5px solid #eee; border-radius: 10px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 6px; background: #fff; }
+    .trend-rank { font-size: 1.1rem; font-weight: 700; color: #111; }
+    .trend-name { font-size: 0.9rem; font-weight: 600; line-height: 1.3; }
+    .trend-name-zh { font-size: 0.78rem; color: #888; margin-top: -2px; }
+    .trend-desc { font-size: 0.78rem; color: #555; line-height: 1.4; flex: 1; }
+    .trend-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .trend-tag { padding: 2px 7px; border-radius: 10px; font-size: 0.7rem; background: #f0f0f0; color: #444; }
+    .trend-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
+    .trend-link { padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; background: #f7f7f7; color: #1a6fa8; text-decoration: none; border: 1px solid #e5e5e5; }
+    .trend-link:hover { background: #eef4fb; border-color: #c9d9e8; }
+    .skeleton-card { border: 1.5px solid #eee; border-radius: 10px; padding: 14px; background: #fafafa; height: 140px; animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
   </style>
 </head>
 <body>
   <h1>Nailed It</h1>
 
-  <!-- ── Try-On ── -->
+  <!-- ── Trending Now ── -->
+  <section id="trending-section">
+    <div class="trending-header">
+      <h2>Trending Now / 热门款式</h2>
+      <button class="btn-refresh" id="trending-refresh" disabled>Refresh</button>
+    </div>
+    <p id="trending-status" class="status">Loading…</p>
+    <div id="trending-grid"></div>
+  </section>
+
+  <hr class="divider" />
   <section>
     <h2>Virtual Try-On</h2>
     <div class="uploads">
@@ -348,6 +380,92 @@
         analyseBtn.disabled = false;
       }
     });
+
+    // ── Trending Now ────────────────────────────────────────────────────
+    const trendingGrid    = document.getElementById('trending-grid');
+    const trendingStatus  = document.getElementById('trending-status');
+    const trendingRefresh = document.getElementById('trending-refresh');
+
+    const RANK_EMOJIS = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+
+    function showSkeletons() {
+      trendingGrid.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const el = document.createElement('div');
+        el.className = 'skeleton-card';
+        trendingGrid.appendChild(el);
+      }
+    }
+
+    function renderTrending(data) {
+      trendingGrid.innerHTML = '';
+      data.styles.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'trend-card';
+
+        const rank = document.createElement('span');
+        rank.className = 'trend-rank';
+        rank.textContent = RANK_EMOJIS[i] || `#${s.rank}`;
+
+        const name = document.createElement('div');
+        name.className = 'trend-name';
+        name.textContent = s.name;
+
+        const nameZh = document.createElement('div');
+        nameZh.className = 'trend-name-zh';
+        nameZh.textContent = s.name_zh;
+
+        const desc = document.createElement('div');
+        desc.className = 'trend-desc';
+        desc.textContent = s.description;
+
+        const tags = document.createElement('div');
+        tags.className = 'trend-tags';
+        s.tags.forEach(t => {
+          const chip = document.createElement('span');
+          chip.className = 'trend-tag';
+          chip.textContent = t;
+          tags.appendChild(chip);
+        });
+
+        const links = document.createElement('div');
+        links.className = 'trend-links';
+        (s.search_links || []).forEach(l => {
+          const a = document.createElement('a');
+          a.className = 'trend-link';
+          a.href = l.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = l.label;
+          links.appendChild(a);
+        });
+
+        card.append(rank, name, nameZh, desc, tags, links);
+        trendingGrid.appendChild(card);
+      });
+    }
+
+    async function loadTrending(forceRefresh = false) {
+      showSkeletons();
+      trendingStatus.textContent = 'Loading trending styles…';
+      trendingRefresh.disabled = true;
+      try {
+        const url = forceRefresh ? '/api/v1/trending?refresh=true' : '/api/v1/trending';
+        const res = await fetch(url);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }
+        const data = await res.json();
+        renderTrending(data);
+        trendingStatus.textContent = '';
+      } catch (e) {
+        trendingGrid.innerHTML = '';
+        trendingStatus.textContent = `Error: ${e.message}`;
+      } finally {
+        trendingRefresh.disabled = false;
+      }
+    }
+
+    trendingRefresh.addEventListener('click', () => loadTrending(true));
+    loadTrending();
   </script>
 </body>
 </html>
