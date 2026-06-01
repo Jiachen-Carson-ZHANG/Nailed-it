@@ -26,8 +26,9 @@ const statusLabels: Record<Booking['status'], string> = {
 };
 
 export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientProps) {
-  const bookings = getBookingsSnapshot();
-  const booking = bookings.find((item) => item.id === id);
+  const [booking] = useState<Booking | undefined>(() =>
+    getBookingsSnapshot().find((item) => item.id === id)
+  );
   const [status, setStatus] = useState<Booking['status'] | undefined>(booking?.status);
 
   if (!booking) {

@@ -1,24 +1,18 @@
 import Link from 'next/link';
 import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
+import { pricingTargetLabels } from '@/domain/nail';
 import type { MockRouteIntent } from '@/domain/session';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { defaultPricingRules } from '@/mock/pricing';
 
 type BreakdownRow = { label: string; price: number; duration: number };
 
-function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
-  const byTarget = new Map<string, PricingItem>(
-    defaultPricingRules.map((r) => [r.target, r])
-  );
-  const rows: BreakdownRow[] = [];
+const rulesByTarget = new Map<string, PricingItem>(
+  defaultPricingRules.map((r) => [r.target, r])
+);
 
-  const labelMap: Record<string, string> = {
-    removal: 'Removal', extension: 'Extension', builderGel: 'Builder gel',
-    round: 'Round', square: 'Square', squoval: 'Squoval', oval: 'Oval',
-    almond: 'Almond', coffin: 'Coffin', stiletto: 'Stiletto',
-    solid: 'Solid', french: 'French', catEye: 'Cat eye', chrome: 'Chrome',
-    rhinestone: 'Rhinestone', charms: 'Charms', glitter: 'Glitter'
-  };
+function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
+  const rows: BreakdownRow[] = [];
 
   const candidates = [
     ...recognition.selection.baseServices,
@@ -28,9 +22,9 @@ function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
   ];
 
   for (const key of candidates) {
-    const rule = byTarget.get(key);
+    const rule = rulesByTarget.get(key);
     if (rule && rule.price > 0) {
-      rows.push({ label: labelMap[key] ?? key, price: rule.price, duration: rule.duration });
+      rows.push({ label: pricingTargetLabels[key as keyof typeof pricingTargetLabels] ?? key, price: rule.price, duration: rule.duration });
     }
   }
   return rows;

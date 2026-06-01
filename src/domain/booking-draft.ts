@@ -9,27 +9,7 @@ export type CustomerBookingDraftSnapshot = {
 };
 
 function cloneCustomerBookingDraft(draft: CustomerBookingDraft): CustomerBookingDraft {
-  return {
-    estimate: {
-      ...draft.estimate
-    },
-    imageUrl: draft.imageUrl,
-    recognition: {
-      meta: {
-        confidence: draft.recognition.meta.confidence,
-        aiSuggestedQuote: {
-          ...draft.recognition.meta.aiSuggestedQuote
-        }
-      },
-      selection: {
-        baseServices: [...draft.recognition.selection.baseServices],
-        nailShape: draft.recognition.selection.nailShape,
-        styles: [...draft.recognition.selection.styles],
-        addons: [...draft.recognition.selection.addons],
-        otherNotes: draft.recognition.selection.otherNotes
-      }
-    }
-  };
+  return structuredClone(draft);
 }
 
 export function saveCustomerBookingDraft(draft: CustomerBookingDraft): CustomerBookingDraft {

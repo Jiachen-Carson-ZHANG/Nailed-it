@@ -117,10 +117,6 @@ const slotTemplates = [
   { label: 'Tomorrow', date: '2026-05-24', slots: ['11:00', '13:30', '15:30', '18:00'] }
 ] as const;
 
-export function getAvailableSlots(bookings: Booking[]) {
-  return getAvailableBookingDays(bookings);
-}
-
 export function getAvailableBookingDays(bookings: Booking[] = mockBookings) {
   return findTechnicianSlots({
     bookings,

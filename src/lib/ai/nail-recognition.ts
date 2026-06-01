@@ -9,6 +9,7 @@ import {
   estimateVisionUsageCost,
   getVisionTokenPricingFromEnv,
   parseGeminiUsageMetadata,
+  asRecord,
   type VisionCostEstimate,
   type VisionTokenPricing,
   type VisionTokenUsage
@@ -155,12 +156,6 @@ export function createConfiguredNailRecognitionProvider(env = process.env) {
   });
 }
 
-export async function recognizeNailImage(input: NailImageRecognitionInput) {
-  const result = await createConfiguredNailRecognitionProvider()(input);
-
-  return result.recognition;
-}
-
 export async function recognizeNailImageWithTelemetry(input: NailImageRecognitionInput) {
   return createConfiguredNailRecognitionProvider()(input);
 }
@@ -232,10 +227,6 @@ function stripJsonFence(text: string): string {
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '');
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
 function keepKnownValues<T extends string>(

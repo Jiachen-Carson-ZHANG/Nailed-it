@@ -23,6 +23,8 @@ const monthDays = Array.from({ length: 31 }, (_, i) => i + 1);
 const firstWeekday = new Date(Date.UTC(2026, 4, 1)).getUTCDay();
 const leadingBlanks = firstWeekday === 0 ? 6 : firstWeekday - 1;
 const hourRange = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
+const activeTechnicians = mockTechnicians.filter((t) => t.active);
+const dailyCapacity = activeTechnicians.length * SLOTS_PER_TECH;
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -47,9 +49,6 @@ function formatDayLabel(date: string): string {
 }
 
 export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
-  const activeTechnicians = useMemo(() => mockTechnicians.filter((t) => t.active), []);
-  const dailyCapacity = activeTechnicians.length * SLOTS_PER_TECH;
-
   const bookingsByDate = useMemo(() => {
     return bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
       acc[booking.date] = [...(acc[booking.date] ?? []), booking];

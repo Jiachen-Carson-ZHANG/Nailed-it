@@ -7,23 +7,6 @@ type StyleWaterfallGridProps = {
 };
 
 export function StyleWaterfallGrid({ styles }: StyleWaterfallGridProps) {
-  if (styles.length === 0) {
-    return (
-      <section aria-labelledby="trending-style-grid-title" className="discovery-section">
-        <div className="section-heading">
-          <div>
-            <p className="section-eyebrow">Trending now</p>
-            <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
-          </div>
-        </div>
-        <EmptyState
-          body="No trending styles right now — check back soon."
-          title="No styles yet"
-        />
-      </section>
-    );
-  }
-
   return (
     <section aria-labelledby="trending-style-grid-title" className="discovery-section">
       <div className="section-heading">
@@ -32,11 +15,18 @@ export function StyleWaterfallGrid({ styles }: StyleWaterfallGridProps) {
           <h2 id="trending-style-grid-title">Discover trending nail looks</h2>
         </div>
       </div>
-      <div className="style-waterfall-grid">
-        {styles.map((style) => (
-          <StyleCard key={style.id} style={style} />
-        ))}
-      </div>
+      {styles.length === 0 ? (
+        <EmptyState
+          body="No trending styles right now — check back soon."
+          title="No styles yet"
+        />
+      ) : (
+        <div className="style-waterfall-grid">
+          {styles.map((style) => (
+            <StyleCard key={style.id} style={style} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

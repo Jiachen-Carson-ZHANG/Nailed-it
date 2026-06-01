@@ -132,6 +132,6 @@ function roundUsd(value: number): number {
   return Math.round(value * 1_000_000_000) / 1_000_000_000;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }

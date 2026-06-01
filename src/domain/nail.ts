@@ -190,3 +190,23 @@ export type BookingConversationThread = {
   relatedBookingTime: string;
   messages: BookingMessage[];
 };
+
+export const pricingTargetLabels: Record<PricingItem['target'], string> = {
+  removal: 'Removal',
+  extension: 'Extension',
+  builderGel: 'Builder gel',
+  round: 'Round',
+  square: 'Square',
+  squoval: 'Squoval',
+  oval: 'Oval',
+  almond: 'Almond',
+  coffin: 'Coffin',
+  stiletto: 'Stiletto',
+  solid: 'Solid',
+  french: 'French',
+  catEye: 'Cat eye',
+  chrome: 'Chrome',
+  rhinestone: 'Rhinestone',
+  charms: 'Charms',
+  glitter: 'Glitter'
+};

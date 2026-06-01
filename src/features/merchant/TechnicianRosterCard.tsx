@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Booking, Technician } from '@/domain/nail';
+import { getMerchantBookingPath } from '@/domain/session';
 
 type TechnicianRosterCardProps = {
   bookings: Booking[];
@@ -18,10 +19,9 @@ export function TechnicianRosterCard({
 }: TechnicianRosterCardProps) {
   const bookingsByTechnician = bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
     if (!activeBookingStatuses.has(booking.status)) return acc;
-    return {
-      ...acc,
-      [booking.technician.id]: [...(acc[booking.technician.id] ?? []), booking]
-    };
+    const id = booking.technician.id;
+    (acc[id] ??= []).push(booking);
+    return acc;
   }, {});
 
   return (
@@ -56,7 +56,7 @@ export function TechnicianRosterCard({
                 <ul className="technician-booking-links">
                   {activeBookings.map((booking) => (
                     <li key={booking.id}>
-                      <Link href={`/merchant/booking/${booking.id}`} className="technician-booking-link">
+                      <Link href={getMerchantBookingPath(booking.id)} className="technician-booking-link">
                         {booking.styleTitle} · {booking.date} {booking.time}
                       </Link>
                     </li>
