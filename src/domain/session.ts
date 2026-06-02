@@ -42,7 +42,8 @@ const customerPaths = {
   messages: '/customer/messages',
   profile: '/customer/profile',
   styleDetail: (id: string) => `/customer/style/${id}`,
-  messageDetail: (conversationId: string) => `/customer/messages/${conversationId}`
+  messageDetail: (conversationId: string) => `/customer/messages/${conversationId}`,
+  tryOn: (styleId?: string) => styleId ? `/customer/try-on?styleId=${styleId}` : '/customer/try-on'
 };
 
 const merchantPaths = {
@@ -213,6 +214,10 @@ export function getMerchantMessagesPath(conversationId?: string): string {
 
 export function getMerchantProfilePath(): string {
   return merchantPaths.profile;
+}
+
+export function getCustomerTryOnPath(styleId?: string): string {
+  return customerPaths.tryOn(styleId);
 }
 
 export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {

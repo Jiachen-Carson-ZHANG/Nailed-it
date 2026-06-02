@@ -191,6 +191,69 @@ export type BookingConversationThread = {
   messages: BookingMessage[];
 };
 
+// ─── Trending Styles ─────────────────────────────────────────────────────────
+
+export type TrendingSearchLink = {
+  platform: string;
+  url: string;
+  label: string;
+};
+
+export type AITrendingStyle = {
+  rank: number;
+  name: string;
+  nameCn: string;
+  description: string;
+  tags: string[];
+  searchLinks: TrendingSearchLink[];
+};
+
+export type AITrendingResponse = {
+  styles: AITrendingStyle[];
+  generatedAt: string;
+};
+
+// ─── Component Breakdown ──────────────────────────────────────────────────────
+
+export type NailBreakdownCategory = 'base' | 'shape' | 'color_style' | 'addon' | 'other';
+
+export type StandardBreakdownItem = {
+  mode: 'standard';
+  category: NailBreakdownCategory;
+  label: string;
+  price: number;
+  duration: number;
+};
+
+export type FreeBreakdownItem = {
+  mode: 'free';
+  category: NailBreakdownCategory;
+  label: string;
+  labelCn?: string;
+  quantity: number;
+  unit: string;
+  price: number;
+  duration: number;
+};
+
+export type BreakdownItem = StandardBreakdownItem | FreeBreakdownItem;
+
+export type BreakdownResult = {
+  items: BreakdownItem[];
+  totalPrice: number;
+  totalDuration: number;
+  mode: 'standard' | 'free';
+};
+
+// ─── Virtual Try-On ───────────────────────────────────────────────────────────
+
+export type TryOnResult = {
+  imageBase64: string;
+  mimeType: 'image/png' | 'image/jpeg';
+};
+
+// ─── Pricing Labels ───────────────────────────────────────────────────────────
+
 export const pricingTargetLabels: Record<PricingItem['target'], string> = {
   removal: 'Removal',
   extension: 'Extension',

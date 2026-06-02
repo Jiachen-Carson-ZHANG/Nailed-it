@@ -212,3 +212,20 @@
 - `python -m pytest tests/test_graphify_maintenance.py`
 
 **Must remain true:** Repository tooling and maintenance scripts target Python 3.10+; CI validates the floor on 3.10.
+
+## 2026-06-01 - Trending Styles, Component Breakdown, and Virtual Try-On
+
+**Context:** Porting three features from `feat/component-breakdown` branch (Python/FastAPI) into the main Next.js/TypeScript app.
+
+**Changes:**
+- **Domain types** (`src/domain/nail.ts`): Added `AITrendingStyle`, `AITrendingResponse`, `TrendingSearchLink`, `BreakdownItem` (standard + free modes), `BreakdownResult`, `TryOnResult`.
+- **Trending Styles**: `src/lib/ai/trending-styles.ts` calls `gemini-3.1-flash-image-preview` with a month/year prompt, returns bilingual (EN+ZH) top-10 styles with search links. `GET /api/ai/trending-styles` route. `TrendingStylesPanel` client component on the customer home page with a Refresh button.
+- **Component Breakdown**: `src/lib/ai/breakdown.ts` implements standard mode (AI → existing enums → `calculateEstimate()`) and free mode (AI names and prices components freely). `POST /api/ai/breakdown` route. `ComponentBreakdownPanel` collapsible component in booking step 2 with a Standard/Free mode toggle; free mode rows are editable.
+- **Virtual Try-On**: `src/lib/ai/try-on.ts` sends two images to Gemini with `responseModalities: ["IMAGE", "TEXT"]` and returns a composite image. `POST /api/ai/try-on` route. `TryOnPanel` component with two upload slots. New page at `/customer/try-on`. "Try on this look" ghost button added to `StyleDetailPanel`. `getCustomerTryOnPath()` helper in `session.ts`.
+- **CSS** (`src/app/globals.css`): Added trending panel, trending card, skeleton loader, breakdown panel, breakdown mode toggle, category badges, editable inputs, and try-on slot styles.
+- **ADR-0003** documents the expanded AI boundary: standard breakdown and all other features stay deterministic; free mode is the explicit exception.
+- **Env var**: `GEMINI_IMAGE_MODEL_NAME=gemini-3.1-flash-image-preview` controls the model for all three new features.
+
+**Verification:**
+- `npm test` — no regressions
+- `npm run build` — TypeScript compiles clean

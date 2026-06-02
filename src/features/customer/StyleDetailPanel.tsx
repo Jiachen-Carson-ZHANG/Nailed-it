@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
 import { pricingTargetLabels } from '@/domain/nail';
 import type { MockRouteIntent } from '@/domain/session';
+import { getCustomerTryOnPath } from '@/domain/session';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { defaultPricingRules } from '@/mock/pricing';
 
@@ -144,6 +145,9 @@ export function StyleDetailPanel({
             <p>{bookingIntent.note}</p>
           </section>
         )}
+        <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
+          Try on this look
+        </Link>
         <p className="detail-merchant-line">At <strong>Nailed-it Studio</strong> · Free cancellation up to 24 h before</p>
         <Link className="detail-back-link" href={backHref}>
           ← Back to discovery

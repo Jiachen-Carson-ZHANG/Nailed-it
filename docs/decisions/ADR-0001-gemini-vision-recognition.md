@@ -9,7 +9,7 @@ Nailed-it needs real image-model output in the customer booking flow, but the fr
 
 ## Decision
 
-Use Gemini as the first live image-recognition provider for customer nail photos. The default model is `gemini-2.5-flash-lite` because it is the cheapest stable multimodal Gemini model suitable for high-volume lightweight extraction. The browser sends inline image data to `/api/ai/recognize-nail-style`; the server reads `GEMINI_API_KEY`, calls Gemini, and normalizes output into the app's `AIRecognitionResult`.
+Use Gemini as the first live image-recognition provider for customer nail photos. The default model is `gemini-3.1-flash-image-preview` for a balance of performance and cost. The browser sends inline image data to `/api/ai/recognize-nail-style`; the server reads `GEMINI_API_KEY`, calls Gemini, and normalizes output into the app's `AIRecognitionResult`.
 
 The model may return only:
 

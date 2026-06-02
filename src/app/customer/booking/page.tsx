@@ -12,6 +12,7 @@ import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
 import { NailAttributeEditor } from '@/features/customer/NailAttributeEditor';
 import { PriceEstimateBar } from '@/features/customer/PriceEstimateBar';
+import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
 import { getStyleDefinitionById } from '@/mock/styles';
@@ -154,6 +155,8 @@ export default function CustomerBookingPage() {
           </section>
 
           <NailAttributeEditor value={recognition} onChange={setRecognition} />
+
+          <ComponentBreakdownPanel image={selectedImage} />
 
           <div className="booking-step-actions">
             <Button block variant="secondary" onClick={() => setStep('upload')}>
