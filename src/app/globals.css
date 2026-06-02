@@ -86,7 +86,8 @@ body {
   background: transparent;
   color: var(--color-text);
   font-family:
-    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    var(--font-body), 'Source Han Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 a {
@@ -2217,4 +2218,3 @@ select {
   object-fit: cover;
   display: block;
 }
-
