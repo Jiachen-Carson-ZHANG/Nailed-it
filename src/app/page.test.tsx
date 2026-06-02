@@ -20,12 +20,32 @@ function getTopLevelRegions() {
   });
 }
 
+function getRegionAccessibleName(region: HTMLElement) {
+  const ariaLabel = region.getAttribute('aria-label');
+
+  if (ariaLabel) {
+    return ariaLabel;
+  }
+
+  const labelledBy = region.getAttribute('aria-labelledby');
+
+  if (!labelledBy) {
+    return '';
+  }
+
+  return labelledBy
+    .split(/\s+/)
+    .map((id) => region.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+    .join(' ')
+    .trim();
+}
+
 describe('LandingPage', () => {
   it('renders exactly five top-level labeled regions in the approved order', () => {
     renderLandingPage();
 
     expect(getTopLevelRegions()).toHaveLength(5);
-    expect(getTopLevelRegions().map((region) => region.getAttribute('aria-label'))).toEqual([
+    expect(getTopLevelRegions().map(getRegionAccessibleName)).toEqual([
       'Hero',
       'Problem',
       'Solution',
@@ -68,12 +88,12 @@ describe('LandingPage', () => {
 
     const solution = screen.getByRole('region', { name: 'Solution' });
 
-    await user.click(screen.getByRole('tab', { name: '款式购物车' }));
+    await user.click(within(solution).getByRole('tab', { name: '款式购物车' }));
 
     expect(within(solution).getByRole('heading', { name: '款式购物车' })).toBeInTheDocument();
     expect(within(solution).getByText('试戴比较， 快速决策')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: '商家图册' }));
+    await user.click(within(solution).getByRole('tab', { name: '商家图册' }));
 
     expect(within(solution).getByRole('heading', { name: '商家图册' })).toBeInTheDocument();
     expect(within(solution).getByText('自动归档， 持续种草')).toBeInTheDocument();
