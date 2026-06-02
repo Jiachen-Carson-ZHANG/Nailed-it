@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import LandingPage from './page';
+import styles from './page.module.css';
 
 vi.mock('@/domain/session', () => ({
   getMockSession: (role: 'customer' | 'merchant') => ({
@@ -11,7 +12,7 @@ vi.mock('@/domain/session', () => ({
 
 describe('LandingPage', () => {
   it('renders the approved landing story and both entry routes', () => {
-    render(<LandingPage />);
+    const { container } = render(<LandingPage />);
 
     expect(
       screen.getByRole('heading', {
@@ -38,5 +39,10 @@ describe('LandingPage', () => {
         name: /商家入口/i
       })
     ).toHaveAttribute('href', '/mock-merchant-calendar');
+
+    // 回归保护：hero 三张图需要显式 class，避免依赖 DOM 顺序绑定样式职责
+    expect(container.querySelector(`.${styles.heroShadow}`)).toBeInTheDocument();
+    expect(container.querySelector(`.${styles.heroLogo}`)).toBeInTheDocument();
+    expect(container.querySelector(`.${styles.heroIcon}`)).toBeInTheDocument();
   });
 });
