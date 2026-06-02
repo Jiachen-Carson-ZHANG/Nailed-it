@@ -39,6 +39,7 @@ export default function LandingPage() {
         <div className={styles.heroArt} aria-hidden="true">
           <Image
             alt=""
+            className={styles.heroShadow}
             fill
             priority
             sizes="(min-width: 1024px) 42vw, 100vw"
@@ -46,6 +47,7 @@ export default function LandingPage() {
           />
           <Image
             alt=""
+            className={styles.heroLogo}
             priority
             src="/landing/logo.png"
             width={180}
@@ -53,6 +55,7 @@ export default function LandingPage() {
           />
           <Image
             alt=""
+            className={styles.heroIcon}
             priority
             src="/landing/hero-icon.png"
             width={320}

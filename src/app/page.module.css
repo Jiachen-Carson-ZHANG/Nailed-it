@@ -15,10 +15,9 @@
   padding: 1.5rem 1rem 4.5rem;
   display: grid;
   gap: 1.5rem;
+  position: relative;
+  isolation: isolate;
   color: var(--ink);
-}
-
-:global(body) {
   background:
     radial-gradient(circle at top left, rgba(216, 199, 250, 0.58), transparent 32%),
     radial-gradient(circle at top right, rgba(168, 216, 234, 0.52), transparent 34%),
@@ -204,27 +203,27 @@
   isolation: isolate;
 }
 
-.heroArt > :first-child {
+.heroShadow {
   object-fit: contain;
   object-position: center;
   transform: translateY(34%);
   opacity: 0.92;
 }
 
-.heroArt > :nth-child(2),
-.heroArt > :nth-child(3) {
+.heroLogo,
+.heroIcon {
   position: relative;
   z-index: 1;
 }
 
-.heroArt > :nth-child(2) {
+.heroLogo {
   width: clamp(9rem, 16vw, 11.5rem);
   height: auto;
   transform: translate(-26%, -12%) rotate(-6deg);
   filter: drop-shadow(0 24px 32px rgba(105, 111, 199, 0.15));
 }
 
-.heroArt > :nth-child(3) {
+.heroIcon {
   width: min(100%, 22rem);
   height: auto;
   transform: translate(12%, 8%);
@@ -461,16 +460,16 @@
     padding: 0.25rem;
   }
 
-  .heroArt > :first-child {
+  .heroShadow {
     transform: translateY(38%);
   }
 
-  .heroArt > :nth-child(2) {
+  .heroLogo {
     width: 7.25rem;
     transform: translate(-24%, -8%) rotate(-6deg);
   }
 
-  .heroArt > :nth-child(3) {
+  .heroIcon {
     width: min(100%, 15rem);
     transform: translate(10%, 8%);
   }
