@@ -150,6 +150,8 @@ select {
   margin: 0;
   font-size: clamp(2.2rem, 7vw, 3.4rem);
   line-height: 1;
+  font-family:
+    var(--font-display), 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
 }
 
 .tagline,
