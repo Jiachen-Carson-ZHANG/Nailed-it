@@ -1,0 +1,105 @@
+.page {
+  display: block;
+}
+
+.section {
+  display: block;
+}
+
+.hero {
+  display: block;
+}
+
+.heroBody {
+  display: block;
+}
+
+.heroDeck {
+  display: block;
+}
+
+.heroTitle {
+  display: block;
+}
+
+.heroValueLine {
+  display: block;
+}
+
+.heroDescription {
+  display: block;
+}
+
+.ctaGroup {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ctaPrimary {
+  display: inline-flex;
+}
+
+.ctaSecondary {
+  display: inline-flex;
+}
+
+.heroArt {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.heroArtImage {
+  width: auto;
+  height: auto;
+}
+
+.sectionTitle {
+  display: block;
+}
+
+.sectionIntro {
+  display: block;
+}
+
+.cardGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  display: block;
+}
+
+.cardLabel {
+  display: block;
+}
+
+.cardTitle {
+  display: block;
+}
+
+.cardSummary {
+  display: block;
+}
+
+.cardBody {
+  display: block;
+}
+
+.outcomeList {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.outcomeItem {
+  display: block;
+}
+
+.closing {
+  display: block;
+}
