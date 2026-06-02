@@ -5,7 +5,7 @@ import { ProblemSection } from './ProblemSection';
 
 export default function LandingPage() {
   return (
-    <main className={landingSerif.variable}>
+    <main className={`${landingSerif.className} ${landingSerif.variable}`}>
       <HeroSection />
       <ProblemSection />
       <section aria-label="Solution" />

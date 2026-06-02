@@ -8,7 +8,7 @@ import { landingRoutes } from './landing-content';
 export function HeroSection() {
   return (
     <section aria-label="Hero">
-      <Image src={logoImage} alt="" width={240} height={84} priority unoptimized />
+      <Image src={logoImage} alt="" width={240} height={84} unoptimized />
       <div>
         <h1>少沟通，多成交</h1>
         <p>
