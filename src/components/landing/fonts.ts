@@ -46,11 +46,11 @@ const landingSerifConfig = {
 } as const;
 
 function createFontFallback(): LocalFontResult {
-  // 测试环境只需要稳定的 className / variable，避免把失败点卡在 next/font 适配上。
+  // 测试环境只需要稳定的类名形态，保证 landingSerif.variable 仍可安全作为 className 使用。
   return {
     className: 'font-landing-serif',
     style: { fontFamily: '"Source Han Serif SC", serif' },
-    variable: landingSerifConfig.variable
+    variable: 'font-landing-serif-variable'
   };
 }
 

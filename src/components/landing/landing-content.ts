@@ -1,6 +1,8 @@
+import { getMockSession } from '@/domain/session';
+
 export const landingRoutes = {
-  customer: '/customer/home',
-  merchant: '/merchant/calendar'
+  customer: getMockSession('customer').homePath,
+  merchant: getMockSession('merchant').homePath
 } as const;
 
 export const problemCards = [
