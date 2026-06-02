@@ -20,38 +20,23 @@ function getTopLevelRegions() {
   });
 }
 
-function getRegionAccessibleName(region: HTMLElement) {
-  const ariaLabel = region.getAttribute('aria-label');
-
-  if (ariaLabel) {
-    return ariaLabel;
-  }
-
-  const labelledBy = region.getAttribute('aria-labelledby');
-
-  if (!labelledBy) {
-    return '';
-  }
-
-  return labelledBy
-    .split(/\s+/)
-    .map((id) => region.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
-    .join(' ')
-    .trim();
-}
-
 describe('LandingPage', () => {
   it('renders exactly five top-level labeled regions in the approved order', () => {
     renderLandingPage();
 
-    expect(getTopLevelRegions()).toHaveLength(5);
-    expect(getTopLevelRegions().map(getRegionAccessibleName)).toEqual([
+    const topLevelRegions = getTopLevelRegions();
+    const expectedRegionNames = [
       'Hero',
       'Problem',
       'Solution',
       'Why It Works',
       'CTA'
-    ]);
+    ];
+
+    expect(topLevelRegions).toHaveLength(5);
+    expectedRegionNames.forEach((expectedName, index) => {
+      expect(topLevelRegions[index]).toHaveAccessibleName(expectedName);
+    });
   });
 
   it('renders the approved hero and CTA route targets', () => {
