@@ -1,10 +1,3 @@
-@font-face {
-  /* 中文正文改为走运行时静态字体，避免 next/font 在构建期解析 TTC 阻断 build */
-  font-family: 'Landing Body Sans';
-  src: url('/fonts/source-han-sans-vf.ttc');
-  font-display: swap;
-}
-
 :root {
   /* Colors */
   --color-bg: #fff8f7;
@@ -93,9 +86,8 @@ body {
   background: transparent;
   color: var(--color-text);
   font-family:
-    'Landing Body Sans', 'Source Han Sans SC', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont,
-    'Segoe UI', sans-serif;
+    var(--font-body), 'Source Han Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 a {
