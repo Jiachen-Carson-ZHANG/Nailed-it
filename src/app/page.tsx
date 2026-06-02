@@ -87,13 +87,11 @@ export default function LandingPage() {
       </section>
 
       <section className={styles.outcomeSection} aria-label="价值总结">
-        <ul className={styles.outcomeList}>
-          {landingOutcomeLines.map((line) => (
-            <li key={line} className={styles.outcomePill}>
-              {line}
-            </li>
-          ))}
-        </ul>
+        {landingOutcomeLines.map((line) => (
+          <p key={line} className={styles.outcomePill}>
+            {line}
+          </p>
+        ))}
       </section>
 
       <section className={styles.closingSection} aria-label="再次进入产品">
