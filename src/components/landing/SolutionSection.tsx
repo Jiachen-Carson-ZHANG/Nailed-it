@@ -1,0 +1,58 @@
+'use client';
+
+import { useId, useState } from 'react';
+
+import { featureTabs } from './landing-content';
+import { PhoneMockup } from './PhoneMockup';
+
+const defaultFeatureKey = 'recognition';
+
+export function SolutionSection() {
+  const [activeKey, setActiveKey] = useState<(typeof featureTabs)[number]['key']>(defaultFeatureKey);
+  const tabsId = useId();
+  const activeFeature = featureTabs.find((feature) => feature.key === activeKey) ?? featureTabs[0];
+  const panelId = `${tabsId}-panel-${activeFeature.key}`;
+  const headingId = `${tabsId}-heading`;
+
+  return (
+    <section aria-label="Solution">
+      <div>
+        <h2 id={headingId}>Solution</h2>
+        <PhoneMockup labelledBy={headingId} />
+      </div>
+      <div aria-label="Solution features" role="tablist">
+        {featureTabs.map((feature) => {
+          const tabId = `${tabsId}-tab-${feature.key}`;
+          const currentPanelId = `${tabsId}-panel-${feature.key}`;
+          const isActive = feature.key === activeFeature.key;
+
+          return (
+            <button
+              key={feature.key}
+              aria-controls={currentPanelId}
+              aria-selected={isActive}
+              id={tabId}
+              role="tab"
+              tabIndex={isActive ? 0 : -1}
+              type="button"
+              onClick={() => setActiveKey(feature.key)}
+            >
+              {feature.tabLabel}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        aria-labelledby={`${tabsId}-tab-${activeFeature.key}`}
+        id={panelId}
+        role="tabpanel"
+      >
+        <h3>{activeFeature.title}</h3>
+        <p>{activeFeature.subtitle}</p>
+        {activeFeature.paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+    </section>
+  );
+}
