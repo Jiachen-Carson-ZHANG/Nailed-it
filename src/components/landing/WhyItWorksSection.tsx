@@ -5,23 +5,42 @@ import { useEffect, useRef, useState } from 'react';
 import { whyItWorksLines } from './landing-content';
 import { LoopArrowGraphic } from './LoopArrowGraphic';
 
-const LAST_SCROLL_PROGRESS = 0.999999;
-const STEP_THRESHOLDS = [0.25, 0.5, 0.75] as const;
+const RAW_PROGRESS_MAX = 0.999999;
+const STEP_PROGRESS_START = 0.18;
+const STEP_PROGRESS_END = 0.82;
+const STEP_THRESHOLDS = [0.2, 0.45, 0.7] as const;
+const VISUALLY_HIDDEN_STYLES = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0
+} as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
 function getStepFromProgress(progress: number) {
-  if (progress < STEP_THRESHOLDS[0]) {
+  const calibratedProgress = clamp(
+    (progress - STEP_PROGRESS_START) / (STEP_PROGRESS_END - STEP_PROGRESS_START),
+    0,
+    RAW_PROGRESS_MAX
+  );
+
+  if (calibratedProgress < STEP_THRESHOLDS[0]) {
     return 0;
   }
 
-  if (progress < STEP_THRESHOLDS[1]) {
+  if (calibratedProgress < STEP_THRESHOLDS[1]) {
     return 1;
   }
 
-  if (progress < STEP_THRESHOLDS[2]) {
+  if (calibratedProgress < STEP_THRESHOLDS[2]) {
     return 2;
   }
 
@@ -51,8 +70,8 @@ export function WhyItWorksSection() {
       const sectionTop = window.scrollY + rect.top;
       const scrollDistance = window.scrollY + window.innerHeight - sectionTop;
       const scrollRange = Math.max(rect.height + window.innerHeight, 1);
-      // 中文注释：把当前 section 的滚动曝光度压缩到 0~1，再按显式阈值映射成 4 个步骤。
-      const progress = clamp(scrollDistance / scrollRange, 0, LAST_SCROLL_PROGRESS);
+      // 中文注释：先算出 section 的基础曝光进度，再交给显式阈值做 4 段步进映射。
+      const progress = clamp(scrollDistance / scrollRange, 0, RAW_PROGRESS_MAX);
       const nextStep = Math.min(whyItWorksLines.length - 1, getStepFromProgress(progress));
 
       setActiveStep((currentStep) => (currentStep === nextStep ? currentStep : nextStep));
@@ -69,8 +88,13 @@ export function WhyItWorksSection() {
   }, []);
 
   return (
-    <section ref={sectionRef} aria-label="Why It Works">
-      <h2>Why It Works</h2>
+    <section ref={sectionRef} aria-labelledby="why-it-works-heading">
+      <h2
+        id="why-it-works-heading"
+        style={VISUALLY_HIDDEN_STYLES}
+      >
+        Why It Works
+      </h2>
       <LoopArrowGraphic />
       <div>
         {whyItWorksLines.map((line, index) => (
