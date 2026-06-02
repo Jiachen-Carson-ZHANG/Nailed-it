@@ -7,8 +7,17 @@ function renderLandingPage() {
 }
 
 function getTopLevelRegions() {
-  // 只从 main 容器里取顶层营销区块，避免未来页面外部结构干扰断言。
-  return within(screen.getByRole('main')).getAllByRole('region');
+  const main = screen.getByRole('main');
+
+  // 只统计 main 的直接子 section，避免把后续组件内部的嵌套 region 误算进来。
+  return Array.from(main.children).filter((element): element is HTMLElement => {
+    if (!(element instanceof HTMLElement) || element.tagName !== 'SECTION') {
+      return false;
+    }
+
+    // 顶层 section 必须本身就是可访问的 region，而不是依赖后代节点提供语义。
+    return element.matches('section[aria-label], section[aria-labelledby]');
+  });
 }
 
 describe('LandingPage', () => {
