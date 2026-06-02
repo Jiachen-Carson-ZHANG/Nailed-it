@@ -6,9 +6,26 @@ import { whyItWorksLines } from './landing-content';
 import { LoopArrowGraphic } from './LoopArrowGraphic';
 
 const LAST_SCROLL_PROGRESS = 0.999999;
+const STEP_THRESHOLDS = [0.25, 0.5, 0.75] as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function getStepFromProgress(progress: number) {
+  if (progress < STEP_THRESHOLDS[0]) {
+    return 0;
+  }
+
+  if (progress < STEP_THRESHOLDS[1]) {
+    return 1;
+  }
+
+  if (progress < STEP_THRESHOLDS[2]) {
+    return 2;
+  }
+
+  return 3;
 }
 
 export function WhyItWorksSection() {
@@ -34,12 +51,9 @@ export function WhyItWorksSection() {
       const sectionTop = window.scrollY + rect.top;
       const scrollDistance = window.scrollY + window.innerHeight - sectionTop;
       const scrollRange = Math.max(rect.height + window.innerHeight, 1);
-      // 中文注释：把当前 section 的滚动曝光度压缩到 0~1，再映射成 4 个离散步骤。
+      // 中文注释：把当前 section 的滚动曝光度压缩到 0~1，再按显式阈值映射成 4 个步骤。
       const progress = clamp(scrollDistance / scrollRange, 0, LAST_SCROLL_PROGRESS);
-      const nextStep = Math.min(
-        whyItWorksLines.length - 1,
-        Math.floor(progress * whyItWorksLines.length)
-      );
+      const nextStep = Math.min(whyItWorksLines.length - 1, getStepFromProgress(progress));
 
       setActiveStep((currentStep) => (currentStep === nextStep ? currentStep : nextStep));
     };
@@ -56,6 +70,7 @@ export function WhyItWorksSection() {
 
   return (
     <section ref={sectionRef} aria-label="Why It Works">
+      <h2>Why It Works</h2>
       <LoopArrowGraphic />
       <div>
         {whyItWorksLines.map((line, index) => (
