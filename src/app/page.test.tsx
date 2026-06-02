@@ -10,32 +10,22 @@ vi.mock('@/domain/session', () => ({
 }));
 
 describe('LandingPage', () => {
-  it('renders the approved landing story and both entry routes', () => {
+  it('renders the landing shell with both role entry points', () => {
     render(<LandingPage />);
 
     expect(
       screen.getByRole('heading', {
-        name: '让美甲预约更智能'
+        name: 'Nailed-it'
       })
     ).toBeInTheDocument();
-    expect(screen.getByText('少沟通、多成交')).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {
-        name: '好看的款式背后，是低效的预约流程'
-      })
-    ).toBeInTheDocument();
-    expect(screen.getByText('AI 识图')).toBeInTheDocument();
-    expect(screen.getByText('款式购物车')).toBeInTheDocument();
-    expect(screen.getByText('商家图册')).toBeInTheDocument();
-
     expect(
       screen.getByRole('link', {
-        name: /用户入口/i
+        name: /customer find styles and book/i
       })
     ).toHaveAttribute('href', '/mock-customer-home');
     expect(
       screen.getByRole('link', {
-        name: /商家入口/i
+        name: /merchant manage prices and bookings/i
       })
     ).toHaveAttribute('href', '/mock-merchant-calendar');
   });
