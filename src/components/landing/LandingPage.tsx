@@ -3,6 +3,7 @@ import { HeroSection } from './HeroSection';
 import { landingSerif } from './fonts';
 import { ProblemSection } from './ProblemSection';
 import { SolutionSection } from './SolutionSection';
+import { WhyItWorksSection } from './WhyItWorksSection';
 
 export default function LandingPage() {
   return (
@@ -10,7 +11,7 @@ export default function LandingPage() {
       <HeroSection />
       <ProblemSection />
       <SolutionSection />
-      <section aria-label="Why It Works" />
+      <WhyItWorksSection />
       <CtaSection />
     </main>
   );
