@@ -11,14 +11,12 @@ export function SolutionSection() {
   const [activeKey, setActiveKey] = useState<(typeof featureTabs)[number]['key']>(defaultFeatureKey);
   const tabsId = useId();
   const activeFeature = featureTabs.find((feature) => feature.key === activeKey) ?? featureTabs[0];
-  const panelId = `${tabsId}-panel-${activeFeature.key}`;
-  const headingId = `${tabsId}-heading`;
 
   return (
     <section aria-label="Solution">
       <div>
-        <h2 id={headingId}>Solution</h2>
-        <PhoneMockup labelledBy={headingId} />
+        <h2>Solution</h2>
+        <PhoneMockup />
       </div>
       <div aria-label="Solution features" role="tablist">
         {featureTabs.map((feature) => {
@@ -42,17 +40,27 @@ export function SolutionSection() {
           );
         })}
       </div>
-      <div
-        aria-labelledby={`${tabsId}-tab-${activeFeature.key}`}
-        id={panelId}
-        role="tabpanel"
-      >
-        <h3>{activeFeature.title}</h3>
-        <p>{activeFeature.subtitle}</p>
-        {activeFeature.paragraphs.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
+      {featureTabs.map((feature) => {
+        const tabId = `${tabsId}-tab-${feature.key}`;
+        const panelId = `${tabsId}-panel-${feature.key}`;
+        const isActive = feature.key === activeFeature.key;
+
+        return (
+          <div
+            key={feature.key}
+            aria-labelledby={tabId}
+            hidden={!isActive}
+            id={panelId}
+            role="tabpanel"
+          >
+            <h3>{feature.title}</h3>
+            <p>{feature.subtitle}</p>
+            {feature.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+        );
+      })}
     </section>
   );
 }

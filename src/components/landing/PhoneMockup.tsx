@@ -1,10 +1,6 @@
-type PhoneMockupProps = {
-  labelledBy: string;
-};
-
-export function PhoneMockup({ labelledBy }: PhoneMockupProps) {
+export function PhoneMockup() {
   return (
-    <div aria-labelledby={labelledBy} role="img">
+    <div>
       <div aria-hidden="true">
         <div />
       </div>
