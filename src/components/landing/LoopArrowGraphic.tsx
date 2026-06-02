@@ -1,10 +1,12 @@
 import Image from 'next/image';
 
+import loopImage from '../../../docs/assets/loop.PNG?url';
+
 export function LoopArrowGraphic() {
   return (
     <div aria-hidden="true">
       <Image
-        src="/docs/assets/loop.PNG"
+        src={loopImage}
         alt=""
         width={420}
         height={540}
