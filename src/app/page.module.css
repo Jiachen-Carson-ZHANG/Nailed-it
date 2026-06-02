@@ -2,27 +2,31 @@
   display: block;
 }
 
+.section {
+  display: block;
+}
+
 .hero {
   display: block;
 }
 
-.heroCopy {
+.heroBody {
   display: block;
 }
 
-.kicker {
+.heroDeck {
   display: block;
 }
 
-.title {
+.heroTitle {
   display: block;
 }
 
-.deck {
+.heroValueLine {
   display: block;
 }
 
-.valueLine {
+.heroDescription {
   display: block;
 }
 
@@ -32,73 +36,70 @@
   flex-wrap: wrap;
 }
 
-.primaryCta {
+.ctaPrimary {
   display: inline-flex;
-  flex-direction: column;
 }
 
-.secondaryCta {
+.ctaSecondary {
   display: inline-flex;
-  flex-direction: column;
-}
-
-.ctaLabel {
-  display: block;
 }
 
 .heroArt {
-  position: relative;
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  min-height: 320px;
 }
 
-.problemSection {
+.heroArtImage {
+  width: auto;
+  height: auto;
+}
+
+.sectionTitle {
   display: block;
 }
 
-.sectionHeading {
+.sectionIntro {
   display: block;
 }
 
-.sectionEyebrow {
-  display: block;
-}
-
-.problemGrid {
+.cardGrid {
   display: grid;
   gap: 16px;
 }
 
-.problemCard {
+.card {
   display: block;
 }
 
-.capabilitySection {
-  display: grid;
-  gap: 16px;
-}
-
-.capabilityCard {
+.cardLabel {
   display: block;
 }
 
-.capabilityOverline {
+.cardTitle {
   display: block;
 }
 
-.outcomeSection {
+.cardSummary {
+  display: block;
+}
+
+.cardBody {
+  display: block;
+}
+
+.outcomeList {
   display: grid;
   gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
 
-.outcomePill {
+.outcomeItem {
   display: block;
 }
 
-.closingSection {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.closing {
+  display: block;
 }
