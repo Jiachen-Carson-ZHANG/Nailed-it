@@ -1,10 +1,14 @@
 import Image from 'next/image';
 
 import loopImage from '../../../docs/assets/loop.PNG?url';
+import styles from './LandingPage.module.css';
 
 export function LoopArrowGraphic() {
   return (
-    <div aria-hidden="true">
+    <div
+      aria-hidden="true"
+      className={styles.loopGraphic}
+    >
       <Image
         src={loopImage}
         alt=""

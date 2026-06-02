@@ -2,23 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import styles from './LandingPage.module.css';
 import { whyItWorksLines } from './landing-content';
 import { LoopArrowGraphic } from './LoopArrowGraphic';
 
 const RAW_PROGRESS_MAX = 0.999999;
 const STEP_PROGRESS_START = 0.18;
 const STEP_PROGRESS_END = 0.82;
-const VISUALLY_HIDDEN_STYLES = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: 0
-} as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -77,18 +67,23 @@ export function WhyItWorksSection() {
   }, []);
 
   return (
-    <section ref={sectionRef} aria-labelledby="why-it-works-heading">
+    <section
+      ref={sectionRef}
+      aria-labelledby="why-it-works-heading"
+      className={`${styles.section} ${styles.why}`}
+    >
       <h2
         id="why-it-works-heading"
-        style={VISUALLY_HIDDEN_STYLES}
+        className={styles.hiddenHeading}
       >
         Why It Works
       </h2>
       <LoopArrowGraphic />
-      <div>
+      <div className={styles.whyLines}>
         {whyItWorksLines.map((line, index) => (
           <p
             key={line}
+            className={styles.whyLine}
             data-active={index === activeStep}
             data-step={index}
           >

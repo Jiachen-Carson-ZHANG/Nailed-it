@@ -3,6 +3,7 @@ import Image from 'next/image';
 import choiceImage from '../../../docs/assets/choice.PNG?url';
 import moneyImage from '../../../docs/assets/money.PNG?url';
 import { CalendarIconSvg } from './CalendarIconSvg';
+import styles from './LandingPage.module.css';
 import { ProblemCard } from './ProblemCard';
 import { problemCards } from './landing-content';
 
@@ -14,9 +15,12 @@ const problemIconsByKey = {
 
 export function ProblemSection() {
   return (
-    <section aria-label="Problem">
-      <h2>好看的款式背后，是低效的预约流程</h2>
-      <div>
+    <section
+      aria-label="Problem"
+      className={`${styles.section} ${styles.problem}`}
+    >
+      <h2 className={styles.problemTitle}>好看的款式背后，是低效的预约流程</h2>
+      <div className={styles.problemGrid}>
         {problemCards.map((card) => (
           <ProblemCard
             key={card.key}

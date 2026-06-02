@@ -1,6 +1,15 @@
+import { vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LandingPage from './page';
+
+vi.mock('next/font/local', () => ({
+  default: () => ({
+    className: 'font-landing-serif',
+    style: { fontFamily: '"Source Han Serif SC", serif' },
+    variable: 'font-landing-serif-variable'
+  })
+}));
 
 function renderLandingPage() {
   render(<LandingPage />);
