@@ -93,6 +93,14 @@
   gap: 12px;
 }
 
+.outcomeList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .outcomePill {
   display: block;
 }
