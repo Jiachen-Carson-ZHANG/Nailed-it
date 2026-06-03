@@ -78,7 +78,7 @@ export function WhyItWorksSection() {
       >
         Why It Works
       </h2>
-      <LoopArrowGraphic />
+      <LoopArrowGraphic activeStep={activeStep} />
       <div className={styles.whyLines}>
         {whyItWorksLines.map((line, index) => (
           <p

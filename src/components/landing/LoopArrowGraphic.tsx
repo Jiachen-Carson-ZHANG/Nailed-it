@@ -3,13 +3,19 @@ import Image from 'next/image';
 import loopImage from '../../../docs/assets/loop.PNG?url';
 import styles from './LandingPage.module.css';
 
-export function LoopArrowGraphic() {
+type LoopArrowGraphicProps = {
+  activeStep: number;
+};
+
+export function LoopArrowGraphic({ activeStep }: LoopArrowGraphicProps) {
   return (
     <div
       aria-hidden="true"
       className={styles.loopGraphic}
+      data-step={activeStep}
     >
       <Image
+        className={styles.loopImage}
         src={loopImage}
         alt=""
         width={420}
