@@ -7,10 +7,8 @@ import type {
   StandardBreakdownItem
 } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
-import { asRecord, parseGeminiUsageMetadata } from './usage-cost';
-import { defaultGeminiImageModel } from './trending-styles';
-
-const geminiGenerateContentBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+import { postOpenRouterChat, extractTextContent, stripJsonFence } from './openrouter';
+import { defaultTryOnModel } from './try-on';
 
 const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
 const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 'coffin', 'stiletto'] as const;
@@ -28,101 +26,55 @@ export class BreakdownError extends Error {
   }
 }
 
-type GeminiCallOptions = {
+async function callOpenRouterWithImage(opts: {
   apiKey: string;
   model: string;
   imageBase64: string;
   mimeType: string;
   prompt: string;
-  schema: object;
-};
-
-async function callGeminiWithImage(opts: GeminiCallOptions): Promise<unknown> {
-  const response = await fetch(`${geminiGenerateContentBaseUrl}/${opts.model}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': opts.apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { inline_data: { mime_type: opts.mimeType, data: opts.imageBase64 } },
-            { text: opts.prompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseJsonSchema: opts.schema
-      }
-    })
-  });
-
-  const responseJson = await response.json();
-
-  if (!response.ok) {
-    throw new BreakdownError(
-      'provider_error',
-      `Gemini breakdown request failed with status ${response.status}.`,
-      { cause: responseJson }
+}): Promise<unknown> {
+  let data: unknown;
+  try {
+    data = await postOpenRouterChat(
+      {
+        model: opts.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${opts.mimeType};base64,${opts.imageBase64}` } },
+              { type: 'text', text: opts.prompt }
+            ]
+          }
+        ]
+      },
+      opts.apiKey
     );
+  } catch (error) {
+    throw new BreakdownError('provider_error', 'OpenRouter breakdown request failed.', { cause: error });
   }
 
-  parseGeminiUsageMetadata(responseJson);
-  return parseGeminiResponseText(responseJson);
-}
-
-function parseGeminiResponseText(responseJson: unknown): unknown {
-  const record = asRecord(responseJson);
-  const candidates = Array.isArray(record.candidates) ? record.candidates : [];
-
-  for (const candidate of candidates) {
-    const content = asRecord(asRecord(candidate).content);
-    const parts = Array.isArray(content.parts) ? content.parts : [];
-    const textPart = parts.find((p) => typeof asRecord(p).text === 'string');
-
-    if (textPart) {
-      const text = String(asRecord(textPart).text).trim();
-      try {
-        return JSON.parse(stripJsonFence(text));
-      } catch {
-        // fall through
-      }
-    }
+  try {
+    const text = extractTextContent(data);
+    return JSON.parse(stripJsonFence(text));
+  } catch (error) {
+    throw new BreakdownError('invalid_model_output', 'OpenRouter breakdown response did not include valid JSON.', {
+      cause: error
+    });
   }
-
-  throw new BreakdownError('invalid_model_output', 'Gemini breakdown response did not include valid JSON.');
-}
-
-function stripJsonFence(text: string): string {
-  return text
-    .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '');
 }
 
 // ─── Standard mode ────────────────────────────────────────────────────────────
 
-const standardBreakdownSchema = {
-  type: 'object',
-  properties: {
-    baseServices: { type: 'array', items: { type: 'string', enum: baseServiceValues } },
-    nailShape: { type: 'string', enum: nailShapeValues },
-    styles: { type: 'array', items: { type: 'string', enum: nailStyleValues } },
-    addons: { type: 'array', items: { type: 'string', enum: nailAddonValues } },
-    otherNotes: { type: 'string' },
-    confidence: { type: 'number' }
-  },
-  required: ['baseServices', 'nailShape', 'styles', 'addons', 'otherNotes', 'confidence']
-} as const;
-
 const standardPrompt = [
   'Identify the nail service components visible in this image.',
-  'Use only the exact enum values provided in the schema.',
-  'For nailShape choose the closest visible shape; default to round if unclear.',
+  'Return ONLY valid JSON (no markdown) with these keys:',
+  'baseServices (array of: removal|extension|builderGel),',
+  'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
+  'styles (array of: solid|catEye|french|chrome|rhinestone),',
+  'addons (array of: rhinestone|charms|glitter),',
+  'otherNotes (string), confidence (0-1 number).',
+  'Use only the exact values listed. For nailShape default to round if unclear.',
   'Do NOT estimate price or duration.'
 ].join(' ');
 
@@ -132,13 +84,11 @@ export async function runStandardBreakdown(
   pricingRules: PricingItem[],
   env = process.env
 ): Promise<BreakdownResult> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) throw new BreakdownError('missing_config', 'GEMINI_API_KEY is required for breakdown.');
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultGeminiImageModel;
-  const raw = asRecord(
-    await callGeminiWithImage({ apiKey, model, imageBase64, mimeType, prompt: standardPrompt, schema: standardBreakdownSchema })
-  );
+  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
+  const raw = asRecord(await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: standardPrompt }));
 
   const keepKnown = <T extends string>(value: unknown, allowed: readonly T[]): T[] => {
     if (!Array.isArray(value)) return [];
@@ -162,10 +112,9 @@ export async function runStandardBreakdown(
   };
 
   const quote = calculateEstimate(fakeRecognition, pricingRules);
-
   const rulesByTarget = new Map<string, PricingItem>(pricingRules.map((r) => [r.target, r]));
-
   const candidates = [...baseServices, nailShape, ...styles, ...addons];
+
   const items: StandardBreakdownItem[] = candidates
     .map((key) => {
       const rule = rulesByTarget.get(key);
@@ -176,54 +125,21 @@ export async function runStandardBreakdown(
         : rule.category === 'style' ? 'color_style'
         : rule.category === 'addon' ? 'addon'
         : 'other';
-      return {
-        mode: 'standard' as const,
-        category,
-        label: key,
-        price: rule.price,
-        duration: rule.duration
-      };
+      return { mode: 'standard' as const, category, label: key, price: rule.price, duration: rule.duration };
     })
     .filter((item): item is StandardBreakdownItem => item !== null);
 
-  return {
-    items,
-    totalPrice: quote.price,
-    totalDuration: quote.duration,
-    mode: 'standard'
-  };
+  return { items, totalPrice: quote.price, totalDuration: quote.duration, mode: 'standard' };
 }
 
 // ─── Free mode ────────────────────────────────────────────────────────────────
 
-const freeBreakdownSchema = {
-  type: 'object',
-  properties: {
-    components: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          category: { type: 'string', enum: ['base', 'shape', 'color_style', 'addon', 'other'] },
-          label: { type: 'string' },
-          labelCn: { type: 'string' },
-          quantity: { type: 'number' },
-          unit: { type: 'string' },
-          price: { type: 'number' },
-          duration: { type: 'number' }
-        },
-        required: ['category', 'label', 'labelCn', 'quantity', 'unit', 'price', 'duration']
-      }
-    }
-  },
-  required: ['components']
-} as const;
-
 const freePrompt = [
   'You are a professional nail artist. Analyze this nail image and break down ALL visible components.',
-  'For each component provide: category (base/shape/color_style/addon/other), label in English,',
-  'labelCn in Chinese, quantity (usually 1), unit (e.g. "set", "finger", "piece"),',
-  'price in USD (realistic salon pricing), and duration in minutes.',
+  'Return ONLY valid JSON (no markdown) with a "components" array.',
+  'Each component: category (base|shape|color_style|addon|other), label (English),',
+  'labelCn (Chinese), quantity (usually 1), unit (e.g. "set", "finger", "piece"),',
+  'price in USD (realistic salon pricing), duration in minutes.',
   'Be thorough — identify techniques like ombre, gel extensions, chrome powder, nail art, etc.'
 ].join(' ');
 
@@ -232,13 +148,11 @@ export async function runFreeBreakdown(
   mimeType: string,
   env = process.env
 ): Promise<BreakdownResult> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) throw new BreakdownError('missing_config', 'GEMINI_API_KEY is required for breakdown.');
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultGeminiImageModel;
-  const raw = asRecord(
-    await callGeminiWithImage({ apiKey, model, imageBase64, mimeType, prompt: freePrompt, schema: freeBreakdownSchema })
-  );
+  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
+  const raw = asRecord(await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: freePrompt }));
 
   const rawComponents = Array.isArray(raw.components) ? raw.components : [];
   const validCategories = new Set<string>(['base', 'shape', 'color_style', 'addon', 'other']);
@@ -265,4 +179,10 @@ export async function runFreeBreakdown(
   const totalDuration = items.reduce((sum, item) => sum + item.duration, 0);
 
   return { items, totalPrice, totalDuration, mode: 'free' };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

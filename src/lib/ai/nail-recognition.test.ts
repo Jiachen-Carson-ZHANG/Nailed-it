@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createGeminiNailRecognitionProvider,
   normalizeGeminiNailRecognition,
-  defaultGeminiVisionModel,
+  recognizeNailImageWithTelemetry,
+  defaultVisionModel,
   NailRecognitionError
 } from './nail-recognition';
 
@@ -45,48 +45,36 @@ describe('normalizeGeminiNailRecognition', () => {
   });
 });
 
-describe('createGeminiNailRecognitionProvider', () => {
-  it('calls Gemini with inline image data and structured output config', async () => {
+describe('recognizeNailImageWithTelemetry', () => {
+  it('calls OpenRouter with image data URL and returns normalized recognition', async () => {
+    const recognitionPayload = {
+      baseServices: ['extension'],
+      nailShape: 'oval',
+      styles: ['french'],
+      addons: [],
+      otherNotes: 'Thin white French tip.',
+      confidence: 0.91
+    };
+
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       status: 200,
       json: async () => ({
-        candidates: [
+        choices: [
           {
-            content: {
-              parts: [
-                {
-                  text: JSON.stringify({
-                    baseServices: ['extension'],
-                    nailShape: 'oval',
-                    styles: ['french'],
-                    addons: [],
-                    otherNotes: 'Thin white French tip.',
-                    confidence: 0.91
-                  })
-                }
-              ]
+            message: {
+              content: JSON.stringify(recognitionPayload)
             }
           }
-        ],
-        usageMetadata: {
-          promptTokenCount: 1_200,
-          candidatesTokenCount: 80,
-          thoughtsTokenCount: 10,
-          totalTokenCount: 1_290
-        }
+        ]
       })
     }));
 
-    const provider = createGeminiNailRecognitionProvider({
-      apiKey: 'gemini-test-key',
+    const result = await recognizeNailImageWithTelemetry(
+      { imageBase64: 'abc123', mimeType: 'image/jpeg' },
+      { OPENROUTER_API_KEY: 'test-or-key' },
       fetchImpl
-    });
-
-    const result = await provider({
-      imageBase64: 'abc123',
-      mimeType: 'image/jpeg'
-    });
+    );
 
     expect(result.recognition.selection).toMatchObject({
       baseServices: ['extension'],
@@ -94,68 +82,44 @@ describe('createGeminiNailRecognitionProvider', () => {
       styles: ['french']
     });
     expect(result.telemetry).toMatchObject({
-      provider: 'gemini',
-      model: defaultGeminiVisionModel,
-      usage: {
-        promptTokenCount: 1_200,
-        candidatesTokenCount: 80,
-        thoughtsTokenCount: 10,
-        totalTokenCount: 1_290
-      }
+      provider: 'openrouter',
+      model: defaultVisionModel
     });
-    expect(result.telemetry.costEstimate?.totalUsd).toBeCloseTo(0.000156);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
 
     const [url, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(
-      `https://generativelanguage.googleapis.com/v1beta/models/${defaultGeminiVisionModel}:generateContent`
-    );
-    expect(request?.headers).toMatchObject({
-      'Content-Type': 'application/json',
-      'x-goog-api-key': 'gemini-test-key'
-    });
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect((request?.headers as Record<string, string>)?.Authorization).toBe('Bearer test-or-key');
 
     const body = JSON.parse(String(request?.body));
-    expect(body.contents[0].parts[0]).toEqual({
-      inline_data: {
-        mime_type: 'image/jpeg',
-        data: 'abc123'
-      }
-    });
-    expect(body.generationConfig).toMatchObject({
-      responseMimeType: 'application/json'
+    expect(body.model).toBe(defaultVisionModel);
+    expect(body.messages[0].content[0]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/jpeg;base64,abc123' }
     });
   });
 
-  it('raises an invalid output error when Gemini returns malformed JSON text', async () => {
-    const provider = createGeminiNailRecognitionProvider({
-      apiKey: 'gemini-test-key',
-      fetchImpl: vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  {
-                    text: '{not valid json'
-                  }
-                ]
-              }
-            }
-          ]
-        })
-      }))
-    });
+  it('raises missing_vision_config when OPENROUTER_API_KEY is absent', async () => {
+    await expect(
+      recognizeNailImageWithTelemetry({ imageBase64: 'abc', mimeType: 'image/jpeg' }, {})
+    ).rejects.toMatchObject({ code: 'missing_vision_config' } satisfies Partial<NailRecognitionError>);
+  });
+
+  it('raises invalid_model_output when response is malformed JSON', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: '{not valid json' } }]
+      })
+    }));
 
     await expect(
-      provider({
-        imageBase64: 'abc123',
-        mimeType: 'image/jpeg'
-      })
-    ).rejects.toMatchObject({
-      code: 'invalid_model_output'
-    } satisfies Partial<NailRecognitionError>);
+      recognizeNailImageWithTelemetry(
+        { imageBase64: 'abc123', mimeType: 'image/jpeg' },
+        { OPENROUTER_API_KEY: 'test-or-key' },
+        fetchImpl
+      )
+    ).rejects.toMatchObject({ code: 'invalid_model_output' } satisfies Partial<NailRecognitionError>);
   });
 });

@@ -1,8 +1,7 @@
 import type { TryOnResult } from '@/domain/nail';
-import { asRecord, parseGeminiUsageMetadata } from './usage-cost';
-import { defaultGeminiImageModel } from './trending-styles';
+import { postOpenRouterChat } from './openrouter';
 
-const geminiGenerateContentBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+export const defaultTryOnModel = 'google/gemini-3.1-flash-image-preview';
 
 export class TryOnError extends Error {
   constructor(
@@ -16,9 +15,11 @@ export class TryOnError extends Error {
 }
 
 const tryOnPrompt =
-  'Apply the nail style shown in the second image to the nails in the first image. ' +
+  'Apply the nail style shown in the second image (nail style) to the nails in the first image (your hand). ' +
   'Keep the hand, skin tone, fingers, and lighting completely realistic and unchanged. ' +
-  'Only change the nail appearance.';
+  'Only change the nail appearance.' +
+  'Pay attention to which nail matches which finger, and make sure the matchings are the same as in the second image.';
+
 
 export async function runTryOn(
   handImageBase64: string,
@@ -27,72 +28,57 @@ export async function runTryOn(
   styleMimeType: string,
   env = process.env
 ): Promise<TryOnResult> {
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) throw new TryOnError('missing_config', 'GEMINI_API_KEY is required for try-on.');
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new TryOnError('missing_config', 'OPENROUTER_API_KEY is required for try-on.');
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultGeminiImageModel;
+  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
 
-  const response = await fetch(`${geminiGenerateContentBaseUrl}/${model}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { inline_data: { mime_type: handMimeType, data: handImageBase64 } },
-            { inline_data: { mime_type: styleMimeType, data: styleImageBase64 } },
-            { text: tryOnPrompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        responseModalities: ['IMAGE', 'TEXT']
-      }
-    })
-  });
-
-  const responseJson = await response.json();
-
-  if (!response.ok) {
-    throw new TryOnError(
-      'provider_error',
-      `Gemini try-on request failed with status ${response.status}.`,
-      { cause: responseJson }
+  let data: unknown;
+  try {
+    data = await postOpenRouterChat(
+      {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${handMimeType};base64,${handImageBase64}` } },
+              { type: 'image_url', image_url: { url: `data:${styleMimeType};base64,${styleImageBase64}` } },
+              { type: 'text', text: tryOnPrompt }
+            ]
+          }
+        ],
+        modalities: ['image', 'text']
+      },
+      apiKey
     );
+  } catch (error) {
+    throw new TryOnError('provider_error', 'OpenRouter try-on request failed.', { cause: error });
   }
 
-  parseGeminiUsageMetadata(responseJson);
-  return extractImageFromResponse(responseJson);
+  return extractImageFromResponse(data);
 }
 
-function extractImageFromResponse(responseJson: unknown): TryOnResult {
-  const record = asRecord(responseJson);
-  const candidates = Array.isArray(record.candidates) ? record.candidates : [];
+function extractImageFromResponse(data: unknown): TryOnResult {
+  const record = asRecord(data);
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  const message = asRecord(asRecord(choices[0]).message);
+  const images = Array.isArray(message.images) ? message.images : [];
 
-  for (const candidate of candidates) {
-    const content = asRecord(asRecord(candidate).content);
-    const parts = Array.isArray(content.parts) ? content.parts : [];
-
-    for (const part of parts) {
-      const partRecord = asRecord(part);
-      // Gemini response uses camelCase inlineData; request uses snake_case inline_data
-      const inlineData = asRecord(partRecord.inlineData ?? partRecord.inline_data);
-      const mimeType = inlineData.mimeType;
-      const data = inlineData.data;
-
-      if (typeof data === 'string' && data.length > 0) {
-        const resolvedMime =
-          mimeType === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-        return {
-          imageBase64: data,
-          mimeType: resolvedMime
-        };
-      }
+  if (images.length > 0) {
+    const dataUrl = String(asRecord(asRecord(images[0]).image_url).url ?? '');
+    if (dataUrl.includes(',')) {
+      const [header, base64] = dataUrl.split(',', 2);
+      const mimeType = header.includes('jpeg') ? 'image/jpeg' : 'image/png';
+      return { imageBase64: base64, mimeType };
     }
   }
 
-  throw new TryOnError('invalid_model_output', 'Gemini try-on response did not include an image.');
+  throw new TryOnError('invalid_model_output', 'OpenRouter try-on response did not include an image.');
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
