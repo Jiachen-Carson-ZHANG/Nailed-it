@@ -1,6 +1,6 @@
 # Architecture: Current State
 
-Last updated: 2026-05-26
+Last updated: 2026-06-04
 
 ## Pipeline
 
@@ -44,6 +44,23 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 - `src/domain/booking-draft.ts`: lightweight in-memory draft boundary for the current no-backend customer booking flow.
 - `src/components/layout/*`: shared shell primitives for both customer and merchant role surfaces.
 - `docs/architecture/graphify-ingestion-policy.md` and `graphify-out/*`: Graphify collaboration policy and shared orientation artifacts.
+
+## Persistence layer (added 2026-06-04 — built, not yet wired)
+
+A repository seam and a Supabase (Postgres) implementation exist but the running app still reads/writes browser `localStorage`. The DB is dormant until P2 wires consumers. See ADR-0004 and the P0/P1 implementation-log entries.
+
+- `src/lib/repositories/types.ts`: async interfaces (`BookingRepository`, `ConversationRepository`, `PricingRepository`, `TechnicianRepository`, `StyleRepository`) + `RepositoryBundle`. Pure persistence (CRUD); no domain orchestration.
+- `src/lib/repositories/memory/*`: in-memory impls seeded from `src/mock/*`, used by tests and credential-less dev.
+- `src/lib/repositories/supabase/*`: Supabase-backed impls with snake_case↔camelCase row mappers.
+- `src/lib/db/client.ts`: server-only Supabase client (secret key, bypasses RLS).
+- `src/lib/repositories/index.ts`: `getRepositories()` selects Supabase when env present and not under test, else in-memory.
+- `supabase/migrations/0001_init.sql`: 6 tables (text PKs, JSONB for nested objects), RLS + anon SELECT-only policies. `scripts/seed-supabase.ts` loads mock data.
+
+Known domain gaps this layer mirrored rather than fixed (candidates for P1.5/P2):
+- **Availability is slot-string based, not interval based.** `src/domain/availability.ts` keys occupancy on `date+time+technicianId` and ignores service duration, so a long booking does not block overlapping later slots. Real fix: model bookings as `startAt`/`endAt` and test overlap (`newStart < existingEnd && newEnd > existingStart`).
+- **No first-class Service entity.** Duration/price live in pricing rules + style cards + a per-booking quote snapshot, not a `Service` (duration + price + which staff can perform it).
+- **Booking draft is module memory** (`src/domain/booking-draft.ts`, `let currentCustomerBookingDraft`) — unreliable across serverless instances/cold starts; should move to DB/session.
+- **Booking creation is not transactional**, so concurrent writers could double-book a slot once writes hit the shared DB.
 
 ## LLM integration
 
