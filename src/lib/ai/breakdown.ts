@@ -110,7 +110,7 @@ export async function runStandardBreakdown(
   const candidates = [...baseServices, nailShape, ...styles, ...addons];
 
   const items: StandardBreakdownItem[] = candidates
-    .map((key) => {
+    .map((key): StandardBreakdownItem | null => {
       const rule = rulesByTarget.get(key);
       if (!rule) return null;
       const category: NailBreakdownCategory =
@@ -152,7 +152,7 @@ export async function runFreeBreakdown(
   const validCategories = new Set<string>(['base', 'shape', 'color_style', 'addon', 'other']);
 
   const items: FreeBreakdownItem[] = rawComponents
-    .map((c: unknown) => {
+    .map((c: unknown): FreeBreakdownItem => {
       const comp = asRecord(c);
       return {
         mode: 'free' as const,
