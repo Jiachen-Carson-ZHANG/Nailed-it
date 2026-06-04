@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
-import choiceImage from '../../../docs/assets/choice.PNG?url';
-import moneyImage from '../../../docs/assets/money.PNG?url';
+import choiceImage from '@/landing_assets/choice.PNG?url';
+import moneyImage from '@/landing_assets/money.PNG?url';
 import { CalendarIconSvg } from './CalendarIconSvg';
 import styles from './LandingPage.module.css';
 import { ProblemCard } from './ProblemCard';

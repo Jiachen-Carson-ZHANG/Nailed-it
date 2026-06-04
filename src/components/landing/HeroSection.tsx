@@ -1,8 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-import heroImage from '../../../docs/assets/hero_icon.PNG?url';
-import logoImage from '../../../docs/assets/logo.PNG?url';
+import heroImage from '@/landing_assets/hero_icon.PNG?url';
+import logoImage from '@/landing_assets/logo.PNG?url';
 import styles from './LandingPage.module.css';
 import { landingRoutes } from './landing-content';
 

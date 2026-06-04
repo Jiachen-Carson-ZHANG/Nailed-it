@@ -1,6 +1,6 @@
 import Image from 'next/image';
 
-import loopImage from '../../../docs/assets/loop.PNG?url';
+import loopImage from '@/landing_assets/loop.PNG?url';
 import styles from './LandingPage.module.css';
 
 type LoopArrowGraphicProps = {

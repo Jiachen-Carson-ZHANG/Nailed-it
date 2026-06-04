@@ -7,8 +7,6 @@ import type {
 } from '@/domain/nail';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
-export const defaultVisionModel = 'google/gemini-2.5-flash-lite';
-
 export const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
 export const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 'coffin', 'stiletto'] as const;
 export const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
@@ -51,7 +49,7 @@ export async function recognizeNailImageWithTelemetry(
     throw new NailRecognitionError('missing_vision_config', 'OPENROUTER_API_KEY is required for nail recognition.');
   }
 
-  const model = env.VISION_MODEL_NAME ?? defaultVisionModel;
+  const model = env.GEMINI_IMAGE_MODEL_NAME ?? 'google/gemini-2.5-flash-lite';
 
   let data: unknown;
   try {
