@@ -67,16 +67,13 @@ export function TryOnPanel({ prefillStyleImageUrl }: TryOnPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const styleBase64 = styleImage?.imageBase64 ?? null;
-  const styleMimeType = styleImage?.mimeType ?? null;
-
   const canGenerate = Boolean(handImage) && (Boolean(styleImage) || Boolean(prefillStyleImageUrl));
 
   async function generate() {
     if (!handImage) return;
 
-    let finalStyleBase64 = styleBase64;
-    let finalStyleMime = styleMimeType;
+    let finalStyleBase64 = styleImage?.imageBase64 ?? null;
+    let finalStyleMime = styleImage?.mimeType ?? null;
 
     if (!finalStyleBase64 && prefillStyleImageUrl) {
       try {

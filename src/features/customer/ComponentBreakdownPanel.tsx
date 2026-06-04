@@ -214,16 +214,11 @@ export function ComponentBreakdownPanel({ image }: ComponentBreakdownPanelProps)
             </div>
           </div>
 
-          {!freeMode && (
-            <p className="helper-copy">
-              Standard mode maps to existing service categories and uses our pricing rules.
-            </p>
-          )}
-          {freeMode && (
-            <p className="helper-copy">
-              Free mode lets AI identify any component and estimate its own price and time.
-            </p>
-          )}
+          <p className="helper-copy">
+            {freeMode
+              ? 'Free mode lets AI identify any component and estimate its own price and time.'
+              : 'Standard mode maps to existing service categories and uses our pricing rules.'}
+          </p>
 
           {error && (
             <section className="summary-card" role="alert">

@@ -56,7 +56,7 @@ export function stripJsonFence(text: string): string {
     .replace(/\s*```$/i, '');
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};

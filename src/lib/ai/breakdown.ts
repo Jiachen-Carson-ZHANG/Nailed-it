@@ -7,13 +7,16 @@ import type {
   StandardBreakdownItem
 } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
-import { postOpenRouterChat, extractTextContent, stripJsonFence } from './openrouter';
+import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
+import {
+  baseServiceValues,
+  nailShapeValues,
+  nailStyleValues,
+  nailAddonValues,
+  keepKnownValues,
+  keepKnownValue
+} from './nail-recognition';
 import { defaultTryOnModel } from './try-on';
-
-const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
-const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 'coffin', 'stiletto'] as const;
-const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
-const nailAddonValues = ['rhinestone', 'charms', 'glitter'] as const;
 
 export class BreakdownError extends Error {
   constructor(
@@ -90,19 +93,10 @@ export async function runStandardBreakdown(
   const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
   const raw = asRecord(await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: standardPrompt }));
 
-  const keepKnown = <T extends string>(value: unknown, allowed: readonly T[]): T[] => {
-    if (!Array.isArray(value)) return [];
-    const set = new Set<string>(allowed);
-    return value.filter((v): v is T => typeof v === 'string' && set.has(v));
-  };
-
-  const keepOne = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
-    typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : null;
-
-  const baseServices = keepKnown(raw.baseServices, baseServiceValues);
-  const nailShape = keepOne(raw.nailShape, nailShapeValues) ?? 'round';
-  const styles = keepKnown(raw.styles, nailStyleValues);
-  const addons = keepKnown(raw.addons, nailAddonValues);
+  const baseServices = keepKnownValues(raw.baseServices, baseServiceValues);
+  const nailShape = keepKnownValue(raw.nailShape, nailShapeValues) ?? 'round';
+  const styles = keepKnownValues(raw.styles, nailStyleValues);
+  const addons = keepKnownValues(raw.addons, nailAddonValues);
   const otherNotes = typeof raw.otherNotes === 'string' ? raw.otherNotes.trim() : '';
   const confidence = typeof raw.confidence === 'number' ? Math.min(1, Math.max(0, raw.confidence)) : 0.5;
 
@@ -179,10 +173,4 @@ export async function runFreeBreakdown(
   const totalDuration = items.reduce((sum, item) => sum + item.duration, 0);
 
   return { items, totalPrice, totalDuration, mode: 'free' };
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  normalizeGeminiNailRecognition,
+  normalizeNailRecognition,
   recognizeNailImageWithTelemetry,
   defaultVisionModel,
   NailRecognitionError
 } from './nail-recognition';
 
-describe('normalizeGeminiNailRecognition', () => {
+describe('normalizeNailRecognition', () => {
   it('keeps only supported nail attributes and leaves pricing to the app', () => {
-    const result = normalizeGeminiNailRecognition({
+    const result = normalizeNailRecognition({
       baseServices: ['extension', 'builderGel', 'unknown-service'],
       nailShape: 'almond',
       styles: ['catEye', 'unknown-style'],
@@ -39,9 +39,9 @@ describe('normalizeGeminiNailRecognition', () => {
   });
 
   it('clamps malformed confidence values before app logic uses them', () => {
-    expect(normalizeGeminiNailRecognition({ confidence: Number.NaN }).meta.confidence).toBe(0.5);
-    expect(normalizeGeminiNailRecognition({ confidence: -1 }).meta.confidence).toBe(0);
-    expect(normalizeGeminiNailRecognition({ confidence: 2 }).meta.confidence).toBe(1);
+    expect(normalizeNailRecognition({ confidence: Number.NaN }).meta.confidence).toBe(0.5);
+    expect(normalizeNailRecognition({ confidence: -1 }).meta.confidence).toBe(0);
+    expect(normalizeNailRecognition({ confidence: 2 }).meta.confidence).toBe(1);
   });
 });
 

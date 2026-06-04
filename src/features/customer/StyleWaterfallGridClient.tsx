@@ -24,11 +24,13 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
   const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
   const [activeKind, setActiveKind] = useState<StyleDiscoveryFacetKind | null>(null);
 
-  const availableKinds = useMemo(() => {
-    const kinds = new Set<StyleDiscoveryFacetKind>();
-    styles.forEach((s) => s.discoveryFacets.forEach((f) => kinds.add(f.kind)));
-    return (Object.keys(facetLabels) as StyleDiscoveryFacetKind[]).filter((k) => kinds.has(k));
-  }, [styles]);
+  const availableKinds = useMemo(
+    () =>
+      (Object.keys(facetLabels) as StyleDiscoveryFacetKind[]).filter((k) =>
+        styles.some((s) => s.discoveryFacets.some((f) => f.kind === k))
+      ),
+    [styles]
+  );
 
   const filtered = useMemo(() => {
     if (activeTab === 'Saved') return [];

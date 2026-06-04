@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateEstimate, getAiSuggestedQuote } from './pricing';
+import { calculateEstimate } from './pricing';
 import type { AIRecognitionResult, BookingQuote, PricingItem, StylePreviewQuote } from './nail';
 
 const baseRecognition: AIRecognitionResult = {
@@ -106,7 +106,7 @@ describe('calculateEstimate', () => {
   });
 
   it('keeps AI, preview, rule-based, and booking snapshot quotes separate', () => {
-    const aiSuggestedQuote = getAiSuggestedQuote(baseRecognition);
+    const aiSuggestedQuote = baseRecognition.meta.aiSuggestedQuote;
     const ruleBasedQuote = calculateEstimate(baseRecognition, pricingRules);
     const previewQuote: StylePreviewQuote = {
       source: 'style_preview',

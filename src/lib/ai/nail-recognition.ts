@@ -5,14 +5,14 @@ import type {
   NailShape,
   NailStyleName
 } from '@/domain/nail';
-import { postOpenRouterChat, extractTextContent, stripJsonFence } from './openrouter';
+import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
 export const defaultVisionModel = 'google/gemini-2.5-flash-lite';
 
-const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
-const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 'coffin', 'stiletto'] as const;
-const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
-const nailAddonValues = ['rhinestone', 'charms', 'glitter'] as const;
+export const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
+export const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 'coffin', 'stiletto'] as const;
+export const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
+export const nailAddonValues = ['rhinestone', 'charms', 'glitter'] as const;
 
 export type NailImageRecognitionInput = {
   imageBase64: string;
@@ -121,16 +121,7 @@ export function normalizeNailRecognition(raw: unknown): AIRecognitionResult {
   };
 }
 
-// keep for backwards-compat with tests that import this name
-export { normalizeNailRecognition as normalizeGeminiNailRecognition };
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function keepKnownValues<T extends string>(value: unknown, allowedValues: readonly T[]): T[] {
+export function keepKnownValues<T extends string>(value: unknown, allowedValues: readonly T[]): T[] {
   if (!Array.isArray(value)) return [];
   const allowed = new Set<string>(allowedValues);
   const seen = new Set<T>();
@@ -141,7 +132,7 @@ function keepKnownValues<T extends string>(value: unknown, allowedValues: readon
   return [...seen];
 }
 
-function keepKnownValue<T extends string>(value: unknown, allowedValues: readonly T[]): T | null {
+export function keepKnownValue<T extends string>(value: unknown, allowedValues: readonly T[]): T | null {
   return typeof value === 'string' && allowedValues.includes(value as T) ? (value as T) : null;
 }
 

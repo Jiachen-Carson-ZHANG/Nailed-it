@@ -1,5 +1,5 @@
 import type { AITrendingResponse, AITrendingStyle, TrendingSearchLink } from '@/domain/nail';
-import { postOpenRouterChat, extractTextContent, stripJsonFence } from './openrouter';
+import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
 export const defaultTrendingModel = 'qwen/qwen3-235b-a22b';
 
@@ -83,10 +83,4 @@ function buildSearchLinks(name: string): TrendingSearchLink[] {
     { platform: 'Google Images', label: 'Google', url: `https://www.google.com/search?tbm=isch&q=${encoded}` },
     { platform: 'TikTok', label: 'TikTok', url: `https://www.tiktok.com/search?q=${encoded}` }
   ];
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

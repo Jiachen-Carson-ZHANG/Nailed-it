@@ -1,5 +1,5 @@
 import type { TryOnResult } from '@/domain/nail';
-import { postOpenRouterChat } from './openrouter';
+import { postOpenRouterChat, asRecord } from './openrouter';
 
 export const defaultTryOnModel = 'google/gemini-3.1-flash-image-preview';
 
@@ -75,10 +75,4 @@ function extractImageFromResponse(data: unknown): TryOnResult {
   }
 
   throw new TryOnError('invalid_model_output', 'OpenRouter try-on response did not include an image.');
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

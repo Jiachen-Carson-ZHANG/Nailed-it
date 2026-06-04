@@ -19,6 +19,22 @@ import { getStyleDefinitionById } from '@/mock/styles';
 
 const uploadedReferenceUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ?? '';
 
+function RecognitionPreview({ imageUrl, recognition }: { imageUrl: string; recognition: AIRecognitionResult }) {
+  return (
+    <>
+      {imageUrl && (
+        <div className="booking-result-preview">
+          <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+        </div>
+      )}
+      <section className="summary-card">
+        <strong>{recognition.selection.otherNotes}</strong>
+        <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
+      </section>
+    </>
+  );
+}
+
 type BookingStep = 'upload' | 'result' | 'quote';
 
 export default function CustomerBookingPage() {
@@ -77,7 +93,7 @@ export default function CustomerBookingPage() {
     });
   }
 
-  const stepIndex = step === 'upload' ? 0 : step === 'result' ? 1 : 2;
+  const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
 
   return (
     <MobileLayout
@@ -89,8 +105,8 @@ export default function CustomerBookingPage() {
         {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
           <span
             key={label}
-            className={index <= stepIndex ? 'booking-step booking-step-active' : 'booking-step'}
-            aria-current={index === stepIndex ? 'step' : undefined}
+            className={index <= stepIndex[step] ? 'booking-step booking-step-active' : 'booking-step'}
+            aria-current={index === stepIndex[step] ? 'step' : undefined}
           >
             {label}
           </span>
@@ -143,16 +159,7 @@ export default function CustomerBookingPage() {
             <h1>Style detected</h1>
           </section>
 
-          {imageUrl && (
-            <div className="booking-result-preview">
-              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
-            </div>
-          )}
-
-          <section className="summary-card">
-            <strong>{recognition.selection.otherNotes}</strong>
-            <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
-          </section>
+          <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
 
           <NailAttributeEditor value={recognition} onChange={setRecognition} />
 
@@ -177,16 +184,7 @@ export default function CustomerBookingPage() {
             <h1>Your quote</h1>
           </section>
 
-          {imageUrl && (
-            <div className="booking-result-preview">
-              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
-            </div>
-          )}
-
-          <section className="summary-card">
-            <strong>{recognition.selection.otherNotes}</strong>
-            <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
-          </section>
+          <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
 
           <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
             Adjust style details

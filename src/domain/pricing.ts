@@ -1,16 +1,11 @@
 import type {
   AIRecognitionResult,
-  AISuggestedQuote,
   BaseServiceName,
   NailAddonName,
   NailStyleName,
   PricingItem,
   RuleBasedQuote
 } from './nail';
-
-export function getAiSuggestedQuote(recognition: AIRecognitionResult): AISuggestedQuote {
-  return recognition.meta.aiSuggestedQuote;
-}
 
 export function calculateEstimate(
   recognition: AIRecognitionResult,
