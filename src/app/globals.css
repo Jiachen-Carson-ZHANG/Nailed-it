@@ -339,6 +339,12 @@ select {
 }
 
 .bottom-tab-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(100%, var(--shell-max-width));
+  box-sizing: border-box;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(var(--tab-count, 4), minmax(0, 1fr));
@@ -2545,4 +2551,3 @@ select {
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-
