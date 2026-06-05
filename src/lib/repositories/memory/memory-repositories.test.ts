@@ -16,6 +16,11 @@ import { createMemoryStyleRepository } from './style-repository';
 import { createMemoryCatalogRepository } from './catalog-repository';
 import { createMemoryMerchantRepository } from './merchant-repository';
 import { createMemoryMerchantPricingRepository } from './merchant-pricing-repository';
+import {
+  createMemoryBlockedTimeRepository,
+  createMemoryWorkingPlanRepository,
+} from './scheduling-repository';
+import { mockBlockedTimes, mockWorkingPlans } from '@/mock/scheduling';
 
 // ─── BookingRepository ────────────────────────────────────────────────────────
 
@@ -377,6 +382,53 @@ describe('merchant + merchant_pricing', () => {
     row.priceCents = 9999;
     const [refetched] = await repo.listByMerchant('merchant-1');
     expect(refetched.priceCents).toBe(300);
+  });
+});
+
+// ─── WorkingPlanRepository + BlockedTimeRepository ───────────────────────────
+
+describe('working_plan + blocked_time', () => {
+  it('workingPlans list() returns all seed plans', async () => {
+    const repo = createMemoryWorkingPlanRepository();
+    const result = await repo.list();
+    expect(result).toHaveLength(mockWorkingPlans.length);
+  });
+
+  it('workingPlans listByTechnician() filters by technician', async () => {
+    const repo = createMemoryWorkingPlanRepository();
+    const mei = await repo.listByTechnician('tech-mei');
+    expect(mei.length).toBeGreaterThan(0);
+    expect(mei.every((p) => p.technicianId === 'tech-mei')).toBe(true);
+  });
+
+  it('workingPlans mutation isolation', async () => {
+    const repo = createMemoryWorkingPlanRepository();
+    const [first] = await repo.list();
+    first.openMin = -999;
+    const [refetched] = await repo.list();
+    expect(refetched.openMin).not.toBe(-999);
+  });
+
+  it('blockedTimes list() returns all seed blocks', async () => {
+    const repo = createMemoryBlockedTimeRepository();
+    const result = await repo.list();
+    expect(result).toHaveLength(mockBlockedTimes.length);
+  });
+
+  it('blockedTimes listByTechnician() filters by technician', async () => {
+    const repo = createMemoryBlockedTimeRepository();
+    const mei = await repo.listByTechnician('tech-mei');
+    expect(mei.every((b) => b.technicianId === 'tech-mei')).toBe(true);
+  });
+
+  it('blockedTimes mutation isolation', async () => {
+    const repo = createMemoryBlockedTimeRepository();
+    const [first] = await repo.list();
+    if (first) {
+      first.reason = 'MUTATED';
+      const [refetched] = await repo.list();
+      expect(refetched.reason).not.toBe('MUTATED');
+    }
   });
 });
 

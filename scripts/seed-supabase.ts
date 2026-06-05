@@ -10,6 +10,7 @@ import { mockTechnicians } from '../src/mock/technicians';
 import { styleDefinitions } from '../src/mock/styles';
 import { catalogItems } from '../src/mock/catalog';
 import { mockMerchants } from '../src/mock/merchants';
+import { mockBlockedTimes, mockWorkingPlans } from '../src/mock/scheduling';
 import type { BookingConversationThread } from '../src/domain/nail';
 
 // Standalone client for the seed script — does not import the server-only-guarded
@@ -151,6 +152,36 @@ async function seedMerchants(): Promise<number> {
   return rows.length;
 }
 
+async function seedWorkingPlans(): Promise<number> {
+  const rows = mockWorkingPlans.map((p) => ({
+    technician_id: p.technicianId,
+    weekday: p.weekday,
+    open_min: p.openMin,
+    close_min: p.closeMin,
+    breaks: p.breaks,
+  }));
+  const { error } = await getServiceClient()
+    .from('working_plan')
+    .upsert(rows, { onConflict: 'technician_id,weekday' });
+  if (error) throw new Error(`seed working_plan failed: ${error.message}`);
+  return rows.length;
+}
+
+async function seedBlockedTimes(): Promise<number> {
+  const rows = mockBlockedTimes.map((b) => ({
+    id: b.id,
+    technician_id: b.technicianId,
+    start_at: b.startAt,
+    end_at: b.endAt,
+    reason: b.reason,
+  }));
+  const { error } = await getServiceClient()
+    .from('blocked_time')
+    .upsert(rows, { onConflict: 'id' });
+  if (error) throw new Error(`seed blocked_time failed: ${error.message}`);
+  return rows.length;
+}
+
 async function seedConversations(
   threads: BookingConversationThread[],
 ): Promise<{ threads: number; messages: number }> {
@@ -205,16 +236,27 @@ async function seedConversations(
 async function main(): Promise<void> {
   console.log('Seeding Supabase...');
 
-  const [techCount, styleCount, pricingCount, bookingCount, convResult, catalogCount, merchantCount] =
-    await Promise.all([
-      seedTechnicians(),
-      seedStyles(),
-      seedPricingRules(),
-      seedBookings(),
-      seedConversations(seedConversationThreads),
-      seedCatalog(),
-      seedMerchants(),
-    ]);
+  // working_plan + blocked_time FK technicians(id), so technicians must land first.
+  const techCount = await seedTechnicians();
+  const [
+    styleCount,
+    pricingCount,
+    bookingCount,
+    convResult,
+    catalogCount,
+    merchantCount,
+    workingPlanCount,
+    blockedTimeCount,
+  ] = await Promise.all([
+    seedStyles(),
+    seedPricingRules(),
+    seedBookings(),
+    seedConversations(seedConversationThreads),
+    seedCatalog(),
+    seedMerchants(),
+    seedWorkingPlans(),
+    seedBlockedTimes(),
+  ]);
 
   console.log(`technicians:          ${techCount}`);
   console.log(`styles:               ${styleCount}`);
@@ -224,6 +266,8 @@ async function main(): Promise<void> {
   console.log(`messages:             ${convResult.messages}`);
   console.log(`catalog_item:         ${catalogCount}`);
   console.log(`merchant:             ${merchantCount}`);
+  console.log(`working_plan:         ${workingPlanCount}`);
+  console.log(`blocked_time:         ${blockedTimeCount}`);
   console.log('Done.');
 }
 

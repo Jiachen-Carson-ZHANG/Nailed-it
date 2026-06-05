@@ -7,6 +7,10 @@ import { createSupabaseStyleRepository } from './style-repository';
 import { createSupabaseCatalogRepository } from './catalog-repository';
 import { createSupabaseMerchantRepository } from './merchant-repository';
 import { createSupabaseMerchantPricingRepository } from './merchant-pricing-repository';
+import {
+  createSupabaseBlockedTimeRepository,
+  createSupabaseWorkingPlanRepository,
+} from './scheduling-repository';
 
 export function createSupabaseRepositoryBundle(): RepositoryBundle {
   return {
@@ -18,5 +22,7 @@ export function createSupabaseRepositoryBundle(): RepositoryBundle {
     catalog: createSupabaseCatalogRepository(),
     merchants: createSupabaseMerchantRepository(),
     merchantPricing: createSupabaseMerchantPricingRepository(),
+    workingPlans: createSupabaseWorkingPlanRepository(),
+    blockedTimes: createSupabaseBlockedTimeRepository(),
   };
 }

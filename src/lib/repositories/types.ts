@@ -8,6 +8,7 @@ import type {
 import type { StyleDefinition } from '@/mock/styles';
 import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
 import type { Merchant, MerchantPricing } from '@/domain/merchant';
+import type { BlockedTime, WorkingPlanDay } from '@/domain/scheduling';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -56,6 +57,16 @@ export interface MerchantPricingRepository {
   upsertMany(rows: MerchantPricing[]): Promise<MerchantPricing[]>;
 }
 
+export interface WorkingPlanRepository {
+  list(): Promise<WorkingPlanDay[]>;
+  listByTechnician(technicianId: string): Promise<WorkingPlanDay[]>;
+}
+
+export interface BlockedTimeRepository {
+  list(): Promise<BlockedTime[]>;
+  listByTechnician(technicianId: string): Promise<BlockedTime[]>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -65,4 +76,6 @@ export interface RepositoryBundle {
   catalog: CatalogRepository;
   merchants: MerchantRepository;
   merchantPricing: MerchantPricingRepository;
+  workingPlans: WorkingPlanRepository;
+  blockedTimes: BlockedTimeRepository;
 }

@@ -25,8 +25,8 @@ Adopt one relational model on Supabase Postgres, behind the existing repository 
 
 - **Catalog (platform):** `catalog_item` (1:1 with the Dictionary sheet — `type`, `category`, `parent_id`, `affects_booking_duration`, `default_duration_min`, `duration_config_level`, `merchant_price_required`, `quantity_supported`, `ai_detectable`, …). Allowed pricing units are stored as a **JSONB array** on `catalog_item` for P1.5 (read-only catalog, tiny arrays, one table, with a `allowed_pricing_units ? default_pricing_unit` CHECK). Normalizing into a `catalog_item_allowed_unit` table is deferred to when units need to be independently queryable.
 - **Merchant config:** `merchant` + `merchant_pricing` (merchant × catalog_item → price/duration/unit/enabled; falls back to catalog defaults). Replaces the merchant manage page's non-persisting "save".
-- **Staff / availability:** `staff`, `working_plan` (weekday hours), `blocked_time`, `staff_item_duration` (per-staff overrides for `duration_config_level=staff_level`).
-- **Booking (interval-based):** `booking` (`start_at`/`end_at`/`duration_min`, `status` incl. `in_progress`, `cancelled_at`/`rescheduled_at`, reserved nullable `payment_status`) + `booking_item` (the persisted 积木 decomposition = quote snapshot + duration source).
+- **Staff / availability:** `working_plan` (weekday hours + breaks), `blocked_time` (one-off blocks). **P3 reuses the existing `technicians` table as the staff/provider entity** rather than adding a parallel `staff` table — we already have the entity, so a duplicate would only add a migration of the same data. `staff_item_duration` (per-staff overrides for `duration_config_level=staff_level`) is deferred to P4, where `quoteService` first needs it.
+- **Booking (interval-based):** `booking` (`start_at`/`end_at`/`duration_min`, `status` incl. `in_progress`, `cancelled_at`/`rescheduled_at`, reserved nullable `payment_status`) + `booking_item` (the persisted 积木 decomposition = quote snapshot + duration source). These tables + the transactional `bookingService` land in **P4** (alongside consumer wiring), since they only earn their keep once booking writes actually go through the DB; P3 ships the pure overlap kernel that P4's create path will call.
 - **Keep:** `conversation_thread`/`message`, `style`. `customer` gains `preferred_slots`.
 
 ### Service layer (`src/lib/services/`)
@@ -69,8 +69,8 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | P1 Supabase flat schema + seed | P1 | done — interim, superseded by the catalog/relational model |
 | — | **P1.5 catalog foundation** (`catalog_item` + invariants + seed + repo) | **done**; data layer only, not wired to runtime |
 | P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` + effective-pricing resolver) | **done**; data layer only, not wired to runtime |
-| — | **P3 interval availability** (`staff` + `working_plan` + `blocked_time` + interval booking checks) | **next** |
-| P2 wire consumers (localStorage→server) | **P4 consumer wiring** (Server Components / Actions) | pending |
+| — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
+| P2 wire consumers (localStorage→server) | **P4 consumer wiring** (Server Components / Actions; interval `booking`/`booking_item` + transactional `bookingService`; swap `findTechnicianSlots`→`scheduling`; `staff_item_duration`; booking draft → DB/session) | pending |
 | P3 realtime | **P5 realtime** | pending |
 | — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | pending |
 | — | **P7 款式跟踪** (completed-order photos → tagged catalog/style library) | pending |

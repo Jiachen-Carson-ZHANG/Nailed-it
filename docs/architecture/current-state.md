@@ -1,6 +1,6 @@
 # Architecture: Current State
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Pipeline
 
@@ -53,13 +53,14 @@ Repositories live in `src/lib/repositories/` (async interfaces in `types.ts`; in
 - **Bookings, conversations/messages, technicians, styles, pricing rules** — P0/P1, the interim flat model.
 - **Catalog** (`catalog_item`) — P1.5. Generated from the Dictionary sheet into `src/mock/catalog.ts` (112 items). Platform source of truth for what can be priced + default durations.
 - **Merchant pricing** (`merchant`, `merchant_pricing`) — P2. Sparse per-merchant overrides; `src/domain/pricing-resolver.ts` merges overrides over catalog defaults into effective pricing (override → `merchant`, else → `catalog_default`).
+- **Staff availability** (`working_plan`, `blocked_time`) — P3. Reuses `technicians` as the staff/provider entity (no parallel `staff` table). `working_plan` is recurring weekly hours per technician per weekday (0=Sun…6=Sat) with mid-day breaks as a JSONB `{startMin,endMin}` array; `blocked_time` is one-off calendar blocks as absolute instants. The duration-aware overlap kernel lives in `src/domain/scheduling.ts` (`intervalsOverlap` / `isWithinWorkingPlan` / `findAvailableTechnicians`) — pure and timezone-agnostic (the caller resolves a datetime into weekday + local-minute range + epoch-ms interval). It is the intended replacement for `findTechnicianSlots` but is **not yet wired** — the confirm page still uses the old slot-string logic until P4.
 
-DB access: `src/lib/db/client.ts` is the server-only Supabase client (secret key, bypasses RLS). Migrations: `0001_init.sql` (bookings/messages/etc., anon read), `0002_catalog.sql` (catalog_item + CHECK constraints mirroring the TS unions), `0003_merchant_pricing.sql` (merchant + merchant_pricing, RLS with no anon policies). `scripts/seed-supabase.ts` seeds all tables.
+DB access: `src/lib/db/client.ts` is the server-only Supabase client (secret key, bypasses RLS). Migrations: `0001_init.sql` (bookings/messages/etc., anon read), `0002_catalog.sql` (catalog_item + CHECK constraints mirroring the TS unions), `0003_merchant_pricing.sql` (merchant + merchant_pricing, RLS with no anon policies), `0004_staff_availability.sql` (working_plan + blocked_time, FK technicians, anon read). `scripts/seed-supabase.ts` seeds all tables (technicians first, since working_plan/blocked_time FK it).
 
 Known gaps still open (each addressed by a later ADR-0005 phase):
-- **Availability is slot-string, not interval based** (`src/domain/availability.ts` ignores duration, so a long booking does not block overlapping later slots) — P3.
-- **Booking draft is module memory** (`src/domain/booking-draft.ts`) — unreliable on serverless; moves to DB/session in P3/P4.
-- **Booking creation is not transactional** (double-book risk once writes share a DB) — P3.
+- **Interval availability is not wired** — the duration-aware kernel (`src/domain/scheduling.ts`) exists and is tested, but the live confirm path still calls the slot-string `findTechnicianSlots` in `src/domain/availability.ts` (ignores duration). Swapping consumers is P4.
+- **Booking draft is module memory** (`src/domain/booking-draft.ts`) — unreliable on serverless; moves to DB/session in P4.
+- **Booking creation is not transactional** (double-book risk once writes share a DB) — the interval `booking`/`booking_item` table + transactional `bookingService` land in P4, when writes actually go through the DB.
 - The interim flat `pricing_rules` + date/time-string bookings are superseded by the catalog / interval-booking model as phases land.
 
 ## LLM integration
