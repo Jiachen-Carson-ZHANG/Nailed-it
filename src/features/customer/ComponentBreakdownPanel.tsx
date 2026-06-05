@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import type { BreakdownItem, BreakdownResult, FreeBreakdownItem } from '@/domain/nail';
-import { pricingTargetLabels } from '@/domain/nail';
+import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
+import { loadGlossarySettings } from '@/data/glossary-settings-store';
 import { Button } from '@/components/ui/Button';
 
 type ComponentBreakdownPanelProps = {
@@ -11,61 +11,33 @@ type ComponentBreakdownPanelProps = {
   onResult?: (result: BreakdownResult) => void;
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  base: 'Base',
-  shape: 'Shape',
-  color_style: 'Style',
-  addon: 'Add-on',
-  other: 'Other'
-};
-
-function categoryBadge(category: string) {
-  return (
-    <span className={`breakdown-category-badge breakdown-category-${category}`}>
-      {CATEGORY_LABELS[category] ?? category}
-    </span>
-  );
-}
-
-function formatLabel(item: BreakdownItem): string {
-  const baseLabel = item.mode === 'standard'
-    ? (pricingTargetLabels[item.label as keyof typeof pricingTargetLabels] ?? item.label)
-    : item.label;
-  if (item.mode === 'free' && item.labelCn) {
-    return `${baseLabel} / ${item.labelCn}`;
-  }
-  return baseLabel;
-}
-
-function rowPrice(item: BreakdownItem): string {
-  return item.mode === 'free'
-    ? `$${(item.price * item.quantity).toFixed(2)}`
-    : `$${item.price}`;
-}
-
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
-  const items = result.mode === 'free'
-    ? result.items.filter((i): i is FreeBreakdownItem => i.mode === 'free')
-    : result.items;
   return (
     <table className="breakdown-table" aria-label="Component breakdown">
       <tbody>
-        {items.map((item) => (
-          <tr key={`${item.category}-${item.label}`}>
+        {result.items.map((item: GlossaryBreakdownItem) => (
+          <tr key={item.glossaryId}>
             <td>
-              {categoryBadge(item.category)}
-              <span className="breakdown-label">{formatLabel(item)}</span>
+              <span className="breakdown-category-badge breakdown-category-other">
+                {item.parentNameZh}
+              </span>
+              <span className="breakdown-label">{item.nameZh}</span>
+              {item.quantity > 1 && (
+                <span className="breakdown-qty"> ×{item.quantity} {item.unit}</span>
+              )}
             </td>
             <td className="breakdown-duration">{item.duration} min</td>
-            <td className="breakdown-price">{rowPrice(item)}</td>
+            <td className="breakdown-price">
+              ${(item.price * item.quantity).toFixed(2)}
+            </td>
           </tr>
         ))}
       </tbody>
       <tfoot>
         <tr className="breakdown-total">
-          <td>Total</td>
+          <td>总计</td>
           <td className="breakdown-duration">{result.totalDuration} min</td>
-          <td className="breakdown-price">${result.totalPrice}</td>
+          <td className="breakdown-price">${result.totalPrice.toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
@@ -73,26 +45,26 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 }
 
 export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownPanelProps) {
-  const [freeMode, setFreeMode] = useState(false);
   const [result, setResult] = useState<BreakdownResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(false);
 
-  async function loadBreakdown(newFreeMode: boolean) {
+  async function loadBreakdown() {
     if (!image) return;
     setIsLoading(true);
     setError('');
     setResult(null);
 
     try {
+      const merchantSettings = loadGlossarySettings();
       const response = await fetch('/api/ai/breakdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: image.imageBase64,
           mimeType: image.mimeType,
-          freeMode: newFreeMode
+          merchantSettings
         })
       });
 
@@ -112,12 +84,6 @@ export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownP
     }
   }
 
-  function handleModeToggle(nextFreeMode: boolean) {
-    setFreeMode(nextFreeMode);
-    setResult(null);
-    setError('');
-  }
-
   return (
     <section className="breakdown-panel">
       <button
@@ -126,47 +92,21 @@ export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownP
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
       >
-        <span>Component Breakdown</span>
+        <span>服务组件明细</span>
         <span className="breakdown-toggle-glyph" aria-hidden="true">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
         <div className="breakdown-panel-body">
-          <div className="breakdown-mode-row">
-            <span className="helper-copy">Analysis mode</span>
-            <div className="breakdown-mode-toggle" role="group" aria-label="Analysis mode">
-              <button
-                type="button"
-                className={`breakdown-mode-btn${!freeMode ? ' breakdown-mode-btn-active' : ''}`}
-                onClick={() => handleModeToggle(false)}
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                className={`breakdown-mode-btn${freeMode ? ' breakdown-mode-btn-active' : ''}`}
-                onClick={() => handleModeToggle(true)}
-              >
-                Free
-              </button>
-            </div>
-          </div>
-
-          <p className="helper-copy">
-            {freeMode
-              ? 'Free mode lets AI identify any component and estimate its own price and time.'
-              : 'Standard mode maps to existing service categories and uses our pricing rules.'}
-          </p>
-
           {error && (
             <section className="summary-card" role="alert">
-              <strong>Breakdown error</strong>
+              <strong>分析失败</strong>
               <p>{error}</p>
             </section>
           )}
 
           {isLoading && (
-            <p className="helper-copy" aria-busy="true">Analyzing components…</p>
+            <p className="helper-copy" aria-busy="true">正在分析组件…</p>
           )}
 
           {!isLoading && result && (
@@ -178,9 +118,9 @@ export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownP
             size="compact"
             variant="secondary"
             disabled={!image || isLoading}
-            onClick={() => loadBreakdown(freeMode)}
+            onClick={loadBreakdown}
           >
-            {isLoading ? 'Analyzing…' : result ? 'Re-analyze' : 'Analyze components'}
+            {isLoading ? '分析中…' : result ? '重新分析' : '分析服务组件'}
           </Button>
         </div>
       )}

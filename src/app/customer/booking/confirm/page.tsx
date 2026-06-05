@@ -79,11 +79,9 @@ export default function CustomerBookingConfirmPage() {
     );
   }
 
-  const displayEstimate = draft.breakdowns?.standard
-    ? { price: draft.breakdowns.standard.totalPrice, duration: draft.breakdowns.standard.totalDuration }
-    : draft.breakdowns?.free
-      ? { price: draft.breakdowns.free.totalPrice, duration: draft.breakdowns.free.totalDuration }
-      : { price: draft.estimate.price, duration: draft.estimate.duration };
+  const displayEstimate = draft.breakdowns?.glossary
+    ? { price: draft.breakdowns.glossary.totalPrice, duration: draft.breakdowns.glossary.totalDuration }
+    : { price: draft.estimate.price, duration: draft.estimate.duration };
 
   return (
     <MobileLayout

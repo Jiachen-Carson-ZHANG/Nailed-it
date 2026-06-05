@@ -10,7 +10,7 @@ import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUplo
 import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
-import { saveBreakdownResult, getBreakdownResults } from '@/domain/breakdown-store';
+import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
 import type { AIRecognitionResult, BreakdownResult } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
@@ -51,8 +51,8 @@ function CustomerBookingContent() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [recognition, setRecognition] = useState(styleDefinition?.recognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
-  const [breakdowns, setBreakdowns] = useState<{ standard: BreakdownResult | null; free: BreakdownResult | null }>(
-    () => getBreakdownResults()
+  const [breakdowns, setBreakdowns] = useState<{ glossary: BreakdownResult | null }>(
+    () => ({ glossary: getBreakdownResult() })
   );
   const estimate = useMemo(
     () => calculateEstimate(recognition, defaultPricingRules),
@@ -105,7 +105,7 @@ function CustomerBookingContent() {
 
   function handleBreakdownResult(result: BreakdownResult) {
     saveBreakdownResult(result);
-    setBreakdowns(getBreakdownResults());
+    setBreakdowns({ glossary: getBreakdownResult() });
   }
 
   const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
@@ -212,14 +212,9 @@ function CustomerBookingContent() {
 
           <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
 
-          {(breakdowns.standard || breakdowns.free) && (
+          {breakdowns.glossary && (
             <section className="summary-card">
-              {breakdowns.standard && (
-                <p>AI standard estimate: <strong>{breakdowns.standard.totalDuration} min · ${breakdowns.standard.totalPrice}</strong></p>
-              )}
-              {breakdowns.free && (
-                <p>AI free estimate: <strong>{breakdowns.free.totalDuration} min · ${breakdowns.free.totalPrice}</strong></p>
-              )}
+              <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
             </section>
           )}
 

@@ -1,39 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
-import type { PricingCategory, PricingItem } from '@/domain/nail';
-import { pricingTargetLabels } from '@/domain/nail';
-import { PricingRuleCard } from '@/features/merchant/PricingRuleCard';
-import { defaultPricingRules } from '@/mock/pricing';
+import { billableComponents, glossaryById, serviceModules } from '@/data/glossary';
+import {
+  loadGlossarySettings,
+  saveGlossarySettings
+} from '@/data/glossary-settings-store';
+import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
+import { GlossaryEntryCard } from '@/features/merchant/GlossaryEntryCard';
 
-const categoryLabels: Record<PricingCategory, string> = {
-  base: 'Base services',
-  shape: 'Nail shapes',
-  style: 'Style types',
-  addon: 'Add-ons'
-};
-
-const orderedCategories: PricingCategory[] = ['base', 'shape', 'style', 'addon'];
+// Group billable components by their parent service_module id
+const componentsByModule: { moduleId: string; entries: typeof billableComponents }[] = serviceModules
+  .map((mod) => ({
+    moduleId: mod.id,
+    entries: billableComponents.filter((e) => e.parent_id === mod.id)
+  }))
+  .filter((group) => group.entries.length > 0);
 
 export default function MerchantManagePage() {
-  const [rules, setRules] = useState(defaultPricingRules);
+  const [settings, setSettings] = useState<GlossaryEntrySettings[]>([]);
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
 
-  function updateRule(nextRule: PricingItem) {
-    setRules((currentRules) =>
-      currentRules.map((rule) => (rule.id === nextRule.id ? nextRule : rule))
-    );
+  useEffect(() => {
+    setSettings(loadGlossarySettings());
+  }, []);
+
+  function updateSetting(next: GlossaryEntrySettings) {
+    setSettings((current) => current.map((s) => (s.id === next.id ? next : s)));
     setDirty(true);
   }
 
-  function saveRules() {
-    setToastMessage('Price list updated for customer estimates.');
+  function handleSave() {
+    saveGlossarySettings(settings);
+    setToastMessage('价格表已更新，将用于用户端 AI 报价。');
     setDirty(false);
   }
+
+  const settingsById = new Map<string, GlossaryEntrySettings>(settings.map((s) => [s.id, s]));
 
   return (
     <MobileLayout
@@ -42,32 +49,38 @@ export default function MerchantManagePage() {
       title="Nailed-it"
     >
       <section className="page-heading">
-        <p className="section-eyebrow">Price list</p>
-        <h1>Configure estimate rules</h1>
+        <p className="section-eyebrow">服务项目配置</p>
+        <h1>设置单价与时长</h1>
       </section>
 
-      {orderedCategories.map((category) => (
-        <section key={category} className="pricing-section">
-          <h2>{categoryLabels[category]}</h2>
-          {rules
-            .filter((rule) => rule.category === category)
-            .map((rule) => (
-              <PricingRuleCard
-                key={rule.id}
-                item={rule}
-                label={pricingTargetLabels[rule.target]}
-                onChange={updateRule}
-              />
-            ))}
-        </section>
-      ))}
+      {componentsByModule.map(({ moduleId, entries }) => {
+        const module = glossaryById.get(moduleId);
+        if (!module) return null;
+        return (
+          <section key={moduleId} className="pricing-section">
+            <h2>{module.name_zh}</h2>
+            {entries.map((entry) => {
+              const s = settingsById.get(entry.id);
+              if (!s) return null;
+              return (
+                <GlossaryEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  settings={s}
+                  onChange={updateSetting}
+                />
+              );
+            })}
+          </section>
+        );
+      })}
 
       <div className="pricing-save-bar" data-dirty={dirty}>
         <span className="pricing-save-status">
-          {dirty ? 'Unsaved changes' : 'All changes saved'}
+          {dirty ? '有未保存的更改' : '全部已保存'}
         </span>
-        <Button onClick={saveRules} disabled={!dirty}>
-          {dirty ? 'Save price list' : 'Saved'}
+        <Button onClick={handleSave} disabled={!dirty}>
+          {dirty ? '保存价格表' : '已保存'}
         </Button>
       </div>
       <Toast message={toastMessage} />
