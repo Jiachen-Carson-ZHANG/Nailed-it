@@ -66,7 +66,23 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
       },
     ],
   };
-  await repos.conversations.insert(thread);
+  // The booking is already committed by the RPC. If the thread insert fails we must not leave a
+  // confirmed booking with no conversation (and a slot that retry would collide with): compensate
+  // by cancelling the booking, which frees the slot (the exclusion constraint excludes cancelled).
+  try {
+    await repos.conversations.insert(thread);
+  } catch (threadError) {
+    try {
+      await repos.intervalBookings.setStatus(booking.id, 'cancelled');
+    } catch (compensateError) {
+      console.error(
+        `[booking] thread insert failed and compensating cancel also failed for ${booking.id}`,
+        compensateError,
+      );
+    }
+    console.error(`[booking] thread insert failed for ${booking.id}, booking cancelled`, threadError);
+    throw new Error('booking_thread_failed');
+  }
 
   return intervalBookingToUiBooking(
     { booking, items: await repos.intervalBookings.listItems(booking.id) },

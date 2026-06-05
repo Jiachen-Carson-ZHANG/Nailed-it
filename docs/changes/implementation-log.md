@@ -1,5 +1,23 @@
 # Implementation Log
 
+## 2026-06-05 — P4c/P4d write cutover: confirm flow books to the DB (8bba335)
+
+What changed:
+- `src/lib/services/booking-service.ts` gained `createBookingFromSnapshot`: the current flat estimate → one synthetic `booking_item` (catalogItemId null) → the same transactional interval create + tenant guard + exclusion constraint.
+- `src/lib/services/booking-adapter.ts` maps an interval booking + items back to the flat UI `Booking` shape (date/time via merchant tz, quote = Σ item prices, in_progress→confirmed, neutral placeholder recognition); `timezone.instantToZonedParts` is the reverse of `resolveSlot`.
+- `IntervalBookingRepository.listByMerchant` added for the reader surfaces.
+- `src/lib/actions/booking-actions.ts` (`createBookingAction`, server action): creates the interval booking + linked conversation thread, returns the flat UI Booking. If the thread insert fails it compensates by cancelling the booking (frees the slot; no orphan confirmed booking).
+- The customer confirm page calls the action instead of the localStorage `createBookingFromDraft`.
+
+Why:
+- Begins the real DB cutover on the interval model (decision B), using the snapshot bridge so it does not block on live P6 catalog ids.
+
+Verified live:
+- Booking through the confirm page created the row in Postgres (tech-anna, 10:00 SGT → 02:00Z, 90 min, confirmed), a null-catalog snapshot `booking_item` ($120 → 12000 cents), and the linked `conversation_thread`.
+
+Tradeoff / status:
+- Write only so far. The reader surfaces (calendar/profile/detail/messages) still read localStorage; the branch is mid-cutover and must not merge until reads land (no shipped split-brain).
+
 ## 2026-06-05 — P6 (partial): recognition → catalog bridge
 
 What changed:

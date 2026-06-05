@@ -27,6 +27,7 @@ export default function CustomerBookingConfirmPage() {
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
   const bookingLocked = Boolean(createdBooking);
 
   useEffect(() => {
@@ -66,8 +67,6 @@ export default function CustomerBookingConfirmPage() {
       </MobileLayout>
     );
   }
-
-  const [isConfirming, setIsConfirming] = useState(false);
 
   async function confirmAppointment() {
     if (!selectedSlot || !draft || createdBooking || isConfirming) {
