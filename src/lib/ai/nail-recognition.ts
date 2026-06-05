@@ -12,6 +12,8 @@ export const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 
 export const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
 export const nailAddonValues = ['rhinestone', 'charms', 'glitter'] as const;
 
+export const defaultVisionModel = 'google/gemini-2.5-flash-lite';
+
 export type NailImageRecognitionInput = {
   imageBase64: string;
   mimeType: string;
@@ -41,7 +43,7 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<{ ok: boolean; sta
 
 export async function recognizeNailImageWithTelemetry(
   input: NailImageRecognitionInput,
-  env = process.env,
+  env: Record<string, string | undefined> = process.env,
   fetchImpl?: FetchLike
 ): Promise<NailRecognitionProviderResult> {
   const apiKey = env.OPENROUTER_API_KEY;
@@ -49,7 +51,7 @@ export async function recognizeNailImageWithTelemetry(
     throw new NailRecognitionError('missing_vision_config', 'OPENROUTER_API_KEY is required for nail recognition.');
   }
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? 'google/gemini-2.5-flash-lite';
+  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultVisionModel;
 
   let data: unknown;
   try {
