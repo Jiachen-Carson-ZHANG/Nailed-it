@@ -1,6 +1,16 @@
 import { getServiceClient } from '@/lib/db/client';
-import type { BlockedTime, LocalMinuteRange, Weekday, WorkingPlanDay } from '@/domain/scheduling';
-import type { BlockedTimeRepository, WorkingPlanRepository } from '../types';
+import type {
+  BlockedTime,
+  LocalMinuteRange,
+  StaffItemDuration,
+  Weekday,
+  WorkingPlanDay,
+} from '@/domain/scheduling';
+import type {
+  BlockedTimeRepository,
+  StaffItemDurationRepository,
+  WorkingPlanRepository,
+} from '../types';
 
 export interface WorkingPlanRow {
   technician_id: string;
@@ -80,6 +90,52 @@ export function createSupabaseBlockedTimeRepository(): BlockedTimeRepository {
         throw new Error(`BlockedTimeRepository.listByTechnician failed: ${error.message}`);
       }
       return (data as BlockedTimeRow[]).map(rowToBlockedTime);
+    },
+
+    async listByTechnicianInRange(
+      technicianId: string,
+      startAt: string,
+      endAt: string,
+    ): Promise<BlockedTime[]> {
+      const { data, error } = await getServiceClient()
+        .from('blocked_time')
+        .select('*')
+        .eq('technician_id', technicianId)
+        .lt('start_at', endAt)
+        .gt('end_at', startAt);
+      if (error) {
+        throw new Error(`BlockedTimeRepository.listByTechnicianInRange failed: ${error.message}`);
+      }
+      return (data as BlockedTimeRow[]).map(rowToBlockedTime);
+    },
+  };
+}
+
+export interface StaffItemDurationRow {
+  technician_id: string;
+  catalog_item_id: string;
+  duration_min: number;
+}
+
+export function rowToStaffItemDuration(row: StaffItemDurationRow): StaffItemDuration {
+  return {
+    technicianId: row.technician_id,
+    catalogItemId: row.catalog_item_id,
+    durationMin: row.duration_min,
+  };
+}
+
+export function createSupabaseStaffItemDurationRepository(): StaffItemDurationRepository {
+  return {
+    async listByTechnician(technicianId: string): Promise<StaffItemDuration[]> {
+      const { data, error } = await getServiceClient()
+        .from('staff_item_duration')
+        .select('*')
+        .eq('technician_id', technicianId);
+      if (error) {
+        throw new Error(`StaffItemDurationRepository.listByTechnician failed: ${error.message}`);
+      }
+      return (data as StaffItemDurationRow[]).map(rowToStaffItemDuration);
     },
   };
 }

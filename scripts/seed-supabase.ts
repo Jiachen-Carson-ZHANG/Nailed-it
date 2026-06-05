@@ -11,6 +11,11 @@ import { styleDefinitions } from '../src/mock/styles';
 import { catalogItems } from '../src/mock/catalog';
 import { mockMerchants } from '../src/mock/merchants';
 import { mockBlockedTimes, mockWorkingPlans } from '../src/mock/scheduling';
+import {
+  mockBookingItems,
+  mockIntervalBookings,
+  mockStaffItemDurations,
+} from '../src/mock/interval-bookings';
 import type { BookingConversationThread } from '../src/domain/nail';
 
 // Standalone client for the seed script — does not import the server-only-guarded
@@ -183,6 +188,57 @@ async function seedBlockedTimes(): Promise<number> {
   return rows.length;
 }
 
+async function seedIntervalBookings(): Promise<{ bookings: number; items: number }> {
+  const bookingRows = mockIntervalBookings.map((b) => ({
+    id: b.id,
+    merchant_id: b.merchantId,
+    technician_id: b.technicianId,
+    customer_name: b.customerName,
+    style_title: b.styleTitle,
+    style_image_url: b.styleImageUrl,
+    start_at: b.startAt,
+    end_at: b.endAt,
+    duration_min: b.durationMin,
+    status: b.status,
+    notes: b.notes,
+  }));
+  const { error: bErr } = await getServiceClient()
+    .from('booking')
+    .upsert(bookingRows, { onConflict: 'id' });
+  if (bErr) throw new Error(`seed booking failed: ${bErr.message}`);
+
+  const itemRows = mockBookingItems.map((i) => ({
+    id: i.id,
+    booking_id: i.bookingId,
+    catalog_item_id: i.catalogItemId,
+    label: i.label,
+    price_cents: i.priceCents,
+    duration_min: i.durationMin,
+    quantity: i.quantity,
+    pricing_unit: i.pricingUnit,
+    affects_duration: i.affectsDuration,
+  }));
+  const { error: iErr } = await getServiceClient()
+    .from('booking_item')
+    .upsert(itemRows, { onConflict: 'id' });
+  if (iErr) throw new Error(`seed booking_item failed: ${iErr.message}`);
+
+  return { bookings: bookingRows.length, items: itemRows.length };
+}
+
+async function seedStaffItemDurations(): Promise<number> {
+  const rows = mockStaffItemDurations.map((s) => ({
+    technician_id: s.technicianId,
+    catalog_item_id: s.catalogItemId,
+    duration_min: s.durationMin,
+  }));
+  const { error } = await getServiceClient()
+    .from('staff_item_duration')
+    .upsert(rows, { onConflict: 'technician_id,catalog_item_id' });
+  if (error) throw new Error(`seed staff_item_duration failed: ${error.message}`);
+  return rows.length;
+}
+
 async function seedConversations(
   threads: BookingConversationThread[],
 ): Promise<{ threads: number; messages: number }> {
@@ -259,6 +315,10 @@ async function main(): Promise<void> {
     seedBlockedTimes(),
   ]);
 
+  // booking/booking_item FK catalog_item + technicians; staff_item_duration FKs both.
+  const intervalResult = await seedIntervalBookings();
+  const staffDurationCount = await seedStaffItemDurations();
+
   console.log(`technicians:          ${techCount}`);
   console.log(`styles:               ${styleCount}`);
   console.log(`pricing_rules:        ${pricingCount}`);
@@ -269,6 +329,9 @@ async function main(): Promise<void> {
   console.log(`merchant:             ${merchantCount}`);
   console.log(`working_plan:         ${workingPlanCount}`);
   console.log(`blocked_time:         ${blockedTimeCount}`);
+  console.log(`booking:              ${intervalResult.bookings}`);
+  console.log(`booking_item:         ${intervalResult.items}`);
+  console.log(`staff_item_duration:  ${staffDurationCount}`);
   console.log('Done.');
 }
 

@@ -70,8 +70,8 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P1.5 catalog foundation** (`catalog_item` + invariants + seed + repo) | **done**; data layer only, not wired to runtime |
 | P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` + effective-pricing resolver) | **done**; data layer only, not wired to runtime |
 | — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
-| P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; create RPC; range-scoped scheduling queries; `staff_item_duration`) | pending |
-| — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` over the repos; merchant-timezone resolution; Postgres integration tests for the gates below) | pending |
+| P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; `create_booking` RPC; range-scoped scheduling/booking queries; `staff_item_duration`) | **done**; data layer + RPC only, not wired |
+| — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` over the repos; merchant-timezone resolution; Postgres integration tests for the gates below) | **next** |
 | — | **P4c booking flow** (booking + confirm pages onto the services; swap `findTechnicianSlots`→`scheduling`; booking draft → DB/session) | pending |
 | — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
 | — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |

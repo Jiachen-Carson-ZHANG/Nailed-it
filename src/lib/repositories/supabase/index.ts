@@ -9,8 +9,10 @@ import { createSupabaseMerchantRepository } from './merchant-repository';
 import { createSupabaseMerchantPricingRepository } from './merchant-pricing-repository';
 import {
   createSupabaseBlockedTimeRepository,
+  createSupabaseStaffItemDurationRepository,
   createSupabaseWorkingPlanRepository,
 } from './scheduling-repository';
+import { createSupabaseIntervalBookingRepository } from './interval-booking-repository';
 
 export function createSupabaseRepositoryBundle(): RepositoryBundle {
   return {
@@ -24,5 +26,7 @@ export function createSupabaseRepositoryBundle(): RepositoryBundle {
     merchantPricing: createSupabaseMerchantPricingRepository(),
     workingPlans: createSupabaseWorkingPlanRepository(),
     blockedTimes: createSupabaseBlockedTimeRepository(),
+    intervalBookings: createSupabaseIntervalBookingRepository(),
+    staffItemDurations: createSupabaseStaffItemDurationRepository(),
   };
 }

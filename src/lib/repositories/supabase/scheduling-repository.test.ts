@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { mockBlockedTimes, mockWorkingPlans } from '@/mock/scheduling';
-import type { BlockedTime, WorkingPlanDay } from '@/domain/scheduling';
+import { mockStaffItemDurations } from '@/mock/interval-bookings';
+import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/scheduling';
 import {
   rowToBlockedTime,
+  rowToStaffItemDuration,
   rowToWorkingPlan,
   type BlockedTimeRow,
+  type StaffItemDurationRow,
   type WorkingPlanRow,
 } from './scheduling-repository';
 
@@ -27,6 +30,13 @@ function blockedTimeToRow(b: BlockedTime): BlockedTimeRow {
     reason: b.reason,
   };
 }
+function staffItemDurationToRow(s: StaffItemDuration): StaffItemDurationRow {
+  return {
+    technician_id: s.technicianId,
+    catalog_item_id: s.catalogItemId,
+    duration_min: s.durationMin,
+  };
+}
 
 describe('supabase scheduling row mappers', () => {
   it('round-trips every working plan (plan -> row -> plan)', () => {
@@ -38,6 +48,12 @@ describe('supabase scheduling row mappers', () => {
   it('round-trips every blocked time (block -> row -> block)', () => {
     for (const block of mockBlockedTimes) {
       expect(rowToBlockedTime(blockedTimeToRow(block))).toEqual(block);
+    }
+  });
+
+  it('round-trips every staff item duration (override -> row -> override)', () => {
+    for (const s of mockStaffItemDurations) {
+      expect(rowToStaffItemDuration(staffItemDurationToRow(s))).toEqual(s);
     }
   });
 

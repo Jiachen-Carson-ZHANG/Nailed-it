@@ -37,6 +37,13 @@ export type BlockedTime = {
   reason: string;
 };
 
+/** Per-staff duration override for a catalog item (duration_config_level='staff_level'). */
+export type StaffItemDuration = {
+  technicianId: string;
+  catalogItemId: string;
+  durationMin: number;
+};
+
 export type AvailabilityRequest = {
   weekday: Weekday;
   localRange: LocalMinuteRange;

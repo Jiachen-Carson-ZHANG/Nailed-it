@@ -18,9 +18,17 @@ import { createMemoryMerchantRepository } from './merchant-repository';
 import { createMemoryMerchantPricingRepository } from './merchant-pricing-repository';
 import {
   createMemoryBlockedTimeRepository,
+  createMemoryStaffItemDurationRepository,
   createMemoryWorkingPlanRepository,
 } from './scheduling-repository';
+import { createMemoryIntervalBookingRepository } from './interval-booking-repository';
 import { mockBlockedTimes, mockWorkingPlans } from '@/mock/scheduling';
+import {
+  mockBookingItems,
+  mockIntervalBookings,
+  mockStaffItemDurations,
+} from '@/mock/interval-bookings';
+import type { IntervalBooking } from '@/domain/booking';
 
 // ─── BookingRepository ────────────────────────────────────────────────────────
 
@@ -429,6 +437,147 @@ describe('working_plan + blocked_time', () => {
       const [refetched] = await repo.list();
       expect(refetched.reason).not.toBe('MUTATED');
     }
+  });
+
+  it('blockedTimes listByTechnicianInRange returns only overlapping blocks', async () => {
+    const repo = createMemoryBlockedTimeRepository();
+    // Mei is blocked 2026-06-08 15:00–17:00 (+08:00).
+    const overlapping = await repo.listByTechnicianInRange(
+      'tech-mei',
+      '2026-06-08T16:00:00+08:00',
+      '2026-06-08T18:00:00+08:00',
+    );
+    expect(overlapping.map((b) => b.id)).toContain('block-mei-training');
+    const disjoint = await repo.listByTechnicianInRange(
+      'tech-mei',
+      '2026-06-08T18:00:00+08:00',
+      '2026-06-08T19:00:00+08:00',
+    );
+    expect(disjoint).toEqual([]);
+  });
+});
+
+// ─── StaffItemDurationRepository ─────────────────────────────────────────────
+
+describe('staff_item_duration', () => {
+  it('list() returns all seed rows for a technician', async () => {
+    const repo = createMemoryStaffItemDurationRepository();
+    const mei = await repo.listByTechnician('tech-mei');
+    expect(mei.length).toBeGreaterThan(0);
+    expect(mei.every((s) => s.technicianId === 'tech-mei')).toBe(true);
+  });
+
+  it('seed matches mock length per technician', async () => {
+    const repo = createMemoryStaffItemDurationRepository();
+    const lina = await repo.listByTechnician('tech-lina');
+    expect(lina).toHaveLength(
+      mockStaffItemDurations.filter((s) => s.technicianId === 'tech-lina').length,
+    );
+  });
+});
+
+// ─── IntervalBookingRepository ───────────────────────────────────────────────
+
+describe('interval booking', () => {
+  function bookingAt(
+    overrides: Partial<IntervalBooking> & { id: string; technicianId: string; startAt: string; endAt: string },
+  ): IntervalBooking {
+    return {
+      merchantId: 'merchant-nailed-it',
+      customerName: 'Test',
+      styleTitle: '',
+      styleImageUrl: '',
+      durationMin: 60,
+      status: 'confirmed',
+      notes: '',
+      ...overrides,
+    };
+  }
+
+  it('getById returns a seeded booking', async () => {
+    const repo = createMemoryIntervalBookingRepository();
+    const b = await repo.getById('booking-int-001');
+    expect(b?.technicianId).toBe('tech-lina');
+  });
+
+  it('listByTechnicianInRange returns overlapping non-cancelled bookings', async () => {
+    const repo = createMemoryIntervalBookingRepository();
+    const hits = await repo.listByTechnicianInRange(
+      'tech-lina',
+      '2026-06-09T11:00:00+08:00',
+      '2026-06-09T12:00:00+08:00',
+    );
+    expect(hits.map((b) => b.id)).toContain('booking-int-001');
+  });
+
+  it('listItems returns the items for a booking', async () => {
+    const repo = createMemoryIntervalBookingRepository();
+    const items = await repo.listItems('booking-int-001');
+    expect(items.map((i) => i.id)).toContain('bitem-001');
+  });
+
+  it('create inserts when there is no conflict', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    const created = await repo.create(
+      bookingAt({ id: 'b1', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    expect(created.id).toBe('b1');
+  });
+
+  it('create throws booking_overlap for an overlapping same-technician interval', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    await repo.create(
+      bookingAt({ id: 'b1', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    await expect(
+      repo.create(
+        bookingAt({ id: 'b2', technicianId: 'tech-mei', startAt: '2026-06-09T10:30:00+08:00', endAt: '2026-06-09T11:30:00+08:00' }),
+        [],
+      ),
+    ).rejects.toThrow('booking_overlap');
+  });
+
+  it('create allows the same interval for a different technician', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    await repo.create(
+      bookingAt({ id: 'b1', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    const other = await repo.create(
+      bookingAt({ id: 'b2', technicianId: 'tech-lina', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    expect(other.id).toBe('b2');
+  });
+
+  it('cancelling a booking releases the interval for rebooking', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    await repo.create(
+      bookingAt({ id: 'b1', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    await repo.setStatus('b1', 'cancelled');
+    const released = await repo.listByTechnicianInRange(
+      'tech-mei',
+      '2026-06-09T10:00:00+08:00',
+      '2026-06-09T11:00:00+08:00',
+    );
+    expect(released).toEqual([]);
+    const rebooked = await repo.create(
+      bookingAt({ id: 'b2', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T11:00:00+08:00' }),
+      [],
+    );
+    expect(rebooked.id).toBe('b2');
+  });
+
+  it('mutation isolation: mutating a returned booking does not affect state', async () => {
+    const repo = createMemoryIntervalBookingRepository();
+    const b = await repo.getById('booking-int-001');
+    b!.customerName = 'MUTATED';
+    const refetched = await repo.getById('booking-int-001');
+    expect(refetched?.customerName).not.toBe('MUTATED');
   });
 });
 

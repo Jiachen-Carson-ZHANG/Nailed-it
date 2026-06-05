@@ -9,8 +9,10 @@ import { createMemoryMerchantRepository } from './memory/merchant-repository';
 import { createMemoryMerchantPricingRepository } from './memory/merchant-pricing-repository';
 import {
   createMemoryBlockedTimeRepository,
+  createMemoryStaffItemDurationRepository,
   createMemoryWorkingPlanRepository,
 } from './memory/scheduling-repository';
+import { createMemoryIntervalBookingRepository } from './memory/interval-booking-repository';
 import { hasSupabaseEnv } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
@@ -26,6 +28,8 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     merchantPricing: createMemoryMerchantPricingRepository(),
     workingPlans: createMemoryWorkingPlanRepository(),
     blockedTimes: createMemoryBlockedTimeRepository(),
+    intervalBookings: createMemoryIntervalBookingRepository(),
+    staffItemDurations: createMemoryStaffItemDurationRepository(),
   };
 }
 
@@ -58,4 +62,6 @@ export type {
   MerchantPricingRepository,
   WorkingPlanRepository,
   BlockedTimeRepository,
+  IntervalBookingRepository,
+  StaffItemDurationRepository,
 } from './types';

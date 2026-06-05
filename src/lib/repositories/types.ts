@@ -8,7 +8,8 @@ import type {
 import type { StyleDefinition } from '@/mock/styles';
 import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
 import type { Merchant, MerchantPricing } from '@/domain/merchant';
-import type { BlockedTime, WorkingPlanDay } from '@/domain/scheduling';
+import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/scheduling';
+import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -65,6 +66,30 @@ export interface WorkingPlanRepository {
 export interface BlockedTimeRepository {
   list(): Promise<BlockedTime[]>;
   listByTechnician(technicianId: string): Promise<BlockedTime[]>;
+  /** Blocks for one technician overlapping [startAt, endAt). */
+  listByTechnicianInRange(
+    technicianId: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<BlockedTime[]>;
+}
+
+export interface IntervalBookingRepository {
+  getById(id: string): Promise<IntervalBooking | null>;
+  /** Non-cancelled bookings for one technician overlapping [startAt, endAt). */
+  listByTechnicianInRange(
+    technicianId: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<IntervalBooking[]>;
+  listItems(bookingId: string): Promise<BookingItem[]>;
+  /** Atomic create of a booking + its items. Throws Error('booking_overlap') on conflict. */
+  create(booking: IntervalBooking, items: BookingItem[]): Promise<IntervalBooking>;
+  setStatus(id: string, status: BookingStatus): Promise<IntervalBooking | null>;
+}
+
+export interface StaffItemDurationRepository {
+  listByTechnician(technicianId: string): Promise<StaffItemDuration[]>;
 }
 
 export interface RepositoryBundle {
@@ -78,4 +103,6 @@ export interface RepositoryBundle {
   merchantPricing: MerchantPricingRepository;
   workingPlans: WorkingPlanRepository;
   blockedTimes: BlockedTimeRepository;
+  intervalBookings: IntervalBookingRepository;
+  staffItemDurations: StaffItemDurationRepository;
 }
