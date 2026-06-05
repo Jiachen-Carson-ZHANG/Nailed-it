@@ -22,5 +22,7 @@ export type EffectivePricing = {
   durationMin: number;
   pricingUnit: PricingUnit;
   enabled: boolean;
-  source: 'merchant' | 'catalog_default';
+  // 'unresolved' = a billable item that REQUIRES a merchant price but has none yet.
+  // It is returned disabled (enabled:false) so callers fail closed instead of offering it free.
+  source: 'merchant' | 'catalog_default' | 'unresolved';
 };

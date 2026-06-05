@@ -80,14 +80,36 @@ describe('resolveEffectivePricing', () => {
     expect(item.source).toBe('merchant');
   });
 
-  it('fallback (no merchant row) uses priceCents=0, catalog duration/unit, enabled=true, source=catalog_default', () => {
+  it('fails closed: a required-price item with no merchant row is unresolved + disabled', () => {
     const catalog: CatalogItem[] = [
-      makeCatalogItem({ id: 'svc-c', billable: 'yes', defaultDurationMin: 20, defaultPricingUnit: 'per_finger' }),
+      makeCatalogItem({
+        id: 'svc-c',
+        billable: 'yes',
+        merchantPriceRequired: 'yes',
+        defaultDurationMin: 20,
+        defaultPricingUnit: 'per_finger',
+      }),
     ];
     const [item] = resolveEffectivePricing(catalog, []);
     expect(item.priceCents).toBe(0);
     expect(item.durationMin).toBe(20);
     expect(item.pricingUnit).toBe('per_finger');
+    expect(item.enabled).toBe(false);
+    expect(item.source).toBe('unresolved');
+  });
+
+  it('an optional-price item with no merchant row falls back to catalog_default + enabled', () => {
+    const catalog: CatalogItem[] = [
+      makeCatalogItem({
+        id: 'svc-opt',
+        billable: 'optional',
+        merchantPriceRequired: 'optional',
+        defaultDurationMin: 15,
+        defaultPricingUnit: 'included',
+      }),
+    ];
+    const [item] = resolveEffectivePricing(catalog, []);
+    expect(item.priceCents).toBe(0);
     expect(item.enabled).toBe(true);
     expect(item.source).toBe('catalog_default');
   });

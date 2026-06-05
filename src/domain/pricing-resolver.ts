@@ -25,13 +25,18 @@ export function resolveEffectivePricing(
         source: 'merchant',
       });
     } else {
+      // Fail closed: an item that requires a merchant price but has no override is
+      // unresolved, not free. Returning it disabled stops P4 wiring from booking a
+      // merchant-required service at price 0. Items where the price is genuinely
+      // optional fall back to the catalog default.
+      const requiresMerchantPrice = item.merchantPriceRequired === 'yes';
       result.push({
         catalogItemId: item.id,
         priceCents: 0,
         durationMin: item.defaultDurationMin ?? 0,
         pricingUnit: item.defaultPricingUnit,
-        enabled: true,
-        source: 'catalog_default',
+        enabled: !requiresMerchantPrice,
+        source: requiresMerchantPrice ? 'unresolved' : 'catalog_default',
       });
     }
   }
