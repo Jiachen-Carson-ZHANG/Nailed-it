@@ -76,6 +76,8 @@ export interface BlockedTimeRepository {
 
 export interface IntervalBookingRepository {
   getById(id: string): Promise<IntervalBooking | null>;
+  /** All bookings (any status) for a merchant — for the calendar/profile reader surfaces. */
+  listByMerchant(merchantId: string): Promise<IntervalBooking[]>;
   /** Non-cancelled bookings for one technician overlapping [startAt, endAt). */
   listByTechnicianInRange(
     technicianId: string,

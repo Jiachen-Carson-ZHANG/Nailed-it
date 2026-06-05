@@ -20,6 +20,10 @@ export function createMemoryIntervalBookingRepository(
       return found ? structuredClone(found) : null;
     },
 
+    async listByMerchant(merchantId: string): Promise<IntervalBooking[]> {
+      return structuredClone(bookings.filter((b) => b.merchantId === merchantId));
+    },
+
     async listByTechnicianInRange(
       technicianId: string,
       startAt: string,

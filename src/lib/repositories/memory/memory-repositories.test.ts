@@ -500,6 +500,13 @@ describe('interval booking', () => {
     expect(b?.technicianId).toBe('tech-lina');
   });
 
+  it('listByMerchant returns all of a merchant’s bookings (any status)', async () => {
+    const repo = createMemoryIntervalBookingRepository();
+    const all = await repo.listByMerchant('merchant-nailed-it');
+    expect(all).toHaveLength(mockIntervalBookings.length);
+    expect(all.every((b) => b.merchantId === 'merchant-nailed-it')).toBe(true);
+  });
+
   it('listByTechnicianInRange returns overlapping non-cancelled bookings', async () => {
     const repo = createMemoryIntervalBookingRepository();
     const hits = await repo.listByTechnicianInRange(

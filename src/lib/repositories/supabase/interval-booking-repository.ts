@@ -102,6 +102,17 @@ export function createSupabaseIntervalBookingRepository(): IntervalBookingReposi
       return data ? rowToIntervalBooking(data as BookingRow) : null;
     },
 
+    async listByMerchant(merchantId: string): Promise<IntervalBooking[]> {
+      const { data, error } = await getServiceClient()
+        .from('booking')
+        .select('*')
+        .eq('merchant_id', merchantId);
+      if (error) {
+        throw new Error(`IntervalBookingRepository.listByMerchant failed: ${error.message}`);
+      }
+      return (data as BookingRow[]).map(rowToIntervalBooking);
+    },
+
     async listByTechnicianInRange(
       technicianId: string,
       startAt: string,
