@@ -66,6 +66,63 @@ export const featureTabs = [
   }
 ] as const;
 
+export const journeyRows = [
+  {
+    key: 'merchant',
+    title: '商家旅程',
+    theme: 'cool',
+    items: [
+      {
+        title: '设置价格',
+        description:
+          '不同甲型、延长、建构、手绘、贴钻、猫眼、渐变等项目，都可以配置对应价格和制作时长，保存后用于 AI 报价。'
+      },
+      {
+        title: '管理日历',
+        description:
+          '商家可以查看每个预约对应的用户、款式、时间和美甲师，减少排班冲突和等待。'
+      },
+      {
+        title: '联系客户',
+        description:
+          '商家可以查看预约详情以沟通具体细节或者调整报价，系统也可以在预约时间之前自动提醒用户准时到达。'
+      },
+      {
+        title: '建立图册',
+        description:
+          '订单完成后，系统提示商家上传完成图，AI 自动识别款式特征、分类打标后沉淀为图册，方便后续展示、复用，并在用户主页展示。'
+      }
+    ]
+  },
+  {
+    key: 'user',
+    title: '用户旅程',
+    theme: 'warm',
+    items: [
+      {
+        title: '选择款式',
+        description:
+          '用户可以在主页浏览热门美甲款式，看到喜欢的款式，可以直接加入款式购物车，也可以上传自己喜欢的款式。'
+      },
+      {
+        title: '一键试戴',
+        description:
+          '款式详情页点击试戴功能，可以快速查看款式上手效果，直观看到哪一款更适合自己的手型和风格。'
+      },
+      {
+        title: '智能报价',
+        description:
+          'AI 会自动拆解美甲图片，识别甲型、长度、款式等元素，根据商家的设置，智能生成预估价格和制作时间。'
+      },
+      {
+        title: '立即预约',
+        description:
+          '用户确认款式后，可以直接查看可预约时段，快速完成下单，减少反复沟通和等待。'
+      }
+    ]
+  }
+] as const;
+
 export const whyItWorksLines = [
   '试戴选款， 帮助决策',
   'AI识图， 拆解款式',
