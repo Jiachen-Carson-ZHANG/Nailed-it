@@ -60,6 +60,7 @@ export type CustomerBookingDraft = {
   estimate: RuleBasedQuote;
   imageUrl: string;
   recognition: AIRecognitionResult;
+  breakdowns?: { standard: BreakdownResult | null; free: BreakdownResult | null };
 };
 
 export type StyleDiscoveryFacetKind = 'style' | 'addon' | 'shape' | 'mood' | 'lifestyle';

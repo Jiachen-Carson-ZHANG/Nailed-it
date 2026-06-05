@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 
 type ComponentBreakdownPanelProps = {
   image: SelectedNailImage | null;
+  onResult?: (result: BreakdownResult) => void;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -36,91 +37,27 @@ function formatLabel(item: BreakdownItem): string {
   return baseLabel;
 }
 
-type EditableFreeItem = FreeBreakdownItem & { id: number };
-
-function FreeBreakdownTable({ initialItems }: { initialItems: FreeBreakdownItem[] }) {
-  const [items, setItems] = useState<EditableFreeItem[]>(
-    initialItems.map((item, i) => ({ ...item, id: i }))
-  );
-
-  function updateItem(id: number, patch: Partial<Pick<FreeBreakdownItem, 'quantity' | 'price'>>) {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
-    );
-  }
-
-  const totalPrice = items.reduce((s, item) => s + item.price * item.quantity, 0);
-  const totalDuration = items.reduce((s, item) => s + item.duration, 0);
-
-  return (
-    <table className="breakdown-table" aria-label="Component breakdown">
-      <thead>
-        <tr>
-          <th>Component</th>
-          <th className="breakdown-duration">Min</th>
-          <th className="breakdown-price">Qty</th>
-          <th className="breakdown-price">Unit $</th>
-          <th className="breakdown-price">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.id}>
-            <td>
-              {categoryBadge(item.category)}
-              <span className="breakdown-label">{item.label}{item.labelCn ? ` / ${item.labelCn}` : ''}</span>
-            </td>
-            <td className="breakdown-duration">{item.duration}</td>
-            <td className="breakdown-price">
-              <input
-                className="breakdown-editable-input"
-                type="number"
-                min={1}
-                value={item.quantity}
-                aria-label={`Quantity for ${item.label}`}
-                onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value)) })}
-              />
-            </td>
-            <td className="breakdown-price">
-              <input
-                className="breakdown-editable-input"
-                type="number"
-                min={0}
-                step={0.5}
-                value={item.price}
-                aria-label={`Unit price for ${item.label}`}
-                onChange={(e) => updateItem(item.id, { price: Math.max(0, Number(e.target.value)) })}
-              />
-            </td>
-            <td className="breakdown-price">${(item.price * item.quantity).toFixed(2)}</td>
-          </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr className="breakdown-total">
-          <td>Total</td>
-          <td className="breakdown-duration">{totalDuration} min</td>
-          <td />
-          <td />
-          <td className="breakdown-price">${totalPrice.toFixed(2)}</td>
-        </tr>
-      </tfoot>
-    </table>
-  );
+function rowPrice(item: BreakdownItem): string {
+  return item.mode === 'free'
+    ? `$${(item.price * item.quantity).toFixed(2)}`
+    : `$${item.price}`;
 }
 
-function StandardBreakdownTable({ result }: { result: BreakdownResult }) {
+export function BreakdownTable({ result }: { result: BreakdownResult }) {
+  const items = result.mode === 'free'
+    ? result.items.filter((i): i is FreeBreakdownItem => i.mode === 'free')
+    : result.items;
   return (
     <table className="breakdown-table" aria-label="Component breakdown">
       <tbody>
-        {result.items.map((item) => (
+        {items.map((item) => (
           <tr key={`${item.category}-${item.label}`}>
             <td>
               {categoryBadge(item.category)}
               <span className="breakdown-label">{formatLabel(item)}</span>
             </td>
             <td className="breakdown-duration">{item.duration} min</td>
-            <td className="breakdown-price">${item.price}</td>
+            <td className="breakdown-price">{rowPrice(item)}</td>
           </tr>
         ))}
       </tbody>
@@ -135,7 +72,7 @@ function StandardBreakdownTable({ result }: { result: BreakdownResult }) {
   );
 }
 
-export function ComponentBreakdownPanel({ image }: ComponentBreakdownPanelProps) {
+export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownPanelProps) {
   const [freeMode, setFreeMode] = useState(false);
   const [result, setResult] = useState<BreakdownResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -167,6 +104,7 @@ export function ComponentBreakdownPanel({ image }: ComponentBreakdownPanelProps)
 
       setResult(body);
       setExpanded(true);
+      onResult?.(body);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Breakdown failed.');
     } finally {
@@ -232,15 +170,7 @@ export function ComponentBreakdownPanel({ image }: ComponentBreakdownPanelProps)
           )}
 
           {!isLoading && result && (
-            <>
-              {result.mode === 'free' ? (
-                <FreeBreakdownTable
-                  initialItems={result.items.filter((i): i is FreeBreakdownItem => i.mode === 'free')}
-                />
-              ) : (
-                <StandardBreakdownTable result={result} />
-              )}
-            </>
+            <BreakdownTable result={result} />
           )}
 
           <Button

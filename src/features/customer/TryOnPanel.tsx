@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { getCustomerBookingPath } from '@/domain/session';
+import { saveBreakdownResult } from '@/domain/breakdown-store';
 
 type ImageSlotProps = {
   label: string;
@@ -203,6 +204,8 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
           {showBreakdown && (
             <ComponentBreakdownPanel
               image={{ imageBase64: result.imageBase64, mimeType: result.mimeType, previewUrl: `data:${result.mimeType};base64,${result.imageBase64}` }}
+              // Persists results so the booking page can show them when the user taps "Book this look"
+              onResult={saveBreakdownResult}
             />
           )}
         </section>

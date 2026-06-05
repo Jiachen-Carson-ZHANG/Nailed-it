@@ -22,7 +22,7 @@ export function PriceEstimateBar({
         <strong>SGD {price}</strong>
         <p>{duration} min based on the editable recognition result</p>
       </div>
-      <Link className="button button-primary button-block" href={actionHref} onClick={onAction}>
+      <Link className="button button-primary" href={actionHref} onClick={onAction}>
         {actionLabel}
       </Link>
     </aside>
