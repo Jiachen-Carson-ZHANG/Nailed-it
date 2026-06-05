@@ -86,6 +86,57 @@ describe('bookingService.createBooking', () => {
     expect(rebooked.id).toMatch(/^booking-/);
   });
 
+  it('createBookingFromSnapshot bridges a flat estimate into an interval booking', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const svc = createBookingService(bundle);
+    const created = await svc.createBookingFromSnapshot({
+      merchantId: demoMerchantId,
+      technicianId: 'tech-anna',
+      customerName: 'A',
+      styleTitle: 'Custom AI reference',
+      styleImageUrl: '',
+      date: DATE,
+      time: '15:00',
+      estimate: { price: 88, duration: 75 },
+    });
+    expect(created.durationMin).toBe(75);
+    const items = await bundle.intervalBookings.listItems(created.id);
+    expect(items).toHaveLength(1);
+    expect(items[0].catalogItemId).toBeNull();
+    expect(items[0].priceCents).toBe(8800);
+
+    // The snapshot path still enforces the overlap guarantee.
+    await expect(
+      svc.createBookingFromSnapshot({
+        merchantId: demoMerchantId,
+        technicianId: 'tech-anna',
+        customerName: 'B',
+        styleTitle: '',
+        styleImageUrl: '',
+        date: DATE,
+        time: '15:30',
+        estimate: { price: 88, duration: 75 },
+      }),
+    ).rejects.toThrow('booking_overlap');
+  });
+
+  it('createBookingFromSnapshot rejects another merchant’s technician (tenant guard)', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const svc = createBookingService(bundle);
+    await expect(
+      svc.createBookingFromSnapshot({
+        merchantId: demoMerchantId,
+        technicianId: 'tech-not-here',
+        customerName: 'A',
+        styleTitle: '',
+        styleImageUrl: '',
+        date: DATE,
+        time: '15:00',
+        estimate: { price: 50, duration: 60 },
+      }),
+    ).rejects.toThrow('technician_not_in_merchant');
+  });
+
   it('a merchant-required item with no price fails closed (gate 3)', async () => {
     const bundle = createMemoryRepositoryBundle();
     const catalog = await bundle.catalog.list();

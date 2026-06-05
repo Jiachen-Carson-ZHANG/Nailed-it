@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSlot, zonedWallTimeToUtcMs } from './timezone';
+import { instantToZonedParts, resolveSlot, zonedWallTimeToUtcMs } from './timezone';
+
+describe('instantToZonedParts (instant → merchant wall clock)', () => {
+  it('is the inverse of a Singapore wall-clock slot', () => {
+    const ms = Date.parse('2026-06-09T10:00:00+08:00');
+    expect(instantToZonedParts(ms, 'Asia/Singapore')).toEqual({ date: '2026-06-09', time: '10:00' });
+  });
+  it('renders the same instant differently per timezone', () => {
+    const ms = Date.parse('2026-06-09T10:00:00+08:00');
+    expect(instantToZonedParts(ms, 'UTC')).toEqual({ date: '2026-06-09', time: '02:00' });
+  });
+});
 
 describe('merchant timezone resolution (gate 5)', () => {
   it('resolves a Singapore wall-clock slot to consistent local + absolute forms', () => {

@@ -37,6 +37,23 @@ export function zonedWallTimeToUtcMs(dateStr: string, timeStr: string, timeZone:
   return naiveUtc - tzOffsetMs(timeZone, naiveUtc);
 }
 
+/** The reverse of resolveSlot's instant: an epoch-ms instant → its wall-clock date + time in `timeZone`. */
+export function instantToZonedParts(ms: number, timeZone: string): { date: string; time: string } {
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(ms))) map[p.type] = p.value;
+  const hour = map.hour === '24' ? '00' : map.hour;
+  return { date: `${map.year}-${map.month}-${map.day}`, time: `${hour}:${map.minute}` };
+}
+
 /** Resolve a merchant-local slot into the kernel's request shape (weekday + local range + ms interval). */
 export function resolveSlot(
   timeZone: string,
