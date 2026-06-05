@@ -1,20 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import type { NailStyleCard, StyleDiscoveryFacetKind } from '@/domain/nail';
+import { useState } from 'react';
+import type { NailStyleCard } from '@/domain/nail';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StyleCard } from './StyleCard';
+import { useSavedStyles } from './SavedStylesContext';
 
 type StyleWaterfallGridClientProps = {
   styles: NailStyleCard[];
-};
-
-const facetLabels: Partial<Record<StyleDiscoveryFacetKind, string>> = {
-  style: 'Style',
-  mood: 'Vibe',
-  lifestyle: 'Occasion',
-  shape: 'Shape',
-  addon: 'Add-ons'
 };
 
 const tabs = ['Trending', 'Saved'] as const;
@@ -22,22 +15,12 @@ type TabLabel = typeof tabs[number];
 
 export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
   const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
-  const [activeKind, setActiveKind] = useState<StyleDiscoveryFacetKind | null>(null);
+  const { savedIds } = useSavedStyles();
 
-  const availableKinds = useMemo(
-    () =>
-      (Object.keys(facetLabels) as StyleDiscoveryFacetKind[]).filter((k) =>
-        styles.some((s) => s.discoveryFacets.some((f) => f.kind === k))
-      ),
-    [styles]
-  );
-
-  const filtered = useMemo(() => {
-    if (activeTab === 'Saved') return [];
-    return activeKind
-      ? styles.filter((s) => s.discoveryFacets.some((f) => f.kind === activeKind))
+  const visibleStyles =
+    activeTab === 'Saved'
+      ? styles.filter((s) => savedIds.has(s.id))
       : styles;
-  }, [styles, activeKind, activeTab]);
 
   return (
     <section className="xhs-feed" aria-label="Style discovery feed">
@@ -50,45 +33,22 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
             type="button"
             aria-selected={activeTab === tab}
             className={activeTab === tab ? 'xhs-tab xhs-tab-active' : 'xhs-tab'}
-            onClick={() => { setActiveTab(tab); setActiveKind(null); }}
+            onClick={() => setActiveTab(tab)}
           >
             {tab}
           </button>
         ))}
       </div>
 
-      {/* Horizontally scrollable filter chips */}
-      <div className="xhs-chip-scroll" role="group" aria-label="Filter by type">
-        <button
-          type="button"
-          className={activeKind === null ? 'xhs-chip xhs-chip-active' : 'xhs-chip'}
-          onClick={() => setActiveKind(null)}
-        >
-          All
-        </button>
-        {availableKinds.map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            className={activeKind === kind ? 'xhs-chip xhs-chip-active' : 'xhs-chip'}
-            onClick={() => setActiveKind(activeKind === kind ? null : kind)}
-          >
-            {facetLabels[kind]}
-          </button>
-        ))}
-      </div>
-
       {/* 2-column masonry grid */}
-      {activeTab === 'Saved' ? (
+      {visibleStyles.length === 0 ? (
         <EmptyState
           title="No saved looks yet"
           body="Tap the heart on any style to save it here."
         />
-      ) : filtered.length === 0 ? (
-        <EmptyState title="No matches" body="Try a different filter." />
       ) : (
         <div className="xhs-grid">
-          {filtered.map((style) => (
+          {visibleStyles.map((style) => (
             <StyleCard key={style.id} style={style} />
           ))}
         </div>

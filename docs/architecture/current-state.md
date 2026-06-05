@@ -2,48 +2,29 @@
 
 Last updated: 2026-06-05
 
-## Pipeline
+## Stack
 
-The active frontend is a Next.js App Router application with a mobile-first shell:
+Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + `BottomTabBar`). Currently there is no backend database, and state lives in mock modules and a versioned `localStorage` operations store. Supabase integration is in progress to replace the mock modules. AI calls are server-side API routes.
 
-1. `src/app/page.tsx` routes users into role-specific flows through `src/domain/session.ts`.
-2. `src/app/privacy/page.tsx` provides a public no-login privacy policy for external platform review and account-surface links.
-3. `src/app/api/integrations/pinterest/callback/route.ts` reserves a public Pinterest redirect URI for Trial-access setup without performing OAuth token exchange yet.
-4. `src/components/layout/MobileLayout.tsx` composes the shared `TopBar` and role-aware `BottomTabBar`.
-5. `src/domain/session.ts` is the shared route-intent surface for role home paths, available tabs, customer and merchant messages/profile routes, and detail-path helpers.
-6. Customer discovery reads style cards from `src/mock/styles.ts`, where preview quotes are recomputed from `src/domain/pricing.ts` at read time and discovery facets are typed instead of carried as raw string tags.
-7. Customer booking can use either a sample image for local flow testing or a real uploaded image sent to `/api/ai/recognize-nail-style`. Live recognition returns nail attributes only; `src/domain/pricing.ts` still computes the visible estimate from editable attributes and pricing rules, while `src/lib/ai/usage-cost.ts` estimates provider spend from Gemini usage metadata for server logs.
-8. Customer booking carries an in-memory draft across `/customer/booking` and `/customer/booking/confirm` through an explicit draft boundary in `src/domain/booking-draft.ts`.
-9. Confirmation reads technician-backed availability from `src/domain/availability.ts` and `src/mock/operations-store.ts`; `src/domain/nail.ts` owns the confidence review threshold so normal-confidence bookings auto-confirm, while low-confidence or non-finite confidence results become `pending_review`.
-10. Customer and merchant message list/detail pages read booking-linked threads from a versioned browser-session operations store and can append demo messages from either role. The customer role only sees the current demo customer's appointment threads; the merchant role sees the full shop inbox.
-11. Customer profile, merchant calendar, merchant booking detail, rule management, and profile analytics read session booking snapshots so technician assignment, workload, message-thread links, and newly created demo bookings stay visible after page reloads within the same browser session.
+## Entry points
 
-## Key modules
+| Route | Purpose |
+|---|---|
+| `/` | Landing page (`src/components/landing/`) or role dispatch via `src/domain/session.ts` |
+| `/customer/*` | Customer flows: discovery, style detail, booking, try-on, messages, profile |
+| `/merchant/*` | Merchant flows: calendar, booking detail, roster/manage, messages, profile |
+| `/privacy` | Public privacy disclosure (no auth required) |
+| `/api/integrations/pinterest/callback` | Placeholder Pinterest OAuth redirect URI |
+| `/dev` | Internal dev/debug page |
 
-- `src/app/privacy/page.tsx`: public privacy disclosure for Pinterest/Vercel review and account-link reuse.
-- `src/app/api/integrations/pinterest/callback/route.ts`: public placeholder for the future Pinterest OAuth redirect URI.
-- `src/app/customer/home/page.tsx`: customer discovery entry using the shared mobile shell.
-- `src/app/customer/style/[id]/page.tsx`: style detail route backed by shared mock style helpers.
-- `src/app/customer/booking/page.tsx` and `src/app/customer/booking/confirm/page.tsx`: booking flow backed by an explicit in-memory draft contract, technician-assigned slots, instant confirmation, and low-confidence review fallback.
-- `src/app/api/ai/recognize-nail-style/route.ts`: server-side image recognition endpoint that accepts inline image data, returns the app's `AIRecognitionResult` contract, and logs Gemini token/cost telemetry when enabled.
-- `src/app/customer/messages/page.tsx`, `src/app/customer/messages/[conversationId]/page.tsx`, `src/app/customer/profile/page.tsx`: customer inbox, thread detail, and profile surfaces backed by role-filtered operations-store threads and browser-session booking snapshots.
-- `src/app/merchant/calendar/page.tsx`, `src/app/merchant/booking/[id]/page.tsx`, `src/app/merchant/manage/page.tsx`, `src/app/merchant/messages/page.tsx`, `src/app/merchant/messages/[conversationId]/page.tsx`, `src/app/merchant/profile/page.tsx`: merchant scheduling, technician roster/workload, pricing, inbox, and operational profile surfaces on the shared shell.
-- `src/features/customer/StyleCard.tsx`, `StyleWaterfallGrid.tsx`, `StyleDetailPanel.tsx`: focused customer presentation components.
-- `src/features/customer/BookingHistoryCard.tsx`: customer booking-history summary card reused by the profile surface.
-- `src/features/merchant/*`: merchant calendar, day sheet, booking card, technician roster, analytics, and pricing rule components.
-- `src/features/messages/*`: shared conversation list and chat-room components used by both roles, including the demo message composer.
-- `src/mock/styles.ts`: canonical mock style dataset and read helpers for trending cards and style detail lookup, including typed discovery facets.
-- `src/mock/bookings.ts`, `src/mock/conversations.ts`, `src/mock/technicians.ts`, `src/mock/operations-store.ts`, and `src/mock/pricing.ts`: shared merchant/customer mock sources for seed bookings, seed appointment threads, technician seeds, versioned browser-session booking/thread state, availability, and editable pricing rules.
-- `src/domain/availability.ts`: pure technician-slot assignment that blocks only same technician/date/time conflicts and ranks earliest/shortest-wait choices.
-- `src/domain/messaging.ts`: role-aware mapping from booking conversation threads to the shared `Conversation` UI contract.
-- `src/domain/nail.ts`: shared nail, booking, technician, and quote contracts plus the confidence-review policy used by booking creation.
-- `src/domain/pricing.ts`: rule-based quote calculator used by mock style previews, booking drafts, and merchant booking snapshots.
-- `src/lib/ai/nail-recognition.ts`: Gemini image-recognition adapter. The default model is `gemini-2.5-flash-lite`; it uses structured JSON output, normalizes provider output to supported nail attributes, and returns server-side telemetry with usage/cost data.
-- `src/lib/ai/usage-cost.ts`: Gemini usage metadata parser, per-request USD estimator, and compact server-log event builder.
-- `src/domain/session.ts`: shared session/navigation contract for route intents, tab visibility, home paths, and customer/merchant detail links.
-- `src/domain/booking-draft.ts`: lightweight in-memory draft boundary for the current no-backend customer booking flow.
-- `src/components/layout/*`: shared shell primitives for both customer and merchant role surfaces.
-- `docs/architecture/graphify-ingestion-policy.md` and `graphify-out/*`: Graphify collaboration policy and shared orientation artifacts.
+## AI API routes
+
+| Route | Model | Purpose |
+|---|---|---|
+| `/api/ai/recognize-nail-style` | `google/gemini-3.1-flash-image-preview` with 2.5 being the fallback | Image → nail attributes + confidence for booking |
+| `/api/ai/try-on` | `google/gemini-3.1-flash-image-preview` (OpenRouter) | Hand + style images → try-on composite |
+| `/api/ai/breakdown` | Uses OpenRouter | Image → structured nail component breakdown with pricing |
+| `/api/ai/trending-styles` | `qwen/qwen3-235b-a22b` (OpenRouter) | Text → ranked trending style suggestions |
 
 ## Persistence layer (built behind a repository seam — data layer only, not yet wired)
 
@@ -73,8 +54,32 @@ Known gaps still open (each addressed by a later ADR-0005 phase):
 
 ## LLM integration
 
-Live image recognition is wired for the customer booking upload path through Gemini. Configure `GEMINI_API_KEY` in `.env.local`; `VISION_MODEL_NAME` defaults to `gemini-2.5-flash-lite` when omitted. The model is only allowed to extract attributes and confidence; price, duration, availability, and booking decisions remain deterministic app logic.
+Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API_KEY` via `src/nail-ai/openrouter.ts`. All pricing/booking decisions remain deterministic app logic — AI only extracts attributes.
 
-The server logs one compact `[nailed-it:vision-cost]` event after successful live recognition when `VISION_COST_LOGGING_ENABLED` is not `false`. Cost estimates use Gemini `usageMetadata`, defaulting to `gemini-2.5-flash-lite` standard paid pricing of $0.10 per 1M input tokens and $0.40 per 1M output/thinking tokens; override with `VISION_INPUT_PRICE_PER_1M_TOKENS` and `VISION_OUTPUT_PRICE_PER_1M_TOKENS` when pricing changes. These logs are observability only and are not shown to customers.
+## Domain modules (`src/domain/`)
 
-The sample image path still uses `src/mock/ai.ts` so the local flow works without a provider key. Messaging is demo-functional only: it appends to the versioned browser-session operations store in `localStorage` and is not a backend service. Graphify semantic extraction remains an intentional maintenance tool rather than a runtime dependency.
+- `session.ts` — route intents, tab visibility, home paths, detail-link helpers for both roles
+- `nail.ts` — shared nail/booking/technician/quote contracts; confidence-review policy (low-confidence → `pending_review`)
+- `pricing.ts` — rule-based quote calculator used by style previews, booking drafts, and merchant snapshots
+- `availability.ts` — pure technician-slot assignment (no same-technician/date/time conflicts; earliest-wait ranking)
+- `booking-draft.ts` — in-memory draft boundary across `/customer/booking` → `/customer/booking/confirm`
+- `messaging.ts` — role-aware mapping from operations-store threads to the shared `Conversation` UI contract
+
+## Mock data (`src/mock/`)
+
+`styles.ts`, `bookings.ts`, `conversations.ts`, `technicians.ts`, `pricing.ts` — seed data.
+`operations-store.ts` — versioned `localStorage` store for bookings and threads; survives page reloads within a browser session.
+`ai.ts` — sample image path so booking flow works without a provider key.
+
+## LLM adapters (`src/lib/ai/`)
+
+- `nail-recognition.ts` — Gemini adapter; structured JSON output; normalises to supported nail attributes; logs `[nailed-it:vision-cost]` telemetry when `VISION_COST_LOGGING_ENABLED` is not `false`
+- `usage-cost.ts` — Gemini usage metadata parser and USD cost estimator
+- `openrouter.ts` — shared fetch wrapper for OpenRouter chat completions (text and image modalities)
+- `try-on.ts` — two-image try-on via OpenRouter
+- `breakdown.ts` — component breakdown via OpenRouter; re-uses recognised attribute helpers from `nail-recognition.ts`
+- `trending-styles.ts` — AI trending style feed via OpenRouter
+
+## Testing
+
+Vitest for unit/integration tests (`.test.ts` / `.test.tsx` colocated with source). Playwright for e2e (`e2e/`). Run with `npm test`.

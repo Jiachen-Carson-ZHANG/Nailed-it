@@ -2113,7 +2113,7 @@ select {
 
 /* XHS card */
 .xhs-card {
-  display: block;
+  position: relative;
   break-inside: avoid;
   margin-bottom: 0.45rem;
   border-radius: var(--radius-md);
@@ -2121,9 +2121,57 @@ select {
   background: var(--color-surface-strong);
 }
 
+.xhs-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
 .xhs-card-image-wrap {
   width: 100%;
   overflow: hidden;
+}
+
+/* Save / heart button overlaid on the card image */
+.xhs-save-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.xhs-save-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.xhs-save-btn-saved {
+  color: var(--color-accent-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@keyframes xhs-heart-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.45); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+.xhs-save-btn-saved {
+  animation: xhs-heart-pop 0.35s ease forwards;
 }
 
 .xhs-card-image {
@@ -2246,65 +2294,49 @@ select {
   margin: 0;
 }
 
-.trending-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-}
-
-.trending-card {
-  background: var(--color-surface-strong);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+.trending-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
-.trending-card-header {
+.trending-row {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  overflow: hidden;
 }
 
 .trending-rank {
-  font-size: var(--text-md);
-  line-height: 1;
+  font-size: var(--text-sm);
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .trending-name {
   font-size: var(--text-sm);
-  font-weight: 700;
-  margin: 0;
+  font-weight: 600;
   line-height: 1.3;
 }
 
-.trending-name-cn {
+.trending-name-en {
   font-size: var(--text-xs);
   color: var(--color-muted);
-  margin: 0;
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.trending-description {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.trending-tags {
+.trending-row-links {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-1);
-}
-
-.trending-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: auto;
+  flex-wrap: nowrap;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .trending-link {
@@ -2312,19 +2344,16 @@ select {
   color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 .trending-link:hover {
-  background: var(--color-accent-soft);
+  opacity: 0.75;
 }
 
-.trending-card-skeleton {
-  min-height: 8rem;
-  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-surface) 50%, var(--color-border) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer var(--motion-slow) ease-in-out infinite;
+.trending-row-skeleton {
+  padding: var(--space-1) 0;
+  height: 1.5rem;
 }
 
 .skeleton-line {
@@ -2508,5 +2537,12 @@ select {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
   display: block;
+}
+
+.try-on-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 

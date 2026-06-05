@@ -1,9 +1,7 @@
 import Link from 'next/link';
 import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
 import { pricingTargetLabels } from '@/domain/nail';
-import type { MockRouteIntent } from '@/domain/session';
-import { getCustomerTryOnPath } from '@/domain/session';
-import { Tooltip } from '@/components/ui/Tooltip';
+import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
 import { defaultPricingRules } from '@/mock/pricing';
 
 type BreakdownRow = { label: string; price: number; duration: number };
@@ -33,18 +31,12 @@ function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
 
 type StyleDetailPanelProps = {
   backHref: string;
-  bookingIntent: MockRouteIntent;
   recognition: AIRecognitionResult;
   style: NailStyleCard;
 };
 
-function formatConfidence(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
-
 export function StyleDetailPanel({
   backHref,
-  bookingIntent,
   recognition,
   style
 }: StyleDetailPanelProps) {
@@ -73,13 +65,6 @@ export function StyleDetailPanel({
       <section className="detail-surface" aria-labelledby="style-detail-pricing-title">
         <div className="detail-surface-header">
           <h2 id="style-detail-pricing-title">Your quote</h2>
-          <Tooltip
-            content={`AI estimated $${recognition.meta.aiSuggestedQuote.price} for ${recognition.meta.aiSuggestedQuote.duration} min based on the image. The merchant applied current pricing rules to set the final number. Match confidence: ${formatConfidence(recognition.meta.confidence)}.`}
-          >
-            <button type="button" className="detail-price-info" aria-label="Why this price">
-              Why this price?
-            </button>
-          </Tooltip>
         </div>
 
         {breakdown.length > 0 && (
@@ -112,11 +97,6 @@ export function StyleDetailPanel({
       <section className="detail-surface" aria-labelledby="style-detail-selection-title">
         <div className="detail-surface-header">
           <h2 id="style-detail-selection-title">Style details</h2>
-          <Tooltip content={`Booked by ${style.popularityScore} customers in the last 30 days.`}>
-            <button type="button" className="detail-popularity-info" aria-label="What popularity means">
-              ★ {style.popularityScore} bookings
-            </button>
-          </Tooltip>
         </div>
         <div className="detail-selection-list">
           {selectionGroups.map((group) => (
@@ -135,16 +115,9 @@ export function StyleDetailPanel({
       </section>
 
       <div className="detail-actions">
-        {bookingIntent.href ? (
-          <Link className="button button-primary button-block" href={bookingIntent.href}>
-            {bookingIntent.label}
-          </Link>
-        ) : (
-          <section className="detail-flow-note" aria-label={bookingIntent.label}>
-            <strong>{bookingIntent.label}</strong>
-            <p>{bookingIntent.note}</p>
-          </section>
-        )}
+        <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
+          Book this look
+        </Link>
         <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
           Try on this look
         </Link>

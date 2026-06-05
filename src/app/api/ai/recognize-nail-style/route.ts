@@ -3,7 +3,7 @@ import {
   NailRecognitionError,
   recognizeNailImageWithTelemetry,
   type NailImageRecognitionInput
-} from '@/lib/ai/nail-recognition';
+} from '@/nail-ai/nail-recognition';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 
