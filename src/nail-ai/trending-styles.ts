@@ -25,7 +25,7 @@ export async function fetchAITrendingStyles(env = process.env): Promise<AITrendi
   const monthYear = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
   const prompt = [
-    `List the top 10 trending nail styles RIGHT NOW in ${monthYear}.`,
+    `List the top 3 trending nail styles RIGHT NOW in ${monthYear}.`,
     'Consider: seasonal aesthetics, viral looks on social media, dominant colors, popular techniques.',
     'For each style provide: rank (1-10), name in English, name in Chinese (nameCn),',
     'a 1-2 sentence description, and 3-5 short tag strings (e.g. "ombre", "pastel", "gel").',
@@ -70,12 +70,12 @@ function normalizeTrendingStyle(raw: unknown): AITrendingStyle {
     ? record.tags.filter((t): t is string => typeof t === 'string').map((t) => t.trim())
     : [];
 
-  return { rank, name, nameCn, description, tags, searchLinks: buildSearchLinks(name) };
+  return { rank, name, nameCn, description, tags, searchLinks: buildSearchLinks(name, nameCn) };
 }
 
-function buildSearchLinks(name: string): TrendingSearchLink[] {
+function buildSearchLinks(name: string, nameCn: string): TrendingSearchLink[] {
   const encoded = encodeURIComponent(`${name} nail style`);
-  const encodedXhs = encodeURIComponent(`${name} 美甲`);
+  const encodedXhs = encodeURIComponent(`${nameCn} 美甲`);
 
   return [
     { platform: 'Pinterest', label: 'Pinterest', url: `https://www.pinterest.com/search/pins/?q=${encoded}` },

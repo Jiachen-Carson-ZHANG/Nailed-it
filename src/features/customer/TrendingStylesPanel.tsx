@@ -4,35 +4,27 @@ import { useState } from 'react';
 import type { AITrendingResponse, AITrendingStyle } from '@/domain/nail';
 import { Button } from '@/components/ui/Button';
 
-const RANK_EMOJI = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+const RANK_EMOJI = ['①', '②', '③'];
+const TOP_N = 3;
 
-type TrendingCardProps = {
-  style: AITrendingStyle;
+const PLATFORM_SHORT: Record<string, string> = {
+  Pinterest: 'Pinterest',
+  Xiaohongshu: '小红书',
+  TikTok: 'TikTok',
+  'Google Images': 'Google',
 };
 
-function TrendingCard({ style }: TrendingCardProps) {
+function TrendingRow({ style }: { style: AITrendingStyle }) {
   const rankGlyph = RANK_EMOJI[style.rank - 1] ?? String(style.rank);
-
+  const links = style.searchLinks.filter((l) => l.platform !== 'Google Images');
   return (
-    <article className="trending-card">
-      <div className="trending-card-header">
-        <span className="trending-rank" aria-label={`Rank ${style.rank}`}>{rankGlyph}</span>
-        <div>
-          <h3 className="trending-name">{style.name}</h3>
-          <p className="trending-name-cn">{style.nameCn}</p>
-        </div>
-      </div>
-      <p className="trending-description">{style.description}</p>
-      {style.tags.length > 0 && (
-        <div className="trending-tags" aria-label="Style tags">
-          {style.tags.map((tag) => (
-            <span key={tag} className="style-tag style-tag-readonly">{tag}</span>
-          ))}
-        </div>
-      )}
-      {style.searchLinks.length > 0 && (
-        <div className="trending-links" aria-label="Explore on">
-          {style.searchLinks.map((link) => (
+    <div className="trending-row">
+      <span className="trending-rank" aria-label={`Rank ${style.rank}`}>{rankGlyph}</span>
+      <span className="trending-name">{style.nameCn}</span>
+      <span className="trending-name-en">{style.name}</span>
+      {links.length > 0 && (
+        <span className="trending-row-links">
+          {links.map((link) => (
             <a
               key={link.platform}
               className="trending-link"
@@ -40,20 +32,18 @@ function TrendingCard({ style }: TrendingCardProps) {
               rel="noopener noreferrer"
               target="_blank"
             >
-              {link.label}
+              {PLATFORM_SHORT[link.platform] ?? link.label}
             </a>
           ))}
-        </div>
+        </span>
       )}
-    </article>
+    </div>
   );
 }
 
-function TrendingCardSkeleton() {
+function TrendingRowSkeleton() {
   return (
-    <div className="trending-card trending-card-skeleton" aria-hidden="true">
-      <div className="skeleton-line skeleton-line-short" />
-      <div className="skeleton-line" />
+    <div className="trending-row trending-row-skeleton" aria-hidden="true">
       <div className="skeleton-line skeleton-line-medium" />
     </div>
   );
@@ -111,15 +101,15 @@ export function TrendingStylesPanel() {
       )}
 
       {isLoading && (
-        <div className="trending-grid" aria-busy="true" aria-label="Loading trending styles">
-          {Array.from({ length: 4 }, (_, i) => <TrendingCardSkeleton key={i} />)}
+        <div className="trending-list" aria-busy="true" aria-label="Loading trending styles">
+          {Array.from({ length: TOP_N }, (_, i) => <TrendingRowSkeleton key={i} />)}
         </div>
       )}
 
       {!isLoading && data && (
-        <div className="trending-grid">
-          {data.styles.map((style) => (
-            <TrendingCard key={style.rank} style={style} />
+        <div className="trending-list">
+          {data.styles.slice(0, TOP_N).map((style) => (
+            <TrendingRow key={style.rank} style={style} />
           ))}
         </div>
       )}
