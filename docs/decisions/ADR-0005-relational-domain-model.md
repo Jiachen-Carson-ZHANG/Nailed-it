@@ -71,8 +71,8 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` + effective-pricing resolver) | **done**; data layer only, not wired to runtime |
 | — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
 | P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; `create_booking` RPC; range-scoped scheduling/booking queries; `staff_item_duration`) | **done**; data layer + RPC only, not wired |
-| — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` over the repos; merchant-timezone resolution; Postgres integration tests for the gates below) | **next** |
-| — | **P4c booking flow** (booking + confirm pages onto the services; swap `findTechnicianSlots`→`scheduling`; booking draft → DB/session) | pending |
+| — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` in `src/lib/services/`; merchant-timezone resolution; gate tests) | **done**; services + gates, not wired |
+| — | **P4c booking flow** (booking + confirm pages onto the services; swap `findTechnicianSlots`→`scheduling`; booking draft → DB/session) | **next** |
 | — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
 | — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
 | P3 realtime | **P5 realtime** | pending |
@@ -83,7 +83,7 @@ Do not wire UI to the DB before P2/P3 land, or the flat tables get migrated twic
 
 ### P4 entry gates (from the pre-P4 audit)
 
-P4a + P4b must land the transactional, tenant-scoped backend before any UI is switched. These integration tests (against a real Postgres) are the gate to start P4c:
+P4a + P4b must land the transactional, tenant-scoped backend before any UI is switched. Gates 2/3/5 are covered by the service tests on the in-memory bundle (`src/lib/services/*.test.ts`); the DB-only gates 1/4 (the real exclusion constraint under concurrency, cancel-release) are proven by `scripts/check-db-gates.ts` against the live project (the `server-only` client can't load under vitest, so this is a `tsx` script, not a unit test). The gate list:
 
 1. Two concurrent create requests for the same technician/interval cannot both succeed (exclusion constraint holds).
 2. Merchant A cannot read or book Merchant B's staff (tenant scoping).

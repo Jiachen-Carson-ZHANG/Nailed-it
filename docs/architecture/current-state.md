@@ -59,6 +59,12 @@ Repositories live in `src/lib/repositories/` (async interfaces in `types.ts`; in
 
 DB access: `src/lib/db/client.ts` is the server-only Supabase client (secret key, bypasses RLS). All app reads go through it; nothing uses the anon key. Migrations: `0001_init.sql` (bookings/messages/etc.), `0002_catalog.sql` (catalog_item + CHECK constraints mirroring the TS unions), `0003_merchant_pricing.sql` (merchant + merchant_pricing, RLS with no anon policies), `0004_staff_availability.sql` (working_plan + blocked_time, FK technicians), `0005_hardening_tenant.sql` (drops anon SELECT from the operational tables — only `styles`/`catalog_item` stay publicly readable — and adds `technicians.merchant_id`), `0006_interval_booking.sql` (booking + booking_item, btree_gist exclusion constraint, `create_booking` RPC; server-only), `0007_staff_item_duration.sql` (per-staff duration overrides; server-only), `0008_booking_tenant_fk.sql` (composite `(technician_id, merchant_id)` FK so a booking's technician must belong to its merchant; `create_booking` execute revoked from public/anon/authenticated, granted to service_role; positive-duration CHECK). `scripts/seed-supabase.ts` seeds in FK order: merchant → technicians → dependents → booking/booking_item + staff_item_duration.
 
+Service layer (`src/lib/services/`, P4b — orchestration over the repos, not wired to UI):
+- `quoteService` — catalog + merchant pricing (+ per-staff duration) → priced, duration-aware quote lines; fails closed on unresolved required pricing.
+- `availabilityService` — resolves a merchant-local slot (timezone) and returns the merchant's available technicians via the scheduling kernel.
+- `bookingService` — create (quote → resolve slot → transactional create, throws `booking_overlap`), cancel, status lifecycle; enforces the technician-belongs-to-merchant tenant guard.
+- `timezone.ts` — merchant wall-clock → weekday + local-minute range + epoch-ms interval. The 5 P4b gates: 2/3/5 in `src/lib/services/*.test.ts`, DB-only 1/4 in `scripts/check-db-gates.ts` (`npx tsx`).
+
 Known gaps still open (each addressed by a later ADR-0005 phase):
 - **Interval availability is not wired** — the duration-aware kernel (`src/domain/scheduling.ts`) exists and is tested, but the live confirm path still calls the slot-string `findTechnicianSlots` in `src/domain/availability.ts` (ignores duration). Swapping consumers is P4.
 - **Booking draft is module memory** (`src/domain/booking-draft.ts`) — unreliable on serverless; moves to DB/session in P4c.
