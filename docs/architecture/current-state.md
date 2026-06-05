@@ -45,22 +45,22 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 - `src/components/layout/*`: shared shell primitives for both customer and merchant role surfaces.
 - `docs/architecture/graphify-ingestion-policy.md` and `graphify-out/*`: Graphify collaboration policy and shared orientation artifacts.
 
-## Persistence layer (added 2026-06-04 — built, not yet wired)
+## Persistence layer (built behind a repository seam — data layer only, not yet wired)
 
-A repository seam and a Supabase (Postgres) implementation exist but the running app still reads/writes browser `localStorage`. The DB is dormant until the consumer-wiring phase (P4 in ADR-0005). **P1.5 added the `catalog_item` foundation (catalog data + repository + migration + seed), not runtime behavior** — no page reads it yet. The catalog comes from the Dictionary sheet via `src/mock/catalog.ts`. See ADR-0004 and ADR-0005 (the ADR-0005 phase table is authoritative for phase numbers).
+A repository seam and a Supabase (Postgres) implementation exist, but the running app still reads/writes browser `localStorage`. The DB is **dormant until consumer wiring (P4 in ADR-0005)** — phases P1.5 (catalog) and P2 (merchant pricing) are built and seeded to the live project, but no page reads them yet. **ADR-0005's phase table is authoritative for phase numbers and status.**
 
-- `src/lib/repositories/types.ts`: async interfaces (`BookingRepository`, `ConversationRepository`, `PricingRepository`, `TechnicianRepository`, `StyleRepository`) + `RepositoryBundle`. Pure persistence (CRUD); no domain orchestration.
-- `src/lib/repositories/memory/*`: in-memory impls seeded from `src/mock/*`, used by tests and credential-less dev.
-- `src/lib/repositories/supabase/*`: Supabase-backed impls with snake_case↔camelCase row mappers.
-- `src/lib/db/client.ts`: server-only Supabase client (secret key, bypasses RLS).
-- `src/lib/repositories/index.ts`: `getRepositories()` selects Supabase when env present and not under test, else in-memory.
-- `supabase/migrations/0001_init.sql`: 6 tables (text PKs, JSONB for nested objects), RLS + anon SELECT-only policies. `scripts/seed-supabase.ts` loads mock data.
+Repositories live in `src/lib/repositories/` (async interfaces in `types.ts`; in-memory + Supabase impls; `getRepositories()` selects Supabase when env is present and not under test, in-memory otherwise so tests never hit the network):
+- **Bookings, conversations/messages, technicians, styles, pricing rules** — P0/P1, the interim flat model.
+- **Catalog** (`catalog_item`) — P1.5. Generated from the Dictionary sheet into `src/mock/catalog.ts` (112 items). Platform source of truth for what can be priced + default durations.
+- **Merchant pricing** (`merchant`, `merchant_pricing`) — P2. Sparse per-merchant overrides; `src/domain/pricing-resolver.ts` merges overrides over catalog defaults into effective pricing (override → `merchant`, else → `catalog_default`).
 
-Known domain gaps this layer mirrored rather than fixed (candidates for P1.5/P2):
-- **Availability is slot-string based, not interval based.** `src/domain/availability.ts` keys occupancy on `date+time+technicianId` and ignores service duration, so a long booking does not block overlapping later slots. Real fix: model bookings as `startAt`/`endAt` and test overlap (`newStart < existingEnd && newEnd > existingStart`).
-- **No first-class Service entity.** Duration/price live in pricing rules + style cards + a per-booking quote snapshot, not a `Service` (duration + price + which staff can perform it).
-- **Booking draft is module memory** (`src/domain/booking-draft.ts`, `let currentCustomerBookingDraft`) — unreliable across serverless instances/cold starts; should move to DB/session.
-- **Booking creation is not transactional**, so concurrent writers could double-book a slot once writes hit the shared DB.
+DB access: `src/lib/db/client.ts` is the server-only Supabase client (secret key, bypasses RLS). Migrations: `0001_init.sql` (bookings/messages/etc., anon read), `0002_catalog.sql` (catalog_item + CHECK constraints mirroring the TS unions), `0003_merchant_pricing.sql` (merchant + merchant_pricing, RLS with no anon policies). `scripts/seed-supabase.ts` seeds all tables.
+
+Known gaps still open (each addressed by a later ADR-0005 phase):
+- **Availability is slot-string, not interval based** (`src/domain/availability.ts` ignores duration, so a long booking does not block overlapping later slots) — P3.
+- **Booking draft is module memory** (`src/domain/booking-draft.ts`) — unreliable on serverless; moves to DB/session in P3/P4.
+- **Booking creation is not transactional** (double-book risk once writes share a DB) — P3.
+- The interim flat `pricing_rules` + date/time-string bookings are superseded by the catalog / interval-booking model as phases land.
 
 ## LLM integration
 

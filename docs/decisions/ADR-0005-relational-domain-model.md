@@ -67,9 +67,9 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 |---|---|---|
 | P0 repository seam | P0 | done |
 | P1 Supabase flat schema + seed | P1 | done — interim, superseded by the catalog/relational model |
-| — | **P1.5 catalog foundation** (`catalog_item` + invariants + seed + repo) | done (this work); not wired to runtime |
-| P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` over `catalog_item`) | pending |
-| — | **P3 interval availability** (`staff` + `working_plan` + `blocked_time` + interval booking checks) | pending |
+| — | **P1.5 catalog foundation** (`catalog_item` + invariants + seed + repo) | **done**; data layer only, not wired to runtime |
+| P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` + effective-pricing resolver) | **done**; data layer only, not wired to runtime |
+| — | **P3 interval availability** (`staff` + `working_plan` + `blocked_time` + interval booking checks) | **next** |
 | P2 wire consumers (localStorage→server) | **P4 consumer wiring** (Server Components / Actions) | pending |
 | P3 realtime | **P5 realtime** | pending |
 | — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | pending |
