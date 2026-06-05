@@ -7,6 +7,7 @@ import type {
 } from '@/domain/nail';
 import type { StyleDefinition } from '@/mock/styles';
 import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
+import type { Merchant, MerchantPricing } from '@/domain/merchant';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -45,6 +46,16 @@ export interface CatalogRepository {
   listByType(type: CatalogItemType): Promise<CatalogItem[]>;
 }
 
+export interface MerchantRepository {
+  list(): Promise<Merchant[]>;
+  getById(id: string): Promise<Merchant | null>;
+}
+
+export interface MerchantPricingRepository {
+  listByMerchant(merchantId: string): Promise<MerchantPricing[]>;
+  upsertMany(rows: MerchantPricing[]): Promise<MerchantPricing[]>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -52,4 +63,6 @@ export interface RepositoryBundle {
   technicians: TechnicianRepository;
   styles: StyleRepository;
   catalog: CatalogRepository;
+  merchants: MerchantRepository;
+  merchantPricing: MerchantPricingRepository;
 }

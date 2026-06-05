@@ -5,6 +5,8 @@ import { createMemoryPricingRepository } from './memory/pricing-repository';
 import { createMemoryTechnicianRepository } from './memory/technician-repository';
 import { createMemoryStyleRepository } from './memory/style-repository';
 import { createMemoryCatalogRepository } from './memory/catalog-repository';
+import { createMemoryMerchantRepository } from './memory/merchant-repository';
+import { createMemoryMerchantPricingRepository } from './memory/merchant-pricing-repository';
 import { hasSupabaseEnv } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
@@ -16,6 +18,8 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     technicians: createMemoryTechnicianRepository(),
     styles: createMemoryStyleRepository(),
     catalog: createMemoryCatalogRepository(),
+    merchants: createMemoryMerchantRepository(),
+    merchantPricing: createMemoryMerchantPricingRepository(),
   };
 }
 
@@ -44,4 +48,6 @@ export type {
   TechnicianRepository,
   StyleRepository,
   CatalogRepository,
+  MerchantRepository,
+  MerchantPricingRepository,
 } from './types';

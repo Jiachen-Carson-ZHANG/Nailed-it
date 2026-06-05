@@ -1,17 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Booking, BookingConversationThread, BookingMessage, PricingItem } from '@/domain/nail';
+import type { Merchant, MerchantPricing } from '@/domain/merchant';
 import { mockBookings } from '@/mock/bookings';
 import { seedConversationThreads } from '@/mock/conversations';
 import { defaultPricingRules } from '@/mock/pricing';
 import { mockTechnicians } from '@/mock/technicians';
 import { styleDefinitions } from '@/mock/styles';
 import { catalogItems } from '@/mock/catalog';
+import { mockMerchants } from '@/mock/merchants';
 import { createMemoryBookingRepository } from './booking-repository';
 import { createMemoryConversationRepository } from './conversation-repository';
 import { createMemoryPricingRepository } from './pricing-repository';
 import { createMemoryTechnicianRepository } from './technician-repository';
 import { createMemoryStyleRepository } from './style-repository';
 import { createMemoryCatalogRepository } from './catalog-repository';
+import { createMemoryMerchantRepository } from './merchant-repository';
+import { createMemoryMerchantPricingRepository } from './merchant-pricing-repository';
 
 // ─── BookingRepository ────────────────────────────────────────────────────────
 
@@ -291,6 +295,88 @@ describe('catalog repository', () => {
     first.nameZh = 'MUTATED';
     const [refetched] = await repo.list();
     expect(refetched.nameZh).toBe(originalName);
+  });
+});
+
+// ─── MerchantRepository + MerchantPricingRepository ──────────────────────────
+
+describe('merchant + merchant_pricing', () => {
+  it('merchant list() returns all seed merchants', async () => {
+    const repo = createMemoryMerchantRepository();
+    const result = await repo.list();
+    expect(result).toHaveLength(mockMerchants.length);
+    expect(result[0].id).toBe(mockMerchants[0].id);
+  });
+
+  it('merchant getById() returns merchant when found', async () => {
+    const repo = createMemoryMerchantRepository();
+    const found = await repo.getById('merchant-nailed-it');
+    expect(found).not.toBeNull();
+    expect(found?.name).toBe('Nailed-it Studio');
+  });
+
+  it('merchant getById() returns null when not found', async () => {
+    const repo = createMemoryMerchantRepository();
+    const result = await repo.getById('nonexistent-merchant');
+    expect(result).toBeNull();
+  });
+
+  it('merchant list() mutation isolation', async () => {
+    const repo = createMemoryMerchantRepository();
+    const [first] = await repo.list();
+    first.name = 'MUTATED';
+    const [refetched] = await repo.list();
+    expect(refetched.name).not.toBe('MUTATED');
+  });
+
+  it('merchantPricing listByMerchant() filters by merchantId', async () => {
+    const seed: MerchantPricing[] = [
+      { merchantId: 'merchant-a', catalogItemId: 'item-1', priceCents: 100, durationMin: 30, pricingUnit: 'fixed', enabled: true },
+      { merchantId: 'merchant-b', catalogItemId: 'item-2', priceCents: 200, durationMin: 45, pricingUnit: 'per_set', enabled: true },
+    ];
+    const repo = createMemoryMerchantPricingRepository(seed);
+    const resultA = await repo.listByMerchant('merchant-a');
+    expect(resultA).toHaveLength(1);
+    expect(resultA[0].catalogItemId).toBe('item-1');
+
+    const resultB = await repo.listByMerchant('merchant-b');
+    expect(resultB).toHaveLength(1);
+    expect(resultB[0].catalogItemId).toBe('item-2');
+  });
+
+  it('merchantPricing upsertMany() inserts new rows', async () => {
+    const repo = createMemoryMerchantPricingRepository();
+    const rows: MerchantPricing[] = [
+      { merchantId: 'merchant-1', catalogItemId: 'cat-a', priceCents: 500, durationMin: 20, pricingUnit: 'fixed', enabled: true },
+    ];
+    const returned = await repo.upsertMany(rows);
+    expect(returned).toHaveLength(1);
+    expect(returned[0].priceCents).toBe(500);
+
+    const listed = await repo.listByMerchant('merchant-1');
+    expect(listed).toHaveLength(1);
+  });
+
+  it('merchantPricing upsertMany() updates same composite key, length stays same', async () => {
+    const repo = createMemoryMerchantPricingRepository();
+    const row: MerchantPricing = { merchantId: 'merchant-1', catalogItemId: 'cat-a', priceCents: 500, durationMin: 20, pricingUnit: 'fixed', enabled: true };
+    await repo.upsertMany([row]);
+    await repo.upsertMany([{ ...row, priceCents: 999 }]);
+
+    const listed = await repo.listByMerchant('merchant-1');
+    expect(listed).toHaveLength(1);
+    expect(listed[0].priceCents).toBe(999);
+  });
+
+  it('merchantPricing mutation isolation: mutating returned row does not affect state', async () => {
+    const seed: MerchantPricing[] = [
+      { merchantId: 'merchant-1', catalogItemId: 'cat-a', priceCents: 300, durationMin: null, pricingUnit: 'per_finger', enabled: true },
+    ];
+    const repo = createMemoryMerchantPricingRepository(seed);
+    const [row] = await repo.listByMerchant('merchant-1');
+    row.priceCents = 9999;
+    const [refetched] = await repo.listByMerchant('merchant-1');
+    expect(refetched.priceCents).toBe(300);
   });
 });
 

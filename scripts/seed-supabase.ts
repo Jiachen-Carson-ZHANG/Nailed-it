@@ -9,6 +9,7 @@ import { defaultPricingRules } from '../src/mock/pricing';
 import { mockTechnicians } from '../src/mock/technicians';
 import { styleDefinitions } from '../src/mock/styles';
 import { catalogItems } from '../src/mock/catalog';
+import { mockMerchants } from '../src/mock/merchants';
 import type { BookingConversationThread } from '../src/domain/nail';
 
 // Standalone client for the seed script — does not import the server-only-guarded
@@ -136,6 +137,20 @@ async function seedCatalog(): Promise<number> {
   return rows.length;
 }
 
+async function seedMerchants(): Promise<number> {
+  const rows = mockMerchants.map((m) => ({
+    id: m.id,
+    name: m.name,
+    timezone: m.timezone,
+    currency: m.currency,
+  }));
+  const { error } = await getServiceClient()
+    .from('merchant')
+    .upsert(rows, { onConflict: 'id' });
+  if (error) throw new Error(`seed merchant failed: ${error.message}`);
+  return rows.length;
+}
+
 async function seedConversations(
   threads: BookingConversationThread[],
 ): Promise<{ threads: number; messages: number }> {
@@ -190,7 +205,7 @@ async function seedConversations(
 async function main(): Promise<void> {
   console.log('Seeding Supabase...');
 
-  const [techCount, styleCount, pricingCount, bookingCount, convResult, catalogCount] =
+  const [techCount, styleCount, pricingCount, bookingCount, convResult, catalogCount, merchantCount] =
     await Promise.all([
       seedTechnicians(),
       seedStyles(),
@@ -198,6 +213,7 @@ async function main(): Promise<void> {
       seedBookings(),
       seedConversations(seedConversationThreads),
       seedCatalog(),
+      seedMerchants(),
     ]);
 
   console.log(`technicians:          ${techCount}`);
@@ -207,6 +223,7 @@ async function main(): Promise<void> {
   console.log(`conversation_threads: ${convResult.threads}`);
   console.log(`messages:             ${convResult.messages}`);
   console.log(`catalog_item:         ${catalogCount}`);
+  console.log(`merchant:             ${merchantCount}`);
   console.log('Done.');
 }
 
