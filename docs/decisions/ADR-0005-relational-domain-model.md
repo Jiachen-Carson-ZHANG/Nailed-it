@@ -72,7 +72,7 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
 | P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; `create_booking` RPC; range-scoped scheduling/booking queries; `staff_item_duration`) | **done**; data layer + RPC only, not wired |
 | — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` in `src/lib/services/`; merchant-timezone resolution; gate tests) | **done**; services + gates, not wired |
-| — | **P4c booking flow** (booking + confirm pages onto the services; swap `findTechnicianSlots`→`scheduling`; booking draft → DB/session) | **next** |
+| — | **P4c booking flow** | **partial**: duration-aware availability (`findTechnicianSlots` uses `intervalsOverlap`) + draft→sessionStorage **done** (localStorage, no DB cutover). The DB write/read cutover (customer write→`bookingService` + the ~9 reader surfaces→repos) is deferred — it needs P6 (recognition→catalog) and must land **with P4d** or bookings split-brain between the DB and localStorage. |
 | — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
 | — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
 | P3 realtime | **P5 realtime** | pending |

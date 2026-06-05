@@ -43,10 +43,10 @@ export function getBookingsSnapshot(): Booking[] {
   return cloneBookings(bookingState);
 }
 
-export function getAvailableBookingDays() {
+export function getAvailableBookingDays(durationMin = 60) {
   ensureHydratedOperationsStore();
 
-  return getSeedAvailableBookingDays(bookingState);
+  return getSeedAvailableBookingDays(bookingState, durationMin);
 }
 
 export function createBookingFromDraft({

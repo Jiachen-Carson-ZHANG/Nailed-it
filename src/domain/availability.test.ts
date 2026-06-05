@@ -74,6 +74,26 @@ describe('findTechnicianSlots', () => {
     ]);
   });
 
+  it('blocks overlapping later slots for the whole duration of a booking (duration-aware)', () => {
+    // Mei booked 10:00 for 165 min → occupies 10:00–12:45, so the 12:30 slot must exclude Mei.
+    // The old slot-string logic only marked 10:00 occupied and would have offered Mei at 12:30.
+    const longBooking: Booking = {
+      ...mockBookings[0],
+      date: '2026-05-23',
+      time: '10:00',
+      technician: { id: 'tech-mei', name: 'Mei Chen', initials: 'MC' },
+      status: 'confirmed',
+      quote: { source: 'booking_snapshot', price: 100, duration: 165 }
+    };
+
+    const result = findTechnicianSlots({ bookings: [longBooking], days, technicians, durationMin: 60 });
+    const today = result.find((day) => day.date === '2026-05-23');
+    const twelveThirty = today?.slots.filter((slot) => slot.time === '12:30') ?? [];
+
+    expect(twelveThirty.some((slot) => slot.technician.name === 'Mei Chen')).toBe(false);
+    expect(twelveThirty.some((slot) => slot.technician.name === 'Lina Park')).toBe(true);
+  });
+
   it('returns no available days when there are no active technicians', () => {
     const result = findTechnicianSlots({
       bookings: [],

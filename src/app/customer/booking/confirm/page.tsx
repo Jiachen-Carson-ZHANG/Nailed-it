@@ -21,7 +21,7 @@ export default function CustomerBookingConfirmPage() {
   const [notes, setNotes] = useState(
     draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
   );
-  const [availableDays] = useState(() => getAvailableBookingDays());
+  const [availableDays] = useState(() => getAvailableBookingDays(draft?.estimate.duration ?? 60));
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
