@@ -25,6 +25,17 @@ export function aiDetectableCatalogItems(catalog: CatalogItem[]): CatalogItem[] 
   return catalog.filter((item) => item.aiDetectable !== 'no');
 }
 
+// LLM/JSON output is untrusted: a confidence could be a string or ±Infinity, a quantity could be
+// a string or fraction. Normalize defensively so a malformed value can never read as confident
+// or produce a non-integer quantity.
+function normalizeConfidence(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeQuantity(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 1;
+}
+
 /**
  * Split raw recognizer output into detected vs uncertain.
  * - ids that are unknown or aiDetectable='no' are dropped (the model must not name them).
@@ -47,11 +58,12 @@ export function bucketRecognition(
 
     const normalized: RecognizedCatalogItem = {
       catalogItemId: raw.catalogItemId,
-      confidence: raw.confidence,
-      quantity: raw.quantity > 0 ? raw.quantity : 1,
+      confidence: normalizeConfidence(raw.confidence),
+      quantity: normalizeQuantity(raw.quantity),
     };
     const mustConfirm = item.aiDetectable === 'weak' || item.aiDetectable === 'user_confirmed';
-    if (mustConfirm || !(normalized.confidence >= threshold)) {
+    // normalized.confidence is now a finite number, so Infinity/NaN/strings land below threshold.
+    if (mustConfirm || normalized.confidence < threshold) {
       uncertain.push(normalized);
     } else {
       detected.push(normalized);

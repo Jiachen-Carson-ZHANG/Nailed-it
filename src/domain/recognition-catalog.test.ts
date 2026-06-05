@@ -64,6 +64,32 @@ describe('bucketRecognition', () => {
     const { detected } = bucketRecognition([raw(YES, 0.95, 0)], catalogItems);
     expect(detected[0].quantity).toBe(1);
   });
+
+  it('treats Infinity confidence as not-confident (uncertain), not detected', () => {
+    const { detected, uncertain } = bucketRecognition([raw(YES, Number.POSITIVE_INFINITY)], catalogItems);
+    expect(detected).toEqual([]);
+    expect(uncertain.map((i) => i.catalogItemId)).toEqual([YES]);
+    expect(Number.isFinite(uncertain[0].confidence)).toBe(true);
+  });
+
+  it('coerces a string quantity from untrusted JSON to 1', () => {
+    const malformed = { catalogItemId: YES, confidence: 0.95, quantity: '2' } as unknown as RecognizedCatalogItem;
+    const { detected } = bucketRecognition([malformed], catalogItems);
+    expect(detected[0].quantity).toBe(1);
+    expect(typeof detected[0].quantity).toBe('number');
+  });
+
+  it('rejects a fractional quantity, falling back to 1', () => {
+    const { detected } = bucketRecognition([raw(YES, 0.95, 2.5)], catalogItems);
+    expect(detected[0].quantity).toBe(1);
+  });
+
+  it('coerces a string confidence from untrusted JSON to uncertain', () => {
+    const malformed = { catalogItemId: YES, confidence: '0.95', quantity: 1 } as unknown as RecognizedCatalogItem;
+    const { detected, uncertain } = bucketRecognition([malformed], catalogItems);
+    expect(detected).toEqual([]);
+    expect(uncertain.map((i) => i.catalogItemId)).toEqual([YES]);
+  });
 });
 
 describe('toCatalogSelections', () => {
