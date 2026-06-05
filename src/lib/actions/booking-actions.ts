@@ -1,0 +1,82 @@
+'use server';
+
+import { randomUUID } from 'node:crypto';
+import type { Booking, BookingConversationThread } from '@/domain/nail';
+import { getRepositories } from '@/lib/repositories';
+import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
+import { createBookingService } from '@/lib/services/booking-service';
+import { demoMerchantId } from '@/mock/merchants';
+
+export type CreateBookingActionInput = {
+  technicianId: string;
+  customerName: string;
+  styleTitle: string;
+  styleImageUrl: string;
+  date: string;
+  time: string;
+  estimate: { price: number; duration: number };
+  // The confirm page derives this from the recognition confidence (requiresMerchantReview).
+  status: 'confirmed' | 'pending_review';
+  notes: string;
+};
+
+/**
+ * P4d write path: create the interval booking (via the snapshot bridge) and its linked
+ * conversation thread in the DB, in place of the old localStorage createBookingFromDraft.
+ * Returns the flat UI Booking shape the confirm page already renders.
+ */
+export async function createBookingAction(input: CreateBookingActionInput): Promise<Booking> {
+  const repos = getRepositories();
+  const merchant = await repos.merchants.getById(demoMerchantId);
+  const merchantName = merchant?.name ?? 'Nailed-it Studio';
+  const timeZone = merchant?.timezone ?? 'Asia/Singapore';
+
+  const booking = await createBookingService(repos).createBookingFromSnapshot({
+    merchantId: demoMerchantId,
+    technicianId: input.technicianId,
+    customerName: input.customerName,
+    styleTitle: input.styleTitle,
+    styleImageUrl: input.styleImageUrl,
+    date: input.date,
+    time: input.time,
+    estimate: input.estimate,
+    status: input.status,
+    notes: input.notes,
+  });
+
+  const technician = (await repos.technicians.list()).find((t) => t.id === booking.technicianId);
+  const technicianName = technician?.name ?? 'your technician';
+
+  const threadId = `conv-${booking.id}`;
+  const thread: BookingConversationThread = {
+    id: threadId,
+    bookingId: booking.id,
+    customerName: input.customerName,
+    merchantName,
+    relatedBookingTime: `${input.date} ${input.time}`,
+    messages: [
+      {
+        id: `msg-${randomUUID()}`,
+        authorRole: 'system',
+        body:
+          input.status === 'confirmed'
+            ? `Your appointment is confirmed with ${technicianName} at ${input.time}.`
+            : `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
+        sentAt: 'Now',
+      },
+    ],
+  };
+  await repos.conversations.insert(thread);
+
+  return intervalBookingToUiBooking(
+    { booking, items: await repos.intervalBookings.listItems(booking.id) },
+    {
+      timeZone,
+      technician: technician
+        ? { id: technician.id, name: technician.name, initials: technician.initials }
+        : { id: booking.technicianId, name: 'Technician', initials: '–' },
+      merchantName,
+      conversationId: threadId,
+    },
+  );
+}

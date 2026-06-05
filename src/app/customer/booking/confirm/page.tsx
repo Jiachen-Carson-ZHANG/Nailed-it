@@ -11,9 +11,11 @@ import {
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
+import { requiresMerchantReview } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
-import { createBookingFromDraft, getAvailableBookingDays } from '@/mock/operations-store';
+import { createBookingAction } from '@/lib/actions/booking-actions';
+import { demoCustomerName, getAvailableBookingDays } from '@/mock/operations-store';
 
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
@@ -65,18 +67,43 @@ export default function CustomerBookingConfirmPage() {
     );
   }
 
-  function confirmAppointment() {
-    if (!selectedSlot || !draft || createdBooking) {
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  async function confirmAppointment() {
+    if (!selectedSlot || !draft || createdBooking || isConfirming) {
       return;
     }
 
-    const booking = createBookingFromDraft({ draft, notes, slot: selectedSlot });
-    setCreatedBooking(booking);
-    setToastMessage(
-      booking.status === 'confirmed'
-        ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
-        : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
-    );
+    setIsConfirming(true);
+    const status = requiresMerchantReview(draft.recognition) ? 'pending_review' : 'confirmed';
+
+    try {
+      const booking = await createBookingAction({
+        technicianId: selectedSlot.technician.id,
+        customerName: demoCustomerName,
+        styleTitle: 'Custom AI reference',
+        styleImageUrl: draft.imageUrl,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+        estimate: { price: draft.estimate.price, duration: draft.estimate.duration },
+        status,
+        notes
+      });
+      setCreatedBooking(booking);
+      setToastMessage(
+        booking.status === 'confirmed'
+          ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+          : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+      );
+    } catch (error) {
+      setToastMessage(
+        error instanceof Error && error.message === 'booking_overlap'
+          ? 'That technician was just booked for an overlapping time. Please pick another slot.'
+          : 'Could not confirm the appointment. Please try again.'
+      );
+    } finally {
+      setIsConfirming(false);
+    }
   }
 
   return (
@@ -119,12 +146,14 @@ export default function CustomerBookingConfirmPage() {
         />
       </label>
 
-      <Button block disabled={!selectedSlot || bookingLocked} onClick={confirmAppointment}>
-        {createdBooking?.status === 'pending_review'
-          ? 'Pending review'
-          : createdBooking
-            ? 'Appointment confirmed'
-            : 'Confirm appointment'}
+      <Button block disabled={!selectedSlot || bookingLocked || isConfirming} onClick={confirmAppointment}>
+        {isConfirming
+          ? 'Confirming…'
+          : createdBooking?.status === 'pending_review'
+            ? 'Pending review'
+            : createdBooking
+              ? 'Appointment confirmed'
+              : 'Confirm appointment'}
       </Button>
       {createdBooking?.conversationId ? (
         <Link
