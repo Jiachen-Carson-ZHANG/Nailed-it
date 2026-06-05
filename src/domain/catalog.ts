@@ -44,6 +44,12 @@ export const pricingUnits = [
 ] as const;
 export type PricingUnit = (typeof pricingUnits)[number];
 
+/** A chosen catalog item + quantity — the unit a quote is built from. */
+export type CatalogSelection = {
+  catalogItemId: string;
+  quantity: number;
+};
+
 export type CatalogItem = {
   id: string;
   nameZh: string;

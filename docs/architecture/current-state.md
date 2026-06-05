@@ -56,13 +56,15 @@ Known gaps still open (each addressed by a later ADR-0005 phase):
 
 Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API_KEY` via `src/nail-ai/openrouter.ts`. All pricing/booking decisions remain deterministic app logic — AI only extracts attributes.
 
+**Recognition → catalog bridge (P6):** `src/domain/recognition-catalog.ts` is the pure layer that turns recognizer-emitted `catalog_item` ids + confidence into a `detected` set and an `uncertain` set the user confirms, then into `CatalogSelection[]` for `quoteService` (`bucketRecognition` / `toCatalogSelections`; the constrained subset is `aiDetectableCatalogItems`). It deliberately validates ids rather than mapping visual attributes. The live recognizer in `src/nail-ai` still emits free-form attributes; wiring it to emit catalog ids is the remaining P6 edge.
+
 ## Domain modules (`src/domain/`)
 
 - `session.ts` — route intents, tab visibility, home paths, detail-link helpers for both roles
 - `nail.ts` — shared nail/booking/technician/quote contracts; confidence-review policy (low-confidence → `pending_review`)
 - `pricing.ts` — rule-based quote calculator used by style previews, booking drafts, and merchant snapshots
 - `availability.ts` — pure technician-slot assignment (no same-technician/date/time conflicts; earliest-wait ranking)
-- `booking-draft.ts` — in-memory draft boundary across `/customer/booking` → `/customer/booking/confirm`
+- `booking-draft.ts` — sessionStorage draft boundary across `/customer/booking` → `/customer/booking/confirm`
 - `messaging.ts` — role-aware mapping from operations-store threads to the shared `Conversation` UI contract
 
 ## Mock data (`src/mock/`)

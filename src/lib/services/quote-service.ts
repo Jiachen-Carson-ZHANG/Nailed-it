@@ -3,11 +3,12 @@
 // does not have (effective source 'unresolved' or disabled), the whole quote throws rather than
 // silently offering it free.
 
-import type { PricingUnit } from '@/domain/catalog';
+import type { CatalogSelection, PricingUnit } from '@/domain/catalog';
 import { resolveEffectivePricing } from '@/domain/pricing-resolver';
 import type { RepositoryBundle } from '@/lib/repositories/types';
 
-export type QuoteSelection = { catalogItemId: string; quantity: number };
+/** A quote is built from catalog selections — see `CatalogSelection` in the domain layer. */
+export type QuoteSelection = CatalogSelection;
 
 export type QuoteLine = {
   catalogItemId: string;

@@ -39,6 +39,8 @@ Adopt one relational model on Supabase Postgres, behind the existing repository 
 
 The recognizer returns a constrained JSON schema of **catalog_item ids** (only `ai_detectable` items) + per-item confidence; weak/low-confidence items route to an `uncertain_items` bucket the user confirms. No fuzzy visual-attribute→billable mapping table.
 
+The validation + bucketing side of this is implemented in `src/domain/recognition-catalog.ts` (P6): `aiDetectableCatalogItems` (the subset the model may name — everything except `aiDetectable='no'`), `bucketRecognition` (drops unknown/non-detectable ids; routes `weak`/`user_confirmed`/low-confidence to `uncertain`; fails closed on non-finite confidence), and `toCatalogSelections` (detected + user-confirmed uncertain → `CatalogSelection[]` for `quoteService`). The remaining edge is the live LLM in `src/nail-ai` actually emitting catalog ids instead of free-form attributes.
+
 ## Design principles
 
 - Catalog (what *can* be priced) is separate from merchant pricing (the *values*).
@@ -76,7 +78,7 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
 | — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
 | P3 realtime | **P5 realtime** | pending |
-| — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | pending |
+| — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | **partial**: the pure bridge is done — `src/domain/recognition-catalog.ts` (the constrained ai-detectable subset, confidence bucketing into detected/uncertain, → `CatalogSelection[]` for quoteService) + a deterministic mock recognizer + tests. The remaining edge is wiring the live LLM (`src/nail-ai`) to actually emit catalog ids. |
 | — | **P7 款式跟踪** (completed-order photos → tagged catalog/style library) | pending |
 
 Do not wire UI to the DB before P2/P3 land, or the flat tables get migrated twice.
