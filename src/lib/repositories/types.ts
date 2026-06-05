@@ -6,6 +6,7 @@ import type {
   Technician,
 } from '@/domain/nail';
 import type { StyleDefinition } from '@/mock/styles';
+import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -38,10 +39,17 @@ export interface StyleRepository {
   getById(id: string): Promise<StyleDefinition | null>;
 }
 
+export interface CatalogRepository {
+  list(): Promise<CatalogItem[]>;
+  getById(id: string): Promise<CatalogItem | null>;
+  listByType(type: CatalogItemType): Promise<CatalogItem[]>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
   pricing: PricingRepository;
   technicians: TechnicianRepository;
   styles: StyleRepository;
+  catalog: CatalogRepository;
 }

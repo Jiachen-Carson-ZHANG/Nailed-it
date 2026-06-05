@@ -8,6 +8,7 @@ import { seedConversationThreads } from '../src/mock/conversations';
 import { defaultPricingRules } from '../src/mock/pricing';
 import { mockTechnicians } from '../src/mock/technicians';
 import { styleDefinitions } from '../src/mock/styles';
+import { catalogItems } from '../src/mock/catalog';
 import type { BookingConversationThread } from '../src/domain/nail';
 
 // Standalone client for the seed script — does not import the server-only-guarded
@@ -107,6 +108,34 @@ async function seedBookings(): Promise<number> {
   return rows.length;
 }
 
+async function seedCatalog(): Promise<number> {
+  const rows = catalogItems.map((item) => ({
+    id: item.id,
+    name_zh: item.nameZh,
+    type: item.type,
+    category: item.category,
+    parent_id: item.parentId,
+    user_visible: item.userVisible,
+    ai_detectable: item.aiDetectable,
+    billable: item.billable,
+    merchant_price_required: item.merchantPriceRequired,
+    merchant_duration_required: item.merchantDurationRequired,
+    duration_config_level: item.durationConfigLevel,
+    affects_booking_duration: item.affectsBookingDuration,
+    default_duration_min: item.defaultDurationMin,
+    allowed_pricing_units: item.allowedPricingUnits,
+    default_pricing_unit: item.defaultPricingUnit,
+    quantity_supported: item.quantitySupported,
+    complexity_supported: item.complexitySupported,
+    notes: item.notes,
+  }));
+  const { error } = await getServiceClient()
+    .from('catalog_item')
+    .upsert(rows, { onConflict: 'id' });
+  if (error) throw new Error(`seed catalog_item failed: ${error.message}`);
+  return rows.length;
+}
+
 async function seedConversations(
   threads: BookingConversationThread[],
 ): Promise<{ threads: number; messages: number }> {
@@ -161,13 +190,14 @@ async function seedConversations(
 async function main(): Promise<void> {
   console.log('Seeding Supabase...');
 
-  const [techCount, styleCount, pricingCount, bookingCount, convResult] =
+  const [techCount, styleCount, pricingCount, bookingCount, convResult, catalogCount] =
     await Promise.all([
       seedTechnicians(),
       seedStyles(),
       seedPricingRules(),
       seedBookings(),
       seedConversations(seedConversationThreads),
+      seedCatalog(),
     ]);
 
   console.log(`technicians:          ${techCount}`);
@@ -176,6 +206,7 @@ async function main(): Promise<void> {
   console.log(`bookings:             ${bookingCount}`);
   console.log(`conversation_threads: ${convResult.threads}`);
   console.log(`messages:             ${convResult.messages}`);
+  console.log(`catalog_item:         ${catalogCount}`);
   console.log('Done.');
 }
 

@@ -4,6 +4,7 @@ import { createSupabaseConversationRepository } from './conversation-repository'
 import { createSupabasePricingRepository } from './pricing-repository';
 import { createSupabaseTechnicianRepository } from './technician-repository';
 import { createSupabaseStyleRepository } from './style-repository';
+import { createSupabaseCatalogRepository } from './catalog-repository';
 
 export function createSupabaseRepositoryBundle(): RepositoryBundle {
   return {
@@ -12,5 +13,6 @@ export function createSupabaseRepositoryBundle(): RepositoryBundle {
     pricing: createSupabasePricingRepository(),
     technicians: createSupabaseTechnicianRepository(),
     styles: createSupabaseStyleRepository(),
+    catalog: createSupabaseCatalogRepository(),
   };
 }

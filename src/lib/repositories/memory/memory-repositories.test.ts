@@ -5,11 +5,13 @@ import { seedConversationThreads } from '@/mock/conversations';
 import { defaultPricingRules } from '@/mock/pricing';
 import { mockTechnicians } from '@/mock/technicians';
 import { styleDefinitions } from '@/mock/styles';
+import { catalogItems } from '@/mock/catalog';
 import { createMemoryBookingRepository } from './booking-repository';
 import { createMemoryConversationRepository } from './conversation-repository';
 import { createMemoryPricingRepository } from './pricing-repository';
 import { createMemoryTechnicianRepository } from './technician-repository';
 import { createMemoryStyleRepository } from './style-repository';
+import { createMemoryCatalogRepository } from './catalog-repository';
 
 // ─── BookingRepository ────────────────────────────────────────────────────────
 
@@ -250,6 +252,45 @@ describe('createMemoryStyleRepository', () => {
     first.title = 'MUTATED';
     const [refetched] = await repo.list();
     expect(refetched.title).not.toBe('MUTATED');
+  });
+});
+
+// ─── CatalogRepository ───────────────────────────────────────────────────────
+
+describe('catalog repository', () => {
+  it('list() returns 112 items', async () => {
+    const repo = createMemoryCatalogRepository();
+    const result = await repo.list();
+    expect(result).toHaveLength(112);
+  });
+
+  it('getById() returns item when found', async () => {
+    const repo = createMemoryCatalogRepository();
+    const item = await repo.getById('basic_manicure_service');
+    expect(item).not.toBeNull();
+    expect(item?.id).toBe('basic_manicure_service');
+  });
+
+  it('getById() returns null when not found', async () => {
+    const repo = createMemoryCatalogRepository();
+    const result = await repo.getById('nope');
+    expect(result).toBeNull();
+  });
+
+  it('listByType() returns 41 billable_component items', async () => {
+    const repo = createMemoryCatalogRepository();
+    const result = await repo.listByType('billable_component');
+    expect(result).toHaveLength(41);
+    expect(result.every((item) => item.type === 'billable_component')).toBe(true);
+  });
+
+  it('mutation isolation: mutating a returned item does not affect internal state', async () => {
+    const repo = createMemoryCatalogRepository();
+    const [first] = await repo.list();
+    const originalName = first.nameZh;
+    first.nameZh = 'MUTATED';
+    const [refetched] = await repo.list();
+    expect(refetched.nameZh).toBe(originalName);
   });
 });
 

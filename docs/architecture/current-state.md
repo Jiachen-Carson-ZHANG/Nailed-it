@@ -47,7 +47,7 @@ The active frontend is a Next.js App Router application with a mobile-first shel
 
 ## Persistence layer (added 2026-06-04 — built, not yet wired)
 
-A repository seam and a Supabase (Postgres) implementation exist but the running app still reads/writes browser `localStorage`. The DB is dormant until P2 wires consumers. See ADR-0004 and the P0/P1 implementation-log entries.
+A repository seam and a Supabase (Postgres) implementation exist but the running app still reads/writes browser `localStorage`. The DB is dormant until the consumer-wiring phase (P4 in ADR-0005). **P1.5 added the `catalog_item` foundation (catalog data + repository + migration + seed), not runtime behavior** — no page reads it yet. The catalog comes from the Dictionary sheet via `src/mock/catalog.ts`. See ADR-0004 and ADR-0005 (the ADR-0005 phase table is authoritative for phase numbers).
 
 - `src/lib/repositories/types.ts`: async interfaces (`BookingRepository`, `ConversationRepository`, `PricingRepository`, `TechnicianRepository`, `StyleRepository`) + `RepositoryBundle`. Pure persistence (CRUD); no domain orchestration.
 - `src/lib/repositories/memory/*`: in-memory impls seeded from `src/mock/*`, used by tests and credential-less dev.
