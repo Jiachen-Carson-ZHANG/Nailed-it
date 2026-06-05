@@ -2113,7 +2113,7 @@ select {
 
 /* XHS card */
 .xhs-card {
-  display: block;
+  position: relative;
   break-inside: avoid;
   margin-bottom: 0.45rem;
   border-radius: var(--radius-md);
@@ -2121,9 +2121,57 @@ select {
   background: var(--color-surface-strong);
 }
 
+.xhs-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
 .xhs-card-image-wrap {
   width: 100%;
   overflow: hidden;
+}
+
+/* Save / heart button overlaid on the card image */
+.xhs-save-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.xhs-save-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.xhs-save-btn-saved {
+  color: var(--color-accent-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@keyframes xhs-heart-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.45); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+.xhs-save-btn-saved {
+  animation: xhs-heart-pop 0.35s ease forwards;
 }
 
 .xhs-card-image {
