@@ -33,7 +33,7 @@ Adopt one relational model on Supabase Postgres, behind the existing repository 
 
 - `quoteService` — catalog ids + quantities + merchant_pricing → price + duration (supersedes flat `calculateEstimate`).
 - `availabilityService` — working_plan + blocked_time + bookings + requested duration → free intervals via overlap (`newStart < existingEnd && newEnd > existingStart`).
-- `bookingService` — transactional create (re-check overlap inside the txn), status lifecycle, reschedule, cancel.
+- `bookingService` — transactional create, status lifecycle, reschedule, cancel. **The no-double-book guarantee is enforced in Postgres, not in app code:** a GiST exclusion constraint on `booking` — `EXCLUDE USING gist (technician_id WITH =, tstzrange(start_at, end_at) WITH &&) WHERE (status <> 'cancelled')` — makes two overlapping live bookings for one technician physically impossible. Creation is a single Postgres RPC (function) that inserts inside one transaction and lets the constraint reject conflicts, so separate supabase-js calls can never interleave past the availability check. Cancelling frees the interval (the `WHERE` clause excludes cancelled rows).
 
 ### AI integration
 
@@ -70,12 +70,26 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P1.5 catalog foundation** (`catalog_item` + invariants + seed + repo) | **done**; data layer only, not wired to runtime |
 | P4 merchant-persisted pricing | **P2 merchant pricing** (`merchant` + `merchant_pricing` + effective-pricing resolver) | **done**; data layer only, not wired to runtime |
 | — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
-| P2 wire consumers (localStorage→server) | **P4 consumer wiring** (Server Components / Actions; interval `booking`/`booking_item` + transactional `bookingService`; swap `findTechnicianSlots`→`scheduling`; `staff_item_duration`; booking draft → DB/session) | pending |
+| P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; create RPC; range-scoped scheduling queries; `staff_item_duration`) | pending |
+| — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` over the repos; merchant-timezone resolution; Postgres integration tests for the gates below) | pending |
+| — | **P4c booking flow** (booking + confirm pages onto the services; swap `findTechnicianSlots`→`scheduling`; booking draft → DB/session) | pending |
+| — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
+| — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
 | P3 realtime | **P5 realtime** | pending |
 | — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | pending |
 | — | **P7 款式跟踪** (completed-order photos → tagged catalog/style library) | pending |
 
 Do not wire UI to the DB before P2/P3 land, or the flat tables get migrated twice.
+
+### P4 entry gates (from the pre-P4 audit)
+
+P4a + P4b must land the transactional, tenant-scoped backend before any UI is switched. These integration tests (against a real Postgres) are the gate to start P4c:
+
+1. Two concurrent create requests for the same technician/interval cannot both succeed (exclusion constraint holds).
+2. Merchant A cannot read or book Merchant B's staff (tenant scoping).
+3. A booking referencing a merchant-required item with no price fails closed (`source:'unresolved'` is not bookable).
+4. Cancelling a booking releases its interval for rebooking.
+5. Merchant-timezone conversion yields consistent local-minute and absolute-ms intervals for the same slot.
 
 ## References
 
