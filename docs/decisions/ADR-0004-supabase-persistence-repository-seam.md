@@ -1,6 +1,6 @@
 # ADR-0004: Database-backed persistence via a repository seam (Supabase)
 
-**Status:** Accepted (P0 implemented; P1–P4 pending Supabase credentials)  
+**Status:** Accepted (P0–P1 implemented; P2–P4 pending). Refined by ADR-0005 (relational domain model).  
 **Date:** 2026-06-04  
 **Supersedes:** —  
 **Superseded by:** —
@@ -32,8 +32,9 @@ Introduce one shared source of truth, accessed through a **repository seam**, an
 
 ### Phasing
 
-- **P0 (done):** repository interfaces + in-memory impls + tests. Additive; no behavior change. 75 → 101 tests, all green.
-- **P1:** Supabase project, schema migrations, seed, DB-backed impls. *(needs credentials)*
+- **P0 (done):** repository interfaces + in-memory impls + tests. Additive; no behavior change.
+- **P1 (done):** Supabase project, schema migrations, seed, DB-backed impls. Verified against the live project.
+- **P1.5+ (ADR-0005):** the interim flat schema here is superseded by the catalog / merchant_pricing / interval-booking model. See ADR-0005.
 - **P2:** wire consumers (reads → Server Components, writes → Server Actions); retire the localStorage path.
 - **P3:** realtime subscriptions (bookings + messages).
 - **P4:** pricing / technicians / styles editable + persisted by the merchant.

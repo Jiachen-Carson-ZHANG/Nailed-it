@@ -46,26 +46,34 @@ export function createSupabasePricingRepository(): PricingRepository {
     },
 
     async replaceAll(rules: PricingItem[]): Promise<PricingItem[]> {
+      // Non-destructive: upsert the new set first (a failure here loses nothing),
+      // then prune only the rows no longer present. Avoids the delete-then-insert
+      // window where a failed insert would wipe all pricing.
       const client = getServiceClient();
-
-      const { error: deleteError } = await client.from('pricing_rules').delete().neq('id', '');
-      if (deleteError) {
-        throw new Error(`PricingRepository.replaceAll (delete) failed: ${deleteError.message}`);
-      }
-
-      if (rules.length === 0) {
-        return [];
-      }
-
       const rows = rules.map(pricingItemToRow);
-      const { data, error: insertError } = await client
-        .from('pricing_rules')
-        .insert(rows)
-        .select('*');
-      if (insertError) {
-        throw new Error(`PricingRepository.replaceAll (insert) failed: ${insertError.message}`);
+
+      if (rows.length > 0) {
+        const { error: upsertError } = await client
+          .from('pricing_rules')
+          .upsert(rows, { onConflict: 'id' });
+        if (upsertError) {
+          throw new Error(`PricingRepository.replaceAll (upsert) failed: ${upsertError.message}`);
+        }
       }
 
+      const prune =
+        rows.length > 0
+          ? client.from('pricing_rules').delete().not('id', 'in', `(${rows.map((r) => r.id).join(',')})`)
+          : client.from('pricing_rules').delete().neq('id', '');
+      const { error: pruneError } = await prune;
+      if (pruneError) {
+        throw new Error(`PricingRepository.replaceAll (prune) failed: ${pruneError.message}`);
+      }
+
+      const { data, error } = await client.from('pricing_rules').select('*');
+      if (error) {
+        throw new Error(`PricingRepository.replaceAll (reload) failed: ${error.message}`);
+      }
       return (data as PricingRuleRow[]).map(rowToPricingItem);
     },
   };
