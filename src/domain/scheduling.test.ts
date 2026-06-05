@@ -65,6 +65,12 @@ describe('isWithinWorkingPlan', () => {
   it('a window flush against a break boundary fits', () => {
     expect(isWithinWorkingPlan({ startMin: hm(14), endMin: hm(15) }, plan)).toBe(true);
   });
+  it('rejects an inverted window (fail closed)', () => {
+    expect(isWithinWorkingPlan({ startMin: hm(16), endMin: hm(15) }, plan)).toBe(false);
+  });
+  it('rejects a zero-length window (fail closed)', () => {
+    expect(isWithinWorkingPlan({ startMin: hm(15), endMin: hm(15) }, plan)).toBe(false);
+  });
 });
 
 describe('isTechnicianFree', () => {
@@ -130,6 +136,19 @@ describe('findAvailableTechnicians (Monday 2026-06-08)', () => {
       },
     }).map((t) => t.id);
     expect(ids).toContain('tech-lina');
+  });
+
+  it('returns nobody for a malformed (zero-length) request, never everybody', () => {
+    const result = findAvailableTechnicians({
+      ...base,
+      existingByTechnician: {},
+      request: {
+        weekday: 1 as const,
+        localRange: { startMin: hm(15), endMin: hm(15) },
+        interval: { startMs: sgt('15:00'), endMs: sgt('15:00') },
+      },
+    });
+    expect(result).toEqual([]);
   });
 
   it('excludes inactive technicians', () => {

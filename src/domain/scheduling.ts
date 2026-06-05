@@ -57,6 +57,11 @@ function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: numbe
   return aStart < bEnd && aEnd > bStart;
 }
 
+/** A range is valid only if both ends are finite and start strictly precedes end. */
+function isValidRange(start: number, end: number): boolean {
+  return Number.isFinite(start) && Number.isFinite(end) && start < end;
+}
+
 /** Two absolute instant intervals overlap. Touching at an endpoint does NOT overlap. */
 export function intervalsOverlap(a: MsInterval, b: MsInterval): boolean {
   return rangesOverlap(a.startMs, a.endMs, b.startMs, b.endMs);
@@ -64,6 +69,10 @@ export function intervalsOverlap(a: MsInterval, b: MsInterval): boolean {
 
 /** A requested local-minute window fits inside open hours and clears every break. */
 export function isWithinWorkingPlan(range: LocalMinuteRange, plan: WorkingPlanDay): boolean {
+  // Fail closed on a zero-length, inverted, or non-finite window.
+  if (!isValidRange(range.startMin, range.endMin)) {
+    return false;
+  }
   if (range.startMin < plan.openMin || range.endMin > plan.closeMin) {
     return false;
   }
@@ -85,6 +94,15 @@ export function isTechnicianFree(request: MsInterval, busy: MsInterval[]): boole
  */
 export function findAvailableTechnicians(input: FindAvailableTechniciansInput): TechnicianSnapshot[] {
   const { technicians, workingPlans, blockedTimes, existingByTechnician, request } = input;
+
+  // Fail closed on a malformed request rather than reporting everyone as free
+  // (a zero-length ms interval would otherwise overlap nothing).
+  if (
+    !isValidRange(request.localRange.startMin, request.localRange.endMin) ||
+    !isValidRange(request.interval.startMs, request.interval.endMs)
+  ) {
+    return [];
+  }
 
   return technicians
     .filter((tech) => tech.active)
