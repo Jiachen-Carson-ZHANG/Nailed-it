@@ -42,7 +42,7 @@ describe('LandingPage', () => {
       'CTA'
     ];
 
-    expect(topLevelRegions).toHaveLength(5);
+    expect(topLevelRegions).toHaveLength(6);
     expectedRegionNames.forEach((expectedName, index) => {
       expect(topLevelRegions[index]).toHaveAccessibleName(expectedName);
     });

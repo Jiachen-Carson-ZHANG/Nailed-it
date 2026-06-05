@@ -374,6 +374,168 @@
   transform: translateX(-50%);
 }
 
+.journeySection {
+  display: grid;
+  width: 100%;
+}
+
+.journeyStack {
+  display: grid;
+}
+
+.journeyRow {
+  display: grid;
+  grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+  align-items: stretch;
+  overflow: clip;
+}
+
+.journeyRow[data-theme='cool'] {
+  background: var(--landing-blue);
+}
+
+.journeyRow[data-theme='warm'] {
+  background: var(--landing-pink);
+}
+
+.journeyTitleBlock {
+  display: grid;
+  place-items: center;
+  min-height: clamp(20rem, 34vw, 28rem);
+  margin: clamp(1rem, 2vw, 1.5rem) 0;
+  border-radius: 0 2.9rem 2.9rem 0;
+}
+
+.journeyRow[data-theme='cool'] .journeyTitleBlock {
+  background: var(--landing-deep);
+}
+
+.journeyRow[data-theme='warm'] .journeyTitleBlock {
+  background: #d9c8e7;
+}
+
+.journeyTitle {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(3.25rem, 6vw, 5.25rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.journeyRow[data-theme='warm'] .journeyTitle {
+  color: #1f1b1d;
+}
+
+.journeyTitle span {
+  display: block;
+}
+
+.journeyRail {
+  display: grid;
+  align-content: center;
+  gap: 1.6rem;
+  padding: clamp(2rem, 4vw, 3.5rem) clamp(1.5rem, 5vw, 4rem)
+    clamp(2rem, 3vw, 3rem) clamp(1.5rem, 3vw, 2.75rem);
+}
+
+.journeyCards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(0.9rem, 1.6vw, 1.45rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journeyCard {
+  min-height: clamp(13rem, 20vw, 16.5rem);
+  padding: 1.4rem 1.15rem 1.45rem;
+  border-radius: 1.75rem;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0.85rem 2rem rgba(87, 106, 143, 0.14);
+  transform: translateY(0);
+  animation: journey-card-enter 320ms ease both;
+  animation-delay: calc(var(--journey-index, 0) * 70ms);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.journeyCard:hover,
+.journeyCard:focus-within {
+  transform: translateY(-0.25rem) scale(1.01);
+  box-shadow: 0 1.1rem 2.4rem rgba(87, 106, 143, 0.2);
+  background: #ffffff;
+}
+
+.journeyCard article {
+  display: grid;
+  gap: 0.8rem;
+  text-align: center;
+}
+
+.journeyCardTitle {
+  margin: 0;
+  color: var(--landing-deep);
+  font-size: clamp(1.25rem, 1.7vw, 1.85rem);
+  line-height: 1.18;
+  font-weight: 800;
+  text-align: center;
+}
+
+.journeyCardCopy {
+  margin: 0;
+  color: rgba(31, 27, 29, 0.84);
+  font-size: clamp(0.92rem, 1.1vw, 1.08rem);
+  line-height: 1.56;
+  text-align: center;
+}
+
+.journeyTimeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: clamp(0.9rem, 1.6vw, 1.45rem);
+  min-height: 1.7rem;
+}
+
+.journeyTimeline::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: clamp(1.4rem, 2vw, 1.9rem);
+  right: clamp(1.4rem, 2vw, 1.9rem);
+  height: 2px;
+  background: rgba(87, 106, 143, 0.38);
+  transform: translateY(-50%);
+}
+
+.journeyNode {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 0.28rem solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  background: var(--landing-deep);
+  box-shadow: 0 0.35rem 0.8rem rgba(87, 106, 143, 0.22);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.journeyRow:hover .journeyNode {
+  transform: scale(1.05);
+  box-shadow: 0 0.45rem 0.95rem rgba(87, 106, 143, 0.26);
+}
+
 .why {
   display: grid;
   grid-template-columns: minmax(12rem, 23rem) minmax(0, 1fr);
@@ -484,6 +646,18 @@
   }
 }
 
+@keyframes journey-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1024px) {
   .hero,
   .solution,
@@ -514,11 +688,46 @@
   .whyLine {
     transform-origin: center center;
   }
+
+  .journeyRow {
+    grid-template-columns: 1fr;
+  }
+
+  .journeyTitleBlock {
+    min-height: auto;
+    margin: 0;
+    padding: 2.2rem 1.5rem 1.8rem;
+    border-radius: 0 0 2.4rem 2.4rem;
+  }
+
+  .journeyRail {
+    padding-top: 1.75rem;
+  }
+
+  .journeyCards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 800px) {
   .problemGrid {
     grid-template-columns: 1fr;
+  }
+
+  .journeySection {
+    background: #ffffff;
+  }
+
+  .journeyCards {
+    grid-template-columns: 1fr;
+  }
+
+  .journeyCard {
+    min-height: auto;
+  }
+
+  .journeyTimeline {
+    display: none;
   }
 
   .solutionTabList {
@@ -544,9 +753,23 @@
   .heroVisual,
   .solutionPanel,
   .whyLine,
+  .journeyCard,
+  .journeyNode,
   .solutionTab,
   .buttonBase {
     animation: none;
     transition: none;
+  }
+
+  .journeyCard:hover,
+  .journeyCard:focus-within {
+    transform: none;
+    box-shadow: 0 0.85rem 2rem rgba(87, 106, 143, 0.14);
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .journeyRow:hover .journeyNode {
+    transform: none;
+    box-shadow: 0 0.35rem 0.8rem rgba(87, 106, 143, 0.22);
   }
 }

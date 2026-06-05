@@ -1,5 +1,6 @@
 import { CtaSection } from './CtaSection';
 import { HeroSection } from './HeroSection';
+import { JourneySection } from './JourneySection';
 import { landingSerif } from './fonts';
 import styles from './LandingPage.module.css';
 import { ProblemSection } from './ProblemSection';
@@ -12,6 +13,7 @@ export default function LandingPage() {
       <HeroSection />
       <ProblemSection />
       <SolutionSection />
+      <JourneySection />
       <WhyItWorksSection />
       <CtaSection />
     </main>
