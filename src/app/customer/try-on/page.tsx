@@ -20,7 +20,7 @@ function TryOnPageContent() {
           Upload a photo of your hand and see how a nail style looks on you.
         </p>
       </section>
-      <TryOnPanel prefillStyleImageUrl={styleImageUrl || undefined} />
+      <TryOnPanel prefillStyleImageUrl={styleImageUrl || undefined} styleId={styleId ?? undefined} />
     </MobileLayout>
   );
 }

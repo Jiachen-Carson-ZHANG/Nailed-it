@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
@@ -37,13 +39,17 @@ function RecognitionPreview({ imageUrl, recognition }: { imageUrl: string; recog
 
 type BookingStep = 'upload' | 'result' | 'quote';
 
-export default function CustomerBookingPage() {
-  const [step, setStep] = useState<BookingStep>('upload');
-  const [imageUrl, setImageUrl] = useState('');
+function CustomerBookingContent() {
+  const searchParams = useSearchParams();
+  const styleId = searchParams.get('styleId');
+  const styleDefinition = styleId ? getStyleDefinitionById(styleId) : null;
+
+  const [step, setStep] = useState<BookingStep>(styleDefinition ? 'quote' : 'upload');
+  const [imageUrl, setImageUrl] = useState(styleDefinition?.imageUrl ?? '');
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(null);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [recognition, setRecognition] = useState(mockAIResult);
+  const [recognition, setRecognition] = useState(styleDefinition?.recognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
   const estimate = useMemo(
     () => calculateEstimate(recognition, defaultPricingRules),
@@ -100,18 +106,20 @@ export default function CustomerBookingPage() {
       role="customer"
       title="Nailed-it"
     >
-      {/* Step indicator */}
-      <div className="booking-steps" aria-label="Booking progress">
-        {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
-          <span
-            key={label}
-            className={index <= stepIndex[step] ? 'booking-step booking-step-active' : 'booking-step'}
-            aria-current={index === stepIndex[step] ? 'step' : undefined}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
+      {/* Step indicator — hidden when arriving directly from style detail */}
+      {!styleDefinition && (
+        <div className="booking-steps" aria-label="Booking progress">
+          {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
+            <span
+              key={label}
+              className={index <= stepIndex[step] ? 'booking-step booking-step-active' : 'booking-step'}
+              aria-current={index === stepIndex[step] ? 'step' : undefined}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* ─── Step 1: Upload ─── */}
       {step === 'upload' && (
@@ -180,15 +188,26 @@ export default function CustomerBookingPage() {
       {step === 'quote' && (
         <>
           <section className="page-heading">
-            <p className="section-eyebrow">Step 3</p>
-            <h1>Your quote</h1>
+            {styleDefinition ? (
+              <>
+                <p className="section-eyebrow">Your quote</p>
+                <h1>{styleDefinition.title}</h1>
+              </>
+            ) : (
+              <>
+                <p className="section-eyebrow">Step 3</p>
+                <h1>Your quote</h1>
+              </>
+            )}
           </section>
 
           <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
 
-          <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
-            Adjust style details
-          </Button>
+          {!styleDefinition && (
+            <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
+              Adjust style details
+            </Button>
+          )}
 
           <BottomSheet
             open={isSheetOpen}
@@ -201,11 +220,13 @@ export default function CustomerBookingPage() {
             <NailAttributeEditor value={recognition} onChange={setRecognition} />
           </BottomSheet>
 
-          <div className="booking-step-actions">
-            <Button block variant="secondary" onClick={() => setStep('result')}>
-              ← Back to details
-            </Button>
-          </div>
+          {!styleDefinition && (
+            <div className="booking-step-actions">
+              <Button block variant="secondary" onClick={() => setStep('result')}>
+                ← Back to details
+              </Button>
+            </div>
+          )}
 
           <PriceEstimateBar
             actionHref={getCustomerBookingConfirmPath()}
@@ -217,6 +238,14 @@ export default function CustomerBookingPage() {
         </>
       )}
     </MobileLayout>
+  );
+}
+
+export default function CustomerBookingPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomerBookingContent />
+    </Suspense>
   );
 }
 

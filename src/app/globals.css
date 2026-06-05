@@ -2539,3 +2539,10 @@ select {
   display: block;
 }
 
+.try-on-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+

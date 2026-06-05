@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { TryOnResult } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
+import { getCustomerBookingPath } from '@/domain/session';
 
 type ImageSlotProps = {
   label: string;
@@ -58,14 +61,16 @@ function ImageSlot({ label, description, image, prefillImageUrl, onImageSelected
 
 type TryOnPanelProps = {
   prefillStyleImageUrl?: string;
+  styleId?: string;
 };
 
-export function TryOnPanel({ prefillStyleImageUrl }: TryOnPanelProps) {
+export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
   const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(null);
   const [result, setResult] = useState<TryOnResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const canGenerate = Boolean(handImage) && (Boolean(styleImage) || Boolean(prefillStyleImageUrl));
 
@@ -181,6 +186,25 @@ export function TryOnPanel({ prefillStyleImageUrl }: TryOnPanelProps) {
               Download image
             </a>
           </p>
+          <div className="try-on-result-actions">
+            <Button
+              block
+              onClick={() => setShowBreakdown((v) => !v)}
+            >
+              {showBreakdown ? 'Hide analysis' : 'Analyze style + get quote'}
+            </Button>
+            <Link
+              className="button button-secondary button-block"
+              href={styleId ? `${getCustomerBookingPath()}?styleId=${styleId}` : getCustomerBookingPath()}
+            >
+              Book this look
+            </Link>
+          </div>
+          {showBreakdown && (
+            <ComponentBreakdownPanel
+              image={{ imageBase64: result.imageBase64, mimeType: result.mimeType, previewUrl: `data:${result.mimeType};base64,${result.imageBase64}` }}
+            />
+          )}
         </section>
       )}
     </div>
