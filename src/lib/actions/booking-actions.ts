@@ -21,6 +21,43 @@ export type CreateBookingActionInput = {
 };
 
 /**
+ * P4d read path: all of the demo merchant's bookings, adapted to the flat UI Booking shape the
+ * reader surfaces (calendar, profile, booking detail) render. N+1 on items is fine at demo scale.
+ */
+export async function listBookingViewsAction(): Promise<Booking[]> {
+  const repos = getRepositories();
+  const merchant = await repos.merchants.getById(demoMerchantId);
+  const merchantName = merchant?.name ?? 'Nailed-it Studio';
+  const timeZone = merchant?.timezone ?? 'Asia/Singapore';
+
+  const [bookings, technicians, threads] = await Promise.all([
+    repos.intervalBookings.listByMerchant(demoMerchantId),
+    repos.technicians.list(),
+    repos.conversations.list(),
+  ]);
+  const techById = new Map(technicians.map((t) => [t.id, t]));
+  const threadByBooking = new Map(threads.map((t) => [t.bookingId, t.id]));
+
+  return Promise.all(
+    bookings.map(async (b) => {
+      const items = await repos.intervalBookings.listItems(b.id);
+      const tech = techById.get(b.technicianId);
+      return intervalBookingToUiBooking(
+        { booking: b, items },
+        {
+          timeZone,
+          technician: tech
+            ? { id: tech.id, name: tech.name, initials: tech.initials }
+            : { id: b.technicianId, name: 'Technician', initials: '–' },
+          merchantName,
+          conversationId: threadByBooking.get(b.id),
+        },
+      );
+    }),
+  );
+}
+
+/**
  * P4d write path: create the interval booking (via the snapshot bridge) and its linked
  * conversation thread in the DB, in place of the old localStorage createBookingFromDraft.
  * Returns the flat UI Booking shape the confirm page already renders.

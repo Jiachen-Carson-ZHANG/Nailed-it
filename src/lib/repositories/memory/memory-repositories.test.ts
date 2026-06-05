@@ -496,8 +496,8 @@ describe('interval booking', () => {
 
   it('getById returns a seeded booking', async () => {
     const repo = createMemoryIntervalBookingRepository();
-    const b = await repo.getById('booking-int-001');
-    expect(b?.technicianId).toBe('tech-lina');
+    const b = await repo.getById('booking-001');
+    expect(b?.technicianId).toBe('tech-mei');
   });
 
   it('listByMerchant returns all of a merchant’s bookings (any status)', async () => {
@@ -509,18 +509,19 @@ describe('interval booking', () => {
 
   it('listByTechnicianInRange returns overlapping non-cancelled bookings', async () => {
     const repo = createMemoryIntervalBookingRepository();
+    // booking-001 is tech-mei on 2026-05-23 at 14:00.
     const hits = await repo.listByTechnicianInRange(
-      'tech-lina',
-      '2026-06-09T11:00:00+08:00',
-      '2026-06-09T12:00:00+08:00',
+      'tech-mei',
+      '2026-05-23T13:30:00+08:00',
+      '2026-05-23T15:00:00+08:00',
     );
-    expect(hits.map((b) => b.id)).toContain('booking-int-001');
+    expect(hits.map((b) => b.id)).toContain('booking-001');
   });
 
   it('listItems returns the items for a booking', async () => {
     const repo = createMemoryIntervalBookingRepository();
-    const items = await repo.listItems('booking-int-001');
-    expect(items.map((i) => i.id)).toContain('bitem-001');
+    const items = await repo.listItems('booking-001');
+    expect(items.map((i) => i.id)).toContain('bitem-booking-001');
   });
 
   it('create inserts when there is no conflict', async () => {
@@ -581,9 +582,9 @@ describe('interval booking', () => {
 
   it('mutation isolation: mutating a returned booking does not affect state', async () => {
     const repo = createMemoryIntervalBookingRepository();
-    const b = await repo.getById('booking-int-001');
+    const b = await repo.getById('booking-001');
     b!.customerName = 'MUTATED';
-    const refetched = await repo.getById('booking-int-001');
+    const refetched = await repo.getById('booking-001');
     expect(refetched?.customerName).not.toBe('MUTATED');
   });
 
