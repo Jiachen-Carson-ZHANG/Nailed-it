@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, vi } from 'vitest';
-import { resetOperationsStoreForTests } from '@/mock/operations-store';
+import { resetRepositoriesForTests } from '@/lib/repositories';
 import MerchantConversationPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
 
 describe('MerchantConversationPage', () => {
   beforeEach(() => {
-    resetOperationsStoreForTests();
+    resetRepositoriesForTests();
   });
 
   it('renders the merchant chat room for the selected thread', async () => {
@@ -20,7 +20,7 @@ describe('MerchantConversationPage', () => {
       })
     );
 
-    expect(screen.getByRole('heading', { name: /rachel goh/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /rachel goh/i })).toBeInTheDocument();
     expect(screen.getByText(/appointment pending review for tomorrow 15:30 with mei chen/i)).toBeInTheDocument();
   });
 
@@ -33,10 +33,10 @@ describe('MerchantConversationPage', () => {
       })
     );
 
-    await user.type(screen.getByRole('textbox', { name: /message/i }), 'I can hold the 6pm slot.');
+    await user.type(await screen.findByRole('textbox', { name: /message/i }), 'I can hold the 6pm slot.');
     await user.click(screen.getByRole('button', { name: /send/i }));
 
-    expect(screen.getByText(/hold the 6pm slot/i)).toBeInTheDocument();
+    expect(await screen.findByText(/hold the 6pm slot/i)).toBeInTheDocument();
     expect(screen.getByText(/hold the 6pm slot/i).closest('article')).toHaveClass(
       'chat-message-me'
     );
