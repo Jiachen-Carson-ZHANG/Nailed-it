@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import type { Booking } from '@/domain/nail';
 import { getMerchantMessagesPath } from '@/domain/session';
-import { getBookingsSnapshot, getConversationThreads } from '@/mock/operations-store';
+import { listBookingViewsAction } from '@/lib/actions/booking-actions';
 
 type MerchantBookingDetailClientProps = {
   id: string;
@@ -26,10 +27,37 @@ const statusLabels: Record<Booking['status'], string> = {
 };
 
 export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientProps) {
-  const [booking] = useState<Booking | undefined>(() =>
-    getBookingsSnapshot().find((item) => item.id === id)
-  );
-  const [status, setStatus] = useState<Booking['status'] | undefined>(booking?.status);
+  const [booking, setBooking] = useState<Booking | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<Booking['status'] | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    listBookingViewsAction()
+      .then((rows) => {
+        if (!active) return;
+        const found = rows.find((item) => item.id === id);
+        setBooking(found);
+        setStatus(found?.status);
+      })
+      .catch(() => {
+        /* leave undefined → not-found state */
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <section className="page-heading">
+        <LoadingState title="Loading booking" body="Fetching the appointment from the booking service." />
+      </section>
+    );
+  }
 
   if (!booking) {
     return (
@@ -42,9 +70,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
     );
   }
 
-  const conversationId =
-    booking.conversationId ??
-    getConversationThreads().find((thread) => thread.bookingId === booking.id)?.id;
+  const conversationId = booking.conversationId;
   const currentStatus = status ?? booking.status;
 
   return (

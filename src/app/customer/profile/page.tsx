@@ -1,14 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
+import type { Booking } from '@/domain/nail';
 import { homePathForRole } from '@/domain/session';
-import { demoCustomerName, getBookingsSnapshot } from '@/mock/operations-store';
+import { listBookingViewsAction } from '@/lib/actions/booking-actions';
+import { demoCustomerName } from '@/mock/operations-store';
 
 export default function CustomerProfilePage() {
-  const [bookings] = useState(() => getBookingsSnapshot());
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    listBookingViewsAction()
+      .then((rows) => {
+        if (active) setBookings(rows);
+      })
+      .catch(() => {
+        /* leave empty */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const customerBookings = bookings.filter((booking) => booking.customerName === demoCustomerName);
   // 中文注释：这里按"仍会占用用户心智"的状态聚合 upcoming，后续接真实后端也能复用同一口径。
   const upcomingBookings = customerBookings.filter((booking) =>
