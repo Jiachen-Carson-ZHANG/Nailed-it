@@ -94,6 +94,30 @@ describe('findTechnicianSlots', () => {
     expect(twelveThirty.some((slot) => slot.technician.name === 'Lina Park')).toBe(true);
   });
 
+  it('falls back to a positive duration instead of treating malformed durations as free', () => {
+    const malformedDurationBooking: Booking = {
+      ...mockBookings[0],
+      date: '2026-05-23',
+      time: '12:30',
+      technician: { id: 'tech-mei', name: 'Mei Chen', initials: 'MC' },
+      status: 'confirmed',
+      quote: { source: 'booking_snapshot', price: 100, duration: 0 }
+    };
+
+    const result = findTechnicianSlots({
+      bookings: [malformedDurationBooking],
+      days,
+      technicians,
+      durationMin: 0
+    });
+    const twelveThirty = result
+      .find((day) => day.date === '2026-05-23')
+      ?.slots.filter((slot) => slot.time === '12:30') ?? [];
+
+    expect(twelveThirty.some((slot) => slot.technician.name === 'Mei Chen')).toBe(false);
+    expect(twelveThirty.some((slot) => slot.technician.name === 'Lina Park')).toBe(true);
+  });
+
   it('returns no available days when there are no active technicians', () => {
     const result = findTechnicianSlots({
       bookings: [],

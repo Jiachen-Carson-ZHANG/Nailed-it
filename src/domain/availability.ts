@@ -1,6 +1,8 @@
 import type { Booking, Technician, TechnicianSlot } from './nail';
 import { intervalsOverlap } from './scheduling';
 
+const fallbackDurationMin = 60;
+
 type FindTechnicianSlotsInput = {
   bookings: Booking[];
   days: Array<{
@@ -19,6 +21,12 @@ export type TechnicianSlotDay = {
   slots: TechnicianSlot[];
 };
 
+function durationOrFallback(durationMin: number | undefined): number {
+  return typeof durationMin === 'number' && Number.isFinite(durationMin) && durationMin > 0
+    ? durationMin
+    : fallbackDurationMin;
+}
+
 // Demo merchant timezone is Asia/Singapore (no DST), so a fixed +08:00 offset is exact.
 // Availability is duration-aware: occupancy is a real time interval, not a slot string,
 // so a long booking blocks every overlapping later slot — not just its exact start time.
@@ -30,13 +38,14 @@ export function findTechnicianSlots({
   bookings,
   days,
   technicians,
-  durationMin = 60
+  durationMin = fallbackDurationMin
 }: FindTechnicianSlotsInput): TechnicianSlotDay[] {
+  const requestDurationMin = durationOrFallback(durationMin);
   const busyByTechnician = new Map<string, Array<{ startMs: number; endMs: number }>>();
   for (const booking of bookings) {
     if (booking.status === 'cancelled') continue;
     const startMs = slotMs(booking.date, booking.time);
-    const interval = { startMs, endMs: startMs + booking.quote.duration * 60_000 };
+    const interval = { startMs, endMs: startMs + durationOrFallback(booking.quote.duration) * 60_000 };
     const list = busyByTechnician.get(booking.technician.id) ?? [];
     list.push(interval);
     busyByTechnician.set(booking.technician.id, list);
@@ -47,7 +56,7 @@ export function findTechnicianSlots({
     .flatMap((day) =>
       day.slots.flatMap((time) => {
         const startMs = slotMs(day.date, time);
-        const request = { startMs, endMs: startMs + durationMin * 60_000 };
+        const request = { startMs, endMs: startMs + requestDurationMin * 60_000 };
         return activeTechnicians
           .filter((technician) => {
             const busy = busyByTechnician.get(technician.id) ?? [];
