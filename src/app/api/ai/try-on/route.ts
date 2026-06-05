@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { TryOnError, runTryOn } from '@/lib/ai/try-on';
+import { TryOnError, runTryOn } from '@/nail-ai/try-on';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 

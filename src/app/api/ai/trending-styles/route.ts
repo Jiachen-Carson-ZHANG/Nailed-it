@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { TrendingStylesError, fetchAITrendingStyles } from '@/lib/ai/trending-styles';
+import { TrendingStylesError, fetchAITrendingStyles } from '@/nail-ai/trending-styles';
 
 export async function GET() {
   try {

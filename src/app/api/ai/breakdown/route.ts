@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BreakdownError, runFreeBreakdown, runStandardBreakdown } from '@/lib/ai/breakdown';
+import { BreakdownError, runFreeBreakdown, runStandardBreakdown } from '@/nail-ai/breakdown';
 import { defaultPricingRules } from '@/mock/pricing';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
