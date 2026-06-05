@@ -40,6 +40,7 @@ export type BookingQuote = QuoteValue & {
 
 export type Technician = {
   id: string;
+  merchantId: string;
   name: string;
   initials: string;
   title: string;

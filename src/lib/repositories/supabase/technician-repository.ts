@@ -4,6 +4,7 @@ import type { TechnicianRepository } from '../types';
 
 interface TechnicianRow {
   id: string;
+  merchant_id: string;
   name: string;
   initials: string;
   title: string;
@@ -13,6 +14,7 @@ interface TechnicianRow {
 function rowToTechnician(row: TechnicianRow): Technician {
   return {
     id: row.id,
+    merchantId: row.merchant_id,
     name: row.name,
     initials: row.initials,
     title: row.title,

@@ -4,9 +4,9 @@ import { findTechnicianSlots } from './availability';
 import { mockBookings } from '@/mock/bookings';
 
 const technicians: Technician[] = [
-  { id: 'tech-mei', name: 'Mei Chen', initials: 'MC', title: 'Lead nail artist', active: true },
-  { id: 'tech-lina', name: 'Lina Park', initials: 'LP', title: 'Gel specialist', active: true },
-  { id: 'tech-anna', name: 'Anna Lim', initials: 'AL', title: 'Nail artist', active: false }
+  { id: 'tech-mei', merchantId: 'merchant-nailed-it', name: 'Mei Chen', initials: 'MC', title: 'Lead nail artist', active: true },
+  { id: 'tech-lina', merchantId: 'merchant-nailed-it', name: 'Lina Park', initials: 'LP', title: 'Gel specialist', active: true },
+  { id: 'tech-anna', merchantId: 'merchant-nailed-it', name: 'Anna Lim', initials: 'AL', title: 'Nail artist', active: false }
 ];
 
 const days = [

@@ -43,6 +43,7 @@ function addSeconds(isoBase: string, seconds: number): string {
 async function seedTechnicians(): Promise<number> {
   const rows = mockTechnicians.map((t) => ({
     id: t.id,
+    merchant_id: t.merchantId,
     name: t.name,
     initials: t.initials,
     title: t.title,
@@ -236,7 +237,9 @@ async function seedConversations(
 async function main(): Promise<void> {
   console.log('Seeding Supabase...');
 
-  // working_plan + blocked_time FK technicians(id), so technicians must land first.
+  // FK order: merchant -> technicians (technicians.merchant_id) -> working_plan/blocked_time
+  // (both FK technicians). Everything else is independent.
+  const merchantCount = await seedMerchants();
   const techCount = await seedTechnicians();
   const [
     styleCount,
@@ -244,7 +247,6 @@ async function main(): Promise<void> {
     bookingCount,
     convResult,
     catalogCount,
-    merchantCount,
     workingPlanCount,
     blockedTimeCount,
   ] = await Promise.all([
@@ -253,7 +255,6 @@ async function main(): Promise<void> {
     seedBookings(),
     seedConversations(seedConversationThreads),
     seedCatalog(),
-    seedMerchants(),
     seedWorkingPlans(),
     seedBlockedTimes(),
   ]);

@@ -154,7 +154,7 @@ describe('findAvailableTechnicians (Monday 2026-06-08)', () => {
   it('excludes inactive technicians', () => {
     const withInactive: Technician[] = [
       ...mockTechnicians,
-      { id: 'tech-off', name: 'Off Duty', initials: 'OD', title: 'On leave', active: false },
+      { id: 'tech-off', merchantId: 'merchant-nailed-it', name: 'Off Duty', initials: 'OD', title: 'On leave', active: false },
     ];
     const ids = findAvailableTechnicians({
       technicians: withInactive,
