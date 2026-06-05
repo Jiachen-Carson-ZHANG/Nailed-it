@@ -140,6 +140,10 @@ export function createSupabaseIntervalBookingRepository(): IntervalBookingReposi
         if (error.code === '23P01' || error.message?.includes('booking_overlap')) {
           throw new Error('booking_overlap');
         }
+        // 23514 = check_violation (end_at > start_at, duration_min > 0).
+        if (error.code === '23514') {
+          throw new Error('invalid_interval');
+        }
         throw new Error(`IntervalBookingRepository.create failed: ${error.message}`);
       }
       return booking;

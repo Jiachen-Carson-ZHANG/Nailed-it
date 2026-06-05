@@ -1,5 +1,5 @@
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
-import { intervalsOverlap } from '@/domain/scheduling';
+import { intervalsOverlap, isValidRange } from '@/domain/scheduling';
 import { mockBookingItems, mockIntervalBookings } from '@/mock/interval-bookings';
 import type { IntervalBookingRepository } from '../types';
 
@@ -41,12 +41,17 @@ export function createMemoryIntervalBookingRepository(
     },
 
     async create(booking: IntervalBooking, newItems: BookingItem[]): Promise<IntervalBooking> {
+      // Mirror the DB CHECK (end_at > start_at): reject a malformed interval up front.
+      const reqInterval = toInterval(booking);
+      if (!isValidRange(reqInterval.startMs, reqInterval.endMs)) {
+        throw new Error('invalid_interval');
+      }
       // Mirror the DB exclusion constraint: no overlapping live booking for this technician.
       const conflict = bookings.some(
         (b) =>
           b.technicianId === booking.technicianId &&
           b.status !== 'cancelled' &&
-          intervalsOverlap(toInterval(booking), toInterval(b)),
+          intervalsOverlap(reqInterval, toInterval(b)),
       );
       if (conflict) {
         throw new Error('booking_overlap');

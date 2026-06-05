@@ -579,6 +579,26 @@ describe('interval booking', () => {
     const refetched = await repo.getById('booking-int-001');
     expect(refetched?.customerName).not.toBe('MUTATED');
   });
+
+  it('create rejects an inverted interval (mirrors the DB end_at>start_at CHECK)', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    await expect(
+      repo.create(
+        bookingAt({ id: 'bad', technicianId: 'tech-mei', startAt: '2026-06-09T11:00:00+08:00', endAt: '2026-06-09T10:00:00+08:00' }),
+        [],
+      ),
+    ).rejects.toThrow('invalid_interval');
+  });
+
+  it('create rejects a zero-length interval', async () => {
+    const repo = createMemoryIntervalBookingRepository([], []);
+    await expect(
+      repo.create(
+        bookingAt({ id: 'zero', technicianId: 'tech-mei', startAt: '2026-06-09T10:00:00+08:00', endAt: '2026-06-09T10:00:00+08:00' }),
+        [],
+      ),
+    ).rejects.toThrow('invalid_interval');
+  });
 });
 
 // ─── getRepositories / resetRepositoriesForTests ──────────────────────────────

@@ -1,8 +1,8 @@
 # ADR-0004: Database-backed persistence via a repository seam (Supabase)
 
-**Status:** Accepted (P0–P1 implemented; P2–P4 pending). Refined by ADR-0005 (relational domain model).  
-**Date:** 2026-06-04  
-**Supersedes:** —  
+**Status:** Accepted (P0–P1 implemented; P2–P4 pending). Refined by ADR-0005 (relational domain model).
+**Date:** 2026-06-04
+**Supersedes:** —
 **Superseded by:** —
 
 ---

@@ -33,6 +33,18 @@ describe('intervalsOverlap', () => {
   it('disjoint does not overlap', () => {
     expect(intervalsOverlap(interval('10:00', '11:00'), interval('14:00', '15:00'))).toBe(false);
   });
+  it('an inverted interval overlaps nothing (fail closed)', () => {
+    const inverted = { startMs: sgt('16:00'), endMs: sgt('10:00') };
+    expect(intervalsOverlap(inverted, interval('09:00', '20:00'))).toBe(false);
+  });
+  it('a zero-length interval overlaps nothing (fail closed)', () => {
+    const zero = { startMs: sgt('12:00'), endMs: sgt('12:00') };
+    expect(intervalsOverlap(zero, interval('09:00', '20:00'))).toBe(false);
+  });
+  it('a non-finite interval overlaps nothing (fail closed)', () => {
+    const bad = { startMs: Number.NaN, endMs: sgt('12:00') };
+    expect(intervalsOverlap(bad, interval('09:00', '20:00'))).toBe(false);
+  });
 });
 
 describe('isWithinWorkingPlan', () => {

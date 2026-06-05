@@ -65,12 +65,16 @@ function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: numbe
 }
 
 /** A range is valid only if both ends are finite and start strictly precedes end. */
-function isValidRange(start: number, end: number): boolean {
+export function isValidRange(start: number, end: number): boolean {
   return Number.isFinite(start) && Number.isFinite(end) && start < end;
 }
 
-/** Two absolute instant intervals overlap. Touching at an endpoint does NOT overlap. */
+/** Two absolute instant intervals overlap. Touching at an endpoint does NOT overlap.
+ *  Fails closed: an invalid (inverted/zero/non-finite) interval overlaps nothing. */
 export function intervalsOverlap(a: MsInterval, b: MsInterval): boolean {
+  if (!isValidRange(a.startMs, a.endMs) || !isValidRange(b.startMs, b.endMs)) {
+    return false;
+  }
   return rangesOverlap(a.startMs, a.endMs, b.startMs, b.endMs);
 }
 
