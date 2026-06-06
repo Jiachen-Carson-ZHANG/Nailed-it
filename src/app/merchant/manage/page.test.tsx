@@ -18,15 +18,19 @@ describe('MerchantManagePage', () => {
     resetRepositoriesForTests();
   });
 
-  it('renders pricing sections and shows a toast after saving changes', async () => {
+  it('renders the pricing panels and saves changes to the DB', async () => {
     render(<MerchantManagePage />);
 
-    expect(screen.getByRole('heading', { name: /设置单价与时长/i })).toBeInTheDocument();
+    // Default panel renders.
+    expect(screen.getByRole('heading', { name: '基础服务' })).toBeInTheDocument();
 
+    // Edit the base service price, then save from the preview panel (prices persist to merchant_pricing).
     const priceInput = await screen.findByLabelText(/基础护理服务 单价/i);
     fireEvent.change(priceInput, { target: { value: '12' } });
+
+    fireEvent.click(screen.getByRole('button', { name: '确认预览' }));
     fireEvent.click(screen.getByRole('button', { name: /保存价格表/i }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/价格表已保存到数据库/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/价格表已更新/i);
   });
 });

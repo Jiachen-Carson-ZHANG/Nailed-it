@@ -1,7 +1,7 @@
 import type { AITrendingResponse, AITrendingStyle, TrendingSearchLink } from '@/domain/nail';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
-export const defaultTrendingModel = 'qwen/qwen3-235b-a22b';
+export const defaultTrendingModel = 'qwen/qwen3.5-flash-02-23';
 
 export class TrendingStylesError extends Error {
   constructor(
@@ -20,7 +20,7 @@ export async function fetchAITrendingStyles(env = process.env): Promise<AITrendi
     throw new TrendingStylesError('missing_config', 'OPENROUTER_API_KEY is required for trending styles.');
   }
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTrendingModel;
+  const model = defaultTrendingModel ?? env.GEMINI_IMAGE_MODEL_NAME;
   const now = new Date();
   const monthYear = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 

@@ -1,6 +1,6 @@
 import Image from 'next/image';
 
-import logoImage from '@/landing_assets/logo.PNG?url';
+import logoImage from '@/landing_assets/logo_pink.png?url';
 
 type BrandLogoVariant = 'hero-mark' | 'topbar';
 

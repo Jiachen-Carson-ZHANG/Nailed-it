@@ -108,3 +108,8 @@ export const aiDetectableStyleTags = glossaryEntries.filter(
 
 // complexity levels
 export const complexityLevels = glossaryEntries.filter((e) => e.type === 'complexity_level');
+
+// time-only procedures that make up the base manicure (used by the merchant manage UI)
+export const basicServiceProcedures = glossaryEntries.filter(
+  (e) => e.type === 'procedure' && e.parent_id === 'basic_manicure_service'
+);
