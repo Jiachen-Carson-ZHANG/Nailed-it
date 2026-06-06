@@ -408,6 +408,9 @@ select {
 .button-block {
   display: flex;
   width: 100%;
+  white-space: normal;
+  text-align: center;
+  height: auto;
 }
 
 .button-default {
