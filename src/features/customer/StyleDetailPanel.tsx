@@ -3,12 +3,10 @@ import type { NailStyleCard } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
 
 type StyleDetailPanelProps = {
-  backHref: string;
-  recognition: unknown;
   style: NailStyleCard;
 };
 
-export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
+export function StyleDetailPanel({ style }: StyleDetailPanelProps) {
   const { previewQuote } = style;
 
   return (
@@ -42,10 +40,6 @@ export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
         </Link>
         <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
           Try on this look
-        </Link>
-        <p className="detail-merchant-line">At <strong>Nailed-it Studio</strong> · Free cancellation up to 24 h before</p>
-        <Link className="detail-back-link" href={backHref}>
-          ← Back to discovery
         </Link>
       </div>
     </article>

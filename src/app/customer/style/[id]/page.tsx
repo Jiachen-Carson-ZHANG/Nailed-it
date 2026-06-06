@@ -20,14 +20,9 @@ export default async function StyleDetailPage({ params }: StyleDetailPageProps) 
     <MobileLayout
       brandHref={homePathForRole('customer')}
       role="customer"
-      showTabs={false}
       title="Nailed-it"
     >
-      <StyleDetailPanel
-        backHref={homePathForRole('customer')}
-        recognition={style.recognition}
-        style={style}
-      />
+      <StyleDetailPanel style={style} />
     </MobileLayout>
   );
 }
