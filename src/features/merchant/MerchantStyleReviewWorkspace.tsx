@@ -252,26 +252,6 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         </div>
       </header>
 
-      {canRunAiBreakdown || isAnalyzing ? (
-        <section className="merchant-review-analysis" aria-live="polite">
-          {isAnalyzing ? <span className="loading-dot" /> : null}
-          <div>
-            <strong>{isAnalyzing ? 'Analyzing the uploaded design' : 'Ready for AI breakdown'}</strong>
-            <p>{isAnalyzing ? 'AI suggestions will appear here when ready.' : 'Generate the editable name, description, and service list.'}</p>
-          </div>
-          {canRunAiBreakdown ? (
-            <button
-              className="button button-secondary button-default merchant-review-ai-button"
-              disabled={isAnalyzing || isSaving}
-              type="button"
-              onClick={runAiBreakdown}
-            >
-              {isAnalyzing ? 'Analyzing…' : 'Run AI'}
-            </button>
-          ) : null}
-        </section>
-      ) : null}
-
       <div className="merchant-review-layout">
         <aside className="merchant-review-media">
           <img alt={style.title} src={style.imageUrl} />

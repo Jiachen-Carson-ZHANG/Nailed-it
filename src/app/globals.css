@@ -2728,14 +2728,17 @@ select {
   gap: 1.25rem;
 }
 
-.merchant-review-heading,
-.merchant-review-section-heading,
-.merchant-review-actions,
-.merchant-review-actions > div:last-child {
+.merchant-review-section-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.merchant-review-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .merchant-review-heading h1,
@@ -2743,12 +2746,18 @@ select {
   margin: 0;
 }
 
+/* Status + AI action sit on one row beneath the title (content is always phone-width). */
 .merchant-review-heading-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.6rem;
-  flex-shrink: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.merchant-review-heading-actions .merchant-review-ai-button {
+  flex: 1 1 auto;
+  max-width: 14rem;
 }
 
 .merchant-review-ai-button {
@@ -2756,7 +2765,6 @@ select {
 }
 
 .merchant-review-heading p:last-child,
-.merchant-review-analysis p,
 .merchant-review-actions p {
   margin: 0.35rem 0 0;
   color: var(--color-muted);
@@ -2771,29 +2779,16 @@ select {
   font-weight: 700;
 }
 
-.merchant-review-analysis,
 .merchant-review-loading {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(217, 119, 6, 0.18);
-  border-radius: var(--radius-md);
-  background: rgba(255, 247, 237, 0.92);
-}
-
-.merchant-review-analysis {
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
-
-.merchant-review-analysis > div {
-  flex: 1 1 13rem;
-}
-
-.merchant-review-loading {
-  min-height: 12rem;
   justify-content: center;
+  gap: 0.85rem;
+  min-height: 12rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 
 .merchant-review-layout {
@@ -2952,8 +2947,10 @@ select {
   position: sticky;
   bottom: 0;
   z-index: 25;
-  align-items: center;
-  margin: 0 -1rem -6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0 -1rem;
   padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom));
   border-top: 1px solid var(--color-border);
   background: rgba(255, 248, 247, 0.96);
@@ -2964,49 +2961,14 @@ select {
   font-size: var(--text-xs);
 }
 
-@media (min-width: 48rem) {
-  .mobile-content-workspace {
-    padding: 1.5rem 2rem 7rem;
-  }
-
-  .merchant-review-layout {
-    grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 1.28fr);
-    align-items: start;
-  }
-
-  .merchant-review-media {
-    position: sticky;
-    top: calc(var(--top-bar-height) + 1.5rem);
-  }
-
-  .merchant-review-actions {
-    margin-right: -2rem;
-    margin-bottom: -7rem;
-    margin-left: -2rem;
-    padding-right: 2rem;
-    padding-left: 2rem;
-  }
+.merchant-review-actions > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
-@media (max-width: 36rem) {
-  .merchant-review-heading,
-  .merchant-review-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .merchant-review-heading-actions {
-    align-items: stretch;
-  }
-
-  .merchant-review-actions > div:last-child {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .merchant-review-actions .button {
-    width: 100%;
-  }
+.merchant-review-actions .button {
+  width: 100%;
 }
 
 /* Radix primitives — semantic class hooks */
