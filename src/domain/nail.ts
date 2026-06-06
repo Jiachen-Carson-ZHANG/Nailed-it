@@ -61,6 +61,7 @@ export type CustomerBookingDraft = {
   estimate: RuleBasedQuote;
   imageUrl: string;
   recognition: AIRecognitionResult;
+  breakdowns?: { glossary: BreakdownResult | null };
 };
 
 export type StyleDiscoveryFacetKind = 'style' | 'addon' | 'shape' | 'mood' | 'lifestyle';
@@ -216,34 +217,26 @@ export type AITrendingResponse = {
 
 // ─── Component Breakdown ──────────────────────────────────────────────────────
 
-export type NailBreakdownCategory = 'base' | 'shape' | 'color_style' | 'addon' | 'other';
-
-export type StandardBreakdownItem = {
-  mode: 'standard';
-  category: NailBreakdownCategory;
-  label: string;
-  price: number;
-  duration: number;
-};
-
-export type FreeBreakdownItem = {
-  mode: 'free';
-  category: NailBreakdownCategory;
-  label: string;
-  labelCn?: string;
+export type GlossaryBreakdownItem = {
+  mode: 'glossary';
+  glossaryId: string;
+  nameZh: string;
+  typeZh: string;
+  parentId: string;
+  parentNameZh: string;
   quantity: number;
   unit: string;
   price: number;
   duration: number;
 };
 
-export type BreakdownItem = StandardBreakdownItem | FreeBreakdownItem;
+export type BreakdownItem = GlossaryBreakdownItem;
 
 export type BreakdownResult = {
-  items: BreakdownItem[];
+  items: GlossaryBreakdownItem[];
   totalPrice: number;
   totalDuration: number;
-  mode: 'standard' | 'free';
+  mode: 'glossary';
 };
 
 // ─── Virtual Try-On ───────────────────────────────────────────────────────────

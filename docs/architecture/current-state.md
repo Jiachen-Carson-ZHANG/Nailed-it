@@ -24,7 +24,7 @@ Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + 
 |---|---|---|
 | `/api/ai/recognize-nail-style` | `google/gemini-3.1-flash-image-preview` with 2.5 being the fallback | Image → nail attributes + confidence for booking |
 | `/api/ai/try-on` | `google/gemini-3.1-flash-image-preview` (OpenRouter) | Hand + style images → try-on composite |
-| `/api/ai/breakdown` | Uses OpenRouter | Image → structured nail component breakdown with pricing |
+| `/api/ai/breakdown` | Uses OpenRouter | Image + merchant settings → glossary-driven component breakdown (replaces former standard/free modes) |
 | `/api/ai/trending-styles` | `qwen/qwen3-235b-a22b` (OpenRouter) | Text → ranked trending style suggestions |
 
 ## Persistence layer
@@ -80,6 +80,11 @@ Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API
 - `merchant-style.ts` — merchant media/style lifecycle and customer-safe published-style mapping
 - `messaging.ts` — role-aware mapping from operations-store threads to the shared `Conversation` UI contract
 
+## Glossary (`src/data/`)
+
+- `glossary.ts` — static TypeScript embedding of all 100+ entries from `docs/glossary.xlsx`, including `type_zh` translations. Provides `billableComponents`, `aiDetectableComponents`, `serviceModules`, and `glossaryById` lookup.
+- `glossary-settings-store.ts` — localStorage CRUD (`nailed-it.glossary-settings.v1`) for merchant price/duration settings per `billable_component`. Defaults load from `default_duration_min`; prices default to 0.
+
 ## Mock data (`src/mock/`)
 
 `styles.ts`, `merchant-styles.ts`, `bookings.ts`, `conversations.ts`, `technicians.ts`, `pricing.ts` — seed data.
@@ -92,7 +97,7 @@ Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API
 - `usage-cost.ts` — Gemini usage metadata parser and USD cost estimator
 - `openrouter.ts` — shared fetch wrapper for OpenRouter chat completions (text and image modalities)
 - `try-on.ts` — two-image try-on via OpenRouter
-- `breakdown.ts` — component breakdown via OpenRouter; re-uses recognised attribute helpers from `nail-recognition.ts`
+- `breakdown.ts` — glossary-driven component breakdown via OpenRouter; AI detects glossary `billable_component` items and quantities; prices/durations from merchant's localStorage settings
 - `trending-styles.ts` — AI trending style feed via OpenRouter
 
 ## Testing

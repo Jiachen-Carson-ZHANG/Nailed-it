@@ -120,6 +120,10 @@ export default function CustomerBookingConfirmPage() {
     }
   }
 
+  const displayEstimate = draft.breakdowns?.glossary
+    ? { price: draft.breakdowns.glossary.totalPrice, duration: draft.breakdowns.glossary.totalDuration }
+    : { price: draft.estimate.price, duration: draft.estimate.duration };
+
   return (
     <MobileLayout
       role="customer"
@@ -137,7 +141,7 @@ export default function CustomerBookingConfirmPage() {
         <strong>Your booking summary</strong>
         <p>{draft.recognition.selection.otherNotes}</p>
         <p>
-          Estimated: SGD {draft.estimate.price} · {draft.estimate.duration} min
+          Estimated: SGD {displayEstimate.price} · {displayEstimate.duration} min
         </p>
         {draft.imageUrl ? (
           <img alt="Booking draft reference" className="booking-draft-image" src={draft.imageUrl} />

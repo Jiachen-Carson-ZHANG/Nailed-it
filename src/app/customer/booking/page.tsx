@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -9,11 +10,11 @@ import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUplo
 import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
-import type { AIRecognitionResult } from '@/domain/nail';
+import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
+import type { AIRecognitionResult, BreakdownResult } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
 import { NailAttributeEditor } from '@/features/customer/NailAttributeEditor';
-import { PriceEstimateBar } from '@/features/customer/PriceEstimateBar';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
@@ -31,7 +32,6 @@ function RecognitionPreview({ imageUrl, recognition }: { imageUrl: string; recog
       )}
       <section className="summary-card">
         <strong>{recognition.selection.otherNotes}</strong>
-        <p>Confidence {Math.round(recognition.meta.confidence * 100)}%</p>
       </section>
     </>
   );
@@ -51,6 +51,9 @@ function CustomerBookingContent() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [recognition, setRecognition] = useState(styleDefinition?.recognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
+  const [breakdowns, setBreakdowns] = useState<{ glossary: BreakdownResult | null }>(
+    () => ({ glossary: getBreakdownResult() })
+  );
   const estimate = useMemo(
     () => calculateEstimate(recognition, defaultPricingRules),
     [recognition]
@@ -95,8 +98,14 @@ function CustomerBookingContent() {
     saveCustomerBookingDraft({
       estimate,
       imageUrl,
-      recognition
+      recognition,
+      breakdowns
     });
+  }
+
+  function handleBreakdownResult(result: BreakdownResult) {
+    saveBreakdownResult(result);
+    setBreakdowns({ glossary: getBreakdownResult() });
   }
 
   const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
@@ -171,7 +180,7 @@ function CustomerBookingContent() {
 
           <NailAttributeEditor value={recognition} onChange={setRecognition} />
 
-          <ComponentBreakdownPanel image={selectedImage} />
+          <ComponentBreakdownPanel image={selectedImage} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
             <Button block variant="secondary" onClick={() => setStep('upload')}>
@@ -203,6 +212,12 @@ function CustomerBookingContent() {
 
           <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
 
+          {breakdowns.glossary && (
+            <section className="summary-card">
+              <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
+            </section>
+          )}
+
           {!styleDefinition && (
             <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
               Adjust style details
@@ -228,13 +243,15 @@ function CustomerBookingContent() {
             </div>
           )}
 
-          <PriceEstimateBar
-            actionHref={getCustomerBookingConfirmPath()}
-            actionLabel="Next: choose time"
-            duration={estimate.duration}
-            onAction={persistCurrentDraft}
-            price={estimate.price}
-          />
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <Link
+              className="button button-primary button-compact"
+              href={getCustomerBookingConfirmPath()}
+              onClick={persistCurrentDraft}
+            >
+              Next: choose time
+            </Link>
+          </div>
         </>
       )}
     </MobileLayout>
