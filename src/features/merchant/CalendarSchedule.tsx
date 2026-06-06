@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Booking } from '@/domain/nail';
 import { getMerchantBookingPath } from '@/domain/session';
@@ -9,6 +9,8 @@ import { mockTechnicians } from '@/mock/technicians';
 type CalendarScheduleProps = {
   bookings: Booking[];
 };
+
+type CalendarView = 'month' | 'day';
 
 // Capacity model: each active technician offers ~6 bookable slots across the
 // 9:00–19:00 window. Spots left = capacity − bookings that day. This is what a
@@ -65,11 +67,8 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function defaultSelectedDate(bookingsByDate: Record<string, Booking[]>): string {
-  const dates = Object.keys(bookingsByDate).sort();
-  const today = todayIso();
-  if (dates.includes(today)) return today;
-  return dates.find((date) => date >= today) ?? dates[0] ?? today;
+function formatPickerButtonLabel(date: string): string {
+  return date.replaceAll('-', '/');
 }
 
 function monthParts(date: string) {
@@ -88,6 +87,7 @@ function monthParts(date: string) {
 }
 
 export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
+  const dateInputId = useId();
   const bookingsByDate = useMemo(() => {
     return bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
       acc[booking.date] = [...(acc[booking.date] ?? []), booking];
@@ -95,122 +95,187 @@ export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
     }, {});
   }, [bookings]);
 
-  const [selectedDateOverride, setSelectedDateOverride] = useState<string | null>(null);
-  const selectedDate = selectedDateOverride ?? defaultSelectedDate(bookingsByDate);
+  // 用真实今天作为唯一默认日期源，不再跟着 mock booking 自动跳日。
+  const [selectedDate, setSelectedDate] = useState(() => todayIso());
+  const [activeView, setActiveView] = useState<CalendarView>('month');
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const month = monthParts(selectedDate);
   const selectedBookings = bookingsByDate[selectedDate] ?? [];
   const selectedSpotsLeft = Math.max(dailyCapacity - selectedBookings.length, 0);
 
+  function openDatePicker() {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if ('showPicker' in input && typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
+
   return (
     <div className="cal-schedule">
-      <section className="cal-month" aria-label={`${month.label} — spots left per day`}>
-        <div className="cal-weekday-row" aria-hidden="true">
-          {weekdayLabels.map((label, i) => (
-            <span key={i} className="cal-weekday">
-              {label}
-            </span>
-          ))}
-        </div>
-        <div className="cal-month-grid">
-          {Array.from({ length: month.leadingBlanks }, (_, i) => (
-            <span key={`blank-${i}`} aria-hidden="true" className="cal-spot-blank" />
-          ))}
-          {month.days.map((day) => {
-            const date = `${month.year}-${String(month.monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const count = bookingsByDate[date]?.length ?? 0;
-            const left = Math.max(dailyCapacity - count, 0);
-            const tone = spotsTone(left);
-            const isSelected = date === selectedDate;
-            return (
-              <button
-                key={date}
-                type="button"
-                aria-label={`${formatMonthDayLabel(month.year, month.monthIndex, day)}, ${left} spots left`}
-                aria-pressed={isSelected}
-                className={`cal-spot cal-tone-${tone}${isSelected ? ' cal-spot-selected' : ''}`}
-                onClick={() => setSelectedDateOverride(date)}
-              >
-                <span className="cal-spot-day">{day}</span>
-                <span className="cal-spot-left">{left <= 0 ? 'full' : `${left} left`}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="cal-legend" aria-hidden="true">
-          <span>
-            <i className="cal-legend-swatch cal-tone-open" /> open
-          </span>
-          <span>
-            <i className="cal-legend-swatch cal-tone-mid" /> filling
-          </span>
-          <span>
-            <i className="cal-legend-swatch cal-tone-low" /> almost full
-          </span>
-          <span>
-            <i className="cal-legend-swatch cal-tone-full" /> full
-          </span>
-        </p>
-      </section>
-
-      <section className="cal-day" aria-label={`Schedule for ${selectedDate}`}>
-        <h2 className="cal-day-title">
-          {formatDayLabel(selectedDate)} · {selectedSpotsLeft} spots left
-        </h2>
-        <div className="cal-day-head">
-          <span className="cal-gutter-head" />
-          {activeTechnicians.map((tech) => (
-            <span key={tech.id} className="cal-tech-head">
-              <strong>{tech.name}</strong>
-              <em>{tech.title}</em>
-            </span>
-          ))}
-        </div>
-        <div className="cal-day-scroll">
-          <div
-            className="cal-day-grid"
-            style={{ height: `${(DAY_END_HOUR - DAY_START_HOUR) * HOUR_PX}px` }}
+      <div className="cal-toolbar">
+        <div className="cal-date-trigger-wrap">
+          <button
+            type="button"
+            className="cal-date-trigger"
+            onClick={openDatePicker}
+            aria-haspopup="dialog"
+            aria-controls={dateInputId}
           >
-            <div className="cal-gutter">
-              {hourRange.map((hour, i) => (
-                <span key={hour} className="cal-hour" style={{ top: `${i * HOUR_PX}px` }}>
-                  {hour}:00
-                </span>
-              ))}
-            </div>
-            {activeTechnicians.map((tech) => (
-              <div key={tech.id} className="cal-col">
-                {hourRange.map((hour, i) => (
-                  <span key={hour} className="cal-line" style={{ top: `${i * HOUR_PX}px` }} />
-                ))}
-                {selectedBookings
-                  .filter((b) => b.technician.id === tech.id)
-                  .map((booking) => {
-                    const top = ((toMinutes(booking.time) - DAY_START_HOUR * 60) / 60) * HOUR_PX;
-                    const height = (booking.quote.duration / 60) * HOUR_PX;
-                    const pending = booking.status === 'pending_review';
-                    return (
-                      <Link
-                        key={booking.id}
-                        href={getMerchantBookingPath(booking.id)}
-                        className={`cal-appt${pending ? ' cal-appt-pending' : ''}`}
-                        style={{ top: `${top}px`, height: `${Math.max(height - 3, 22)}px` }}
-                      >
-                        <strong>
-                          {booking.time} · {booking.customerName}
-                        </strong>
-                        <em>{booking.styleTitle}</em>
-                        {pending ? <span className="cal-appt-flag">confirm</span> : null}
-                      </Link>
-                    );
-                  })}
-              </div>
+            {formatPickerButtonLabel(selectedDate)}
+          </button>
+          <input
+            id={dateInputId}
+            ref={dateInputRef}
+            aria-label="Choose calendar date"
+            className="cal-date-input"
+            type="date"
+            value={selectedDate}
+            onChange={(event) => {
+              // 原生 date input 在编辑过程中可能先给出空字符串，这里忽略中间态。
+              if (!event.target.value) return;
+              setSelectedDate(event.target.value);
+            }}
+          />
+        </div>
+
+        <div className="cal-view-tabs" role="tablist" aria-label="Calendar views">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === 'month'}
+            className={`cal-view-tab${activeView === 'month' ? ' cal-view-tab-active' : ''}`}
+            onClick={() => setActiveView('month')}
+          >
+            Month
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === 'day'}
+            className={`cal-view-tab${activeView === 'day' ? ' cal-view-tab-active' : ''}`}
+            onClick={() => setActiveView('day')}
+          >
+            Day
+          </button>
+        </div>
+      </div>
+
+      {activeView === 'month' ? (
+        <section className="cal-month" aria-label={`${month.label} — spots left per day`}>
+          <div className="cal-weekday-row" aria-hidden="true">
+            {weekdayLabels.map((label, i) => (
+              <span key={i} className="cal-weekday">
+                {label}
+              </span>
             ))}
           </div>
-        </div>
-        {selectedBookings.length === 0 ? (
-          <p className="cal-day-empty">No bookings yet — {selectedSpotsLeft} open slots this day.</p>
-        ) : null}
-      </section>
+          <div className="cal-month-grid">
+            {Array.from({ length: month.leadingBlanks }, (_, i) => (
+              <span key={`blank-${i}`} aria-hidden="true" className="cal-spot-blank" />
+            ))}
+            {month.days.map((day) => {
+              const date = `${month.year}-${String(month.monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const count = bookingsByDate[date]?.length ?? 0;
+              const left = Math.max(dailyCapacity - count, 0);
+              const tone = spotsTone(left);
+              const isSelected = date === selectedDate;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  aria-label={`${formatMonthDayLabel(month.year, month.monthIndex, day)}, ${left} spots left`}
+                  aria-pressed={isSelected}
+                  className={`cal-spot cal-tone-${tone}${isSelected ? ' cal-spot-selected' : ''}`}
+                  onClick={() => setSelectedDate(date)}
+                >
+                  <span className="cal-spot-day">{day}</span>
+                  <span className="cal-spot-left">{left <= 0 ? 'full' : `${left} left`}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="cal-legend" aria-hidden="true">
+            <span>
+              <i className="cal-legend-swatch cal-tone-open" /> open
+            </span>
+            <span>
+              <i className="cal-legend-swatch cal-tone-mid" /> filling
+            </span>
+            <span>
+              <i className="cal-legend-swatch cal-tone-low" /> almost full
+            </span>
+            <span>
+              <i className="cal-legend-swatch cal-tone-full" /> full
+            </span>
+          </p>
+        </section>
+      ) : (
+        <section className="cal-day" aria-label={`Schedule for ${selectedDate}`}>
+          <h2 className="cal-day-title">
+            {formatDayLabel(selectedDate)} · {selectedSpotsLeft} spots left
+          </h2>
+          <div className="cal-day-head">
+            <span className="cal-gutter-head" />
+            {activeTechnicians.map((tech) => (
+              <span key={tech.id} className="cal-tech-head">
+                <strong>{tech.name}</strong>
+                <em>{tech.title}</em>
+              </span>
+            ))}
+          </div>
+          <div className="cal-day-scroll">
+            <div
+              className="cal-day-grid"
+              style={{ height: `${(DAY_END_HOUR - DAY_START_HOUR) * HOUR_PX}px` }}
+            >
+              <div className="cal-gutter">
+                {hourRange.map((hour, i) => (
+                  <span key={hour} className="cal-hour" style={{ top: `${i * HOUR_PX}px` }}>
+                    {hour}:00
+                  </span>
+                ))}
+              </div>
+              {activeTechnicians.map((tech) => (
+                <div key={tech.id} className="cal-col">
+                  {hourRange.map((hour, i) => (
+                    <span key={hour} className="cal-line" style={{ top: `${i * HOUR_PX}px` }} />
+                  ))}
+                  {selectedBookings
+                    .filter((b) => b.technician.id === tech.id)
+                    .map((booking) => {
+                      const top = ((toMinutes(booking.time) - DAY_START_HOUR * 60) / 60) * HOUR_PX;
+                      const height = (booking.quote.duration / 60) * HOUR_PX;
+                      const pending = booking.status === 'pending_review';
+                      return (
+                        <Link
+                          key={booking.id}
+                          href={getMerchantBookingPath(booking.id)}
+                          className={`cal-appt${pending ? ' cal-appt-pending' : ''}`}
+                          style={{ top: `${top}px`, height: `${Math.max(height - 3, 22)}px` }}
+                        >
+                          <strong>
+                            {booking.time} · {booking.customerName}
+                          </strong>
+                          <em>{booking.styleTitle}</em>
+                          {pending ? <span className="cal-appt-flag">confirm</span> : null}
+                        </Link>
+                      );
+                    })}
+                </div>
+              ))}
+            </div>
+          </div>
+          {selectedBookings.length === 0 ? (
+            <p className="cal-day-empty">No bookings yet — {selectedSpotsLeft} open slots this day.</p>
+          ) : null}
+        </section>
+      )}
     </div>
   );
 }
