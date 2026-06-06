@@ -235,7 +235,12 @@ export function createMerchantStyleService(
     async saveDraft(input: SaveMerchantStyleDraftInput): Promise<MerchantStyleView> {
       const title = validateTitle(input.title);
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
-      if (!record || record.status !== 'needs_review') throw new Error('style_not_editable');
+      // Editable while a draft (needs_review) OR already published — a merchant can fix a wrong layer
+      // on a live style; set_merchant_style_config refuses only archived, so the live config + derived
+      // price/time update together.
+      if (!record || (record.status !== 'needs_review' && record.status !== 'published')) {
+        throw new Error('style_not_editable');
+      }
       const snapshot = input.selections.length > 0
         ? await deriveSnapshot(input.merchantId, input.selections)
         : { previewPriceCents: null, previewDurationMin: null, selections: [] };

@@ -194,7 +194,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
       // Update the record only — don't reset the fields the merchant is editing (that would
       // re-trigger the quote effect and instantly clear this confirmation).
       setStyle(saved);
-      setMessage('Draft saved.');
+      setMessage(style.status === 'published' ? 'Changes saved.' : 'Draft saved.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save draft.');
     } finally {
@@ -243,8 +243,11 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
   const isProcessing = style.status === 'processing';
   const isPublished = style.status === 'published';
   const isFailed = style.status === 'failed';
-  const showEditor = (canEdit || isPublished) && !isAnalyzing;
-  const canPublish = canEdit && Boolean(title.trim()) && Boolean(quote?.totalPriceCents && quote.totalDurationMin);
+  // A published style stays editable so the merchant can fix a wrong layer; changes go straight live.
+  const editable = canEdit || isPublished;
+  const showEditor = editable && !isAnalyzing;
+  const hasValidQuote = Boolean(title.trim()) && Boolean(quote?.totalPriceCents && quote.totalDurationMin);
+  const canPublish = canEdit && hasValidQuote;
 
   return (
     <div className="merchant-review-workspace">
@@ -254,7 +257,9 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         <p>
           {isProcessing || isAnalyzing
             ? 'AI suggests the name, description, and service breakdown. You can edit everything after.'
-            : 'Confirm every service that affects the customer price or booking time, then publish.'}
+            : isPublished
+              ? 'This design is live. Edit any layer — changes update the customer view and re-derive price/time.'
+              : 'Confirm every service that affects the customer price or booking time, then publish.'}
         </p>
       </header>
 
@@ -315,7 +320,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
             <label className="field">
               <span>Design title</span>
               <input
-                disabled={!canEdit || isSaving}
+                disabled={!editable || isSaving}
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -324,7 +329,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
             <label className="field">
               <span>Description</span>
               <textarea
-                disabled={!canEdit || isSaving}
+                disabled={!editable || isSaving}
                 rows={3}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -355,7 +360,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
                       <span>Qty</span>
                       <input
                         aria-label={`${item.nameZh} quantity`}
-                        disabled={!canEdit || isSaving || item.quantityLocked}
+                        disabled={!editable || isSaving || item.quantityLocked}
                         min="1"
                         step="1"
                         type="number"
@@ -366,7 +371,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
                     <button
                       aria-label={`Remove ${item.nameZh}`}
                       className="merchant-review-remove"
-                      disabled={!canEdit || isSaving}
+                      disabled={!editable || isSaving}
                       type="button"
                       onClick={() => removeSelection(item.id)}
                     >
@@ -378,7 +383,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
             )}
           </section>
 
-          {canEdit ? (
+          {editable ? (
             <section className="merchant-review-section">
               <div className="merchant-review-section-heading">
                 <h2>Add services</h2>
@@ -422,27 +427,38 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         </>
       ) : null}
 
-      {showEditor && canEdit ? (
+      {showEditor ? (
         <footer className="merchant-review-actions">
           {message ? <p role="status">{message}</p> : null}
-          <div>
+          {isPublished ? (
             <button
-              className="button button-secondary button-default"
-              disabled={isSaving}
+              className="button button-primary button-block"
+              disabled={!hasValidQuote || isSaving}
               type="button"
               onClick={saveDraft}
             >
-              Save draft
+              Save changes
             </button>
-            <button
-              className="button button-primary button-default"
-              disabled={!canPublish || isSaving}
-              type="button"
-              onClick={publish}
-            >
-              Publish
-            </button>
-          </div>
+          ) : (
+            <div>
+              <button
+                className="button button-secondary button-default"
+                disabled={isSaving}
+                type="button"
+                onClick={saveDraft}
+              >
+                Save draft
+              </button>
+              <button
+                className="button button-primary button-default"
+                disabled={!canPublish || isSaving}
+                type="button"
+                onClick={publish}
+              >
+                Publish
+              </button>
+            </div>
+          )}
         </footer>
       ) : null}
     </div>

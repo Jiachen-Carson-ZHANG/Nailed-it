@@ -2732,8 +2732,10 @@ select {
   padding-bottom: 6rem;
 }
 
-/* Mirrors the customer ImageUploader card (.image-uploader); just adds clickability + pending. */
+/* Mirrors the customer ImageUploader card (.image-uploader); just adds clickability + pending.
+   Trim the inherited 1rem padding so the placeholder spans a touch wider. */
 .merchant-style-upload-tile {
+  padding: 0.85rem 0.7rem;
   cursor: pointer;
   transition:
     border-color var(--motion-fast) var(--motion-ease),
@@ -2754,7 +2756,7 @@ select {
 /* Compact placeholder — this is one entry above the grid, not a full upload step. */
 .merchant-style-upload-tile .image-uploader-placeholder {
   aspect-ratio: auto;
-  min-height: 4rem;
+  min-height: 4.75rem;
 }
 
 .merchant-style-upload-tile .image-uploader-mark {

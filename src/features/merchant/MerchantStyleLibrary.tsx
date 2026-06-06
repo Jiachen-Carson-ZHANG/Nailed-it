@@ -14,7 +14,8 @@ function formatPreview(style: MerchantStyleView): string {
   if (style.previewPriceCents === null || style.previewDurationMin === null) {
     return 'Review required';
   }
-  return `$${(style.previewPriceCents / 100).toFixed(2)} · ${style.previewDurationMin} min`;
+  // Non-breaking space so the unit never wraps alone ("191\nmin"); the · stays the wrap point.
+  return `$${(style.previewPriceCents / 100).toFixed(2)} · ${style.previewDurationMin} min`;
 }
 
 export function MerchantStyleLibrary() {
