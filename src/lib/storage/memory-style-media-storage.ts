@@ -14,6 +14,12 @@ export function createMemoryStyleMediaStorage(): StyleMediaStorage {
       objects.set(key(bucket, path), { bytes: new Uint8Array(bytes), contentType });
     },
 
+    async downloadOriginal(bucket, path) {
+      const original = objects.get(key(bucket, path));
+      if (!original) throw new Error('style_media_download_failed');
+      return new Uint8Array(original.bytes);
+    },
+
     async publishCopy({ originalBucket, originalPath, publishedBucket, publishedPath, contentType }) {
       const original = objects.get(key(originalBucket, originalPath));
       if (!original) throw new Error('style_media_download_failed');

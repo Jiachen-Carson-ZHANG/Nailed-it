@@ -25,6 +25,10 @@ graphify-out/
 *.pkl
 *.zip
 *.csv
+*.xlsx
+*.pdf
+!docs/glossary.xlsx
+!docs/glossary_explanation.pdf
 *.ipynb
 *.log
 *.jsonl
@@ -41,3 +45,7 @@ graphify-out/
 .agents/
 CLAUDE.md
 AGENTS.md
+
+# macOS junk
+.DS_Store
+**/.DS_Store

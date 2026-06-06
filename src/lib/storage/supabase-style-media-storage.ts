@@ -14,6 +14,12 @@ export function createSupabaseStyleMediaStorage(): StyleMediaStorage {
       if (error) throw new Error(`style_media_upload_failed: ${error.message}`);
     },
 
+    async downloadOriginal(bucket, path) {
+      const { data, error } = await getServiceClient().storage.from(bucket).download(path);
+      if (error) throw new Error(`style_media_download_failed: ${error.message}`);
+      return new Uint8Array(await data.arrayBuffer());
+    },
+
     async publishCopy({
       originalBucket,
       originalPath,

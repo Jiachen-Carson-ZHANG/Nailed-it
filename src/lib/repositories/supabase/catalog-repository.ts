@@ -26,6 +26,7 @@ export interface CatalogItemRow {
   default_duration_min: number | null;
   allowed_pricing_units: PricingUnit[];
   default_pricing_unit: string;
+  default_price_cents: number | null;
   quantity_supported: string;
   complexity_supported: string;
   notes: string;
@@ -48,6 +49,7 @@ export function rowToCatalogItem(row: CatalogItemRow): CatalogItem {
     defaultDurationMin: row.default_duration_min,
     allowedPricingUnits: row.allowed_pricing_units,
     defaultPricingUnit: row.default_pricing_unit as PricingUnit,
+    defaultPriceCents: row.default_price_cents,
     quantitySupported: row.quantity_supported as TriState,
     complexitySupported: row.complexity_supported as YesNo,
     notes: row.notes,

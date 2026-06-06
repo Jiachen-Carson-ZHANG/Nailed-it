@@ -1,21 +1,19 @@
 'use client';
 
-import type { GlossaryEntry } from '@/data/glossary';
-import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
+import type { MerchantPricingSetting } from '@/domain/merchant';
 
 type GlossaryEntryCardProps = {
-  entry: GlossaryEntry;
-  settings: GlossaryEntrySettings;
-  onChange: (settings: GlossaryEntrySettings) => void;
+  settings: MerchantPricingSetting;
+  onChange: (settings: MerchantPricingSetting) => void;
 };
 
-export function GlossaryEntryCard({ entry, settings, onChange }: GlossaryEntryCardProps) {
-  const baseId = `glossary-entry-${entry.id}`;
+export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps) {
+  const baseId = `catalog-entry-${settings.id}`;
 
   return (
     <article className="pricing-card">
       <label className="pricing-card-toggle" htmlFor={`${baseId}-enabled`}>
-        <span>{entry.name_zh}</span>
+        <span>{settings.nameZh}</span>
         <input
           checked={settings.enabled}
           id={`${baseId}-enabled`}
@@ -27,7 +25,7 @@ export function GlossaryEntryCard({ entry, settings, onChange }: GlossaryEntryCa
         <label htmlFor={`${baseId}-price`}>
           <span>SGD</span>
           <input
-            aria-label={`${entry.name_zh} 单价 (SGD)`}
+            aria-label={`${settings.nameZh} 单价 (SGD)`}
             id={`${baseId}-price`}
             min="0"
             step="0.5"
@@ -39,7 +37,7 @@ export function GlossaryEntryCard({ entry, settings, onChange }: GlossaryEntryCa
         <label htmlFor={`${baseId}-duration`}>
           <span>分钟</span>
           <input
-            aria-label={`${entry.name_zh} 时长 (分钟)`}
+            aria-label={`${settings.nameZh} 时长 (分钟)`}
             id={`${baseId}-duration`}
             max="180"
             min="0"

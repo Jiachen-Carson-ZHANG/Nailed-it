@@ -4,11 +4,23 @@
 // silently offering it free.
 
 import type { CatalogSelection, PricingUnit } from '@/domain/catalog';
+import { normalizeQuantityForPricingUnit } from '@/domain/catalog-selection';
 import { resolveEffectivePricing } from '@/domain/pricing-resolver';
 import type { RepositoryBundle } from '@/lib/repositories/types';
 
+const MAX_SELECTION_QUANTITY = 100;
+
 /** A quote is built from catalog selections — see `CatalogSelection` in the domain layer. */
 export type QuoteSelection = CatalogSelection;
+
+/**
+ * Whether a pricing unit's booking time scales with quantity. Per-finger (one nail) and per-piece
+ * (one topping) accrue time per unit: 5 hand-painted nails take ~5x one nail's time. A per_set /
+ * fixed / included / tag_only line is a whole-hand or flat service whose time is counted once.
+ */
+function durationScalesWithQuantity(unit: PricingUnit): boolean {
+  return unit === 'per_finger' || unit === 'per_piece';
+}
 
 export type QuoteLine = {
   catalogItemId: string;
@@ -16,6 +28,7 @@ export type QuoteLine = {
   unitPriceCents: number;
   quantity: number;
   linePriceCents: number;
+  /** Line total duration: per-unit duration x quantity for per_finger/per_piece, counted once otherwise. */
   durationMin: number;
   pricingUnit: PricingUnit;
   affectsDuration: boolean;
@@ -54,6 +67,14 @@ export function createQuoteService(repos: RepositoryBundle): QuoteService {
       const unbookable: string[] = [];
 
       for (const sel of selections) {
+        if (
+          !Number.isFinite(sel.quantity) ||
+          !Number.isInteger(sel.quantity) ||
+          sel.quantity <= 0 ||
+          sel.quantity > MAX_SELECTION_QUANTITY
+        ) {
+          throw new Error(`invalid_quantity: ${sel.catalogItemId}`);
+        }
         const item = catalogById.get(sel.catalogItemId);
         if (!item) throw new Error(`unknown_item: ${sel.catalogItemId}`);
         const eff = effById.get(sel.catalogItemId);
@@ -62,13 +83,20 @@ export function createQuoteService(repos: RepositoryBundle): QuoteService {
           unbookable.push(sel.catalogItemId);
           continue;
         }
+        const quantity = normalizeQuantityForPricingUnit(sel.quantity, eff.pricingUnit);
+        const unitDurationMin = staffDur.get(sel.catalogItemId) ?? eff.durationMin;
+        // durationMin is the LINE total: scaled by quantity for per-finger / per-piece units so the
+        // reserved booking time matches the work (5 painted nails = 5x), counted once otherwise.
+        const lineDurationMin = durationScalesWithQuantity(eff.pricingUnit)
+          ? unitDurationMin * quantity
+          : unitDurationMin;
         lines.push({
           catalogItemId: item.id,
           label: item.nameZh,
           unitPriceCents: eff.priceCents,
-          quantity: sel.quantity,
-          linePriceCents: eff.priceCents * sel.quantity,
-          durationMin: staffDur.get(sel.catalogItemId) ?? eff.durationMin,
+          quantity,
+          linePriceCents: eff.priceCents * quantity,
+          durationMin: lineDurationMin,
           pricingUnit: eff.pricingUnit,
           affectsDuration: item.affectsBookingDuration === 'yes',
         });

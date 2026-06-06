@@ -4,6 +4,7 @@ import { resetRepositoriesForTests } from '@/lib/repositories';
 import MerchantProfilePage from './page';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/merchant/profile'
 }));
 

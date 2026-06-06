@@ -120,6 +120,45 @@ describe('bookingService.createBooking', () => {
     ).rejects.toThrow('booking_overlap');
   });
 
+  it('createBookingWithThreadFromSelections prices catalog selections into relational items + a thread', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const item = await pickDurationItem(bundle);
+    await priceItem(bundle, demoMerchantId, item.id);
+    const svc = createBookingService(bundle);
+
+    const created = await svc.createBookingWithThreadFromSelections(
+      {
+        merchantId: demoMerchantId,
+        technicianId: 'tech-anna',
+        customerName: 'A',
+        styleTitle: 'Curated style',
+        styleImageUrl: '',
+        date: DATE,
+        time: '15:00',
+        selections: [{ catalogItemId: item.id, quantity: 1 }],
+        status: 'pending_review',
+      },
+      (booking) => ({
+        id: `conv-${booking.id}`,
+        bookingId: booking.id,
+        customerName: 'A',
+        merchantName: 'Nailed-it Studio',
+        relatedBookingTime: `${DATE} 15:00`,
+        messages: [],
+      }),
+    );
+
+    expect(created.status).toBe('pending_review');
+    const items = await bundle.intervalBookings.listItems(created.id);
+    // Real catalog id + per-line price (not a null-id snapshot).
+    expect(items).toHaveLength(1);
+    expect(items[0].catalogItemId).toBe(item.id);
+    expect(items[0].priceCents).toBe(5000);
+    // The thread committed atomically alongside the booking.
+    const thread = await bundle.conversations.getById(`conv-${created.id}`);
+    expect(thread?.bookingId).toBe(created.id);
+  });
+
   it('createBookingFromSnapshot rejects another merchant’s technician (tenant guard)', async () => {
     const bundle = createMemoryRepositoryBundle();
     const svc = createBookingService(bundle);
@@ -140,8 +179,12 @@ describe('bookingService.createBooking', () => {
   it('a merchant-required item with no price fails closed (gate 3)', async () => {
     const bundle = createMemoryRepositoryBundle();
     const catalog = await bundle.catalog.list();
-    const required = catalog.find((c) => c.merchantPriceRequired === 'yes' && c.billable !== 'no');
-    if (!required) throw new Error('fixture: no merchant-required catalog item');
+    // A merchant-required item with NO platform default price is the genuinely-unresolved case
+    // (items that now carry a default_price resolve via the catalog default instead).
+    const required = catalog.find(
+      (c) => c.merchantPriceRequired === 'yes' && c.billable !== 'no' && c.defaultPriceCents === null,
+    );
+    if (!required) throw new Error('fixture: no merchant-required catalog item without a default price');
     const svc = createBookingService(bundle);
     await expect(
       svc.createBooking({
@@ -233,5 +276,70 @@ describe('quoteService', () => {
       selections: [{ catalogItemId: itemId, quantity: 1 }],
     });
     expect(quote.lines[0]?.durationMin).toBe(60);
+  });
+
+  it('scales per_finger duration by quantity (5 painted nails take 5x one nail)', async () => {
+    // gradient: per_finger, catalog default price 500, default duration 20, affects booking duration.
+    const bundle = createMemoryRepositoryBundle();
+    const quote = await createQuoteService(bundle).buildQuote({
+      merchantId: demoMerchantId,
+      selections: [{ catalogItemId: 'gradient', quantity: 3 }],
+    });
+    const line = quote.lines.find((l) => l.catalogItemId === 'gradient');
+    expect(line?.linePriceCents).toBe(1500); // 500 × 3
+    expect(line?.durationMin).toBe(60); // 20 × 3 — duration scales for per_finger
+    expect(quote.totalDurationMin).toBe(60);
+  });
+
+  it('does NOT scale a per_set/fixed duration by quantity', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    await bundle.merchantPricing.upsertMany([
+      { merchantId: demoMerchantId, catalogItemId: itemId, priceCents: 5000, durationMin: 60, pricingUnit: 'fixed', enabled: true },
+    ]);
+    const quote = await createQuoteService(bundle).buildQuote({
+      merchantId: demoMerchantId,
+      selections: [{ catalogItemId: itemId, quantity: 3 }],
+    });
+    const line = quote.lines.find((l) => l.catalogItemId === itemId);
+    expect(line?.linePriceCents).toBe(15000); // 5000 × 3
+    expect(line?.durationMin).toBe(60); // fixed unit — duration counted once, NOT 180
+  });
+
+  it('forces a per-set selection to one before pricing', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const quote = await createQuoteService(bundle).buildQuote({
+      merchantId: demoMerchantId,
+      selections: [{ catalogItemId: 'cat_eye', quantity: 3 }],
+    });
+    const line = quote.lines.find((l) => l.catalogItemId === 'cat_eye');
+    expect(line?.pricingUnit).toBe('per_set');
+    expect(line?.quantity).toBe(1);
+    expect(line?.linePriceCents).toBe(1000);
+  });
+
+  it('fails closed on invalid browser-supplied quantities', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const service = createQuoteService(bundle);
+
+    await expect(
+      service.buildQuote({
+        merchantId: demoMerchantId,
+        selections: [{ catalogItemId: itemId, quantity: -1 }],
+      }),
+    ).rejects.toThrow('invalid_quantity');
+
+    await expect(
+      service.buildQuote({
+        merchantId: demoMerchantId,
+        selections: [{ catalogItemId: itemId, quantity: Number.NaN }],
+      }),
+    ).rejects.toThrow('invalid_quantity');
+
+    await expect(
+      service.buildQuote({
+        merchantId: demoMerchantId,
+        selections: [{ catalogItemId: itemId, quantity: 101 }],
+      }),
+    ).rejects.toThrow('invalid_quantity');
   });
 });

@@ -6,7 +6,8 @@ import type {
   Technician,
 } from '@/domain/nail';
 import type { StyleDefinition } from '@/mock/styles';
-import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
+import type { CatalogItem, CatalogItemType, CatalogSelection } from '@/domain/catalog';
+import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type { Merchant, MerchantPricing } from '@/domain/merchant';
 import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/scheduling';
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
@@ -109,11 +110,28 @@ export type PublishMerchantStyleInput = {
   id: string;
   merchantId: string;
   title: string;
+  description: string;
   previewPriceCents: number;
   previewDurationMin: number;
   publishedBucket: string;
   publishedPath: string;
   publishedAt: string;
+};
+
+export type SetMerchantStyleConfigInput = {
+  id: string;
+  merchantId: string;
+  description: string;
+  discoveryFacets: StyleDiscoveryFacet[];
+  items: CatalogSelection[];
+  previewPriceCents: number | null;
+  previewDurationMin: number | null;
+  /** Optional new title (e.g. an AI-generated name); empty/omitted preserves the existing title. */
+  title?: string;
+};
+
+export type CompleteMerchantStyleAnalysisInput = Omit<SetMerchantStyleConfigInput, 'title'> & {
+  title: string;
 };
 
 export interface MerchantStyleRepository {
@@ -122,6 +140,11 @@ export interface MerchantStyleRepository {
   getPublishedById(id: string): Promise<MerchantStyleRecord | null>;
   getByIdForMerchant(id: string, merchantId: string): Promise<MerchantStyleRecord | null>;
   create(record: MerchantStyleRecord): Promise<MerchantStyleRecord>;
+  /** Atomically claims a processing style for external AI work; false means another request owns it. */
+  claimAnalysis(id: string, merchantId: string): Promise<boolean>;
+  completeAnalysis(input: CompleteMerchantStyleAnalysisInput): Promise<MerchantStyleRecord | null>;
+  failAnalysis(id: string, merchantId: string): Promise<MerchantStyleRecord | null>;
+  setConfig(input: SetMerchantStyleConfigInput): Promise<MerchantStyleRecord | null>;
   publish(input: PublishMerchantStyleInput): Promise<MerchantStyleRecord | null>;
   archive(id: string, merchantId: string, archivedAt: string): Promise<MerchantStyleRecord | null>;
 }

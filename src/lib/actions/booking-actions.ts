@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { TechnicianSlotDay } from '@/domain/availability';
+import type { CatalogSelection } from '@/domain/catalog';
 import { calculateEstimate } from '@/domain/pricing';
 import type {
   AIRecognitionResult,
@@ -15,9 +16,11 @@ import { getRepositories } from '@/lib/repositories';
 import { createAvailabilityService } from '@/lib/services/availability-service';
 import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
 import { createBookingService } from '@/lib/services/booking-service';
+import { createQuoteService, type Quote } from '@/lib/services/quote-service';
 import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
+import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-actions';
 import { demoMerchantId } from '@/mock/merchants';
-import { demoCustomerName } from '@/mock/operations-store';
+import { demoCustomerName } from '@/mock/customers';
 
 const SLOT_LOOKAHEAD_DAYS = 7;
 const CANDIDATE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
@@ -171,6 +174,144 @@ export async function listAvailableSlotsAction(durationMin: number): Promise<Tec
     .filter((day) => day.slots.length > 0);
 }
 
+function quoteToBookingSnapshot(quote: Quote) {
+  return {
+    source: 'booking_snapshot' as const,
+    price: quote.totalPriceCents / 100,
+    duration: quote.totalDurationMin,
+  };
+}
+
+/**
+ * Catalog-backed availability. Each technician is quoted separately before testing the interval,
+ * so staff duration overrides cannot make the displayed slot shorter than the persisted booking.
+ */
+async function listAvailableSlotsForSelections(
+  selections: CatalogSelection[],
+): Promise<TechnicianSlotDay[]> {
+  const repos = getRepositories();
+  const merchant = await repos.merchants.getById(demoMerchantId);
+  const timeZone = merchant?.timezone ?? 'Asia/Singapore';
+  const technicians = (await repos.technicians.list()).filter((t) => t.merchantId === demoMerchantId);
+  const quoteService = createQuoteService(repos);
+
+  const [workingPlans, quotedTechnicians] = await Promise.all([
+    repos.workingPlans.list(),
+    Promise.all(
+      technicians.map(async (technician) => ({
+        technician,
+        quote: await quoteService.buildQuote({
+          merchantId: demoMerchantId,
+          technicianId: technician.id,
+          selections,
+        }),
+      })),
+    ),
+  ]);
+
+  for (const { quote } of quotedTechnicians) {
+    if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
+  }
+
+  const today = instantToZonedParts(Date.now(), timeZone).date;
+  const dates = nextDates(today, SLOT_LOOKAHEAD_DAYS);
+  const maxDurationMin = Math.max(...quotedTechnicians.map(({ quote }) => quote.totalDurationMin));
+  const rangeStart = resolveSlot(timeZone, dates[0], CANDIDATE_TIMES[0], 1).interval.startMs;
+  const rangeEnd = resolveSlot(
+    timeZone,
+    dates[dates.length - 1],
+    CANDIDATE_TIMES[CANDIDATE_TIMES.length - 1],
+    maxDurationMin,
+  ).interval.endMs;
+  const rangeStartIso = new Date(rangeStart).toISOString();
+  const rangeEndIso = new Date(rangeEnd).toISOString();
+  const [blockedTimes, bookingsByTechnician] = await Promise.all([
+    Promise.all(
+      technicians.map((technician) =>
+        repos.blockedTimes.listByTechnicianInRange(technician.id, rangeStartIso, rangeEndIso),
+      ),
+    ).then((rows) => rows.flat()),
+    Promise.all(
+      technicians.map((technician) =>
+        repos.intervalBookings.listByTechnicianInRange(technician.id, rangeStartIso, rangeEndIso),
+      ),
+    ),
+  ]);
+
+  const existingByTechnician: Record<string, MsInterval[]> = {};
+  technicians.forEach((technician, index) => {
+    existingByTechnician[technician.id] = bookingsByTechnician[index].map((booking) => ({
+      startMs: Date.parse(booking.startAt),
+      endMs: Date.parse(booking.endAt),
+    }));
+  });
+  const candidates: TechnicianSlot[] = [];
+
+  for (const date of dates) {
+    const label = dayLabel(date, today);
+    for (const time of CANDIDATE_TIMES) {
+      for (const { technician, quote } of quotedTechnicians) {
+        const request = resolveSlot(timeZone, date, time, quote.totalDurationMin);
+        const free = findAvailableTechnicians({
+          technicians: [technician],
+          workingPlans,
+          blockedTimes,
+          existingByTechnician,
+          request,
+        });
+        if (free.length === 0) continue;
+        candidates.push({
+          date,
+          label,
+          time,
+          technician: free[0],
+          quote: quoteToBookingSnapshot(quote),
+        });
+      }
+    }
+  }
+
+  const ranked = candidates
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.time.localeCompare(b.time) ||
+        a.technician.name.localeCompare(b.technician.name),
+    )
+    .map((slot, index) => ({
+      ...slot,
+      rankReason: index === 0 ? ('shortest_wait' as const) : ('earliest_available' as const),
+    }));
+
+  return dates
+    .map((date) => ({
+      date,
+      label: dayLabel(date, today),
+      slots: ranked.filter((slot) => slot.date === date),
+    }))
+    .filter((day) => day.slots.length > 0);
+}
+
+export async function quoteCatalogSelectionsAction(selections: CatalogSelection[]): Promise<Quote> {
+  return createQuoteService(getRepositories()).buildQuote({
+    merchantId: demoMerchantId,
+    selections,
+  });
+}
+
+export async function listAvailableSlotsForSelectionsAction(
+  selections: CatalogSelection[],
+): Promise<TechnicianSlotDay[]> {
+  return listAvailableSlotsForSelections(selections);
+}
+
+export async function listAvailableSlotsForStyleAction(styleId: string): Promise<TechnicianSlotDay[]> {
+  const style = await getCustomerPublishedStyleAction(styleId);
+  if (!style) throw new Error('style_not_found');
+  if (style.catalogBreakdown.length === 0) throw new Error('style_not_configured');
+  return listAvailableSlotsForSelections(style.catalogBreakdown);
+}
+
 // The browser supplies the recognition + chosen slot, never the price, status, or customer name.
 export type CreateBookingActionInput = {
   technicianId: string;
@@ -266,4 +407,119 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
       conversationId: `conv-${booking.id}`,
     },
   );
+}
+
+export type CreateBookingFromSelectionsActionInput = {
+  selections: CatalogSelection[];
+  technicianId: string;
+  styleImageUrl: string;
+  date: string;
+  time: string;
+  notes: string;
+};
+
+export type CreateBookingFromStyleActionInput = {
+  styleId: string;
+  technicianId: string;
+  date: string;
+  time: string;
+  notes: string;
+};
+
+type CreateCatalogBookingInput = CreateBookingFromSelectionsActionInput & {
+  styleTitle: string;
+};
+
+async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<Booking> {
+  const repos = getRepositories();
+  const merchant = await repos.merchants.getById(demoMerchantId);
+  const merchantName = merchant?.name ?? 'Nailed-it Studio';
+  const timeZone = merchant?.timezone ?? 'Asia/Singapore';
+  const customerName = demoCustomerName;
+
+  // Availability and persistence use the same selections and selected technician. bookingService
+  // requotes once more immediately before the atomic write, so browser totals are never trusted.
+  const quote = await createQuoteService(repos).buildQuote({
+    merchantId: demoMerchantId,
+    technicianId: input.technicianId,
+    selections: input.selections,
+  });
+  if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
+  const available = await createAvailabilityService(repos).findAvailable({
+    merchantId: demoMerchantId,
+    date: input.date,
+    time: input.time,
+    durationMin: quote.totalDurationMin,
+  });
+  if (!available.some((technician) => technician.id === input.technicianId)) {
+    throw new Error('technician_unavailable');
+  }
+
+  const technician = (await repos.technicians.list()).find((candidate) => candidate.id === input.technicianId);
+  const technicianName = technician?.name ?? 'your technician';
+  const booking = await createBookingService(repos).createBookingWithThreadFromSelections(
+    {
+      merchantId: demoMerchantId,
+      technicianId: input.technicianId,
+      customerName,
+      styleTitle: input.styleTitle,
+      styleImageUrl: input.styleImageUrl,
+      date: input.date,
+      time: input.time,
+      selections: input.selections,
+      status: 'pending_review',
+      notes: input.notes,
+    },
+    (created) => ({
+      id: `conv-${created.id}`,
+      bookingId: created.id,
+      customerName,
+      merchantName,
+      relatedBookingTime: `${input.date} ${input.time}`,
+      messages: [
+        {
+          id: `msg-${randomUUID()}`,
+          authorRole: 'system',
+          body: `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
+          sentAt: 'Now',
+        },
+      ],
+    }),
+  );
+
+  return intervalBookingToUiBooking(
+    { booking, items: await repos.intervalBookings.listItems(booking.id) },
+    {
+      timeZone,
+      technician: technician
+        ? { id: technician.id, name: technician.name, initials: technician.initials }
+        : { id: booking.technicianId, name: 'Technician', initials: '–' },
+      merchantName,
+      conversationId: `conv-${booking.id}`,
+    },
+  );
+}
+
+export async function createBookingFromSelectionsAction(
+  input: CreateBookingFromSelectionsActionInput,
+): Promise<Booking> {
+  return createCatalogBooking({ ...input, styleTitle: 'Custom AI reference' });
+}
+
+export async function createBookingFromStyleAction(
+  input: CreateBookingFromStyleActionInput,
+): Promise<Booking> {
+  const style = await getCustomerPublishedStyleAction(input.styleId);
+  if (!style) throw new Error('style_not_found');
+  if (style.catalogBreakdown.length === 0) throw new Error('style_not_configured');
+
+  return createCatalogBooking({
+    selections: style.catalogBreakdown,
+    technicianId: input.technicianId,
+    styleTitle: style.title,
+    styleImageUrl: style.imageUrl,
+    date: input.date,
+    time: input.time,
+    notes: input.notes,
+  });
 }

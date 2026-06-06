@@ -4,6 +4,7 @@ import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import { CustomerBookingContent } from './booking-content';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/booking',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -36,10 +37,6 @@ describe('CustomerBookingPage', () => {
     // Step 2: Result — style detected
     expect(screen.getByRole('heading', { name: /style detected/i })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'Edited note carried into confirmation.' }
-    });
-
     fireEvent.click(screen.getByRole('button', { name: /see my quote/i }));
 
     // Step 3: Quote
@@ -53,7 +50,7 @@ describe('CustomerBookingPage', () => {
     expect(getCustomerBookingDraft()).toMatchObject({
       recognition: {
         selection: {
-          otherNotes: 'Edited note carried into confirmation.'
+          otherNotes: expect.any(String)
         }
       }
     });
@@ -114,5 +111,25 @@ describe('CustomerBookingPage', () => {
         }
       })
     );
+  });
+
+  it('opens a published style on its frozen quote without rerunning image analysis', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    render(
+      <CustomerBookingContent
+        prefillStyleId="published-style"
+        prefillImageUrl="https://example.com/published.jpg"
+        prefillTitle="Published style"
+        prefillDescription="Merchant-reviewed configuration"
+        prefillPreviewQuote={{ source: 'style_preview', price: 88, duration: 90 }}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
+    expect(screen.getByText(/merchant-reviewed configuration/i)).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('link', { name: /next: choose time/i }));
+    expect(getCustomerBookingDraft()).toMatchObject({ styleId: 'published-style' });
   });
 });

@@ -9,11 +9,13 @@ import {
   basicServiceProcedures,
   billableVisualAttributes,
 } from '@/data/glossary';
-import {
-  loadGlossarySettings,
-  saveGlossarySettings,
-} from '@/data/glossary-settings-store';
+import { getDefaultSettings } from '@/data/glossary-settings-store';
 import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
+import type { MerchantPricingSetting } from '@/domain/merchant';
+import {
+  listMerchantPricingSettingsAction,
+  saveMerchantPricingSettingsAction,
+} from '@/lib/actions/merchant-pricing-actions';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
 import {
   loadCurrency,
@@ -416,8 +418,28 @@ export default function MerchantManagePage() {
   const [dirty, setDirty] = useState(false);
   const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
 
+  // Pricing is authoritative in the DB (merchant_pricing), not localStorage. Load the full UI entry
+  // set (incl. the time-only base procedures the panels show) from defaults, then overlay the
+  // merchant's saved billable price/duration from the DB so quotes and this screen agree.
   useEffect(() => {
-    setSettings(loadGlossarySettings());
+    let active = true;
+    (async () => {
+      const base = getDefaultSettings();
+      try {
+        const db = await listMerchantPricingSettingsAction();
+        const dbById = new Map(db.map((r) => [r.id, r]));
+        const merged = base.map((s) => {
+          const row = dbById.get(s.id);
+          return row ? { ...s, price: row.price, duration: row.duration, enabled: row.enabled } : s;
+        });
+        if (active) setSettings(merged);
+      } catch {
+        if (active) setSettings(base);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const settingsById = useMemo(
@@ -430,10 +452,26 @@ export default function MerchantManagePage() {
     setDirty(true);
   }
 
-  function handleSave() {
-    saveGlossarySettings(settings);
-    setToastMessage('价格表已更新，将用于用户端 AI 报价。');
-    setDirty(false);
+  async function handleSave() {
+    // Only billable items live in merchant_pricing; the time-only procedures (billable=false) are
+    // platform defaults and are not persisted per-merchant.
+    const rows: MerchantPricingSetting[] = settings
+      .filter((s) => glossaryById.get(s.id)?.billable !== false)
+      .map((s) => ({
+        id: s.id,
+        nameZh: glossaryById.get(s.id)?.name_zh ?? '',
+        groupLabel: '',
+        price: s.price,
+        duration: s.duration,
+        enabled: s.enabled,
+      }));
+    try {
+      await saveMerchantPricingSettingsAction(rows);
+      setToastMessage('价格表已更新，将用于用户端 AI 报价。');
+      setDirty(false);
+    } catch {
+      setToastMessage('保存失败，请重试。');
+    }
   }
 
   function handleCurrencyChange(c: Currency) {

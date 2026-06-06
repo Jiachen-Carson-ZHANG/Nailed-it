@@ -6,18 +6,17 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { mockAIResult } from '@/mock/ai';
-import { resetOperationsStoreForTests } from '@/mock/operations-store';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerBookingConfirmPage from './page';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/booking/confirm'
 }));
 
 describe('CustomerBookingConfirmPage', () => {
   beforeEach(() => {
     clearCustomerBookingDraft();
-    resetOperationsStoreForTests();
     // The confirm write now goes through the repository-backed booking action; reset the
     // in-memory bundle so each test starts with no DB bookings (no cross-test overlap).
     resetRepositoriesForTests();
@@ -53,7 +52,7 @@ describe('CustomerBookingConfirmPage', () => {
     render(<CustomerBookingConfirmPage />);
 
     expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue(/edited note carried into confirmation/i)).toBeInTheDocument();
+    expect(screen.getByText(/edited note carried into confirmation/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
@@ -141,6 +140,21 @@ describe('CustomerBookingConfirmPage', () => {
     expect(confirmButton).toHaveTextContent(/pending review/i);
     const messagesLink = screen.getByRole('link', { name: /open booking messages/i });
     expect(messagesLink.getAttribute('href')).toMatch(/^\/customer\/messages\/conv-booking-/);
+  });
+
+  it('replaces a draft snapshot with the exact selected-technician catalog quote', async () => {
+    const user = userEvent.setup();
+    saveCustomerBookingDraft({
+      estimate: { source: 'pricing_rules', price: 999, duration: 1 },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: mockAIResult,
+      catalogSelections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+    });
+
+    render(<CustomerBookingConfirmPage />);
+    await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
+
+    expect(screen.getByText(/estimated: sgd 28 · 45 min/i)).toBeInTheDocument();
   });
 });
 

@@ -39,7 +39,15 @@ Adopt one relational model on Supabase Postgres, behind the existing repository 
 
 The recognizer returns a constrained JSON schema of **catalog_item ids** (only `ai_detectable` items) + per-item confidence; weak/low-confidence items route to an `uncertain_items` bucket the user confirms. No fuzzy visual-attribute→billable mapping table.
 
-The validation + bucketing side of this is implemented in `src/domain/recognition-catalog.ts` (P6): `aiDetectableCatalogItems` (the subset the model may name — everything except `aiDetectable='no'`), `bucketRecognition` (drops unknown/non-detectable ids; routes `weak`/`user_confirmed`/low-confidence to `uncertain`; fails closed on non-finite confidence), and `toCatalogSelections` (detected + user-confirmed uncertain → `CatalogSelection[]` for `quoteService`). The remaining edge is the live LLM in `src/nail-ai` actually emitting catalog ids instead of free-form attributes.
+The validation + bucketing side of this is implemented in `src/domain/recognition-catalog.ts` (P6): `aiDetectableCatalogItems` (the subset the model may name — everything except `aiDetectable='no'`), `bucketRecognition` (drops unknown/non-detectable ids; routes `weak`/`user_confirmed`/low-confidence to `uncertain`; fails closed on non-finite confidence), and `toCatalogSelections` (detected + user-confirmed uncertain → `CatalogSelection[]` for `quoteService`). Merchant style analysis reuses the live glossary-driven breakdown recognizer, which emits catalog ids; the separate customer nail-attribute recognizer still emits free-form attributes.
+
+Merchant style analysis is deliberately separated from upload latency. Upload stores the private
+original and creates a `processing` row, then the dedicated review route analyzes that stored object.
+`claim_merchant_style_analysis` atomically gives one request the external AI job, with a stale-claim
+timeout for crashed requests. The server-only `complete_merchant_style_analysis` RPC atomically
+replaces relational catalog items, writes the derived preview snapshot and AI metadata, and
+transitions to `needs_review`; analysis failure also transitions to an editable `needs_review`
+draft. AI never publishes a style.
 
 ## Design principles
 
@@ -76,10 +84,11 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` in `src/lib/services/`; merchant-timezone resolution; gate tests) | **done**; services + gates, not wired |
 | — | **P4c booking flow** | **done**: customer confirm writes interval bookings through the DB RPC; availability reads DB occupancy; draft remains per-tab `sessionStorage`. |
 | — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | **done**: customer/merchant booking reads and conversation reads/writes use scoped server actions over the DB. |
-| — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
+| — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | **partial**: booking/message operations-store and glossary-pricing localStorage paths are removed; old flat tables and the legacy snapshot compatibility action remain. |
 | P3 realtime | **P5 realtime** | pending |
-| — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | **partial**: the pure bridge is done — `src/domain/recognition-catalog.ts` (the constrained ai-detectable subset, confidence bucketing into detected/uncertain, → `CatalogSelection[]` for quoteService) + a deterministic mock recognizer + tests. The remaining edge is wiring the live LLM (`src/nail-ai`) to actually emit catalog ids. |
-| — | **P6.5 merchant style library + media foundation** (`media_asset` + `merchant_style`; Supabase Storage originals/published buckets; merchant review/publish; customer published feed) | **implemented in branch; live migration pending**: separates physical media ownership from the style publication lifecycle. Merchant Me/library and customer discovery/detail are wired through scoped actions. AI/catalog metadata remains reviewable; customer reads are published-only. See `docs/plans/2026-06-06-p6-5-merchant-style-library-design.md`. |
+| — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | **partial**: merchant style analysis reuses the live glossary-driven catalog-id breakdown recognizer with strict schema/runtime validation. The pure confidence/uncertain bridge is done in `src/domain/recognition-catalog.ts`; the separate customer nail-attribute recognizer has not yet moved to this catalog-id contract. |
+| — | **P6.5 merchant style library + media foundation** (`media_asset` + `merchant_style` + relational `merchant_style_item`; Supabase Storage originals/published buckets; merchant review/publish; customer published feed) | **implemented; `0016` deployment pending**: upload is fast (`processing` + private original), then immediately routes to the dedicated stored-image AI/manual review workspace. `complete_merchant_style_analysis` atomically writes normalized relational items + derived preview + `needs_review`; Save Draft and Publish remain deterministic server operations and customer reads are published-only. See `docs/plans/2026-06-06-p6-5-merchant-style-library-design.md` and `docs/plans/2026-06-06-merchant-style-review-workflow-design.md`. |
+| — | **P6.6 / Phase 2.5 authoritative quote contract** | **done**: published styles and configured custom images carry catalog selections; server-derived technician quotes drive display, availability, and relational booking creation. Merchant Manage and breakdown pricing use `merchant_pricing`; browser localStorage pricing is removed. |
 | — | **P7 款式跟踪** (completed-order photos → tagged catalog/style library) | pending |
 
 Do not wire UI to the DB before P2/P3 land, or the flat tables get migrated twice.

@@ -18,6 +18,7 @@ type MobileLayoutProps = {
   showTabs?: boolean;
   subtitle?: string;
   title?: string;
+  wide?: boolean;
 };
 
 export function MobileLayout({
@@ -26,7 +27,8 @@ export function MobileLayout({
   role,
   showTabs = true,
   subtitle,
-  title
+  title,
+  wide = false,
 }: MobileLayoutProps) {
   const session = getMockSession(role);
   const profilePath = role === 'customer' ? getCustomerProfilePath() : getMerchantProfilePath();
@@ -45,14 +47,20 @@ export function MobileLayout({
   );
 
   return (
-    <div className="mobile-shell">
+    <div className={wide ? 'mobile-shell mobile-shell-workspace' : 'mobile-shell'}>
       <TopBar
         brandHref={brandHref ?? session.brandHref}
         rightSlot={rightSlot}
         subtitle={subtitle}
         title={title}
       />
-      <main className={showTabs ? 'mobile-content mobile-content-with-tabs' : 'mobile-content'}>
+      <main
+        className={[
+          'mobile-content',
+          showTabs && 'mobile-content-with-tabs',
+          wide && 'mobile-content-workspace',
+        ].filter(Boolean).join(' ')}
+      >
         {children}
       </main>
       {showTabs ? <BottomTabBar role={role} /> : null}
