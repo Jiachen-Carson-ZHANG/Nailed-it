@@ -33,7 +33,12 @@ export default async function StyleDetailPage({ params }: StyleDetailPageProps) 
       role="customer"
       title="Nailed-it"
     >
-      <StyleDetailPanel style={style} />
+      <StyleDetailPanel
+        backHref={homePathForRole('customer')}
+        recognition={style.recognition}
+        style={style}
+        quoteLines={quoteLines}
+      />
     </MobileLayout>
   );
 }
