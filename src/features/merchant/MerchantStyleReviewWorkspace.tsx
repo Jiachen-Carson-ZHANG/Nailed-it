@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { LoadingState } from '@/components/ui/LoadingState';
 import type { CatalogSelection } from '@/domain/catalog';
 import type { MerchantStyleView } from '@/domain/merchant-style';
 import {
@@ -176,7 +177,9 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         description,
         selections,
       });
-      syncStyle(saved);
+      // Update the record only — don't reset the fields the merchant is editing (that would
+      // re-trigger the quote effect and instantly clear this confirmation).
+      setStyle(saved);
       setMessage('Draft saved.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save draft.');
@@ -223,41 +226,58 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
   }
 
   const canEdit = style.status === 'needs_review';
-  const canRunAiBreakdown = style.status === 'processing';
+  const isProcessing = style.status === 'processing';
+  const isPublished = style.status === 'published';
+  const isFailed = style.status === 'failed';
+  const showEditor = (canEdit || isPublished) && !isAnalyzing;
   const canPublish = canEdit && Boolean(title.trim()) && Boolean(quote?.totalPriceCents && quote.totalDurationMin);
 
   return (
     <div className="merchant-review-workspace">
       <header className="merchant-review-heading">
-        <div>
-          <Link className="merchant-review-back" href="/merchant/styles">← Collection</Link>
-          <p className="section-eyebrow">Merchant collection</p>
-          <h1>Review design</h1>
-          <p>Confirm every service that affects the customer price or booking time.</p>
-        </div>
-        <div className="merchant-review-heading-actions">
-          <span className={`merchant-style-status merchant-style-status-${style.status}`}>
-            {isAnalyzing ? 'Analyzing' : style.status.replace('_', ' ')}
-          </span>
-          {canRunAiBreakdown ? (
-            <button
-              className="button button-primary button-default merchant-review-ai-button"
-              disabled={isAnalyzing || isSaving}
-              type="button"
-              onClick={runAiBreakdown}
-            >
-              {isAnalyzing ? 'Analyzing…' : 'AI breakdown'}
-            </button>
-          ) : null}
-        </div>
+        <Link className="merchant-review-back" href="/merchant/styles">← Collection</Link>
+        <h1>{isProcessing || isAnalyzing ? 'Analyze design' : isPublished ? 'Published design' : 'Review design'}</h1>
+        <p>
+          {isProcessing || isAnalyzing
+            ? 'AI suggests the name, description, and service breakdown. You can edit everything after.'
+            : 'Confirm every service that affects the customer price or booking time, then publish.'}
+        </p>
       </header>
 
-      <div className="merchant-review-layout">
-        <aside className="merchant-review-media">
-          <img alt={style.title} src={style.imageUrl} />
+      <div className="merchant-review-media">
+        <img alt={style.title} src={style.imageUrl} />
+      </div>
+
+      {isAnalyzing ? (
+        <LoadingState title="AI is analyzing this design" body="Detecting nail shape, colors, and the priced service breakdown…" />
+      ) : null}
+
+      {isProcessing && !isAnalyzing ? (
+        <section className="merchant-review-cta">
+          <button
+            className="button button-primary button-block"
+            disabled={isSaving}
+            type="button"
+            onClick={runAiBreakdown}
+          >
+            Run AI breakdown
+          </button>
+          {message ? <p className="helper-copy" role="status">{message}</p> : null}
+        </section>
+      ) : null}
+
+      {isFailed && !isAnalyzing ? (
+        <section className="merchant-review-cta">
+          <p className="merchant-review-empty">{message || 'Analysis failed for this upload. Archive it and upload the photo again.'}</p>
+          <Link className="button button-secondary button-block" href="/merchant/styles">Back to collection</Link>
+        </section>
+      ) : null}
+
+      {showEditor ? (
+        <>
           <div className="merchant-review-quote" aria-label="Quote preview">
             <span>
-              <small>Preview price</small>
+              <small>Reference price</small>
               <strong>{quote ? `$${(quote.totalPriceCents / 100).toFixed(2)}` : '—'}</strong>
             </span>
             <span>
@@ -265,15 +285,10 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
               <strong>{quote ? `${quote.totalDurationMin} min` : '—'}</strong>
             </span>
           </div>
-        </aside>
 
-        <div className="merchant-review-editor">
           <section className="merchant-review-section">
             <div className="merchant-review-section-heading">
-              <div>
-                <p className="section-eyebrow">Customer-facing details</p>
-                <h2>Design details</h2>
-              </div>
+              <h2>Design details</h2>
             </div>
             <label className="field">
               <span>Design title</span>
@@ -297,14 +312,11 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
 
           <section className="merchant-review-section">
             <div className="merchant-review-section-heading">
-              <div>
-                <p className="section-eyebrow">Price and time</p>
-                <h2>Selected services</h2>
-              </div>
-              <span>{selectedItems.length}</span>
+              <h2>Services</h2>
+              {selectedItems.length > 0 ? <span>{selectedItems.length}</span> : null}
             </div>
             {selectedItems.length === 0 ? (
-              <p className="merchant-review-empty">No services selected yet. Add everything required to create this design.</p>
+              <p className="merchant-review-empty">AI did not detect any priced services. Add them below.</p>
             ) : (
               <div className="merchant-review-selected-list">
                 {selectedItems.map(({ item, selection }) => (
@@ -315,8 +327,6 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
                         {item.enabled ? `$${(item.priceCents / 100).toFixed(2)}` : 'Unavailable'}
                         {' · '}
                         {item.affectsDuration ? `${item.durationMin} min` : 'No booking time'}
-                        {' · '}
-                        {item.pricingUnit}
                       </small>
                     </div>
                     <label className="merchant-review-quantity">
@@ -346,75 +356,73 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
             )}
           </section>
 
-          <section className="merchant-review-section">
-            <div className="merchant-review-section-heading">
-              <div>
-                <p className="section-eyebrow">Catalog</p>
+          {canEdit ? (
+            <section className="merchant-review-section">
+              <div className="merchant-review-section-heading">
                 <h2>Add services</h2>
               </div>
-            </div>
-            <label className="merchant-review-search">
-              <span className="sr-only">Search services</span>
-              <input
-                aria-label="Search services"
-                placeholder="Search services"
-                role="searchbox"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <div className="merchant-review-catalog-list">
-              {availableItems.map((item) => (
-                <div className="merchant-review-catalog-row" key={item.id}>
-                  <div>
-                    <strong>{item.nameZh}</strong>
-                    <small>
-                      {item.enabled ? `$${(item.priceCents / 100).toFixed(2)}` : 'Pricing unavailable'}
-                      {' · '}
-                      {item.affectsDuration ? `${item.durationMin} min` : 'No booking time'}
-                    </small>
+              <label className="merchant-review-search">
+                <span className="sr-only">Search services</span>
+                <input
+                  aria-label="Search services"
+                  placeholder="Search services"
+                  role="searchbox"
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <div className="merchant-review-catalog-list">
+                {availableItems.map((item) => (
+                  <div className="merchant-review-catalog-row" key={item.id}>
+                    <div>
+                      <strong>{item.nameZh}</strong>
+                      <small>
+                        {item.enabled ? `$${(item.priceCents / 100).toFixed(2)}` : 'Pricing unavailable'}
+                        {' · '}
+                        {item.affectsDuration ? `${item.durationMin} min` : 'No booking time'}
+                      </small>
+                    </div>
+                    <button
+                      aria-label={`Add ${item.nameZh}`}
+                      className="merchant-review-add"
+                      disabled={isSaving || !item.enabled}
+                      type="button"
+                      onClick={() => addSelection(item)}
+                    >
+                      +
+                    </button>
                   </div>
-                  <button
-                    aria-label={`Add ${item.nameZh}`}
-                    className="merchant-review-add"
-                    disabled={!canEdit || isSaving || !item.enabled}
-                    type="button"
-                    onClick={() => addSelection(item)}
-                  >
-                    +
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
 
-      <footer className="merchant-review-actions">
-        <div>
-          <strong>{quote ? `$${(quote.totalPriceCents / 100).toFixed(2)} · ${quote.totalDurationMin} min` : 'Add services to calculate quote'}</strong>
-          {message ? <p role="status">{message}</p> : <p>AI suggestions remain private until you publish.</p>}
-        </div>
-        <div>
-          <button
-            className="button button-secondary button-default"
-            disabled={!canEdit || isSaving}
-            type="button"
-            onClick={saveDraft}
-          >
-            Save draft
-          </button>
-          <button
-            className="button button-primary button-default"
-            disabled={!canPublish || isSaving}
-            type="button"
-            onClick={publish}
-          >
-            Publish
-          </button>
-        </div>
-      </footer>
+      {showEditor && canEdit ? (
+        <footer className="merchant-review-actions">
+          {message ? <p role="status">{message}</p> : null}
+          <div>
+            <button
+              className="button button-secondary button-default"
+              disabled={isSaving}
+              type="button"
+              onClick={saveDraft}
+            >
+              Save draft
+            </button>
+            <button
+              className="button button-primary button-default"
+              disabled={!canPublish || isSaving}
+              type="button"
+              onClick={publish}
+            >
+              Publish
+            </button>
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 }

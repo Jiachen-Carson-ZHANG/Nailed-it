@@ -29,20 +29,19 @@ describe('MerchantStyleReviewPage', () => {
     resetStyleMediaStorageForTests();
   });
 
-  it('opens processing uploads in a dedicated editable review workspace', async () => {
+  it('opens a processing upload on the AI-breakdown step, with no editor yet', async () => {
     const draft = await uploadProcessingStyle();
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
     expect(screen.queryByRole('navigation', { name: /merchant navigation/i })).not.toBeInTheDocument();
     expect(document.querySelector('.mobile-shell-workspace')).not.toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: /review design/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /analyze design/i })).toBeInTheDocument();
 
-    expect(await screen.findByRole('textbox', { name: /design title/i })).toHaveValue('Untitled design');
-    expect(screen.getByRole('textbox', { name: /description/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /ai breakdown/i })).toBeInTheDocument();
-    expect(screen.getByRole('searchbox', { name: /search services/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save draft/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /publish/i })).toBeInTheDocument();
+    // Before AI runs, the only action is the breakdown trigger — the editor stays hidden.
+    expect(screen.getByRole('button', { name: /run ai breakdown/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /design title/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', { name: /search services/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^publish$/i })).not.toBeInTheDocument();
   });
 
   it('adds services, previews the deterministic quote, saves, and publishes', async () => {

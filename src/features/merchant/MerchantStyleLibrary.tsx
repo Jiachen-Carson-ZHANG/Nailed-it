@@ -66,7 +66,7 @@ export function MerchantStyleLibrary() {
 
   return (
     <div className="merchant-style-library">
-      <label className={`merchant-style-upload-tile${isPending ? ' is-pending' : ''}`}>
+      <label className={`image-uploader merchant-style-upload-tile${isPending ? ' is-pending' : ''}`}>
         <input
           accept="image/jpeg,image/png,image/webp"
           aria-label="Upload a new design"
@@ -75,11 +75,13 @@ export function MerchantStyleLibrary() {
           type="file"
           onChange={handleUpload}
         />
-        <span aria-hidden="true" className="image-uploader-mark merchant-style-upload-icon">＋</span>
-        <span>
+        <div aria-hidden="true" className="image-uploader-placeholder">
+          <span className="image-uploader-mark">＋</span>
+        </div>
+        <div className="image-uploader-copy">
           <strong>{isPending ? 'Uploading design…' : 'Add a new design'}</strong>
-          <small>Choose one photo to analyze and review</small>
-        </span>
+          <p>Upload a photo to your resource library for customers to discover.</p>
+        </div>
       </label>
 
       {message ? <p className="helper-copy" role="status">{message}</p> : null}

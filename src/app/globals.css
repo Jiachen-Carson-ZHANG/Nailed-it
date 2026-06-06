@@ -2732,16 +2732,8 @@ select {
   padding-bottom: 6rem;
 }
 
+/* Mirrors the customer ImageUploader card (.image-uploader); just adds clickability + pending. */
 .merchant-style-upload-tile {
-  min-height: 8.5rem;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 1rem;
-  padding: 1.2rem;
-  border: 1px dashed rgba(199, 57, 99, 0.34);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
   cursor: pointer;
   transition:
     border-color var(--motion-fast) var(--motion-ease),
@@ -2759,18 +2751,6 @@ select {
   opacity: 0.72;
 }
 
-.merchant-style-upload-icon {
-  width: 3rem;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.merchant-style-upload-tile strong,
-.merchant-style-upload-tile small {
-  display: block;
-}
-
-.merchant-style-upload-tile small,
 .merchant-style-card-preview {
   margin: 0.3rem 0 0;
   color: var(--color-muted);
@@ -2817,22 +2797,10 @@ select {
   margin: 0;
 }
 
-/* Status + AI action sit on one row beneath the title (content is always phone-width). */
-.merchant-review-heading-actions {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.merchant-review-heading-actions .merchant-review-ai-button {
-  flex: 1 1 auto;
-  max-width: 14rem;
-}
-
-.merchant-review-ai-button {
-  white-space: nowrap;
+/* Processing phase: a single primary action (Run AI breakdown), no editor yet. */
+.merchant-review-cta {
+  display: grid;
+  gap: 0.6rem;
 }
 
 .merchant-review-heading p:last-child,
@@ -2860,15 +2828,6 @@ select {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-}
-
-.merchant-review-layout {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.merchant-review-media {
-  align-self: start;
 }
 
 .merchant-review-media > img {
@@ -2904,7 +2863,6 @@ select {
   font-size: var(--text-lg);
 }
 
-.merchant-review-editor,
 .merchant-review-section,
 .merchant-review-selected-list,
 .merchant-review-catalog-list {
