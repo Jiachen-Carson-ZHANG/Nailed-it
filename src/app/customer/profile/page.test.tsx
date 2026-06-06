@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
-import { demoCustomerName } from '@/mock/operations-store';
+import { mockAIResult } from '@/mock/ai';
 import CustomerProfilePage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -26,15 +26,14 @@ describe('CustomerProfilePage', () => {
   });
 
   it('includes a booking created for the demo customer through the booking service', async () => {
+    // customerName is server-derived to the demo customer; identity is never client-supplied.
     await createBookingAction({
       technicianId: 'tech-anna',
-      customerName: demoCustomerName,
+      recognition: mockAIResult,
       styleTitle: 'Custom AI reference',
       styleImageUrl: '',
       date: '2026-05-23',
       time: '10:00',
-      estimate: { price: 123, duration: 88 },
-      status: 'confirmed',
       notes: 'Profile should show this booking.'
     });
 

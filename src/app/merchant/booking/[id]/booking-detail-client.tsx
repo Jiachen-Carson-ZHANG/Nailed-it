@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import type { Booking } from '@/domain/nail';
 import { getMerchantMessagesPath } from '@/domain/session';
-import { listBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listMerchantBookingViewsAction, setBookingStatusAction } from '@/lib/actions/booking-actions';
 
 type MerchantBookingDetailClientProps = {
   id: string;
@@ -33,7 +33,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
 
   useEffect(() => {
     let active = true;
-    listBookingViewsAction()
+    listMerchantBookingViewsAction()
       .then((rows) => {
         if (!active) return;
         const found = rows.find((item) => item.id === id);
@@ -73,6 +73,11 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
   const conversationId = booking.conversationId;
   const currentStatus = status ?? booking.status;
 
+  async function changeStatus(option: Booking['status']) {
+    setStatus(option); // optimistic
+    await setBookingStatusAction(id, option); // persist to the DB
+  }
+
   return (
     <section className="booking-detail">
       <img alt={booking.styleTitle} src={booking.styleImageUrl} />
@@ -95,7 +100,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
             role="radio"
             aria-checked={currentStatus === option}
             className={currentStatus === option ? 'status-toggle-option status-toggle-active' : 'status-toggle-option'}
-            onClick={() => setStatus(option)}
+            onClick={() => changeStatus(option)}
           >
             {statusLabels[option]}
           </button>

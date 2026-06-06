@@ -11,12 +11,10 @@ import {
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
-import { requiresMerchantReview } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { createBookingAction, listAvailableSlotsAction } from '@/lib/actions/booking-actions';
-import { demoCustomerName } from '@/mock/operations-store';
 
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
@@ -93,18 +91,16 @@ export default function CustomerBookingConfirmPage() {
     }
 
     setIsConfirming(true);
-    const status = requiresMerchantReview(draft.recognition) ? 'pending_review' : 'confirmed';
 
     try {
+      // Identity, price, and review status are all derived server-side from the recognition.
       const booking = await createBookingAction({
         technicianId: selectedSlot.technician.id,
-        customerName: demoCustomerName,
+        recognition: draft.recognition,
         styleTitle: 'Custom AI reference',
         styleImageUrl: draft.imageUrl,
         date: selectedSlot.date,
         time: selectedSlot.time,
-        estimate: { price: draft.estimate.price, duration: draft.estimate.duration },
-        status,
         notes
       });
       setCreatedBooking(booking);

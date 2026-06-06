@@ -28,7 +28,11 @@ Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + 
 
 ## Persistence layer (built behind a repository seam — data layer only, not yet wired)
 
-A repository seam and a Supabase (Postgres) implementation exist. The **customer booking write is now cut over to the DB** — the confirm flow creates an interval booking + linked conversation thread through the `createBookingAction` server action (P4c/P4d), verified live. The reader surfaces (calendar, profile, messages, booking detail) still read browser `localStorage`, so the branch is **mid-cutover and must not merge until the reads land** (no shipped split-brain). **ADR-0005's phase table is authoritative for phase numbers and status.**
+A repository seam and a Supabase (Postgres) implementation exist, and the customer + merchant surfaces are **cut over to the DB** (P4c/P4d) through server actions in `src/lib/actions/`:
+- **Writes**: `createBookingAction` creates an interval booking + linked conversation thread. Identity (customer), money (price/duration), and review status are **derived server-side** — recomputed from the recognition via the DB pricing rules + the confidence policy — so the browser cannot book a $0/auto-confirmed appointment. Status changes persist via `setBookingStatusAction`.
+- **Reads**: calendar / merchant profile / booking detail use `listMerchantBookingViewsAction`; customer profile uses `listCustomerBookingViewsAction` (server-filtered to the demo customer — private bookings never reach the browser). Messages use customer/merchant-scoped conversation actions that fix the actor server-side. Confirm-page availability uses `listAvailableSlotsAction` (DB occupancy).
+
+The only browser-local state left is the booking **draft** (`sessionStorage`) and the legacy `operations-store` (now dead app-side, pending removal). **Known gap — no auth:** without a session there is no real server-derived actor, so a direct caller could still invoke the merchant-scoped reads. True cross-account authorization needs the auth system (a future ADR). **ADR-0005's phase table is authoritative for phase numbers and status.**
 
 Repositories live in `src/lib/repositories/` (async interfaces in `types.ts`; in-memory + Supabase impls; `getRepositories()` selects Supabase when env is present and not under test, in-memory otherwise so tests never hit the network):
 - **Bookings, conversations/messages, technicians, styles, pricing rules** — P0/P1, the interim flat model.

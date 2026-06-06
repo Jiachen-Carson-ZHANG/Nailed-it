@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import type { Conversation } from '@/domain/nail';
 import { ChatRoom } from '@/features/messages/ChatRoom';
-import { getConversationForRoleAction, sendMessageAction } from '@/lib/actions/conversation-actions';
+import { getCustomerConversationAction, sendCustomerMessageAction } from '@/lib/actions/conversation-actions';
 
 type CustomerConversationClientProps = {
   conversationId: string;
@@ -17,7 +17,7 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
 
   useEffect(() => {
     let active = true;
-    getConversationForRoleAction(conversationId, 'customer')
+    getCustomerConversationAction(conversationId)
       .then((c) => {
         if (active) setConversation(c);
       })
@@ -33,7 +33,7 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
   }, [conversationId]);
 
   async function handleSend(body: string) {
-    const updated = await sendMessageAction({ conversationId, authorRole: 'customer', role: 'customer', body });
+    const updated = await sendCustomerMessageAction(conversationId, body);
     if (updated) setConversation(updated);
   }
 

@@ -2,43 +2,72 @@
 
 import { randomUUID } from 'node:crypto';
 import { toConversationForRole } from '@/domain/messaging';
-import type { BookingConversationThread, Conversation, MessageAuthorRole, UserRole } from '@/domain/nail';
+import type { BookingConversationThread, Conversation, UserRole } from '@/domain/nail';
 import { getRepositories } from '@/lib/repositories';
 import { demoCustomerName } from '@/mock/operations-store';
 
-// Customers only see their own threads; the merchant sees the whole shop inbox.
-function canRoleViewThread(thread: BookingConversationThread, role: UserRole): boolean {
-  return role === 'merchant' || thread.customerName === demoCustomerName;
+// No auth yet: the customer-scoped actions hard-fix the actor to the demo customer (server-side),
+// so a customer surface can only ever see/append its own threads and always speaks as 'customer'.
+// The role/author is never taken from the browser. Cross-actor authorization across real accounts
+// still needs the auth system.
+function isDemoCustomerThread(thread: BookingConversationThread): boolean {
+  return thread.customerName === demoCustomerName;
 }
 
-export async function listConversationsForRoleAction(role: UserRole): Promise<Conversation[]> {
-  const threads = await getRepositories().conversations.list();
-  return threads
-    .filter((thread) => canRoleViewThread(thread, role))
-    .map((thread) => toConversationForRole(thread, role));
-}
-
-export async function getConversationForRoleAction(
+async function appendAs(
   conversationId: string,
+  body: string,
   role: UserRole,
+  canView: (thread: BookingConversationThread) => boolean,
 ): Promise<Conversation | null> {
-  const thread = await getRepositories().conversations.getById(conversationId);
-  return thread && canRoleViewThread(thread, role) ? toConversationForRole(thread, role) : null;
-}
-
-export async function sendMessageAction(input: {
-  conversationId: string;
-  authorRole: MessageAuthorRole;
-  role: UserRole;
-  body: string;
-}): Promise<Conversation | null> {
-  const body = input.body.trim();
-  if (!body) return null;
-  const updated = await getRepositories().conversations.appendMessage(input.conversationId, {
+  const trimmed = body.trim();
+  if (!trimmed) return null;
+  const repos = getRepositories();
+  const existing = await repos.conversations.getById(conversationId);
+  if (!existing || !canView(existing)) return null;
+  const updated = await repos.conversations.appendMessage(conversationId, {
     id: `msg-${randomUUID()}`,
-    authorRole: input.authorRole,
-    body,
+    authorRole: role,
+    body: trimmed,
     sentAt: 'Now',
   });
-  return updated ? toConversationForRole(updated, input.role) : null;
+  return updated ? toConversationForRole(updated, role) : null;
+}
+
+// ─── Customer-scoped (only the demo customer's threads) ──────────────────────
+
+export async function listCustomerConversationsAction(): Promise<Conversation[]> {
+  const threads = await getRepositories().conversations.list();
+  return threads.filter(isDemoCustomerThread).map((t) => toConversationForRole(t, 'customer'));
+}
+
+export async function getCustomerConversationAction(conversationId: string): Promise<Conversation | null> {
+  const thread = await getRepositories().conversations.getById(conversationId);
+  return thread && isDemoCustomerThread(thread) ? toConversationForRole(thread, 'customer') : null;
+}
+
+export async function sendCustomerMessageAction(
+  conversationId: string,
+  body: string,
+): Promise<Conversation | null> {
+  return appendAs(conversationId, body, 'customer', isDemoCustomerThread);
+}
+
+// ─── Merchant-scoped (the whole shop inbox) ──────────────────────────────────
+
+export async function listMerchantConversationsAction(): Promise<Conversation[]> {
+  const threads = await getRepositories().conversations.list();
+  return threads.map((t) => toConversationForRole(t, 'merchant'));
+}
+
+export async function getMerchantConversationAction(conversationId: string): Promise<Conversation | null> {
+  const thread = await getRepositories().conversations.getById(conversationId);
+  return thread ? toConversationForRole(thread, 'merchant') : null;
+}
+
+export async function sendMerchantMessageAction(
+  conversationId: string,
+  body: string,
+): Promise<Conversation | null> {
+  return appendAs(conversationId, body, 'merchant', () => true);
 }

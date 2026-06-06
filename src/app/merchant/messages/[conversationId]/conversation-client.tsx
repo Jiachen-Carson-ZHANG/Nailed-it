@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import type { Conversation } from '@/domain/nail';
 import { ChatRoom } from '@/features/messages/ChatRoom';
-import { getConversationForRoleAction, sendMessageAction } from '@/lib/actions/conversation-actions';
+import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
 
 type MerchantConversationClientProps = {
   conversationId: string;
@@ -17,7 +17,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
 
   useEffect(() => {
     let active = true;
-    getConversationForRoleAction(conversationId, 'merchant')
+    getMerchantConversationAction(conversationId)
       .then((c) => {
         if (active) setConversation(c);
       })
@@ -33,7 +33,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
   }, [conversationId]);
 
   async function handleSend(body: string) {
-    const updated = await sendMessageAction({ conversationId, authorRole: 'merchant', role: 'merchant', body });
+    const updated = await sendMerchantMessageAction(conversationId, body);
     if (updated) setConversation(updated);
   }
 

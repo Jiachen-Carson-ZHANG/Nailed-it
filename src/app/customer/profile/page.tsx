@@ -6,17 +6,18 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
 import type { Booking } from '@/domain/nail';
 import { homePathForRole } from '@/domain/session';
-import { listBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listCustomerBookingViewsAction } from '@/lib/actions/booking-actions';
 import { demoCustomerName } from '@/mock/operations-store';
 
 export default function CustomerProfilePage() {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  // Already filtered to the demo customer on the server (private bookings never reach the browser).
+  const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
     let active = true;
-    listBookingViewsAction()
+    listCustomerBookingViewsAction()
       .then((rows) => {
-        if (active) setBookings(rows);
+        if (active) setCustomerBookings(rows);
       })
       .catch(() => {
         /* leave empty */
@@ -25,8 +26,6 @@ export default function CustomerProfilePage() {
       active = false;
     };
   }, []);
-
-  const customerBookings = bookings.filter((booking) => booking.customerName === demoCustomerName);
   // 中文注释：这里按"仍会占用用户心智"的状态聚合 upcoming，后续接真实后端也能复用同一口径。
   const upcomingBookings = customerBookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)

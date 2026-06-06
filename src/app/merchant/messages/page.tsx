@@ -7,7 +7,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { getMerchantMessagesPath } from '@/domain/session';
 import { ConversationListItem } from '@/features/messages/ConversationListItem';
 import type { Conversation } from '@/domain/nail';
-import { listConversationsForRoleAction } from '@/lib/actions/conversation-actions';
+import { listMerchantConversationsAction } from '@/lib/actions/conversation-actions';
 
 export default function MerchantMessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -15,7 +15,7 @@ export default function MerchantMessagesPage() {
 
   useEffect(() => {
     let active = true;
-    listConversationsForRoleAction('merchant')
+    listMerchantConversationsAction()
       .then((rows) => {
         if (active) setConversations(rows);
       })

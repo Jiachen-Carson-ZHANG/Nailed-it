@@ -7,7 +7,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ConversationListItem } from '@/features/messages/ConversationListItem';
 import type { Conversation } from '@/domain/nail';
 import { getCustomerMessagesPath } from '@/domain/session';
-import { listConversationsForRoleAction } from '@/lib/actions/conversation-actions';
+import { listCustomerConversationsAction } from '@/lib/actions/conversation-actions';
 
 export default function CustomerMessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -15,7 +15,7 @@ export default function CustomerMessagesPage() {
 
   useEffect(() => {
     let active = true;
-    listConversationsForRoleAction('customer')
+    listCustomerConversationsAction()
       .then((rows) => {
         if (active) setConversations(rows);
       })

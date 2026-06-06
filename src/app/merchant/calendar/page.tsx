@@ -5,7 +5,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { CalendarSchedule } from '@/features/merchant/CalendarSchedule';
 import type { Booking } from '@/domain/nail';
-import { listBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
 
 export default function MerchantCalendarPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -13,7 +13,7 @@ export default function MerchantCalendarPage() {
 
   useEffect(() => {
     let active = true;
-    listBookingViewsAction()
+    listMerchantBookingViewsAction()
       .then((rows) => {
         if (active) setBookings(rows);
       })

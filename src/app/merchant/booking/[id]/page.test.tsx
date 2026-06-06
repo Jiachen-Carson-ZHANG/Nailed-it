@@ -3,7 +3,7 @@ import { beforeEach, vi } from 'vitest';
 import { mockBookings } from '@/mock/bookings';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
-import { demoCustomerName } from '@/mock/operations-store';
+import { mockAIResult } from '@/mock/ai';
 import MerchantBookingDetailPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -36,13 +36,11 @@ describe('MerchantBookingDetailPage', () => {
   it('renders a newly created booking by id', async () => {
     const booking = await createBookingAction({
       technicianId: 'tech-anna',
-      customerName: demoCustomerName,
+      recognition: mockAIResult,
       styleTitle: 'Custom AI reference',
       styleImageUrl: '',
       date: '2026-05-23',
       time: '10:00',
-      estimate: { price: 123, duration: 88 },
-      status: 'confirmed',
       notes: 'Created from customer confirmation.'
     });
 
