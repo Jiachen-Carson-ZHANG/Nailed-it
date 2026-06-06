@@ -7,7 +7,7 @@ import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
 import type { Booking } from '@/domain/nail';
 import { homePathForRole } from '@/domain/session';
 import { listCustomerBookingViewsAction } from '@/lib/actions/booking-actions';
-import { demoCustomerName } from '@/mock/operations-store';
+import { demoCustomerName } from '@/mock/customers';
 
 export default function CustomerProfilePage() {
   // Already filtered to the demo customer on the server (private bookings never reach the browser).

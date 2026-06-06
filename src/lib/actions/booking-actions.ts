@@ -17,7 +17,7 @@ import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
 import { createBookingService } from '@/lib/services/booking-service';
 import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
 import { demoMerchantId } from '@/mock/merchants';
-import { demoCustomerName } from '@/mock/operations-store';
+import { demoCustomerName } from '@/mock/customers';
 
 const SLOT_LOOKAHEAD_DAYS = 7;
 const CANDIDATE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];

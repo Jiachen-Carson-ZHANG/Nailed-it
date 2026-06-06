@@ -6,7 +6,6 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { mockAIResult } from '@/mock/ai';
-import { resetOperationsStoreForTests } from '@/mock/operations-store';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerBookingConfirmPage from './page';
 
@@ -17,7 +16,6 @@ vi.mock('next/navigation', () => ({
 describe('CustomerBookingConfirmPage', () => {
   beforeEach(() => {
     clearCustomerBookingDraft();
-    resetOperationsStoreForTests();
     // The confirm write now goes through the repository-backed booking action; reset the
     // in-memory bundle so each test starts with no DB bookings (no cross-test overlap).
     resetRepositoriesForTests();

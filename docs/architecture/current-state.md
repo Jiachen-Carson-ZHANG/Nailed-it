@@ -4,7 +4,7 @@ Last updated: 2026-06-06
 
 ## Stack
 
-Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + `BottomTabBar`). Operational booking, messaging, pricing, scheduling, and merchant-style data use Supabase behind a repository seam. The booking draft remains in per-tab `sessionStorage`; legacy mock/localStorage modules remain only where cleanup or migration compatibility is still pending. AI calls are server-side API routes.
+Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + `BottomTabBar`). Operational booking, messaging, pricing, scheduling, and merchant-style data use Supabase behind a repository seam. The booking draft remains in per-tab `sessionStorage`. AI calls are server-side API routes.
 
 ## Entry points
 
@@ -33,7 +33,7 @@ A repository seam and a Supabase (Postgres) implementation exist, and the custom
 - **Writes**: `createBookingAction` creates an interval booking + its linked conversation thread + greeting in **one transaction** (the `create_booking_with_thread` RPC, migration `0010`) — no compensating cancel, no orphan booking, no empty thread. Identity (customer) and money (price/duration) are **derived server-side** (price/duration recomputed from the recognition via the DB pricing rules). Because client recognition is itself untrusted, the snapshot bridge **never auto-confirms**: status is forced to `pending_review` until server-issued recognition/catalog selections exist (live P6). Availability is **enforced at write time** — the chosen technician is re-checked against the scheduling kernel for the exact slot + duration, so a tampered request cannot book during a break, blocked time, or outside working hours (the DB exclusion constraint only stops booking-vs-booking overlap). Status changes persist via `setBookingStatusAction`.
 - **Reads**: calendar / merchant profile / booking detail use `listMerchantBookingViewsAction`; customer profile uses `listCustomerBookingViewsAction` (server-filtered to the demo customer — private bookings never reach the browser). Messages use customer/merchant-scoped conversation actions that fix the actor server-side. Confirm-page availability uses `listAvailableSlotsAction` (DB occupancy).
 
-The only browser-local state left is the booking **draft** (`sessionStorage`) and the legacy `operations-store` (now dead app-side, pending removal). **Known gap — no auth:** without a session there is no real server-derived actor, so a direct caller could still invoke the merchant-scoped reads. True cross-account authorization needs the auth system (a future ADR). **ADR-0005's phase table is authoritative for phase numbers and status.**
+The only browser-local booking state left is the booking **draft** (`sessionStorage`). **Known gap — no auth:** without a session there is no real server-derived actor, so a direct caller could still invoke the merchant-scoped reads. True cross-account authorization needs the auth system (a future ADR). **ADR-0005's phase table is authoritative for phase numbers and status.**
 
 Repositories live in `src/lib/repositories/` (async interfaces in `types.ts`; in-memory + Supabase impls; `getRepositories()` selects Supabase when env is present and not under test, in-memory otherwise so tests never hit the network):
 - **Bookings, conversations/messages, technicians, styles, pricing rules** — P0/P1, the interim flat model.
@@ -61,8 +61,9 @@ Service layer (`src/lib/services/`, orchestration over repositories):
 
 Known gaps:
 - **No authentication:** merchant-style and other merchant actions are fixed to the single demo merchant server-side; true cross-merchant authorization needs an authenticated session.
+- **Glossary pricing fork:** the newly added merchant glossary settings UI persists prices/durations in browser `localStorage` and sends them to the breakdown API. This is not an authoritative pricing path and conflicts with ADR-0005's `catalog_item` + `merchant_pricing` model. The breakdown API must load effective merchant pricing server-side before this path can affect quotes/bookings.
 - **Merchant style AI/catalog review:** P6.5 persists the reviewable JSONB contract and reviewed preview price/duration, but live recognition still does not emit catalog ids. Until P6 completes, merchants enter the reviewed preview values before publishing.
-- **Legacy cleanup:** the old `styles`, flat booking/pricing tables, and dead app-side localStorage operations functions remain pending P4e cleanup.
+- **Legacy cleanup:** the old `styles` and flat booking/pricing tables remain pending P4e cleanup.
 
 ## LLM integration
 
@@ -78,7 +79,7 @@ Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API
 - `availability.ts` — pure technician-slot assignment (no same-technician/date/time conflicts; earliest-wait ranking)
 - `booking-draft.ts` — sessionStorage draft boundary across `/customer/booking` → `/customer/booking/confirm`
 - `merchant-style.ts` — merchant media/style lifecycle and customer-safe published-style mapping
-- `messaging.ts` — role-aware mapping from operations-store threads to the shared `Conversation` UI contract
+- `messaging.ts` — role-aware mapping from repository-backed booking threads to the shared `Conversation` UI contract
 
 ## Glossary (`src/data/`)
 
@@ -87,8 +88,7 @@ Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API
 
 ## Mock data (`src/mock/`)
 
-`styles.ts`, `merchant-styles.ts`, `bookings.ts`, `conversations.ts`, `technicians.ts`, `pricing.ts` — seed data.
-`operations-store.ts` — versioned `localStorage` store for bookings and threads; survives page reloads within a browser session.
+`styles.ts`, `merchant-styles.ts`, `bookings.ts`, `conversations.ts`, `technicians.ts`, `pricing.ts`, `customers.ts` — seed/demo data.
 `ai.ts` — sample image path so booking flow works without a provider key.
 
 ## LLM adapters (`src/lib/ai/`)

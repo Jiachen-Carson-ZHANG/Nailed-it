@@ -25,6 +25,10 @@ graphify-out/
 *.pkl
 *.zip
 *.csv
+*.xlsx
+*.pdf
+!docs/glossary.xlsx
+!docs/glossary_explanation.pdf
 *.ipynb
 *.log
 *.jsonl

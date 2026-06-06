@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-06-06 — Remove obsolete localStorage operations store
+
+What changed:
+- Deleted `src/mock/operations-store.ts` and its legacy localStorage behavior/tests.
+- Moved the remaining demo customer identity into `src/mock/customers.ts`.
+- Removed the obsolete operations-store reset from the confirm-page test.
+
+Why:
+- Booking, availability, conversation, and message runtime consumers are DB-backed. Keeping a
+  second localStorage implementation suggested a valid fallback path and made the persistence
+  architecture harder to understand.
+
+Aligned assumptions:
+- The booking draft remains intentionally browser-local in `sessionStorage`.
+- Mock booking/conversation records remain as deterministic in-memory repository seeds for tests.
+
 ## 2026-06-06 — Melissa live style asset backfill
 
 What changed:

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { toConversationForRole } from '@/domain/messaging';
 import type { BookingConversationThread, Conversation, UserRole } from '@/domain/nail';
 import { getRepositories } from '@/lib/repositories';
-import { demoCustomerName } from '@/mock/operations-store';
+import { demoCustomerName } from '@/mock/customers';
 
 // No auth yet: the customer-scoped actions hard-fix the actor to the demo customer (server-side),
 // so a customer surface can only ever see/append its own threads and always speaks as 'customer'.
