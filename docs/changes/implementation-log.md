@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-06-06 — P4d security/correctness hardening (pre-cleanup audit)
+
+What changed:
+- Server-derive everything that matters: `createBookingAction` takes the recognition + slot, not price/status/customer. customerName is fixed to the demo customer server-side, price/duration are recomputed from the recognition via the DB pricing rules, and review status from the confidence policy. A browser can no longer book a $0/auto-confirmed appointment.
+- Scoped reads: `listMerchantBookingViewsAction` (calendar, booking detail) vs `listCustomerBookingViewsAction` (profile, server-filtered to the demo customer). Conversation actions split into customer/merchant-scoped, set `authorRole` server-side, and authorize before appending.
+- Merchant profile reads bookings/conversations from the DB (was localStorage); booking-detail status persists via `setBookingStatusAction`.
+- `listAvailableSlotsAction` replaced the legacy fixed-date helper with `findAvailableTechnicians` over the next 7 days from today, honouring working_plan + blocked_time + DB bookings.
+- Privacy copy + current-state corrected (data lives in the DB).
+
+Why:
+- The cutover server actions are the trust boundary now; the browser was supplying identity, money, status, and role. These move authority to the server as far as is possible without auth.
+
+Tradeoff / known gaps:
+- No auth system, so there is no real server-derived actor: a direct caller could still hit the merchant-scoped reads. True cross-account authorization needs auth (future ADR).
+- Booking + thread + message creation is not one transaction. The booking↔thread case is handled by a compensating cancel; the residual gap (thread inserted, its first message insert fails → thread with no greeting) is benign and deferred. A single combined Postgres RPC is the ideal final mechanism.
+
 ## 2026-06-05 — P4c/P4d write cutover: confirm flow books to the DB (8bba335)
 
 What changed:
