@@ -129,8 +129,8 @@ describe('CustomerBookingConfirmPage', () => {
     const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
     expect(confirmButton).toBeDisabled();
 
-    // availability loads async from the booking service
-    await user.click(await screen.findByRole('button', { name: /10:00 .* mei chen/i }));
+    // availability loads async from the booking service (10:00 with Mei is offered on several days)
+    await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
     expect(confirmButton).toBeEnabled();
 
     await user.click(confirmButton);
@@ -163,7 +163,7 @@ describe('CustomerBookingConfirmPage', () => {
 
     render(<CustomerBookingConfirmPage />);
 
-    await user.click(await screen.findByRole('button', { name: /10:00 .* mei chen/i }));
+    await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
     const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
     await user.click(confirmButton);
 

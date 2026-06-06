@@ -3,15 +3,45 @@
 import { randomUUID } from 'node:crypto';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { calculateEstimate } from '@/domain/pricing';
-import type { AIRecognitionResult, Booking, BookingConversationThread } from '@/domain/nail';
+import type {
+  AIRecognitionResult,
+  Booking,
+  BookingConversationThread,
+  TechnicianSlot,
+} from '@/domain/nail';
 import { requiresMerchantReview } from '@/domain/nail';
+import { findAvailableTechnicians } from '@/domain/scheduling';
+import type { MsInterval } from '@/domain/scheduling';
 import type { RepositoryBundle } from '@/lib/repositories';
 import { getRepositories } from '@/lib/repositories';
 import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
 import { createBookingService } from '@/lib/services/booking-service';
-import { getAvailableBookingDays } from '@/mock/bookings';
+import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
 import { demoMerchantId } from '@/mock/merchants';
 import { demoCustomerName } from '@/mock/operations-store';
+
+const SLOT_LOOKAHEAD_DAYS = 7;
+const CANDIDATE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The next N calendar dates (YYYY-MM-DD) starting from `startDate`, in calendar order. */
+function nextDates(startDate: string, count: number): string[] {
+  const [y, mo, d] = startDate.split('-').map(Number);
+  return Array.from({ length: count }, (_, i) => {
+    const date = new Date(Date.UTC(y, mo - 1, d + i));
+    const iso = date.toISOString();
+    return iso.slice(0, 10);
+  });
+}
+
+function dayLabel(date: string, today: string): string {
+  const [ty, tmo, td] = today.split('-').map(Number);
+  const tomorrow = new Date(Date.UTC(ty, tmo - 1, td + 1)).toISOString().slice(0, 10);
+  if (date === today) return 'Today';
+  if (date === tomorrow) return 'Tomorrow';
+  const [y, mo, d] = date.split('-').map(Number);
+  return WEEKDAY_LABELS[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()];
+}
 
 // NOTE on trust: this app has no auth yet, so there is no authenticated session to derive a real
 // actor from. These actions therefore fix the identity to the single demo customer/merchant and
@@ -75,37 +105,71 @@ export async function setBookingStatusAction(
 }
 
 /**
- * Availability for the confirm-page grid, computed against DB occupancy. (Still uses the legacy
- * slot helper + fixed template dates; replacing it with availabilityService over working_plan +
- * future dates is the next hardening commit.)
+ * Availability for the confirm-page grid. Uses the real scheduling kernel — working_plan hours +
+ * breaks, blocked_time, and existing DB bookings — over the next few days from the merchant's
+ * "today", so the grid never offers a past date, a Sunday a closed technician, or an occupied slot.
  */
 export async function listAvailableSlotsAction(durationMin: number): Promise<TechnicianSlotDay[]> {
   const repos = getRepositories();
   const merchant = await repos.merchants.getById(demoMerchantId);
-  const merchantName = merchant?.name ?? 'Nailed-it Studio';
   const timeZone = merchant?.timezone ?? 'Asia/Singapore';
 
-  const [bookings, technicians] = await Promise.all([
+  const technicians = (await repos.technicians.list()).filter((t) => t.merchantId === demoMerchantId);
+  const [workingPlans, blockedTimes, bookings] = await Promise.all([
+    repos.workingPlans.list(),
+    repos.blockedTimes.list(),
     repos.intervalBookings.listByMerchant(demoMerchantId),
-    repos.technicians.list(),
   ]);
-  const techById = new Map(technicians.map((t) => [t.id, t]));
 
-  const flat = bookings.map((b) => {
-    const tech = techById.get(b.technicianId);
-    return intervalBookingToUiBooking(
-      { booking: b, items: [] },
-      {
-        timeZone,
-        merchantName,
-        technician: tech
-          ? { id: tech.id, name: tech.name, initials: tech.initials }
-          : { id: b.technicianId, name: 'Technician', initials: '–' },
-      },
-    );
-  });
+  const existingByTechnician: Record<string, MsInterval[]> = {};
+  for (const b of bookings) {
+    if (b.status === 'cancelled') continue;
+    (existingByTechnician[b.technicianId] ??= []).push({
+      startMs: Date.parse(b.startAt),
+      endMs: Date.parse(b.endAt),
+    });
+  }
 
-  return getAvailableBookingDays(flat, durationMin);
+  const today = instantToZonedParts(Date.now(), timeZone).date;
+  const dates = nextDates(today, SLOT_LOOKAHEAD_DAYS);
+
+  const candidates: TechnicianSlot[] = [];
+  for (const date of dates) {
+    const label = dayLabel(date, today);
+    for (const time of CANDIDATE_TIMES) {
+      const request = resolveSlot(timeZone, date, time, durationMin);
+      const free = findAvailableTechnicians({
+        technicians,
+        workingPlans,
+        blockedTimes,
+        existingByTechnician,
+        request,
+      });
+      for (const technician of free) {
+        candidates.push({ date, label, time, technician });
+      }
+    }
+  }
+
+  const ranked = candidates
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.time.localeCompare(b.time) ||
+        a.technician.name.localeCompare(b.technician.name),
+    )
+    .map((slot, index) => ({
+      ...slot,
+      rankReason: index === 0 ? ('shortest_wait' as const) : ('earliest_available' as const),
+    }));
+
+  return dates
+    .map((date) => ({
+      date,
+      label: dayLabel(date, today),
+      slots: ranked.filter((slot) => slot.date === date),
+    }))
+    .filter((day) => day.slots.length > 0);
 }
 
 // The browser supplies the recognition + chosen slot, never the price, status, or customer name.
