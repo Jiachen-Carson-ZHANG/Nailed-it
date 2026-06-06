@@ -74,11 +74,12 @@ ADR-0004 numbered phases for the flat schema. This ADR renumbers them. Follow th
 | — | **P3 interval availability** (`working_plan` + `blocked_time` on `technicians` + pure interval-overlap kernel `src/domain/scheduling.ts`) | **done**; data layer + kernel only, not wired |
 | P2 wire consumers (localStorage→server) | **P4a backend contract** (interval `booking`/`booking_item` with `merchant_id` + GiST exclusion constraint; `create_booking` RPC; range-scoped scheduling/booking queries; `staff_item_duration`) | **done**; data layer + RPC only, not wired |
 | — | **P4b services** (`quoteService` / `availabilityService` / `bookingService` in `src/lib/services/`; merchant-timezone resolution; gate tests) | **done**; services + gates, not wired |
-| — | **P4c booking flow** | **partial**: duration-aware availability (`findTechnicianSlots` uses `intervalsOverlap`) + draft→sessionStorage **done** (localStorage, no DB cutover). The DB write/read cutover (customer write→`bookingService` + the ~9 reader surfaces→repos) is deferred — it needs P6 (recognition→catalog) and must land **with P4d** or bookings split-brain between the DB and localStorage. |
-| — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | pending |
+| — | **P4c booking flow** | **done**: customer confirm writes interval bookings through the DB RPC; availability reads DB occupancy; draft remains per-tab `sessionStorage`. |
+| — | **P4d read/write surfaces** (calendar, profile, messages reads + writes) | **done**: customer/merchant booking reads and conversation reads/writes use scoped server actions over the DB. |
 | — | **P4e cleanup** (remove the localStorage path + retire the flat tables) | pending |
 | P3 realtime | **P5 realtime** | pending |
 | — | **P6 AI catalog schema** (recognizer emits catalog ids + `uncertain_items`) | **partial**: the pure bridge is done — `src/domain/recognition-catalog.ts` (the constrained ai-detectable subset, confidence bucketing into detected/uncertain, → `CatalogSelection[]` for quoteService) + a deterministic mock recognizer + tests. The remaining edge is wiring the live LLM (`src/nail-ai`) to actually emit catalog ids. |
+| — | **P6.5 merchant style library + media foundation** (`media_asset` + `merchant_style`; Supabase Storage originals/published buckets; merchant review/publish; customer published feed) | **implemented in branch; live migration pending**: separates physical media ownership from the style publication lifecycle. Merchant Me/library and customer discovery/detail are wired through scoped actions. AI/catalog metadata remains reviewable; customer reads are published-only. See `docs/plans/2026-06-06-p6-5-merchant-style-library-design.md`. |
 | — | **P7 款式跟踪** (completed-order photos → tagged catalog/style library) | pending |
 
 Do not wire UI to the DB before P2/P3 land, or the flat tables get migrated twice.

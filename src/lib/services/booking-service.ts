@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
+import type { BookingConversationThread } from '@/domain/nail';
 import type { RepositoryBundle } from '@/lib/repositories/types';
 import { createQuoteService, type QuoteSelection } from './quote-service';
 import { resolveSlot } from './timezone';
@@ -45,6 +46,15 @@ export type CreateBookingFromSnapshotInput = {
 export type BookingService = {
   createBooking(input: CreateBookingInput): Promise<IntervalBooking>;
   createBookingFromSnapshot(input: CreateBookingFromSnapshotInput): Promise<IntervalBooking>;
+  /**
+   * Like createBookingFromSnapshot, but creates the booking and its conversation thread in one
+   * atomic step (no compensating cancel). `buildThread` is given the constructed booking so the
+   * caller can derive the thread (its id / bookingId / greeting) from the server-generated id.
+   */
+  createBookingWithThreadFromSnapshot(
+    input: CreateBookingFromSnapshotInput,
+    buildThread: (booking: IntervalBooking) => BookingConversationThread,
+  ): Promise<IntervalBooking>;
   cancel(id: string): Promise<IntervalBooking | null>;
   setStatus(id: string, status: BookingStatus): Promise<IntervalBooking | null>;
 };
@@ -62,6 +72,43 @@ export function createBookingService(repos: RepositoryBundle): BookingService {
       throw new Error('technician_not_in_merchant');
     }
     return merchant;
+  }
+
+  // Builds the interval booking + its single synthetic snapshot item (the P4c bridge: the flat
+  // estimate becomes one booking_item with catalogItemId null, until P6 supplies catalog ids).
+  // Enforces the tenant guard + positive duration; does not write.
+  async function buildSnapshot(input: CreateBookingFromSnapshotInput) {
+    const merchant = await resolveMerchantWithTechnicianGuard(input.merchantId, input.technicianId);
+    const durationMin = input.estimate.duration;
+    if (!(durationMin > 0)) throw new Error('zero_duration');
+
+    const request = resolveSlot(merchant.timezone, input.date, input.time, durationMin);
+    const bookingId = `booking-${randomUUID()}`;
+    const booking: IntervalBooking = {
+      id: bookingId,
+      merchantId: input.merchantId,
+      technicianId: input.technicianId,
+      customerName: input.customerName,
+      styleTitle: input.styleTitle,
+      styleImageUrl: input.styleImageUrl,
+      startAt: new Date(request.interval.startMs).toISOString(),
+      endAt: new Date(request.interval.endMs).toISOString(),
+      durationMin,
+      status: input.status ?? 'confirmed',
+      notes: input.notes ?? '',
+    };
+    const item: BookingItem = {
+      id: `bitem-${randomUUID()}`,
+      bookingId,
+      catalogItemId: null,
+      label: 'AI style quote snapshot',
+      priceCents: Math.max(0, Math.round(input.estimate.price * 100)),
+      durationMin,
+      quantity: 1,
+      pricingUnit: 'fixed',
+      affectsDuration: true,
+    };
+    return { booking, item };
   }
 
   return {
@@ -107,39 +154,16 @@ export function createBookingService(repos: RepositoryBundle): BookingService {
     },
 
     async createBookingFromSnapshot(input: CreateBookingFromSnapshotInput): Promise<IntervalBooking> {
-      const merchant = await resolveMerchantWithTechnicianGuard(input.merchantId, input.technicianId);
+      const { booking, item } = await buildSnapshot(input);
+      return repos.intervalBookings.create(booking, [item]);
+    },
 
-      const durationMin = input.estimate.duration;
-      if (!(durationMin > 0)) throw new Error('zero_duration');
-
-      const request = resolveSlot(merchant.timezone, input.date, input.time, durationMin);
-      const bookingId = `booking-${randomUUID()}`;
-      const booking: IntervalBooking = {
-        id: bookingId,
-        merchantId: input.merchantId,
-        technicianId: input.technicianId,
-        customerName: input.customerName,
-        styleTitle: input.styleTitle,
-        styleImageUrl: input.styleImageUrl,
-        startAt: new Date(request.interval.startMs).toISOString(),
-        endAt: new Date(request.interval.endMs).toISOString(),
-        durationMin,
-        status: input.status ?? 'confirmed',
-        notes: input.notes ?? '',
-      };
-      // One synthetic snapshot item carrying the flat estimate, until P6 supplies catalog ids.
-      const snapshotItem: BookingItem = {
-        id: `bitem-${randomUUID()}`,
-        bookingId,
-        catalogItemId: null,
-        label: 'AI style quote snapshot',
-        priceCents: Math.max(0, Math.round(input.estimate.price * 100)),
-        durationMin,
-        quantity: 1,
-        pricingUnit: 'fixed',
-        affectsDuration: true,
-      };
-      return repos.intervalBookings.create(booking, [snapshotItem]);
+    async createBookingWithThreadFromSnapshot(
+      input: CreateBookingFromSnapshotInput,
+      buildThread: (booking: IntervalBooking) => BookingConversationThread,
+    ): Promise<IntervalBooking> {
+      const { booking, item } = await buildSnapshot(input);
+      return repos.intervalBookings.createWithThread(booking, [item], buildThread(booking));
     },
 
     async cancel(id: string): Promise<IntervalBooking | null> {

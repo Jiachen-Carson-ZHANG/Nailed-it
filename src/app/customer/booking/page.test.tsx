@@ -4,7 +4,8 @@ import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import CustomerBookingPage from './page';
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/customer/booking'
+  usePathname: () => '/customer/booking',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 describe('CustomerBookingPage', () => {

@@ -10,6 +10,7 @@ import type { CatalogItem, CatalogItemType } from '@/domain/catalog';
 import type { Merchant, MerchantPricing } from '@/domain/merchant';
 import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/scheduling';
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
+import type { MerchantStyleRecord } from '@/domain/merchant-style';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -87,11 +88,42 @@ export interface IntervalBookingRepository {
   listItems(bookingId: string): Promise<BookingItem[]>;
   /** Atomic create of a booking + its items. Throws Error('booking_overlap') on conflict. */
   create(booking: IntervalBooking, items: BookingItem[]): Promise<IntervalBooking>;
+  /**
+   * Atomic create of a booking + its items + the linked conversation thread (and its messages),
+   * in one transaction. Either everything commits or nothing does — no orphan booking, no empty
+   * thread, so no compensating cancel is needed. Throws Error('booking_overlap') on conflict.
+   */
+  createWithThread(
+    booking: IntervalBooking,
+    items: BookingItem[],
+    thread: BookingConversationThread,
+  ): Promise<IntervalBooking>;
   setStatus(id: string, status: BookingStatus): Promise<IntervalBooking | null>;
 }
 
 export interface StaffItemDurationRepository {
   listByTechnician(technicianId: string): Promise<StaffItemDuration[]>;
+}
+
+export type PublishMerchantStyleInput = {
+  id: string;
+  merchantId: string;
+  title: string;
+  previewPriceCents: number;
+  previewDurationMin: number;
+  publishedBucket: string;
+  publishedPath: string;
+  publishedAt: string;
+};
+
+export interface MerchantStyleRepository {
+  listByMerchant(merchantId: string): Promise<MerchantStyleRecord[]>;
+  listPublished(): Promise<MerchantStyleRecord[]>;
+  getPublishedById(id: string): Promise<MerchantStyleRecord | null>;
+  getByIdForMerchant(id: string, merchantId: string): Promise<MerchantStyleRecord | null>;
+  create(record: MerchantStyleRecord): Promise<MerchantStyleRecord>;
+  publish(input: PublishMerchantStyleInput): Promise<MerchantStyleRecord | null>;
+  archive(id: string, merchantId: string, archivedAt: string): Promise<MerchantStyleRecord | null>;
 }
 
 export interface RepositoryBundle {
@@ -107,4 +139,5 @@ export interface RepositoryBundle {
   blockedTimes: BlockedTimeRepository;
   intervalBookings: IntervalBookingRepository;
   staffItemDurations: StaffItemDurationRepository;
+  merchantStyles: MerchantStyleRepository;
 }

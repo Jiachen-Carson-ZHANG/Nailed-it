@@ -6,6 +6,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import type { Booking, Conversation } from '@/domain/nail';
 import { getMerchantManagePath, homePathForRole } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
+import { MerchantStylePreview } from '@/features/merchant/MerchantStylePreview';
 import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
 import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
 import { listMerchantConversationsAction } from '@/lib/actions/conversation-actions';
@@ -71,6 +72,8 @@ export default function MerchantProfilePage() {
         technicians={mockTechnicians}
         title="Technician workload"
       />
+
+      <MerchantStylePreview />
 
       <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         Open pricing rules

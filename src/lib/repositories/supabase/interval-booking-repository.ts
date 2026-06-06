@@ -1,5 +1,6 @@
 import { getServiceClient } from '@/lib/db/client';
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
+import type { BookingConversationThread } from '@/domain/nail';
 import type { PricingUnit } from '@/domain/catalog';
 import type { IntervalBookingRepository } from '../types';
 
@@ -88,6 +89,37 @@ function itemToPayload(i: BookingItem) {
   };
 }
 
+function threadToPayload(t: BookingConversationThread) {
+  return {
+    id: t.id,
+    booking_id: t.bookingId,
+    customer_name: t.customerName,
+    merchant_name: t.merchantName,
+    related_booking_time: t.relatedBookingTime,
+  };
+}
+
+function messageToPayload(m: BookingConversationThread['messages'][number]) {
+  return {
+    id: m.id,
+    author_role: m.authorRole,
+    body: m.body,
+    sent_at: m.sentAt,
+  };
+}
+
+/** Map a create_booking / create_booking_with_thread RPC error to a stable domain Error. */
+function mapCreateError(error: { code?: string; message?: string }, op: string): Error {
+  if (error.code === '23P01' || error.message?.includes('booking_overlap')) {
+    return new Error('booking_overlap');
+  }
+  // 23514 = check_violation (end_at > start_at, duration_min > 0).
+  if (error.code === '23514') {
+    return new Error('invalid_interval');
+  }
+  return new Error(`IntervalBookingRepository.${op} failed: ${error.message}`);
+}
+
 export function createSupabaseIntervalBookingRepository(): IntervalBookingRepository {
   return {
     async getById(id: string): Promise<IntervalBooking | null> {
@@ -148,14 +180,26 @@ export function createSupabaseIntervalBookingRepository(): IntervalBookingReposi
         p_items: items.map(itemToPayload),
       });
       if (error) {
-        if (error.code === '23P01' || error.message?.includes('booking_overlap')) {
-          throw new Error('booking_overlap');
-        }
-        // 23514 = check_violation (end_at > start_at, duration_min > 0).
-        if (error.code === '23514') {
-          throw new Error('invalid_interval');
-        }
-        throw new Error(`IntervalBookingRepository.create failed: ${error.message}`);
+        throw mapCreateError(error, 'create');
+      }
+      return booking;
+    },
+
+    async createWithThread(
+      booking: IntervalBooking,
+      items: BookingItem[],
+      thread: BookingConversationThread,
+    ): Promise<IntervalBooking> {
+      // One transaction: booking + items + thread + messages. No compensating cancel needed —
+      // a thread/message insert failure rolls the booking back in the RPC.
+      const { error } = await getServiceClient().rpc('create_booking_with_thread', {
+        p_booking: bookingToPayload(booking),
+        p_items: items.map(itemToPayload),
+        p_thread: threadToPayload(thread),
+        p_messages: thread.messages.map(messageToPayload),
+      });
+      if (error) {
+        throw mapCreateError(error, 'createWithThread');
       }
       return booking;
     },

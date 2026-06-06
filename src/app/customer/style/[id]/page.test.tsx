@@ -4,7 +4,7 @@ import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
 import { getCustomerBookingPath, getMockSession } from '@/domain/session';
 
 describe('StyleDetailPage', () => {
-  it('renders style detail content from the shared style source of truth', async () => {
+  it('renders a published merchant style from the DB-backed source', async () => {
     const style = findStyleById('rose-cat-eye');
     const definition = getStyleDefinitionById('rose-cat-eye');
 
@@ -26,7 +26,7 @@ describe('StyleDetailPage', () => {
     );
     expect(screen.getByRole('link', { name: /book this look/i })).toHaveAttribute(
       'href',
-      getCustomerBookingPath()
+      `${getCustomerBookingPath()}?styleId=rose-cat-eye`
     );
   });
 });

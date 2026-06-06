@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
+    "backfill:melissa-assets": "tsx scripts/backfill-melissa-assets.ts",
     "seed:supabase": "tsx scripts/seed-supabase.ts"
   },
   "dependencies": {

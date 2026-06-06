@@ -35,7 +35,7 @@ export default function MerchantCalendarPage() {
       title="Nailed-it"
     >
       <section className="page-heading">
-        <p className="section-eyebrow">May 2026</p>
+        <p className="section-eyebrow">Calendar</p>
         <h1>Appointment calendar</h1>
       </section>
       {loading ? (

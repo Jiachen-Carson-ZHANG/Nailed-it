@@ -17,6 +17,7 @@ import {
   mockStaffItemDurations,
 } from '../src/mock/interval-bookings';
 import type { BookingConversationThread } from '../src/domain/nail';
+import { mockMerchantStyles } from '../src/mock/merchant-styles';
 
 // Standalone client for the seed script — does not import the server-only-guarded
 // app client (src/lib/db/client.ts), which throws under plain node.
@@ -156,6 +157,50 @@ async function seedMerchants(): Promise<number> {
     .upsert(rows, { onConflict: 'id' });
   if (error) throw new Error(`seed merchant failed: ${error.message}`);
   return rows.length;
+}
+
+async function seedMerchantStyles(): Promise<{ media: number; styles: number }> {
+  const mediaRows = mockMerchantStyles.map((style) => ({
+    id: style.media.id,
+    merchant_id: style.media.merchantId,
+    original_bucket: style.media.originalBucket,
+    original_path: style.media.originalPath,
+    published_bucket: style.media.publishedBucket,
+    published_path: style.media.publishedPath,
+    mime_type: style.media.mimeType,
+    byte_size: style.media.byteSize,
+    source: style.media.source,
+    state: style.media.state,
+    created_at: style.media.createdAt,
+    updated_at: style.media.updatedAt,
+  }));
+  const { error: mediaError } = await getServiceClient()
+    .from('media_asset')
+    .upsert(mediaRows, { onConflict: 'id' });
+  if (mediaError) throw new Error(`seed media_asset failed: ${mediaError.message}`);
+
+  const styleRows = mockMerchantStyles.map((style) => ({
+    id: style.id,
+    merchant_id: style.merchantId,
+    primary_media_asset_id: style.primaryMediaAssetId,
+    title: style.title,
+    status: style.status,
+    discovery_facets: style.discoveryFacets,
+    recognition: style.recognition,
+    catalog_breakdown: style.catalogBreakdown,
+    preview_price_cents: style.previewPriceCents,
+    preview_duration_min: style.previewDurationMin,
+    published_at: style.publishedAt,
+    archived_at: style.archivedAt,
+    created_at: style.createdAt,
+    updated_at: style.updatedAt,
+  }));
+  const { error: styleError } = await getServiceClient()
+    .from('merchant_style')
+    .upsert(styleRows, { onConflict: 'id' });
+  if (styleError) throw new Error(`seed merchant_style failed: ${styleError.message}`);
+
+  return { media: mediaRows.length, styles: styleRows.length };
 }
 
 async function seedWorkingPlans(): Promise<number> {
@@ -318,6 +363,7 @@ async function main(): Promise<void> {
   // booking/booking_item FK catalog_item + technicians; staff_item_duration FKs both.
   const intervalResult = await seedIntervalBookings();
   const staffDurationCount = await seedStaffItemDurations();
+  const merchantStyleResult = await seedMerchantStyles();
 
   console.log(`technicians:          ${techCount}`);
   console.log(`styles:               ${styleCount}`);
@@ -332,6 +378,8 @@ async function main(): Promise<void> {
   console.log(`booking:              ${intervalResult.bookings}`);
   console.log(`booking_item:         ${intervalResult.items}`);
   console.log(`staff_item_duration:  ${staffDurationCount}`);
+  console.log(`media_asset:          ${merchantStyleResult.media}`);
+  console.log(`merchant_style:       ${merchantStyleResult.styles}`);
   console.log('Done.');
 }
 

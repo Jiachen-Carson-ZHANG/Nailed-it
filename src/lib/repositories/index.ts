@@ -13,13 +13,17 @@ import {
   createMemoryWorkingPlanRepository,
 } from './memory/scheduling-repository';
 import { createMemoryIntervalBookingRepository } from './memory/interval-booking-repository';
+import { createMemoryMerchantStyleRepository } from './memory/merchant-style-repository';
 import { hasSupabaseEnv } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
 export function createMemoryRepositoryBundle(): RepositoryBundle {
+  // Share one conversations repo so intervalBookings.createWithThread writes the booking and its
+  // thread against the same in-memory store (mirrors the DB's single-transaction RPC).
+  const conversations = createMemoryConversationRepository();
   return {
     bookings: createMemoryBookingRepository(),
-    conversations: createMemoryConversationRepository(),
+    conversations,
     pricing: createMemoryPricingRepository(),
     technicians: createMemoryTechnicianRepository(),
     styles: createMemoryStyleRepository(),
@@ -28,8 +32,9 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     merchantPricing: createMemoryMerchantPricingRepository(),
     workingPlans: createMemoryWorkingPlanRepository(),
     blockedTimes: createMemoryBlockedTimeRepository(),
-    intervalBookings: createMemoryIntervalBookingRepository(),
+    intervalBookings: createMemoryIntervalBookingRepository(undefined, undefined, conversations),
     staffItemDurations: createMemoryStaffItemDurationRepository(),
+    merchantStyles: createMemoryMerchantStyleRepository(),
   };
 }
 
@@ -64,4 +69,5 @@ export type {
   BlockedTimeRepository,
   IntervalBookingRepository,
   StaffItemDurationRepository,
+  MerchantStyleRepository,
 } from './types';
