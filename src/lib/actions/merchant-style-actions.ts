@@ -150,6 +150,13 @@ export async function analyzeMerchantStyleAction(styleId: string): Promise<Merch
   return current;
 }
 
+/** Skip AI and open the draft for manual configuration (processing -> needs_review, empty config). */
+export async function configureMerchantStyleManuallyAction(styleId: string): Promise<MerchantStyleView> {
+  const opened = await getService().failAnalysis(demoMerchantId, styleId);
+  if (!opened) throw new Error('merchant_style_not_found');
+  return opened;
+}
+
 export async function previewMerchantStyleQuoteAction(selections: CatalogSelection[]) {
   return createQuoteService(getRepositories()).buildQuote({
     merchantId: demoMerchantId,

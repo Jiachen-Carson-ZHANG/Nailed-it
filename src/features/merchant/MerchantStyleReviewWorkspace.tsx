@@ -8,6 +8,7 @@ import type { CatalogSelection } from '@/domain/catalog';
 import type { MerchantStyleView } from '@/domain/merchant-style';
 import {
   analyzeMerchantStyleAction,
+  configureMerchantStyleManuallyAction,
   getMerchantStyleReviewAction,
   listConfigurableCatalogAction,
   previewMerchantStyleQuoteAction,
@@ -106,6 +107,19 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
       setMessage(error instanceof Error ? error.message : 'Unable to run AI breakdown.');
     } finally {
       setIsAnalyzing(false);
+    }
+  }
+
+  async function configureManually() {
+    if (!style || style.status !== 'processing') return;
+    setIsSaving(true);
+    setMessage('');
+    try {
+      syncStyle(await configureMerchantStyleManuallyAction(style.id));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to open manual configuration.');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -261,6 +275,14 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
             onClick={runAiBreakdown}
           >
             Run AI breakdown
+          </button>
+          <button
+            className="button button-ghost button-block"
+            disabled={isSaving}
+            type="button"
+            onClick={configureManually}
+          >
+            Configure manually instead
           </button>
           {message ? <p className="helper-copy" role="status">{message}</p> : null}
         </section>

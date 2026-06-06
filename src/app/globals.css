@@ -2751,6 +2751,16 @@ select {
   opacity: 0.72;
 }
 
+/* Compact placeholder — this is one entry above the grid, not a full upload step. */
+.merchant-style-upload-tile .image-uploader-placeholder {
+  aspect-ratio: auto;
+  min-height: 4rem;
+}
+
+.merchant-style-upload-tile .image-uploader-mark {
+  font-size: 1.9rem;
+}
+
 .merchant-style-card-preview {
   margin: 0.3rem 0 0;
   color: var(--color-muted);

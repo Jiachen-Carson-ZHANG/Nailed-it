@@ -80,7 +80,7 @@ export function MerchantStyleLibrary() {
         </div>
         <div className="image-uploader-copy">
           <strong>{isPending ? 'Uploading design…' : 'Add a new design'}</strong>
-          <p>Upload a photo to your resource library for customers to discover.</p>
+          <p>One photo — AI drafts the name, price, and services for you to review.</p>
         </div>
       </label>
 
