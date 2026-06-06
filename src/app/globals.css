@@ -339,6 +339,12 @@ select {
 }
 
 .bottom-tab-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(100%, var(--shell-max-width));
+  box-sizing: border-box;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(var(--tab-count, 4), minmax(0, 1fr));
@@ -1615,6 +1621,109 @@ select {
   box-shadow: var(--shadow-soft);
 }
 
+.merchant-style-preview,
+.merchant-style-upload {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.merchant-style-section-header,
+.merchant-style-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.merchant-style-section-header h2,
+.merchant-style-upload h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.merchant-style-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.merchant-style-preview-grid img,
+.merchant-style-management-card > img {
+  width: 100%;
+  object-fit: cover;
+  background: var(--color-surface-strong);
+}
+
+.merchant-style-preview-grid img {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+}
+
+.merchant-style-library,
+.merchant-style-management-grid,
+.merchant-style-card-body,
+.merchant-style-review-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.merchant-style-management-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.merchant-style-management-card {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.merchant-style-management-card > img {
+  aspect-ratio: 4 / 3;
+}
+
+.merchant-style-card-body {
+  padding: 0.85rem;
+}
+
+.merchant-style-status {
+  flex-shrink: 0;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.merchant-style-status-published {
+  background: rgba(76, 175, 80, 0.12);
+  color: var(--color-success, #2e7d32);
+}
+
+.merchant-style-status-needs_review {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.merchant-style-review-numbers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+@media (max-width: 36rem) {
+  .merchant-style-management-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .conversation-list-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2574,4 +2683,3 @@ select {
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-

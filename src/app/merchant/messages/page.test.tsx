@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
-import { resetOperationsStoreForTests } from '@/mock/operations-store';
+import { resetRepositoriesForTests } from '@/lib/repositories';
 import MerchantMessagesPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -9,14 +9,14 @@ vi.mock('next/navigation', () => ({
 
 describe('MerchantMessagesPage', () => {
   beforeEach(() => {
-    resetOperationsStoreForTests();
+    resetRepositoriesForTests();
   });
 
-  it('renders merchant conversations with booking context', () => {
+  it('renders merchant conversations with booking context', async () => {
     render(<MerchantMessagesPage />);
 
     expect(screen.getByRole('heading', { name: /messages inbox/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /melissa tan/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /melissa tan/i })).toHaveAttribute(
       'href',
       '/merchant/messages/conv-melissa'
     );

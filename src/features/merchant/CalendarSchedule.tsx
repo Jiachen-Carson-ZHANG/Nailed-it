@@ -19,9 +19,6 @@ const DAY_END_HOUR = 19;
 const HOUR_PX = 56;
 
 const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const monthDays = Array.from({ length: 31 }, (_, i) => i + 1);
-const firstWeekday = new Date(Date.UTC(2026, 4, 1)).getUTCDay();
-const leadingBlanks = firstWeekday === 0 ? 6 : firstWeekday - 1;
 const hourRange = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
 const activeTechnicians = mockTechnicians.filter((t) => t.active);
 const dailyCapacity = activeTechnicians.length * SLOTS_PER_TECH;
@@ -48,6 +45,48 @@ function formatDayLabel(date: string): string {
   });
 }
 
+function formatMonthLabel(year: number, monthIndex: number): string {
+  return new Date(Date.UTC(year, monthIndex, 1)).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+}
+
+function formatMonthDayLabel(year: number, monthIndex: number, day: number): string {
+  return new Date(Date.UTC(year, monthIndex, day)).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC'
+  });
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function defaultSelectedDate(bookingsByDate: Record<string, Booking[]>): string {
+  const dates = Object.keys(bookingsByDate).sort();
+  const today = todayIso();
+  if (dates.includes(today)) return today;
+  return dates.find((date) => date >= today) ?? dates[0] ?? today;
+}
+
+function monthParts(date: string) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const year = d.getUTCFullYear();
+  const monthIndex = d.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay();
+  return {
+    year,
+    monthIndex,
+    days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    leadingBlanks: firstWeekday === 0 ? 6 : firstWeekday - 1,
+    label: formatMonthLabel(year, monthIndex)
+  };
+}
+
 export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
   const bookingsByDate = useMemo(() => {
     return bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
@@ -56,13 +95,15 @@ export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
     }, {});
   }, [bookings]);
 
-  const [selectedDate, setSelectedDate] = useState('2026-05-23');
+  const [selectedDateOverride, setSelectedDateOverride] = useState<string | null>(null);
+  const selectedDate = selectedDateOverride ?? defaultSelectedDate(bookingsByDate);
+  const month = monthParts(selectedDate);
   const selectedBookings = bookingsByDate[selectedDate] ?? [];
   const selectedSpotsLeft = Math.max(dailyCapacity - selectedBookings.length, 0);
 
   return (
     <div className="cal-schedule">
-      <section className="cal-month" aria-label="May 2026 — spots left per day">
+      <section className="cal-month" aria-label={`${month.label} — spots left per day`}>
         <div className="cal-weekday-row" aria-hidden="true">
           {weekdayLabels.map((label, i) => (
             <span key={i} className="cal-weekday">
@@ -71,11 +112,11 @@ export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
           ))}
         </div>
         <div className="cal-month-grid">
-          {Array.from({ length: leadingBlanks }, (_, i) => (
+          {Array.from({ length: month.leadingBlanks }, (_, i) => (
             <span key={`blank-${i}`} aria-hidden="true" className="cal-spot-blank" />
           ))}
-          {monthDays.map((day) => {
-            const date = `2026-05-${String(day).padStart(2, '0')}`;
+          {month.days.map((day) => {
+            const date = `${month.year}-${String(month.monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const count = bookingsByDate[date]?.length ?? 0;
             const left = Math.max(dailyCapacity - count, 0);
             const tone = spotsTone(left);
@@ -84,10 +125,10 @@ export function CalendarSchedule({ bookings }: CalendarScheduleProps) {
               <button
                 key={date}
                 type="button"
-                aria-label={`${day} May, ${left} spots left`}
+                aria-label={`${formatMonthDayLabel(month.year, month.monthIndex, day)}, ${left} spots left`}
                 aria-pressed={isSelected}
                 className={`cal-spot cal-tone-${tone}${isSelected ? ' cal-spot-selected' : ''}`}
-                onClick={() => setSelectedDate(date)}
+                onClick={() => setSelectedDateOverride(date)}
               >
                 <span className="cal-spot-day">{day}</span>
                 <span className="cal-spot-left">{left <= 0 ? 'full' : `${left} left`}</span>

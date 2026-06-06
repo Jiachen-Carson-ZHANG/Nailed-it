@@ -24,7 +24,7 @@ const policySections = [
   {
     title: 'Storage and retention',
     body:
-      'Booking and message data is stored locally on your device for session continuity. We do not share this data with third parties.'
+      'Bookings and messages are stored in Nailed-it’s database to keep your appointments and conversations in sync across the customer and merchant views. We do not share this data with third parties.'
   },
   {
     title: 'Disconnecting Pinterest',

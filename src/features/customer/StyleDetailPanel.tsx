@@ -31,7 +31,7 @@ function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
 
 type StyleDetailPanelProps = {
   backHref: string;
-  recognition: AIRecognitionResult;
+  recognition: AIRecognitionResult | null;
   style: NailStyleCard;
 };
 
@@ -40,16 +40,18 @@ export function StyleDetailPanel({
   recognition,
   style
 }: StyleDetailPanelProps) {
-  const breakdown = buildBreakdown(recognition);
+  const breakdown = recognition ? buildBreakdown(recognition) : [];
   const breakdownTotal = breakdown.reduce((s, r) => s + r.price, 0);
   const breakdownDuration = breakdown.reduce((s, r) => s + r.duration, 0);
 
-  const selectionGroups = [
-    { label: 'Base', values: recognition.selection.baseServices },
-    { label: 'Shape', values: [recognition.selection.nailShape] },
-    { label: 'Style', values: recognition.selection.styles },
-    { label: 'Add-ons', values: recognition.selection.addons }
-  ].filter((group) => group.values.length > 0);
+  const selectionGroups = recognition
+    ? [
+        { label: 'Base', values: recognition.selection.baseServices },
+        { label: 'Shape', values: [recognition.selection.nailShape] },
+        { label: 'Style', values: recognition.selection.styles },
+        { label: 'Add-ons', values: recognition.selection.addons }
+      ].filter((group) => group.values.length > 0)
+    : [];
 
   return (
     <article className="style-detail-panel">
@@ -58,7 +60,7 @@ export function StyleDetailPanel({
         <div className="style-detail-summary">
           <p className="section-eyebrow">Style brief</p>
           <h1>{style.title}</h1>
-          <p>{recognition.selection.otherNotes}</p>
+          <p>{recognition?.selection.otherNotes || 'Published by the merchant and ready to use as your booking reference.'}</p>
         </div>
       </div>
 
@@ -115,8 +117,8 @@ export function StyleDetailPanel({
       </section>
 
       <div className="detail-actions">
-        <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
-          Book this look
+        <Link className="button button-primary button-block" href={recognition ? `${getCustomerBookingPath()}?styleId=${style.id}` : getCustomerBookingPath()}>
+          {recognition ? 'Book this look' : 'Analyze and book this look'}
         </Link>
         <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
           Try on this look

@@ -117,11 +117,12 @@ const slotTemplates = [
   { label: 'Tomorrow', date: '2026-05-24', slots: ['11:00', '13:30', '15:30', '18:00'] }
 ] as const;
 
-export function getAvailableBookingDays(bookings: Booking[] = mockBookings) {
+export function getAvailableBookingDays(bookings: Booking[] = mockBookings, durationMin = 60) {
   return findTechnicianSlots({
     bookings,
     days: slotTemplates.map((day) => ({ ...day, slots: [...day.slots] })),
-    technicians: mockTechnicians
+    technicians: mockTechnicians,
+    durationMin
   });
 }
 

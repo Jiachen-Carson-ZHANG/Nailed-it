@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { AIRecognitionResult } from '@/domain/nail';
 import { mockAIResult } from '@/mock/ai';
 import {
@@ -10,6 +10,10 @@ import {
 } from './booking-draft';
 
 describe('customer booking draft store', () => {
+  beforeEach(() => {
+    clearCustomerBookingDraft();
+  });
+
   it('keeps the latest in-memory booking draft until cleared', () => {
     const nextRecognition: AIRecognitionResult = {
       ...mockAIResult,

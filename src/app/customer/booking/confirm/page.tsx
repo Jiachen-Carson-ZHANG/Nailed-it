@@ -13,7 +13,8 @@ import {
 import type { Booking } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
-import { createBookingFromDraft, getAvailableBookingDays } from '@/mock/operations-store';
+import type { TechnicianSlotDay } from '@/domain/availability';
+import { createBookingAction, listAvailableSlotsAction } from '@/lib/actions/booking-actions';
 
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
@@ -21,10 +22,11 @@ export default function CustomerBookingConfirmPage() {
   const [notes, setNotes] = useState(
     draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
   );
-  const [availableDays] = useState(() => getAvailableBookingDays());
+  const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
   const bookingLocked = Boolean(createdBooking);
 
   useEffect(() => {
@@ -42,6 +44,24 @@ export default function CustomerBookingConfirmPage() {
       window.clearTimeout(timerId);
     };
   }, [draftSnapshot]);
+
+  // Availability now comes from the booking service (DB occupancy), not localStorage.
+  useEffect(() => {
+    if (!draft) {
+      return undefined;
+    }
+    let active = true;
+    listAvailableSlotsAction(draft.estimate.duration)
+      .then((days) => {
+        if (active) setAvailableDays(days);
+      })
+      .catch(() => {
+        /* leave empty */
+      });
+    return () => {
+      active = false;
+    };
+  }, [draft]);
 
   if (!draft) {
     return (
@@ -65,18 +85,39 @@ export default function CustomerBookingConfirmPage() {
     );
   }
 
-  function confirmAppointment() {
-    if (!selectedSlot || !draft || createdBooking) {
+  async function confirmAppointment() {
+    if (!selectedSlot || !draft || createdBooking || isConfirming) {
       return;
     }
 
-    const booking = createBookingFromDraft({ draft, notes, slot: selectedSlot });
-    setCreatedBooking(booking);
-    setToastMessage(
-      booking.status === 'confirmed'
-        ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
-        : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
-    );
+    setIsConfirming(true);
+
+    try {
+      // Identity, price, and review status are all derived server-side from the recognition.
+      const booking = await createBookingAction({
+        technicianId: selectedSlot.technician.id,
+        recognition: draft.recognition,
+        styleTitle: 'Custom AI reference',
+        styleImageUrl: draft.imageUrl,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+        notes
+      });
+      setCreatedBooking(booking);
+      setToastMessage(
+        booking.status === 'confirmed'
+          ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+          : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+      );
+    } catch (error) {
+      setToastMessage(
+        error instanceof Error && error.message === 'booking_overlap'
+          ? 'That technician was just booked for an overlapping time. Please pick another slot.'
+          : 'Could not confirm the appointment. Please try again.'
+      );
+    } finally {
+      setIsConfirming(false);
+    }
   }
 
   const displayEstimate = draft.breakdowns?.glossary
@@ -123,12 +164,14 @@ export default function CustomerBookingConfirmPage() {
         />
       </label>
 
-      <Button block disabled={!selectedSlot || bookingLocked} onClick={confirmAppointment}>
-        {createdBooking?.status === 'pending_review'
-          ? 'Pending review'
-          : createdBooking
-            ? 'Appointment confirmed'
-            : 'Confirm appointment'}
+      <Button block disabled={!selectedSlot || bookingLocked || isConfirming} onClick={confirmAppointment}>
+        {isConfirming
+          ? 'Confirming…'
+          : createdBooking?.status === 'pending_review'
+            ? 'Pending review'
+            : createdBooking
+              ? 'Appointment confirmed'
+              : 'Confirm appointment'}
       </Button>
       {createdBooking?.conversationId ? (
         <Link
