@@ -147,15 +147,15 @@ select {
 }
 
 .brand-logo-topbar {
-  height: 1.9rem;
+  height: 2.2rem;
   width: auto;
-  max-width: min(7.5rem, 40vw);
+  max-width: min(8.75rem, 46vw);
 }
 
 .brand-logo-hero-mark {
-  height: 2.75rem;
+  height: 3.1rem;
   width: auto;
-  max-width: min(9rem, 55vw);
+  max-width: min(10rem, 60vw);
 }
 
 .landing-hero h1 {
