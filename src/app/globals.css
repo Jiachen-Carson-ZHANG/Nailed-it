@@ -1601,6 +1601,18 @@ select {
   min-width: 2.5rem;
 }
 
+@media (max-width: 480px) {
+  .manage-row {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+  .manage-row-name {
+    width: 100%;
+    flex: none;
+    white-space: normal;
+  }
+}
+
 .manage-row-field {
   display: inline-flex;
   align-items: center;
