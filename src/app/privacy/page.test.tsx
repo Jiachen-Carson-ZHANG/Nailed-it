@@ -5,6 +5,7 @@ describe('PrivacyPage', () => {
   it('renders the public MVP privacy policy for reviewer access', () => {
     render(<PrivacyPage />);
 
+    expect(screen.getByRole('img', { name: 'Nailed-it' })).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
         name: 'Privacy Policy'
