@@ -6,9 +6,11 @@ What changed:
 - `/merchant/styles` no longer asks for a title or embeds the full catalog editor inside collection
   cards. It exposes one image upload tile and routes to `/merchant/styles/[id]/review` immediately
   after the private original and `processing` row are stored.
-- The dedicated wide review workspace shows the stored image, runs strict stored-image AI analysis,
-  and then lets the merchant edit title/description and every billable price/time catalog selection.
-  Quote preview, Save Draft, and Publish all use deterministic server actions.
+- The dedicated phone-sized review workspace shows the stored image and exposes an explicit
+  **AI breakdown** action. That action runs strict stored-image AI analysis to suggest the
+  title/description and every billable price/time catalog selection, then the merchant edits and
+  approves before publication. Quote preview, Save Draft, and Publish all use deterministic server
+  actions.
 - The storage seam can download private originals. Migration `0016` adds an atomic, stale-recoverable
   analysis claim so concurrent page loads do not spend duplicate model calls, plus server-only RPCs
   that atomically commit the normalized AI suggestion and `processing` → `needs_review` transition,
@@ -16,8 +18,8 @@ What changed:
 
 Why:
 - Inline AI made upload navigation slow, while the card-embedded editor cramped a large approval
-  task into the collection page. Separating upload from review gives immediate feedback without
-  weakening the rule that AI suggestions stay private until explicit merchant publication.
+  task into the collection page. Separating upload from review gives immediate feedback, and making
+  AI an explicit button keeps the merchant in control before suggestions alter the draft.
 
 Tradeoff and deployment:
 - Apply `supabase/migrations/0016_merchant_style_analysis_workflow.sql` before using this workflow

@@ -34,10 +34,12 @@ describe('MerchantStyleReviewPage', () => {
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
     expect(screen.queryByRole('navigation', { name: /merchant navigation/i })).not.toBeInTheDocument();
+    expect(document.querySelector('.mobile-shell-workspace')).not.toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: /review design/i })).toBeInTheDocument();
 
     expect(await screen.findByRole('textbox', { name: /design title/i })).toHaveValue('Untitled design');
     expect(screen.getByRole('textbox', { name: /description/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ai breakdown/i })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: /search services/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save draft/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /publish/i })).toBeInTheDocument();
@@ -47,6 +49,9 @@ describe('MerchantStyleReviewPage', () => {
     const user = userEvent.setup();
     const draft = await uploadProcessingStyle();
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
+
+    await user.click(await screen.findByRole('button', { name: /ai breakdown/i }));
+    expect(await screen.findByText(/review the design manually|ai breakdown ready/i)).toBeInTheDocument();
 
     const title = await screen.findByRole('textbox', { name: /design title/i });
     fireEvent.change(title, { target: { value: 'Reviewed design' } });

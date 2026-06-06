@@ -23,9 +23,15 @@ describe('MerchantStylesPage', () => {
 
     expect(screen.getByRole('heading', { name: /style library/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/upload a new design/i)).toBeInTheDocument();
+    expect(screen.getByText('＋')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /style title/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/service breakdown/i)).not.toBeInTheDocument();
     expect(await screen.findByText('Rose Cat Eye Shine')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /preview/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /view/i })[0]).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^\/merchant\/styles\/.+\/review$/),
+    );
   });
 
   it('uploads a selected image and navigates immediately to its review route', async () => {

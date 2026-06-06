@@ -14,7 +14,6 @@ export default async function MerchantStyleReviewPage({ params }: MerchantStyleR
       role="merchant"
       showTabs={false}
       subtitle="Review the AI suggestion before customers can see it."
-      wide
     >
       <MerchantStyleReviewWorkspace styleId={id} />
     </MobileLayout>

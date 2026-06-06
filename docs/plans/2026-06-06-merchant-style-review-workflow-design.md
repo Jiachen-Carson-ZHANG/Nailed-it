@@ -37,7 +37,8 @@ Split the workflow into a collection surface and a dedicated review workspace.
 `/merchant/styles/[styleId]/review` is a dedicated review workspace without bottom navigation.
 
 - Show a large private-image preview.
-- Start stored-image AI analysis when an unconfigured `processing` draft opens.
+- Show an explicit **AI breakdown** action for an unconfigured `processing` draft; the merchant
+  starts stored-image AI analysis from the review page.
 - Show an explicit analysis/loading state while keeping the page usable.
 - Present editable AI-suggested title and description.
 - Show selected price/time items first and a searchable catalog list for adding services.
@@ -78,6 +79,8 @@ Add merchant-scoped actions for:
 - `per_set` quantity remains one at UI, service, and database boundaries.
 - AI failure never blocks manual merchant review.
 - Reopening a configured `needs_review` style does not rerun AI automatically.
+- Opening a new `processing` style does not spend an AI call until the merchant clicks
+  **AI breakdown**.
 
 ## Verification
 

@@ -65,22 +65,6 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         }
         syncStyle(initial);
         setIsLoading(false);
-        if (initial.status === 'processing') {
-          setIsAnalyzing(true);
-          let analyzed = await analyzeMerchantStyleAction(styleId);
-          // A second page instance may lose the atomic AI claim. Follow the owner request's result
-          // instead of spending a duplicate model call or leaving this page stale.
-          for (let attempt = 0; active && analyzed.status === 'processing' && attempt < 30; attempt += 1) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            const current = await getMerchantStyleReviewAction(styleId);
-            if (!current) break;
-            analyzed = current;
-          }
-          if (active) syncStyle(analyzed);
-          if (active && analyzed.status === 'processing') {
-            setMessage('Analysis is still running. Reload this page in a moment.');
-          }
-        }
       } catch (error) {
         if (active) setMessage(error instanceof Error ? error.message : 'Unable to load this style.');
       } finally {
@@ -96,6 +80,33 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
       active = false;
     };
   }, [styleId]);
+
+  async function runAiBreakdown() {
+    if (!style || style.status !== 'processing') return;
+    setIsAnalyzing(true);
+    setMessage('');
+    try {
+      let analyzed = await analyzeMerchantStyleAction(style.id);
+      for (let attempt = 0; analyzed.status === 'processing' && attempt < 30; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const current = await getMerchantStyleReviewAction(style.id);
+        if (!current) break;
+        analyzed = current;
+      }
+      syncStyle(analyzed);
+      if (analyzed.status === 'processing') {
+        setMessage('Analysis is still running. Reload this page in a moment.');
+      } else if (analyzed.catalogBreakdown.length === 0) {
+        setMessage('AI could not complete the breakdown. Review the design manually.');
+      } else {
+        setMessage('AI breakdown ready. Review before publishing.');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to run AI breakdown.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -212,6 +223,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
   }
 
   const canEdit = style.status === 'needs_review';
+  const canRunAiBreakdown = style.status === 'processing';
   const canPublish = canEdit && Boolean(title.trim()) && Boolean(quote?.totalPriceCents && quote.totalDurationMin);
 
   return (
@@ -223,18 +235,40 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
           <h1>Review design</h1>
           <p>Confirm every service that affects the customer price or booking time.</p>
         </div>
-        <span className={`merchant-style-status merchant-style-status-${style.status}`}>
-          {isAnalyzing ? 'Analyzing' : style.status.replace('_', ' ')}
-        </span>
+        <div className="merchant-review-heading-actions">
+          <span className={`merchant-style-status merchant-style-status-${style.status}`}>
+            {isAnalyzing ? 'Analyzing' : style.status.replace('_', ' ')}
+          </span>
+          {canRunAiBreakdown ? (
+            <button
+              className="button button-primary button-default merchant-review-ai-button"
+              disabled={isAnalyzing || isSaving}
+              type="button"
+              onClick={runAiBreakdown}
+            >
+              {isAnalyzing ? 'Analyzing…' : 'AI breakdown'}
+            </button>
+          ) : null}
+        </div>
       </header>
 
-      {isAnalyzing ? (
+      {canRunAiBreakdown || isAnalyzing ? (
         <section className="merchant-review-analysis" aria-live="polite">
-          <span className="loading-dot" />
+          {isAnalyzing ? <span className="loading-dot" /> : null}
           <div>
-            <strong>Analyzing the uploaded design</strong>
-            <p>The image is already stored. AI suggestions will appear here when ready.</p>
+            <strong>{isAnalyzing ? 'Analyzing the uploaded design' : 'Ready for AI breakdown'}</strong>
+            <p>{isAnalyzing ? 'AI suggestions will appear here when ready.' : 'Generate the editable name, description, and service list.'}</p>
           </div>
+          {canRunAiBreakdown ? (
+            <button
+              className="button button-secondary button-default merchant-review-ai-button"
+              disabled={isAnalyzing || isSaving}
+              type="button"
+              onClick={runAiBreakdown}
+            >
+              {isAnalyzing ? 'Analyzing…' : 'Run AI'}
+            </button>
+          ) : null}
         </section>
       ) : null}
 

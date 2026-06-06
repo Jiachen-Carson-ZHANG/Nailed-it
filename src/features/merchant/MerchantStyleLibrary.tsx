@@ -75,7 +75,7 @@ export function MerchantStyleLibrary() {
           type="file"
           onChange={handleUpload}
         />
-        <span aria-hidden="true" className="merchant-style-upload-mark">+</span>
+        <span aria-hidden="true" className="image-uploader-mark merchant-style-upload-icon">＋</span>
         <span>
           <strong>{isPending ? 'Uploading design…' : 'Add a new design'}</strong>
           <small>Choose one photo to analyze and review</small>
@@ -100,8 +100,8 @@ export function MerchantStyleLibrary() {
               </div>
               <div className="merchant-style-card-actions">
                 {style.status === 'published' ? (
-                  <Link className="button button-secondary button-default" href={`/customer/style/${style.id}`}>
-                    Preview
+                  <Link className="button button-secondary button-default" href={`/merchant/styles/${style.id}/review`}>
+                    View
                   </Link>
                 ) : null}
                 {style.status === 'processing' || style.status === 'needs_review' ? (
