@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
@@ -58,12 +58,8 @@ export function CustomerBookingContent({
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
-  // Consume once; both state initializers below read the same ref
-  const tryOnImageOnce = useRef<SelectedNailImage | null | undefined>(undefined);
-  const tryOnImage = (() => {
-    if (tryOnImageOnce.current === undefined) tryOnImageOnce.current = consumeTryOnImage();
-    return tryOnImageOnce.current;
-  })();
+  // Consume the try-on image exactly once on mount via the lazy useState initializer
+  const [tryOnImage] = useState<SelectedNailImage | null>(consumeTryOnImage);
 
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(() => tryOnImage);
   const [step, setStep] = useState<BookingStep>(() => {

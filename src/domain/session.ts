@@ -9,6 +9,7 @@ export type ShellTab = {
   href: string;
   label: string;
   matchPrefix?: string;
+  forceRemount?: boolean;
 };
 
 export type MockRouteIntent = {
@@ -90,6 +91,7 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
         label: 'Book',
         glyph: '✦',
         matchPrefix: customerPaths.booking,
+        forceRemount: true,
         available: true
       },
       {

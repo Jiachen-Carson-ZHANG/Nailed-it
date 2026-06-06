@@ -36,6 +36,7 @@ async function callOpenRouterWithImage(opts: {
   imageBase64: string;
   mimeType: string;
   prompt: string;
+  structured?: boolean;
 }): Promise<unknown> {
   let data: unknown;
   try {
@@ -51,13 +52,16 @@ async function callOpenRouterWithImage(opts: {
             ]
           }
         ],
-        response_format: breakdownResponseFormat,
-        provider: { require_parameters: true },
-        plugins: [{ id: 'response-healing' }],
+        ...(opts.structured && {
+          response_format: breakdownResponseFormat,
+          provider: { require_parameters: true },
+          plugins: [{ id: 'response-healing' }],
+        }),
       },
       opts.apiKey
     );
   } catch (error) {
+    if (!opts.structured) return null;
     throw new BreakdownError('provider_error', 'OpenRouter breakdown request failed.', { cause: error });
   }
 
@@ -65,6 +69,7 @@ async function callOpenRouterWithImage(opts: {
     const text = extractTextContent(data);
     return JSON.parse(stripJsonFence(text));
   } catch (error) {
+    if (!opts.structured) return null;
     throw new BreakdownError('invalid_model_output', 'OpenRouter breakdown response did not include valid JSON.', {
       cause: error
     });
@@ -371,6 +376,9 @@ function buildPrompt(): string {
   ].join('\n');
 }
 
+let _breakdownPrompt: string | undefined;
+const breakdownPrompt = () => (_breakdownPrompt ??= buildPrompt());
+
 // ── Main function ─────────────────────────────────────────────────────────────
 
 const nailValidationPrompt =
@@ -393,7 +401,7 @@ export async function runGlossaryBreakdown(
   // ── Validate image is a nail photo before running the expensive prompt ────────
   try {
     const valRaw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: nailValidationPrompt });
-    const val = asRecord(valRaw);
+    const val = isRecord(valRaw) ? valRaw : {};
     if (val.valid === false) {
       const msg = typeof val.error === 'string' ? val.error : '请上传一张美甲照片（指甲特写或美甲款式图）。';
       throw new BreakdownError('invalid_input', msg);
@@ -403,11 +411,6 @@ export async function runGlossaryBreakdown(
     // Validation call itself failed — proceed anyway rather than blocking user
   }
 
-  const raw = asRecord(
-    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() })
-  );
-
-  const settingsById = new Map<string, GlossaryEntrySettings>(
-    merchantSettings.map((s) => [s.id, s])
-  );
+  const raw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: breakdownPrompt(), structured: true });
+  return parseBreakdownModelOutput(raw, merchantSettings);
 }
