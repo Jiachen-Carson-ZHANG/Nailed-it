@@ -32,6 +32,13 @@ export function BottomTabBar({ role }: { role: UserRole }) {
   const router = useRouter();
   const tabs = getMockSession(role).tabs;
 
+  function handleTabClick(e: React.MouseEvent, tab: (typeof tabs)[number]) {
+    const isBookingTab = role === 'customer' && tab.label === 'Book';
+    if (!isBookingTab) return;
+    e.preventDefault();
+    router.push(`${tab.href}?t=${Date.now()}`);
+  }
+
   return (
     <nav
       aria-label={`${role} navigation`}
@@ -49,7 +56,7 @@ export function BottomTabBar({ role }: { role: UserRole }) {
             aria-label={tab.label}
             className={active ? 'tab-item tab-item-active' : 'tab-item'}
             href={tab.href}
-            onClick={isBooking ? handleBookingClick : undefined}
+            onClick={(e) => handleTabClick(e, tab)}
           >
             <span aria-hidden="true" className="tab-glyph">
               {iconSrc ? (
