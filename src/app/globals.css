@@ -1039,6 +1039,11 @@ select {
   color: var(--color-text);
 }
 
+.field textarea::placeholder {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
 .helper-copy {
   margin: 0 0 1rem;
   color: var(--color-muted);

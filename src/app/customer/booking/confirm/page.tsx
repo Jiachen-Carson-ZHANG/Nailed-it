@@ -16,12 +16,12 @@ import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { createBookingAction, listAvailableSlotsAction } from '@/lib/actions/booking-actions';
 
+const DEFAULT_NOTES_PLACEHOLDER = '如有特殊要求请在此注明，例如：对某些材料过敏、希望避免某些颜色、甲型偏好等。';
+
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
   const draft = draftSnapshot?.draft ?? null;
-  const [notes, setNotes] = useState(
-    draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
-  );
+  const [notes, setNotes] = useState('');
   const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
@@ -156,11 +156,13 @@ export default function CustomerBookingConfirmPage() {
       />
 
       <label className="field">
-        <span>Notes</span>
+        <span>备注</span>
         <textarea
           disabled={bookingLocked}
           value={notes}
+          placeholder={DEFAULT_NOTES_PLACEHOLDER}
           onChange={(event) => setNotes(event.target.value)}
+          style={{ marginBottom: '0.75rem' }}
         />
       </label>
 

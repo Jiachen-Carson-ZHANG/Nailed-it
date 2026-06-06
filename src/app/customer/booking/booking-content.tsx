@@ -2,7 +2,6 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -12,7 +11,6 @@ import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-stor
 import type { AIRecognitionResult, BreakdownResult } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
-import { NailAttributeEditor } from '@/features/customer/NailAttributeEditor';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
@@ -58,7 +56,6 @@ export function CustomerBookingContent({
   // For prefill, we hold the remote URL and convert it to base64 on demand
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(null);
   const [isRecognizing, setIsRecognizing] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [recognition, setRecognition] = useState<AIRecognitionResult>(prefillRecognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
   const [breakdowns, setBreakdowns] = useState<{ glossary: BreakdownResult | null }>(
@@ -124,6 +121,7 @@ export function CustomerBookingContent({
     setImageUrl(image.previewUrl);
     setSelectedImage(image);
     setRecognitionError('');
+    setBreakdowns({ glossary: null }); // clear stale cache so panel re-analyses the new image
     if (step !== 'upload') setStep('upload');
   }
 
@@ -218,7 +216,7 @@ export function CustomerBookingContent({
             </div>
           )}
 
-          <ComponentBreakdownPanel image={selectedImage} onResult={handleBreakdownResult} />
+          <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
             <Button block variant="secondary" onClick={() => setStep('upload')}>
@@ -247,24 +245,9 @@ export function CustomerBookingContent({
             </section>
           )}
 
-          <Button block variant="secondary" onClick={() => setIsSheetOpen(true)}>
-            Adjust style details
-          </Button>
-
-          <BottomSheet
-            open={isSheetOpen}
-            title="Your style breakdown"
-            onClose={() => setIsSheetOpen(false)}
-          >
-            <p className="helper-copy">
-              Adjust the style details below — your quote updates instantly.
-            </p>
-            <NailAttributeEditor value={recognition} onChange={setRecognition} />
-          </BottomSheet>
-
           <div className="booking-step-actions">
             <Button block variant="secondary" onClick={() => setStep('result')}>
-              ← Back to details
+              ← Back to adjust details
             </Button>
           </div>
 

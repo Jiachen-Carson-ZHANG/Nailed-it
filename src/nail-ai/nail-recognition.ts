@@ -148,7 +148,7 @@ const nailRecognitionPrompt = [
   'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
   'styles (array of: solid|catEye|french|chrome|rhinestone),',
   'addons (array of: rhinestone|charms|glitter),',
-  'otherNotes (string), confidence (0-1 number).',
+  'otherNotes (string, written in Simplified Chinese, describe the nail style directly without phrases like "图片展示的是" or "图中"), confidence (0-1 number).',
   'Use only exact values listed. If an attribute is not visible, use an empty array.',
   'For nailShape, choose the closest visible shape; use round if unclear.',
   'Return ONLY valid JSON, no markdown.'

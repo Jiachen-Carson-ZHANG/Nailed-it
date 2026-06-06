@@ -9,6 +9,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 
 type ComponentBreakdownPanelProps = {
   image: SelectedNailImage | null;
+  cachedResult?: BreakdownResult | null;
   onResult?: (result: BreakdownResult) => void;
 };
 
@@ -197,12 +198,17 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
-export function ComponentBreakdownPanel({ image, onResult }: ComponentBreakdownPanelProps) {
-  const [result, setResult] = useState<BreakdownResult | null>(null);
-  const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+export function ComponentBreakdownPanel({ image, cachedResult, onResult }: ComponentBreakdownPanelProps) {
+  const [result, setResult] = useState<BreakdownResult | null>(cachedResult ?? null);
+  const [quantities, setQuantities] = useState<Map<string, number>>(
+    () => new Map((cachedResult?.items ?? []).map((i) => [i.glossaryId, i.quantity]))
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const lastAnalysedRef = useRef<string | null>(null);
+  // If we have a cached result, mark the image as already analysed so we don't re-run
+  const lastAnalysedRef = useRef<string | null>(
+    cachedResult && image ? image.imageBase64.slice(0, 64) : null
+  );
 
   useEffect(() => {
     if (!image) return;
