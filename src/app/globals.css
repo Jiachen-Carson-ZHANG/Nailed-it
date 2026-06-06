@@ -147,9 +147,9 @@ select {
 }
 
 .brand-logo-topbar {
-  height: 2.2rem;
+  height: 2.6rem;
   width: auto;
-  max-width: min(8.75rem, 46vw);
+  max-width: min(10rem, 46vw);
 }
 
 .brand-logo-hero-mark {
