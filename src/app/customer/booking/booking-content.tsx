@@ -9,7 +9,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
 import { consumeTryOnImage } from '@/domain/tryon-image-store';
-import type { AIRecognitionResult, BreakdownResult, RuleBasedQuote, StylePreviewQuote } from '@/domain/nail';
+import type { AIRecognitionResult, BreakdownResult } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
@@ -40,9 +40,7 @@ type CustomerBookingContentProps = {
   prefillStyleId?: string;
   prefillImageUrl?: string;
   prefillTitle?: string;
-  prefillDescription?: string;
   prefillRecognition?: AIRecognitionResult;
-  prefillPreviewQuote?: StylePreviewQuote;
   skipToResult?: boolean;
 };
 
@@ -50,20 +48,16 @@ export function CustomerBookingContent({
   prefillStyleId,
   prefillImageUrl,
   prefillTitle,
-  prefillDescription,
   prefillRecognition,
-  prefillPreviewQuote,
   skipToResult,
 }: CustomerBookingContentProps) {
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
-  // Consume the try-on image exactly once on mount via the lazy useState initializer
   const [tryOnImage] = useState<SelectedNailImage | null>(consumeTryOnImage);
 
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(() => tryOnImage);
   const [step, setStep] = useState<BookingStep>(() => {
-    if (hasPrefill) return 'quote';
     if (skipToResult && getBreakdownResult()) return 'result';
     if (tryOnImage) return 'result';
     return 'upload';
@@ -79,9 +73,7 @@ export function CustomerBookingContent({
   // When the page mounts with a prefill image, convert the remote URL to a
   // SelectedNailImage so it can be sent to the recognition API without an upload.
   useEffect(() => {
-    // Published styles use their frozen merchant-reviewed catalog configuration. They must not be
-    // re-analysed at booking time.
-    if (!prefillImageUrl || hasPrefill) return;
+    if (!prefillImageUrl) return;
     fetch(prefillImageUrl)
       .then((r) => r.blob())
       .then((blob) => {
@@ -98,23 +90,12 @@ export function CustomerBookingContent({
       .catch(() => {
         // If CORS/network blocks the fetch, recognition will fall back to the URL approach
       });
-  }, [hasPrefill, prefillImageUrl]);
+  }, [prefillImageUrl]);
 
-  // For a published style the merchant's curated, server-derived quote is authoritative; fall back
-  // to the rule-based estimate only for free-form photo uploads.
-  const estimate = useMemo<RuleBasedQuote>(() => {
-    if (prefillPreviewQuote) {
-      return { source: 'pricing_rules', price: prefillPreviewQuote.price, duration: prefillPreviewQuote.duration };
-    }
-    if (breakdowns.glossary) {
-      return {
-        source: 'pricing_rules',
-        price: breakdowns.glossary.totalPrice,
-        duration: breakdowns.glossary.totalDuration,
-      };
-    }
-    return calculateEstimate(recognition, defaultPricingRules);
-  }, [breakdowns.glossary, recognition, prefillPreviewQuote]);
+  const estimate = useMemo(
+    () => calculateEstimate(recognition, defaultPricingRules),
+    [recognition]
+  );
 
   async function startRecognition() {
     setIsRecognizing(true);
@@ -153,17 +134,7 @@ export function CustomerBookingContent({
   }
 
   function persistCurrentDraft() {
-    // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
-    // price) rather than a flat recognition estimate.
-    saveCustomerBookingDraft({
-      estimate,
-      imageUrl,
-      recognition,
-      breakdowns,
-      catalogSelections: breakdowns.glossary?.catalogSelections,
-      styleId: hasPrefill ? prefillStyleId : undefined,
-      styleTitle: hasPrefill ? prefillTitle : undefined,
-    });
+    saveCustomerBookingDraft({ estimate, imageUrl, recognition, breakdowns });
   }
 
   function handleBreakdownResult(result: BreakdownResult) {
@@ -253,7 +224,6 @@ export function CustomerBookingContent({
             </div>
           )}
 
-          <RecognitionPreview imageUrl="" recognition={recognition} />
           <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
@@ -275,38 +245,23 @@ export function CustomerBookingContent({
             <h1>Your quote</h1>
           </section>
 
-          {hasPrefill ? (
-            imageUrl ? (
-              <div className="booking-result-preview">
-                <img alt={prefillTitle ?? 'Published nail style'} src={imageUrl} className="booking-result-image" />
-              </div>
-            ) : null
-          ) : (
-            <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
-          )}
-
-          {prefillPreviewQuote ? (
-            <section className="summary-card">
-              {prefillDescription ? <p>{prefillDescription}</p> : null}
-              <p>
-                Studio price: <strong>{estimate.duration} min · ${estimate.price.toFixed(2)}</strong>
-              </p>
-            </section>
-          ) : (
-            breakdowns.glossary && (
-              <section className="summary-card">
-                <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
-              </section>
-            )
-          )}
-
-          {!hasPrefill ? (
-            <div className="booking-step-actions">
-              <Button block variant="secondary" onClick={() => setStep('result')}>
-                ← Back to adjust details
-              </Button>
+          {imageUrl && (
+            <div className="booking-result-preview">
+              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
             </div>
-          ) : null}
+          )}
+
+          {breakdowns.glossary && (
+            <section className="summary-card">
+              <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
+            </section>
+          )}
+
+          <div className="booking-step-actions">
+            <Button block variant="secondary" onClick={() => setStep('result')}>
+              ← Back to adjust details
+            </Button>
+          </div>
 
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
             <Link

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
@@ -11,7 +12,7 @@ import {
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
-import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
+import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import {
@@ -26,6 +27,7 @@ import {
 const DEFAULT_NOTES_PLACEHOLDER = '如有特殊要求请在此注明，例如：对某些材料过敏、希望避免某些颜色、甲型偏好等。';
 
 export default function CustomerBookingConfirmPage() {
+  const router = useRouter();
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
   const draft = draftSnapshot?.draft ?? null;
   const [notes, setNotes] = useState('');
@@ -140,6 +142,7 @@ export default function CustomerBookingConfirmPage() {
           ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
           : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
       );
+      setTimeout(() => router.push(homePathForRole('customer')), 1500);
     } catch (error) {
       setToastMessage(
         error instanceof Error && error.message === 'booking_overlap'
@@ -164,21 +167,20 @@ export default function CustomerBookingConfirmPage() {
     >
       <section className="page-heading">
         <p className="section-eyebrow">Confirm booking</p>
-        <h1>Choose your appointment time</h1>
+        <h2>Choose your appointment time</h2>
         <p className="section-copy">
           Select your preferred time slot below.
         </p>
       </section>
 
+      {draft.imageUrl && (
+        <div className="booking-result-preview">
+          <img alt="Booking reference" className="booking-result-image" src={draft.imageUrl} />
+        </div>
+      )}
+
       <section className="summary-card">
-        <strong>Your booking summary</strong>
-        <p>{draft.recognition.selection.otherNotes}</p>
-        <p>
-          Estimated: SGD {displayEstimate.price} · {displayEstimate.duration} min
-        </p>
-        {draft.imageUrl ? (
-          <img alt="Booking draft reference" className="booking-draft-image" src={draft.imageUrl} />
-        ) : null}
+        <p>Estimated: <strong>{displayEstimate.duration} min · SGD {displayEstimate.price}</strong></p>
       </section>
 
       <BookingTimeSelector

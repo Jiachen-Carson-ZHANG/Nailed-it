@@ -1012,6 +1012,12 @@ select {
   aspect-ratio: 1 / 0.92;
 }
 
+.style-detail-title {
+  margin: 0.75rem 0 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
 .style-detail-summary {
   display: grid;
   gap: 0.55rem;
