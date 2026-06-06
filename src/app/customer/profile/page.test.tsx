@@ -33,7 +33,8 @@ describe('CustomerProfilePage', () => {
       styleTitle: 'Custom AI reference',
       styleImageUrl: '',
       date: '2026-05-23',
-      time: '10:00',
+      // Anna opens 11:00 (Tue–Sat); create-time availability now enforces working hours.
+      time: '11:00',
       notes: 'Profile should show this booking.'
     });
 

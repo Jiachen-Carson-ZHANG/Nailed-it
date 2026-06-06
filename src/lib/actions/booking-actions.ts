@@ -9,11 +9,11 @@ import type {
   BookingConversationThread,
   TechnicianSlot,
 } from '@/domain/nail';
-import { requiresMerchantReview } from '@/domain/nail';
 import { findAvailableTechnicians } from '@/domain/scheduling';
 import type { MsInterval } from '@/domain/scheduling';
 import type { RepositoryBundle } from '@/lib/repositories';
 import { getRepositories } from '@/lib/repositories';
+import { createAvailabilityService } from '@/lib/services/availability-service';
 import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
 import { createBookingService } from '@/lib/services/booking-service';
 import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
@@ -184,10 +184,16 @@ export type CreateBookingActionInput = {
 };
 
 /**
- * Create a booking + its conversation thread. Identity (customer), money (price/duration), and
- * status are all derived server-side: the price/duration are recomputed from the recognition via
- * the DB pricing rules, and the review status from the recognition confidence. The browser cannot
- * book a $0, one-minute, auto-confirmed appointment.
+ * Create a booking + its conversation thread. Identity (customer), money (price/duration), status,
+ * and availability are all enforced server-side:
+ * - price/duration are recomputed from the recognition via the DB pricing rules;
+ * - status is forced to `pending_review` — client recognition (confidence + selections) is
+ *   untrusted, so the snapshot bridge never auto-confirms from it; a booking only leaves review
+ *   once the recognition/catalog selections are issued server-side (live P6);
+ * - the chosen technician is re-checked against the scheduling kernel for the exact slot + duration,
+ *   so a tampered request cannot book during a break, blocked time, or outside working hours (the
+ *   DB exclusion constraint only stops booking-vs-booking overlap).
+ * The browser cannot book a $0, one-minute, auto-confirmed, or off-hours appointment.
  */
 export async function createBookingAction(input: CreateBookingActionInput): Promise<Booking> {
   const repos = getRepositories();
@@ -198,9 +204,21 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
   const customerName = demoCustomerName;
   const pricingRules = await repos.pricing.list();
   const estimate = calculateEstimate(input.recognition, pricingRules);
-  const status: Booking['status'] = requiresMerchantReview(input.recognition)
-    ? 'pending_review'
-    : 'confirmed';
+  // Never trust client recognition to auto-confirm: every snapshot booking goes to merchant review.
+  const status: Booking['status'] = 'pending_review';
+
+  // Enforce availability at write time, not only in the displayed grid. Re-derive the available
+  // technicians from the kernel for this exact slot + server-recomputed duration and reject if the
+  // chosen technician is not among them (breaks / blocked time / outside hours all fail closed).
+  const available = await createAvailabilityService(repos).findAvailable({
+    merchantId: demoMerchantId,
+    date: input.date,
+    time: input.time,
+    durationMin: estimate.duration,
+  });
+  if (!available.some((t) => t.id === input.technicianId)) {
+    throw new Error('technician_unavailable');
+  }
 
   const booking = await createBookingService(repos).createBookingFromSnapshot({
     merchantId: demoMerchantId,
@@ -229,10 +247,7 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
       {
         id: `msg-${randomUUID()}`,
         authorRole: 'system',
-        body:
-          status === 'confirmed'
-            ? `Your appointment is confirmed with ${technicianName} at ${input.time}.`
-            : `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
+        body: `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
         sentAt: 'Now',
       },
     ],

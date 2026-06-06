@@ -44,22 +44,22 @@ describe('MerchantCalendarPage', () => {
   });
 
   it('shows a newly created booking once it is written through the booking service', async () => {
-    // tech-anna is free on 2026-05-23 (her seed booking is on 05-24). Identity is server-derived
-    // to the demo customer (Melissa Tan).
+    // tech-anna is free on 2026-05-23 (her seed booking is on 05-24) and opens at 11:00; create-time
+    // availability enforces working hours. Identity is server-derived to the demo customer (Melissa).
     await createBookingAction({
       technicianId: 'tech-anna',
       recognition: mockAIResult,
       styleTitle: 'Custom AI reference',
       styleImageUrl: '',
       date: '2026-05-23',
-      time: '10:00',
+      time: '11:00',
       notes: 'from confirm flow'
     });
 
     render(<MerchantCalendarPage />);
 
     expect(
-      await screen.findByRole('link', { name: /10:00 · melissa tan/i })
+      await screen.findByRole('link', { name: /11:00 · melissa tan/i })
     ).toBeInTheDocument();
   });
 });
