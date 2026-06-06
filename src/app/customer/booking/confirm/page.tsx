@@ -14,8 +14,9 @@ import type { Booking } from '@/domain/nail';
 import { requiresMerchantReview } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
-import { createBookingAction } from '@/lib/actions/booking-actions';
-import { demoCustomerName, getAvailableBookingDays } from '@/mock/operations-store';
+import type { TechnicianSlotDay } from '@/domain/availability';
+import { createBookingAction, listAvailableSlotsAction } from '@/lib/actions/booking-actions';
+import { demoCustomerName } from '@/mock/operations-store';
 
 export default function CustomerBookingConfirmPage() {
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
@@ -23,7 +24,7 @@ export default function CustomerBookingConfirmPage() {
   const [notes, setNotes] = useState(
     draft?.recognition.selection.otherNotes ?? 'Prefer a softer pink tone.'
   );
-  const [availableDays] = useState(() => getAvailableBookingDays(draft?.estimate.duration ?? 60));
+  const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -45,6 +46,24 @@ export default function CustomerBookingConfirmPage() {
       window.clearTimeout(timerId);
     };
   }, [draftSnapshot]);
+
+  // Availability now comes from the booking service (DB occupancy), not localStorage.
+  useEffect(() => {
+    if (!draft) {
+      return undefined;
+    }
+    let active = true;
+    listAvailableSlotsAction(draft.estimate.duration)
+      .then((days) => {
+        if (active) setAvailableDays(days);
+      })
+      .catch(() => {
+        /* leave empty */
+      });
+    return () => {
+      active = false;
+    };
+  }, [draft]);
 
   if (!draft) {
     return (

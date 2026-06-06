@@ -1,10 +1,12 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
+import type { TechnicianSlotDay } from '@/domain/availability';
 import type { Booking, BookingConversationThread } from '@/domain/nail';
 import { getRepositories } from '@/lib/repositories';
 import { intervalBookingToUiBooking } from '@/lib/services/booking-adapter';
 import { createBookingService } from '@/lib/services/booking-service';
+import { getAvailableBookingDays } from '@/mock/bookings';
 import { demoMerchantId } from '@/mock/merchants';
 
 export type CreateBookingActionInput = {
@@ -55,6 +57,40 @@ export async function listBookingViewsAction(): Promise<Booking[]> {
       );
     }),
   );
+}
+
+/**
+ * P4d availability read: technician slots for a requested duration, computed against the DB
+ * bookings (not localStorage), so the confirm-page grid reflects real occupancy. Reuses the
+ * duration-aware findTechnicianSlots over the merchant's interval bookings.
+ */
+export async function listAvailableSlotsAction(durationMin: number): Promise<TechnicianSlotDay[]> {
+  const repos = getRepositories();
+  const merchant = await repos.merchants.getById(demoMerchantId);
+  const merchantName = merchant?.name ?? 'Nailed-it Studio';
+  const timeZone = merchant?.timezone ?? 'Asia/Singapore';
+
+  const [bookings, technicians] = await Promise.all([
+    repos.intervalBookings.listByMerchant(demoMerchantId),
+    repos.technicians.list(),
+  ]);
+  const techById = new Map(technicians.map((t) => [t.id, t]));
+
+  const flat = bookings.map((b) => {
+    const tech = techById.get(b.technicianId);
+    return intervalBookingToUiBooking(
+      { booking: b, items: [] },
+      {
+        timeZone,
+        merchantName,
+        technician: tech
+          ? { id: tech.id, name: tech.name, initials: tech.initials }
+          : { id: b.technicianId, name: 'Technician', initials: '–' },
+      },
+    );
+  });
+
+  return getAvailableBookingDays(flat, durationMin);
 }
 
 /**

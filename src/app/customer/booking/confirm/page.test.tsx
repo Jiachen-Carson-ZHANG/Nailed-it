@@ -129,9 +129,8 @@ describe('CustomerBookingConfirmPage', () => {
     const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
     expect(confirmButton).toBeDisabled();
 
-    expect(screen.getByRole('button', { name: /10:00 .* mei chen/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /10:00 .* mei chen/i }));
+    // availability loads async from the booking service
+    await user.click(await screen.findByRole('button', { name: /10:00 .* mei chen/i }));
     expect(confirmButton).toBeEnabled();
 
     await user.click(confirmButton);
@@ -164,7 +163,7 @@ describe('CustomerBookingConfirmPage', () => {
 
     render(<CustomerBookingConfirmPage />);
 
-    await user.click(screen.getByRole('button', { name: /10:00 .* mei chen/i }));
+    await user.click(await screen.findByRole('button', { name: /10:00 .* mei chen/i }));
     const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
     await user.click(confirmButton);
 
