@@ -19,16 +19,18 @@ export function ProblemSection() {
       aria-label="Problem"
       className={`${styles.section} ${styles.problem}`}
     >
-      <h2 className={styles.problemTitle}>好看的款式背后，是低效的预约流程</h2>
-      <div className={styles.problemGrid}>
-        {problemCards.map((card) => (
-          <ProblemCard
-            key={card.key}
-            title={card.title}
-            bullets={card.bullets}
-            icon={problemIconsByKey[card.key]}
-          />
-        ))}
+      <div className={styles.sectionContent}>
+        <h2 className={styles.problemTitle}>好看的款式背后，是低效的预约流程</h2>
+        <div className={styles.problemGrid}>
+          {problemCards.map((card) => (
+            <ProblemCard
+              key={card.key}
+              title={card.title}
+              bullets={card.bullets}
+              icon={problemIconsByKey[card.key]}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );

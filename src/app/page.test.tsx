@@ -30,7 +30,7 @@ function getTopLevelRegions() {
 }
 
 describe('LandingPage', () => {
-  it('renders exactly five top-level labeled regions in the approved order', () => {
+  it('renders exactly six top-level labeled regions in the approved order', () => {
     renderLandingPage();
 
     const topLevelRegions = getTopLevelRegions();
@@ -38,6 +38,7 @@ describe('LandingPage', () => {
       'Hero',
       'Problem',
       'Solution',
+      'Journey',
       'Why It Works',
       'CTA'
     ];
@@ -72,8 +73,11 @@ describe('LandingPage', () => {
     expect(screen.getByRole('heading', { name: '少沟通，多成交' })).toBeInTheDocument();
     expect(screen.getByText('好看的款式背后，是低效的预约流程')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'AI 识图' })).toBeInTheDocument();
-    expect(screen.getByText('试戴选款， 帮助决策')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === '试戴选款帮助决策')
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '准备好让美甲预约更智能了吗？' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Nailed-it' })).toBeInTheDocument();
   });
 
   it('switches the solution panel when a different tab is pressed', async () => {
