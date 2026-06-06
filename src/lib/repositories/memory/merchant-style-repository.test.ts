@@ -49,4 +49,53 @@ describe('createMemoryMerchantStyleRepository', () => {
     });
     expect(await repo.listPublished()).toEqual([]);
   });
+
+  it('atomically completes or fails processing analysis into needs review', async () => {
+    const repo = createMemoryMerchantStyleRepository([]);
+    const processing = {
+      ...mockMerchantStyles[0],
+      id: 'processing-style',
+      title: 'Untitled design',
+      status: 'processing' as const,
+      description: '',
+      discoveryFacets: [],
+      catalogBreakdown: [],
+      previewPriceCents: null,
+      previewDurationMin: null,
+      publishedAt: null,
+      media: {
+        ...mockMerchantStyles[0].media,
+        id: 'processing-media',
+        state: 'uploaded' as const,
+        publishedBucket: null,
+        publishedPath: null,
+      },
+    };
+    await repo.create(processing);
+    expect(await repo.claimAnalysis(processing.id, processing.merchantId)).toBe(true);
+    expect(await repo.claimAnalysis(processing.id, processing.merchantId)).toBe(false);
+
+    expect(await repo.completeAnalysis({
+      id: processing.id,
+      merchantId: processing.merchantId,
+      title: 'AI title',
+      description: 'AI description',
+      discoveryFacets: [{ kind: 'style', label: 'Cat eye' }],
+      items: [{ catalogItemId: 'cat_eye', quantity: 1 }],
+      previewPriceCents: 1000,
+      previewDurationMin: 20,
+    })).toMatchObject({
+      status: 'needs_review',
+      title: 'AI title',
+      catalogBreakdown: [{ catalogItemId: 'cat_eye', quantity: 1 }],
+    });
+
+    const another = { ...processing, id: 'failed-analysis', media: { ...processing.media, id: 'failed-media' } };
+    await repo.create(another);
+    expect(await repo.claimAnalysis(another.id, another.merchantId)).toBe(true);
+    expect(await repo.failAnalysis(another.id, another.merchantId)).toMatchObject({
+      status: 'needs_review',
+      catalogBreakdown: [],
+    });
+  });
 });

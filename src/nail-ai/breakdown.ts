@@ -1,5 +1,7 @@
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { MerchantPricingSetting } from '@/domain/merchant';
+import { pricingUnits, type PricingUnit } from '@/domain/catalog';
+import { normalizeQuantityForPricingUnit } from '@/domain/catalog-selection';
 import {
   aiDetectableComponents,
   aiDetectableVisualAttributes,
@@ -9,7 +11,12 @@ import {
   serviceModules,
   glossaryById
 } from '@/data/glossary';
-import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
+import {
+  postOpenRouterChat,
+  extractTextContent,
+  stripJsonFence,
+  type OpenRouterJsonSchemaResponseFormat,
+} from './openrouter';
 import { defaultTryOnModel } from './try-on';
 
 export class BreakdownError extends Error {
@@ -43,7 +50,10 @@ async function callOpenRouterWithImage(opts: {
               { type: 'text', text: opts.prompt }
             ]
           }
-        ]
+        ],
+        response_format: breakdownResponseFormat,
+        provider: { require_parameters: true },
+        plugins: [{ id: 'response-healing' }],
       },
       opts.apiKey
     );
@@ -62,6 +72,184 @@ async function callOpenRouterWithImage(opts: {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const rawSections = [
+  'service_modules',
+  'billable_components',
+  'procedures',
+  'visual_attributes',
+  'complexity_level',
+  'style_tags',
+] as const;
+type RawSection = (typeof rawSections)[number];
+type GlossaryTypeName = GlossaryBreakdownItem['glossaryType'];
+
+const sectionTypeMap: Record<RawSection, GlossaryTypeName> = {
+  service_modules: 'service_module',
+  billable_components: 'billable_component',
+  procedures: 'procedure',
+  visual_attributes: 'visual_attribute',
+  complexity_level: 'complexity_level',
+  style_tags: 'style_tag',
+};
+
+const allowedIdsBySection: Record<RawSection, Set<string>> = {
+  service_modules: new Set(serviceModules.filter((entry) => entry.ai_detectable !== 'no').map((entry) => entry.id)),
+  billable_components: new Set(aiDetectableComponents.map((entry) => entry.id)),
+  procedures: new Set(allProcedures.map((entry) => entry.id)),
+  visual_attributes: new Set(aiDetectableVisualAttributes.map((entry) => entry.id)),
+  complexity_level: new Set(complexityLevels.map((entry) => entry.id)),
+  style_tags: new Set(aiDetectableStyleTags.map((entry) => entry.id)),
+};
+
+const modelUnits = ['set', 'finger', 'piece'] as const;
+
+function itemSchema(ids: string[]): Record<string, unknown> {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'quantity', 'unit'],
+    properties: {
+      id: { type: 'string', enum: ids },
+      quantity: { type: 'integer', minimum: 1, maximum: 100 },
+      unit: { type: 'string', enum: modelUnits },
+    },
+  };
+}
+
+export const breakdownResponseFormat: OpenRouterJsonSchemaResponseFormat = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'nail_style_breakdown',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: rawSections,
+      properties: Object.fromEntries(
+        rawSections.map((section) => [
+          section,
+          {
+            type: 'array',
+            items: itemSchema([...allowedIdsBySection[section]]),
+          },
+        ]),
+      ),
+    },
+  },
+};
+
+function invalidModelOutput(message: string): never {
+  throw new BreakdownError('invalid_model_output', `invalid_model_output: ${message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPricingUnit(value: string): value is PricingUnit {
+  return pricingUnits.includes(value as PricingUnit);
+}
+
+/**
+ * Validate provider JSON again before it enters pricing. Provider-side schema enforcement reduces
+ * failures; this runtime boundary remains authoritative if a provider ignores or repairs the shape.
+ */
+export function parseBreakdownModelOutput(
+  value: unknown,
+  merchantSettings: MerchantPricingSetting[],
+): BreakdownResult {
+  if (!isRecord(value)) invalidModelOutput('response must be an object');
+  const response = value;
+  const topLevelKeys = Object.keys(response);
+  if (
+    topLevelKeys.length !== rawSections.length
+    || topLevelKeys.some((key) => !rawSections.includes(key as RawSection))
+  ) {
+    invalidModelOutput('response must contain exactly the six breakdown sections');
+  }
+
+  const settingsById = new Map(merchantSettings.map((setting) => [setting.id, setting]));
+  const seenIds = new Set<string>();
+
+  function parseSection(section: RawSection): GlossaryBreakdownItem[] {
+    const rawArray = response[section];
+    if (!Array.isArray(rawArray)) invalidModelOutput(`${section} must be an array`);
+    const glossaryType = sectionTypeMap[section];
+
+    return rawArray.map((rawItem, index) => {
+      if (!isRecord(rawItem)) invalidModelOutput(`${section}[${index}] must be an object`);
+      const keys = Object.keys(rawItem);
+      if (keys.length !== 3 || keys.some((key) => !['id', 'quantity', 'unit'].includes(key))) {
+        invalidModelOutput(`${section}[${index}] has unexpected fields`);
+      }
+      if (typeof rawItem.id !== 'string' || !rawItem.id.trim()) {
+        invalidModelOutput(`${section}[${index}].id must be a non-empty string`);
+      }
+      if (
+        typeof rawItem.quantity !== 'number'
+        || !Number.isInteger(rawItem.quantity)
+        || rawItem.quantity < 1
+        || rawItem.quantity > 100
+      ) {
+        invalidModelOutput(`${section}[${index}].quantity must be an integer from 1 to 100`);
+      }
+      if (
+        typeof rawItem.unit !== 'string'
+        || !modelUnits.includes(rawItem.unit as (typeof modelUnits)[number])
+      ) {
+        invalidModelOutput(`${section}[${index}].unit is invalid`);
+      }
+
+      const id = rawItem.id.trim();
+      const entry = glossaryById.get(id);
+      if (!entry || entry.type !== glossaryType || !allowedIdsBySection[section].has(id)) {
+        invalidModelOutput(`${id} does not belong in ${section}`);
+      }
+      if (seenIds.has(id)) invalidModelOutput(`${id} was returned more than once`);
+      seenIds.add(id);
+
+      const pricingUnit = entry.default_pricing_unit;
+      if (!isPricingUnit(pricingUnit)) invalidModelOutput(`${id} has an invalid catalog pricing unit`);
+      const quantity = normalizeQuantityForPricingUnit(rawItem.quantity, pricingUnit);
+      const settings = settingsById.get(id);
+      const allowPricing = Boolean(settings);
+      const isEnabled = settings?.enabled !== false;
+      const price = allowPricing && isEnabled ? (settings?.price ?? 0) : 0;
+      const duration = allowPricing && isEnabled ? (settings?.duration ?? entry.default_duration_min) : 0;
+      const parentEntry = glossaryById.get(entry.parent_id);
+
+      return {
+        mode: 'glossary' as const,
+        glossaryId: id,
+        glossaryType,
+        nameZh: entry.name_zh,
+        typeZh: entry.type_zh,
+        parentId: entry.parent_id,
+        parentNameZh: parentEntry?.name_zh ?? entry.type_zh,
+        quantity,
+        unit: rawItem.unit,
+        price,
+        duration,
+      };
+    });
+  }
+
+  const items = rawSections.flatMap(parseSection);
+  const catalogSelections = items.flatMap((item) =>
+    settingsById.get(item.glossaryId)?.enabled
+      ? [{ catalogItemId: item.glossaryId, quantity: item.quantity }]
+      : [],
+  );
+
+  return {
+    items,
+    catalogSelections,
+    totalPrice: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    totalDuration: items.reduce((sum, item) => sum + item.duration, 0),
+    mode: 'glossary',
+  };
+}
 
 function idList(entries: { id: string; name_zh: string }[]): string {
   return entries.map((e) => `  - ${e.id} (${e.name_zh})`).join('\n');
@@ -195,83 +383,8 @@ export async function runGlossaryBreakdown(
   if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
 
   const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
-  const raw = asRecord(
-    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() })
+  return parseBreakdownModelOutput(
+    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() }),
+    merchantSettings,
   );
-
-  const settingsById = new Map<string, MerchantPricingSetting>(
-    merchantSettings.map((s) => [s.id, s])
-  );
-
-  type RawSection = 'service_modules' | 'billable_components' | 'procedures' | 'visual_attributes' | 'complexity_level' | 'style_tags';
-  type GlossaryTypeName = GlossaryBreakdownItem['glossaryType'];
-
-  const sectionTypeMap: Record<RawSection, GlossaryTypeName> = {
-    service_modules:    'service_module',
-    billable_components:'billable_component',
-    procedures:         'procedure',
-    visual_attributes:  'visual_attribute',
-    complexity_level:   'complexity_level',
-    style_tags:         'style_tag',
-  };
-
-  function parseSection(section: RawSection): GlossaryBreakdownItem[] {
-    const rawArray = Array.isArray(raw[section]) ? (raw[section] as unknown[]) : [];
-    const glossaryType = sectionTypeMap[section];
-
-    return rawArray
-      .map((d: unknown) => {
-        const det = asRecord(d);
-        const id = typeof det.id === 'string' ? det.id.trim() : '';
-        const entry = glossaryById.get(id);
-        if (!entry) return null;
-
-        const settings = settingsById.get(id);
-        const allowPricing = Boolean(settings);
-        const isEnabled = settings?.enabled !== false;
-        const price = (allowPricing && isEnabled) ? (settings?.price ?? 0) : 0;
-        const duration = (allowPricing && isEnabled) ? (settings?.duration ?? entry.default_duration_min) : 0;
-
-        const quantity = typeof det.quantity === 'number' && det.quantity >= 1 ? Math.round(det.quantity) : 1;
-        const unit = typeof det.unit === 'string' ? det.unit.trim() : entry.default_pricing_unit;
-
-        const parentEntry = glossaryById.get(entry.parent_id);
-        const parentNameZh = parentEntry?.name_zh ?? entry.type_zh;
-
-        return {
-          mode: 'glossary' as const,
-          glossaryId: id,
-          glossaryType,
-          nameZh: entry.name_zh,
-          typeZh: entry.type_zh,
-          parentId: entry.parent_id,
-          parentNameZh,
-          quantity,
-          unit,
-          price,
-          duration,
-        } satisfies GlossaryBreakdownItem;
-      })
-      .filter((item): item is GlossaryBreakdownItem => item !== null);
-  }
-
-  const sections: RawSection[] = [
-    'service_modules', 'billable_components', 'procedures',
-    'visual_attributes', 'complexity_level', 'style_tags',
-  ];
-
-  const items = sections.flatMap(parseSection);
-  const selectionById = new Map<string, number>();
-  for (const item of items) {
-    if (!settingsById.has(item.glossaryId)) continue;
-    selectionById.set(item.glossaryId, (selectionById.get(item.glossaryId) ?? 0) + item.quantity);
-  }
-  const catalogSelections = [...selectionById].map(([catalogItemId, quantity]) => ({
-    catalogItemId,
-    quantity,
-  }));
-  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const totalDuration = items.reduce((sum, item) => sum + item.duration, 0);
-
-  return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }

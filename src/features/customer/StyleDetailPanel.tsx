@@ -1,7 +1,10 @@
 import Link from 'next/link';
-import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
+import type { CatalogItemType, CatalogSelection, PricingUnit } from '@/domain/catalog';
+import type { PublishedMerchantStyle } from '@/domain/merchant-style';
+import type { AIRecognitionResult, PricingItem, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
 import { pricingTargetLabels } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
+import { catalogItems } from '@/mock/catalog';
 import { defaultPricingRules } from '@/mock/pricing';
 
 type BreakdownRow = { label: string; price: number; duration: number };
@@ -29,10 +32,74 @@ function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
   return rows;
 }
 
+// ── Catalog layers: what the look is composed of (from the published catalogBreakdown) ─────────
+const catalogById = new Map(catalogItems.map((c) => [c.id, c]));
+
+const TYPE_ZH: Record<CatalogItemType, string> = {
+  service_module: '服务',
+  procedure: '工序',
+  billable_component: '收费项',
+  visual_attribute: '视觉',
+  complexity_level: '复杂度',
+  style_tag: '风格',
+};
+
+const TYPE_BADGE_CLASS: Record<CatalogItemType, string> = {
+  service_module: 'breakdown-category-base',
+  billable_component: 'breakdown-category-color_style',
+  procedure: 'breakdown-category-other',
+  visual_attribute: 'breakdown-category-shape',
+  complexity_level: 'breakdown-category-addon',
+  style_tag: 'breakdown-category-addon',
+};
+
+// per_piece → 颗, per_finger → 指, per_set → 套; everything else has no countable unit suffix.
+const UNIT_ZH: Partial<Record<PricingUnit, string>> = {
+  per_piece: '颗',
+  per_finger: '指',
+  per_set: '套',
+};
+
+type StyleLayer = { id: string; nameZh: string; type: CatalogItemType; typeZh: string; quantity: number; unitZh: string };
+
+function buildLayers(breakdown: CatalogSelection[]): StyleLayer[] {
+  return breakdown.flatMap((sel) => {
+    const item = catalogById.get(sel.catalogItemId);
+    if (!item) return [];
+    return [{
+      id: sel.catalogItemId,
+      nameZh: item.nameZh,
+      type: item.type,
+      typeZh: TYPE_ZH[item.type],
+      quantity: sel.quantity,
+      unitZh: UNIT_ZH[item.defaultPricingUnit] ?? '',
+    }];
+  });
+}
+
+// ── Discovery facets: descriptive style tags, grouped by kind ──────────────────────────────────
+const FACET_KIND_ZH: Record<StyleDiscoveryFacetKind, string> = {
+  shape: '甲形',
+  style: '风格',
+  addon: '加项',
+  mood: '氛围',
+  lifestyle: '场景',
+};
+const FACET_KIND_ORDER: StyleDiscoveryFacetKind[] = ['shape', 'style', 'addon', 'mood', 'lifestyle'];
+
+function groupFacets(facets: StyleDiscoveryFacet[]): { kind: StyleDiscoveryFacetKind; label: string; values: string[] }[] {
+  return FACET_KIND_ORDER.flatMap((kind) => {
+    const values = Array.from(
+      new Set(facets.filter((f) => f.kind === kind).map((f) => f.label)),
+    );
+    return values.length > 0 ? [{ kind, label: FACET_KIND_ZH[kind], values }] : [];
+  });
+}
+
 type StyleDetailPanelProps = {
   backHref: string;
   recognition: AIRecognitionResult | null;
-  style: NailStyleCard;
+  style: PublishedMerchantStyle;
 };
 
 export function StyleDetailPanel({
@@ -44,14 +111,12 @@ export function StyleDetailPanel({
   const breakdownTotal = breakdown.reduce((s, r) => s + r.price, 0);
   const breakdownDuration = breakdown.reduce((s, r) => s + r.duration, 0);
 
-  const selectionGroups = recognition
-    ? [
-        { label: 'Base', values: recognition.selection.baseServices },
-        { label: 'Shape', values: [recognition.selection.nailShape] },
-        { label: 'Style', values: recognition.selection.styles },
-        { label: 'Add-ons', values: recognition.selection.addons }
-      ].filter((group) => group.values.length > 0)
-    : [];
+  // Composition + tags come from the published merchant config (catalog breakdown + discovery
+  // facets), not the legacy recognition shape — the latter is null for AI-configured styles.
+  const layers = buildLayers(style.catalogBreakdown);
+  const facetGroups = groupFacets(style.discoveryFacets);
+  const brief = style.description.trim() || recognition?.selection.otherNotes
+    || 'Published by the merchant and ready to use as your booking reference.';
 
   return (
     <article className="style-detail-panel">
@@ -60,7 +125,7 @@ export function StyleDetailPanel({
         <div className="style-detail-summary">
           <p className="section-eyebrow">Style brief</p>
           <h1>{style.title}</h1>
-          <p>{recognition?.selection.otherNotes || 'Published by the merchant and ready to use as your booking reference.'}</p>
+          <p>{brief}</p>
         </div>
       </div>
 
@@ -96,25 +161,46 @@ export function StyleDetailPanel({
         </div>
       </section>
 
-      <section className="detail-surface" aria-labelledby="style-detail-selection-title">
-        <div className="detail-surface-header">
-          <h2 id="style-detail-selection-title">Style details</h2>
-        </div>
-        <div className="detail-selection-list">
-          {selectionGroups.map((group) => (
-            <div key={group.label} className="detail-selection-group">
-              <span>{group.label}</span>
-              <div className="style-tag-row">
-                {group.values.map((value) => (
-                  <span key={value} className="style-tag style-tag-readonly">
-                    {value}
-                  </span>
-                ))}
+      {layers.length > 0 && (
+        <section className="detail-surface" aria-labelledby="style-detail-layers-title">
+          <div className="detail-surface-header">
+            <h2 id="style-detail-layers-title">款式构成</h2>
+          </div>
+          <ul className="detail-layer-list">
+            {layers.map((layer) => (
+              <li key={layer.id} className="detail-layer">
+                <span className={`breakdown-category-badge ${TYPE_BADGE_CLASS[layer.type]}`}>{layer.typeZh}</span>
+                <span className="detail-layer-name">{layer.nameZh}</span>
+                {layer.quantity > 1 && (
+                  <span className="detail-layer-qty">×{layer.quantity}{layer.unitZh}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {facetGroups.length > 0 && (
+        <section className="detail-surface" aria-labelledby="style-detail-tags-title">
+          <div className="detail-surface-header">
+            <h2 id="style-detail-tags-title">风格标签</h2>
+          </div>
+          <div className="detail-selection-list">
+            {facetGroups.map((group) => (
+              <div key={group.kind} className="detail-selection-group">
+                <span>{group.label}</span>
+                <div className="style-tag-row">
+                  {group.values.map((value) => (
+                    <span key={value} className="style-tag style-tag-readonly">
+                      {value}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="detail-actions">
         <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>

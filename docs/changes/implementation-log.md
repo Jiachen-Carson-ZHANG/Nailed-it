@@ -1,5 +1,112 @@
 # Implementation Log
 
+## 2026-06-06 — Immediate merchant upload → dedicated review workspace
+
+What changed:
+- `/merchant/styles` no longer asks for a title or embeds the full catalog editor inside collection
+  cards. It exposes one image upload tile and routes to `/merchant/styles/[id]/review` immediately
+  after the private original and `processing` row are stored.
+- The dedicated wide review workspace shows the stored image, runs strict stored-image AI analysis,
+  and then lets the merchant edit title/description and every billable price/time catalog selection.
+  Quote preview, Save Draft, and Publish all use deterministic server actions.
+- The storage seam can download private originals. Migration `0016` adds an atomic, stale-recoverable
+  analysis claim so concurrent page loads do not spend duplicate model calls, plus server-only RPCs
+  that atomically commit the normalized AI suggestion and `processing` → `needs_review` transition,
+  or move a failed analysis into editable manual review.
+
+Why:
+- Inline AI made upload navigation slow, while the card-embedded editor cramped a large approval
+  task into the collection page. Separating upload from review gives immediate feedback without
+  weakening the rule that AI suggestions stay private until explicit merchant publication.
+
+Tradeoff and deployment:
+- Apply `supabase/migrations/0016_merchant_style_analysis_workflow.sql` before using this workflow
+  against live Supabase. There is still intentionally no batch-upload/review UI.
+
+Aligned assumptions:
+- Stored private media is the analysis input; browser-provided recognition, price, duration, and
+  status are never authoritative.
+- The relational `merchant_style_item` set and derived preview remain one atomic configuration.
+
+## 2026-06-06 — Manual merchant review of the 35 backfilled styles (data correction)
+
+The 35 demo styles were AI-configured before the per_set / JSON enforcement landed and there is no
+merchant to approve them, so I acted as the reviewer: viewed every image against its breakdown and
+corrected the data (no code change; rewrote rows via `set_merchant_style_config`, preserving each
+style's AI title / description / discovery_facets).
+
+Errors found and fixed (28 of 35 styles; 7 were already correct):
+- **per_set qty > 1 (14 styles):** french_tip / glitter / cat_eye / chrome_powder / aurora_powder
+  carried qty up to 10. Forced to 1. This also un-inflated price: the old `deriveSnapshot`
+  multiplied price by qty for ALL units, so e.g. 8256 was `$178` (base + french×10) and is now `$43`,
+  8259 `$508 -> $118`.
+- **per_finger counted as pieces:** `rhinestone_small` is priced per finger but the model emitted
+  raw stone counts (×22, ×30). Capped to the visible finger count (e.g. 8276 ×22 -> ×2, 8259 ×30 -> ×8).
+  This was the main driver of the 6–8 hour durations.
+- **absurd per_piece:** 8274 `metal_charm ×21 -> ×5`.
+- **missing base manicure:** 8286 had no `basic_manicure_service` (the JSON-parse straggler);
+  injected it (`$20/15min -> $48/66min`). Every set now has the manicure floor.
+- **false positives dropped / under-config fixed:** removed elements absent from the photo
+  (e.g. metal_charm on a flat-painted nail), and enriched two base-only-but-decorated styles
+  (8257 bejeweled, 8278 cloud + stars).
+
+Verified: 0 per_set>1, 0 missing base, 0 per_finger>10, 0 piece>15 across all 35.
+
+Note: a few elaborate styles still derive long durations (8280 259min, 8279 196min). Those are the
+catalog's per-finger paint times (hand_paint 30min, pattern_art 45min per finger), not quantity
+errors — the counts are now image-accurate. Tightening the per-finger duration model is a separate
+catalog-level decision.
+
+Root-cause analysis + improvement plan: [style-config-recognition-error-analysis.md](style-config-recognition-error-analysis.md).
+
+## 2026-06-06 — Customer style detail reads the published merchant config
+
+What changed:
+- `StyleDetailPanel` now renders the published merchant config instead of the legacy
+  `recognition` shape (which is null for AI-configured styles, so the detail box showed nothing
+  useful). It wires three things from `PublishedMerchantStyle`: the AI `description` as the style
+  brief, `catalogBreakdown` as a 款式构成 layer list (catalog name + type badge + quantity, no
+  price), and `discoveryFacets` as grouped 风格标签 tags.
+- The "Your quote" pricing section is intentionally left untouched (owned by the in-flight quote
+  UI work). The breakdown here is composition-only; price/duration stay in the quote section.
+- Brief falls back `description -> recognition.otherNotes -> placeholder`, so the seeded mock
+  fixtures (empty description) still render.
+
+Why: the merchant upload pipeline already produces a relational catalog breakdown + AI name +
+description, but the customer detail page ignored all of it. This makes the configured content
+visible when a customer opens a merchant picture.
+
+Tests: `src/app/customer/style/[id]/page.test.tsx` gains a case asserting 款式构成 + the base
+layer + 风格标签 + facet tags render. Full suite 256 green, tsc clean.
+
+## 2026-06-06 — Strict merchant-style AI config + per-set quantity enforcement
+
+What changed:
+- Single-upload breakdown and style-name calls now request strict OpenRouter JSON Schema output and
+  validate the parsed result again at runtime. Missing sections, wrong section ids, malformed item
+  fields, duplicate ids, and extra naming fields fail and retry instead of silently becoming an
+  empty or partial configuration.
+- Added one shared `per_set` quantity rule. AI parsing, `quoteService`, merchant-style snapshot
+  persistence, the review UI, and migration `0015` now agree that a per-set line has quantity one.
+- The merchant review editor now lists every billable price/time review item, including
+  merchant-priced/no-default items. It displays effective price, duration, and unit; unavailable
+  items remain visible but disabled. Single uploads still require explicit merchant publication.
+
+Why:
+- AI JSON is untrusted even when it parses syntactically. Wrong-shaped output must never enter
+  deterministic pricing, and a per-set model quantity must not multiply a whole-set service.
+
+Tradeoff:
+- Applying `0015` stops future invalid relational writes but does not rewrite historical rows.
+  Existing invalid per-set style items and their derived previews require a separate deterministic
+  reconciliation so items and snapshots change together.
+- Batch configuration stays an admin script; no batch-upload/review UI was added.
+
+Aligned assumptions:
+- AI proposes catalog ids; the merchant approves the single-upload draft; server services derive
+  price/duration and persist the normalized selections.
+- Runtime validation remains authoritative even when the provider claims schema compliance.
+
 ## 2026-06-06 — Live catalog-id recognizer (reuse the breakdown) + glossary unification
 
 The merchant style "brain": instead of a parallel recognizer, the existing customer breakdown is

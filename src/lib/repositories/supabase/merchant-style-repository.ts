@@ -181,6 +181,44 @@ export function createSupabaseMerchantStyleRepository(): MerchantStyleRepository
       return created;
     },
 
+    async claimAnalysis(id, merchantId) {
+      const { data, error } = await getServiceClient().rpc('claim_merchant_style_analysis', {
+        p_style_id: id,
+        p_merchant_id: merchantId,
+      });
+      if (error) throw new Error(`MerchantStyleRepository.claimAnalysis failed: ${error.message}`);
+      return data === true;
+    },
+
+    async completeAnalysis(input) {
+      const { error } = await getServiceClient().rpc('complete_merchant_style_analysis', {
+        p_style_id: input.id,
+        p_merchant_id: input.merchantId,
+        p_title: input.title,
+        p_description: input.description,
+        p_discovery_facets: input.discoveryFacets,
+        p_items: input.items.map((sel, index) => ({
+          id: `msitem-${input.id}-${sel.catalogItemId}`,
+          catalog_item_id: sel.catalogItemId,
+          quantity: sel.quantity,
+          position: index,
+        })),
+        p_preview_price_cents: input.previewPriceCents,
+        p_preview_duration_min: input.previewDurationMin,
+      });
+      if (error) throw new Error(`MerchantStyleRepository.completeAnalysis failed: ${error.message}`);
+      return getByIdForMerchant(input.id, input.merchantId);
+    },
+
+    async failAnalysis(id, merchantId) {
+      const { error } = await getServiceClient().rpc('fail_merchant_style_analysis', {
+        p_style_id: id,
+        p_merchant_id: merchantId,
+      });
+      if (error) throw new Error(`MerchantStyleRepository.failAnalysis failed: ${error.message}`);
+      return getByIdForMerchant(id, merchantId);
+    },
+
     async setConfig(input: SetMerchantStyleConfigInput) {
       const { error } = await getServiceClient().rpc('set_merchant_style_config', {
         p_style_id: input.id,

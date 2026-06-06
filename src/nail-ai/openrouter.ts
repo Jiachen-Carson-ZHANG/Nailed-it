@@ -13,6 +13,22 @@ export type OpenRouterPayload = {
   model: string;
   messages: OpenRouterMessage[];
   modalities?: string[];
+  response_format?: OpenRouterJsonSchemaResponseFormat;
+  provider?: {
+    require_parameters?: boolean;
+  };
+  plugins?: Array<{
+    id: string;
+  }>;
+};
+
+export type OpenRouterJsonSchemaResponseFormat = {
+  type: 'json_schema';
+  json_schema: {
+    name: string;
+    strict: true;
+    schema: Record<string, unknown>;
+  };
 };
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;

@@ -1,6 +1,7 @@
 'use server';
 
-import type { CatalogSelection } from '@/domain/catalog';
+import type { CatalogSelection, PricingUnit } from '@/domain/catalog';
+import { resolveEffectivePricing } from '@/domain/pricing-resolver';
 import type { MerchantStyleView, PublishedMerchantStyle } from '@/domain/merchant-style';
 import { getRepositories } from '@/lib/repositories';
 import { createMerchantStyleService } from '@/lib/services/merchant-style-service';
@@ -22,6 +23,8 @@ export type PublishMerchantStyleActionInput = {
   selections: CatalogSelection[];
 };
 
+export type SaveMerchantStyleDraftActionInput = PublishMerchantStyleActionInput;
+
 export async function listCustomerPublishedStylesAction(): Promise<PublishedMerchantStyle[]> {
   return getService().listPublished();
 }
@@ -36,46 +39,96 @@ export async function listMerchantStylesAction(): Promise<MerchantStyleView[]> {
   return getService().listMerchant(demoMerchantId);
 }
 
+export async function getMerchantStyleReviewAction(
+  styleId: string,
+): Promise<MerchantStyleView | null> {
+  return getService().getMerchant(demoMerchantId, styleId);
+}
+
 export type ConfigurableCatalogItem = {
   id: string;
   nameZh: string;
-  defaultPricingUnit: string;
+  defaultPricingUnit: PricingUnit;
+  pricingUnit: PricingUnit;
+  priceCents: number;
+  durationMin: number;
+  enabled: boolean;
+  affectsDuration: boolean;
+  quantityLocked: boolean;
 };
 
-/** Priced billable catalog items the merchant can put in a style breakdown (price is derived). */
+/** Every billable item relevant to merchant review; unavailable items stay visible but disabled. */
 export async function listConfigurableCatalogAction(): Promise<ConfigurableCatalogItem[]> {
-  const catalog = await getRepositories().catalog.list();
+  const repos = getRepositories();
+  const [catalog, merchantPricing] = await Promise.all([
+    repos.catalog.list(),
+    repos.merchantPricing.listByMerchant(demoMerchantId),
+  ]);
+  const effectiveById = new Map(
+    resolveEffectivePricing(catalog, merchantPricing).map((row) => [row.catalogItemId, row]),
+  );
   return catalog
-    .filter((item) => item.billable !== 'no' && item.defaultPriceCents !== null)
-    .map((item) => ({ id: item.id, nameZh: item.nameZh, defaultPricingUnit: item.defaultPricingUnit }));
+    .filter((item) => item.billable !== 'no')
+    .map((item) => {
+      const effective = effectiveById.get(item.id);
+      const pricingUnit = effective?.pricingUnit ?? item.defaultPricingUnit;
+      return {
+        id: item.id,
+        nameZh: item.nameZh,
+        defaultPricingUnit: item.defaultPricingUnit,
+        pricingUnit,
+        priceCents: effective?.priceCents ?? 0,
+        durationMin: effective?.durationMin ?? 0,
+        enabled: effective?.enabled ?? false,
+        affectsDuration: item.affectsBookingDuration !== 'no',
+        quantityLocked: pricingUnit === 'per_set',
+      };
+    });
 }
 
 export async function uploadMerchantStyleAction(formData: FormData): Promise<MerchantStyleView> {
-  const title = String(formData.get('title') ?? '');
   const image = formData.get('image');
   if (!(image instanceof File)) throw new Error('style_image_required');
   const bytes = new Uint8Array(await image.arrayBuffer());
-  const view = await getService().upload({
+  return getService().upload({
     merchantId: demoMerchantId,
-    title,
+    title: 'Untitled design',
     mimeType: image.type,
     bytes,
   });
+}
 
-  // AI suggests the breakdown + name by default; the merchant edits anything wrong before publishing.
-  // Best-effort: if recognition fails (no key, model error, nothing priceable), the draft stays in
-  // needs_review for manual configuration rather than failing the upload.
+export async function analyzeMerchantStyleAction(styleId: string): Promise<MerchantStyleView> {
+  const repos = getRepositories();
+  const service = getService();
+  const record = await repos.merchantStyles.getByIdForMerchant(styleId, demoMerchantId);
+  if (!record) throw new Error('merchant_style_not_found');
+  if (record.status !== 'processing') {
+    const current = await service.getMerchant(demoMerchantId, styleId);
+    if (!current) throw new Error('merchant_style_not_found');
+    return current;
+  }
+  const claimed = await repos.merchantStyles.claimAnalysis(styleId, demoMerchantId);
+  if (!claimed) {
+    const current = await service.getMerchant(demoMerchantId, styleId);
+    if (!current) throw new Error('merchant_style_not_found');
+    return current;
+  }
+
   try {
-    const repos = getRepositories();
+    const bytes = await getStyleMediaStorage().downloadOriginal(
+      record.media.originalBucket,
+      record.media.originalPath,
+    );
     const settings = await createMerchantPricingService(repos).listSettings(demoMerchantId);
     const ai = await recognizeStyleConfig(
       Buffer.from(bytes).toString('base64'),
-      image.type,
+      record.media.mimeType,
       settings,
     );
-    const configured = await getService().applyConfig({
+    const configured = await service.completeAnalysis({
       merchantId: demoMerchantId,
-      styleId: view.id,
+      styleId,
       name: ai.name,
       description: ai.description,
       discoveryFacets: ai.discoveryFacets,
@@ -83,9 +136,31 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
     });
     if (configured) return configured;
   } catch (error) {
-    console.error('[merchant-style] AI auto-config failed; left for manual review', error);
+    console.error('[merchant-style] stored-image analysis failed; opened manual review', error);
+    try {
+      const fallback = await service.failAnalysis(demoMerchantId, styleId);
+      if (fallback) return fallback;
+    } catch (transitionError) {
+      console.error('[merchant-style] analysis fallback transition failed', transitionError);
+    }
   }
-  return view;
+
+  const current = await service.getMerchant(demoMerchantId, styleId);
+  if (!current) throw new Error('merchant_style_not_found');
+  return current;
+}
+
+export async function previewMerchantStyleQuoteAction(selections: CatalogSelection[]) {
+  return createQuoteService(getRepositories()).buildQuote({
+    merchantId: demoMerchantId,
+    selections,
+  });
+}
+
+export async function saveMerchantStyleDraftAction(
+  input: SaveMerchantStyleDraftActionInput,
+): Promise<MerchantStyleView> {
+  return getService().saveDraft({ ...input, merchantId: demoMerchantId });
 }
 
 export async function publishMerchantStyleAction(

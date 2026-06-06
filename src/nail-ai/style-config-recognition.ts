@@ -14,7 +14,12 @@ import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type { MerchantPricingSetting } from '@/domain/merchant';
 import { buildStyleConfig } from '@/domain/style-config';
 import { runGlossaryBreakdown } from './breakdown';
-import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
+import {
+  postOpenRouterChat,
+  extractTextContent,
+  stripJsonFence,
+  type OpenRouterJsonSchemaResponseFormat,
+} from './openrouter';
 import { defaultTryOnModel } from './try-on';
 
 export type StyleAiConfig = {
@@ -32,9 +37,26 @@ const NAME_PROMPT = [
   '- description: one natural Chinese sentence describing the look (shape, colour, finish, vibe).',
 ].join('\n');
 
+export const styleNameResponseFormat: OpenRouterJsonSchemaResponseFormat = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'merchant_style_name',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name', 'description'],
+      properties: {
+        name: { type: 'string', minLength: 1 },
+        description: { type: 'string' },
+      },
+    },
+  },
+};
+
 /** One small vision call for a catchy name + a one-line description. */
-// The vision model is non-deterministic and occasionally returns text that is not clean JSON (a
-// stray quote, prose around the object, truncation). Retry a few times before giving up.
+// Provider-side schema enforcement and runtime validation reject malformed output. Retry transient
+// provider/schema failures a few times before leaving the upload for manual review.
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -47,18 +69,23 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastError;
 }
 
-// Parse a JSON object even when the model wraps it in prose: strip code fences, then fall back to
-// the first balanced { ... } slice.
-function looseJsonObject(text: string): Record<string, unknown> {
-  const cleaned = stripJsonFence(text).trim();
-  try {
-    return asRecord(JSON.parse(cleaned));
-  } catch {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start >= 0 && end > start) return asRecord(JSON.parse(cleaned.slice(start, end + 1)));
-    throw new Error('model output had no JSON object');
+export function parseStyleNameOutput(value: unknown): { name: string; description: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('invalid_style_name_output');
   }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (
+    keys.length !== 2
+    || !keys.includes('name')
+    || !keys.includes('description')
+    || typeof record.name !== 'string'
+    || !record.name.trim()
+    || typeof record.description !== 'string'
+  ) {
+    throw new Error('invalid_style_name_output');
+  }
+  return { name: record.name.trim(), description: record.description.trim() };
 }
 
 export async function recognizeStyleName(
@@ -83,15 +110,14 @@ export async function recognizeStyleName(
             ],
           },
         ],
+        response_format: styleNameResponseFormat,
+        provider: { require_parameters: true },
+        plugins: [{ id: 'response-healing' }],
       },
       apiKey,
     );
 
-    const parsed = looseJsonObject(extractTextContent(data));
-    const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
-    const description = typeof parsed.description === 'string' ? parsed.description.trim() : '';
-    if (!name) throw new Error('model returned no name');
-    return { name, description };
+    return parseStyleNameOutput(JSON.parse(stripJsonFence(extractTextContent(data))));
   });
 }
 
@@ -111,8 +137,9 @@ export async function recognizeStyleConfig(
     runGlossaryBreakdown(imageBase64, mimeType, merchantSettings, env),
   );
 
-  // Every item the model named is a high-confidence detection; buildStyleConfig validates the ids,
-  // drops anything off-catalog, and splits priced→selections vs descriptive→facets.
+  // Every item the model named is a high-confidence detection; buildStyleConfig validates the ids
+  // and derives descriptive facets. The breakdown parser already selected enabled billable items
+  // using this merchant's effective settings, including merchant-priced items with no catalog price.
   const recognized = breakdown.items.map((item) => ({
     catalogItemId: item.glossaryId,
     confidence: 1,
@@ -123,7 +150,7 @@ export async function recognizeStyleConfig(
   const { name, description } = await recognizeStyleName(imageBase64, mimeType, env);
 
   return {
-    catalogSelections: withBaseManicure(config.catalogBreakdown),
+    catalogSelections: withBaseManicure(breakdown.catalogSelections),
     discoveryFacets: config.discoveryFacets,
     name,
     description: description || config.description,

@@ -130,12 +130,20 @@ export type SetMerchantStyleConfigInput = {
   title?: string;
 };
 
+export type CompleteMerchantStyleAnalysisInput = Omit<SetMerchantStyleConfigInput, 'title'> & {
+  title: string;
+};
+
 export interface MerchantStyleRepository {
   listByMerchant(merchantId: string): Promise<MerchantStyleRecord[]>;
   listPublished(): Promise<MerchantStyleRecord[]>;
   getPublishedById(id: string): Promise<MerchantStyleRecord | null>;
   getByIdForMerchant(id: string, merchantId: string): Promise<MerchantStyleRecord | null>;
   create(record: MerchantStyleRecord): Promise<MerchantStyleRecord>;
+  /** Atomically claims a processing style for external AI work; false means another request owns it. */
+  claimAnalysis(id: string, merchantId: string): Promise<boolean>;
+  completeAnalysis(input: CompleteMerchantStyleAnalysisInput): Promise<MerchantStyleRecord | null>;
+  failAnalysis(id: string, merchantId: string): Promise<MerchantStyleRecord | null>;
   setConfig(input: SetMerchantStyleConfigInput): Promise<MerchantStyleRecord | null>;
   publish(input: PublishMerchantStyleInput): Promise<MerchantStyleRecord | null>;
   archive(id: string, merchantId: string, archivedAt: string): Promise<MerchantStyleRecord | null>;

@@ -305,6 +305,18 @@ describe('quoteService', () => {
     expect(line?.durationMin).toBe(60); // fixed unit — duration counted once, NOT 180
   });
 
+  it('forces a per-set selection to one before pricing', async () => {
+    const bundle = createMemoryRepositoryBundle();
+    const quote = await createQuoteService(bundle).buildQuote({
+      merchantId: demoMerchantId,
+      selections: [{ catalogItemId: 'cat_eye', quantity: 3 }],
+    });
+    const line = quote.lines.find((l) => l.catalogItemId === 'cat_eye');
+    expect(line?.pricingUnit).toBe('per_set');
+    expect(line?.quantity).toBe(1);
+    expect(line?.linePriceCents).toBe(1000);
+  });
+
   it('fails closed on invalid browser-supplied quantities', async () => {
     const bundle = createMemoryRepositoryBundle();
     const service = createQuoteService(bundle);

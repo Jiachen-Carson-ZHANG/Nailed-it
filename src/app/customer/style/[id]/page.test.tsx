@@ -29,4 +29,17 @@ describe('StyleDetailPage', () => {
       `${getCustomerBookingPath()}?styleId=rose-cat-eye`
     );
   });
+
+  it('wires the published catalog breakdown + discovery facets into the detail box', async () => {
+    render(await StyleDetailPage({ params: Promise.resolve({ id: 'rose-cat-eye' }) }));
+
+    // Composition (款式构成) comes from the catalog breakdown — the seeded base manicure layer.
+    expect(screen.getByRole('heading', { name: '款式构成' })).toBeInTheDocument();
+    expect(screen.getByText('基础护理服务')).toBeInTheDocument();
+
+    // Discovery facets render as grouped style tags (风格标签).
+    expect(screen.getByRole('heading', { name: '风格标签' })).toBeInTheDocument();
+    expect(screen.getAllByText('Cat eye').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Rhinestone').length).toBeGreaterThan(0);
+  });
 });

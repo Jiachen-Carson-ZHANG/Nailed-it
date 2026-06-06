@@ -38,6 +38,8 @@ export type PublishMerchantStyleServiceInput = {
   selections: CatalogSelection[];
 };
 
+export type SaveMerchantStyleDraftInput = PublishMerchantStyleServiceInput;
+
 export type ApplyStyleConfigInput = {
   merchantId: string;
   styleId: string;
@@ -85,7 +87,14 @@ export function createMerchantStyleService(
     const quote = await quoteService.buildQuote({ merchantId, selections });
     if (quote.totalPriceCents <= 0) throw new Error('invalid_preview_price');
     if (quote.totalDurationMin <= 0) throw new Error('invalid_preview_duration');
-    return { previewPriceCents: quote.totalPriceCents, previewDurationMin: quote.totalDurationMin };
+    return {
+      previewPriceCents: quote.totalPriceCents,
+      previewDurationMin: quote.totalDurationMin,
+      selections: quote.lines.map((line) => ({
+        catalogItemId: line.catalogItemId,
+        quantity: line.quantity,
+      })),
+    };
   }
 
   async function merchantView(record: MerchantStyleRecord): Promise<MerchantStyleView> {
@@ -111,6 +120,11 @@ export function createMerchantStyleService(
     async listMerchant(merchantId: string): Promise<MerchantStyleView[]> {
       const records = await repository.listByMerchant(merchantId);
       return Promise.all(records.map(merchantView));
+    },
+
+    async getMerchant(merchantId: string, styleId: string): Promise<MerchantStyleView | null> {
+      const record = await repository.getByIdForMerchant(styleId, merchantId);
+      return record ? merchantView(record) : null;
     },
 
     async listPublished(): Promise<PublishedMerchantStyle[]> {
@@ -152,7 +166,7 @@ export function createMerchantStyleService(
         primaryMediaAssetId: mediaId,
         title,
         description: '',
-        status: 'needs_review',
+        status: 'processing',
         discoveryFacets: [],
         recognition: null,
         catalogBreakdown: [],
@@ -194,26 +208,49 @@ export function createMerchantStyleService(
       }
     },
 
-    // Apply an AI-recognized config to a draft: derive price from the selections, persist items +
-    // facets + description + name (title). Empty selections are allowed (leaves preview null, still
-    // needs_review) so a poor recognition still lands editable rather than failing the upload.
-    async applyConfig(input: ApplyStyleConfigInput): Promise<MerchantStyleView | null> {
+    async completeAnalysis(input: ApplyStyleConfigInput): Promise<MerchantStyleView | null> {
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
-      if (!record) return null;
+      if (!record || record.status !== 'processing') return null;
       const snapshot = input.selections.length > 0
         ? await deriveSnapshot(input.merchantId, input.selections)
-        : { previewPriceCents: null, previewDurationMin: null };
-      const updated = await repository.setConfig({
+        : { previewPriceCents: null, previewDurationMin: null, selections: [] };
+      const completed = await repository.completeAnalysis({
         id: input.styleId,
         merchantId: input.merchantId,
-        title: input.name,
-        description: input.description,
+        title: validateTitle(input.name),
+        description: input.description.trim(),
         discoveryFacets: input.discoveryFacets,
-        items: input.selections,
+        items: snapshot.selections,
         previewPriceCents: snapshot.previewPriceCents,
         previewDurationMin: snapshot.previewDurationMin,
       });
-      return updated ? merchantView(updated) : null;
+      return completed ? merchantView(completed) : null;
+    },
+
+    async failAnalysis(merchantId: string, styleId: string): Promise<MerchantStyleView | null> {
+      const failed = await repository.failAnalysis(styleId, merchantId);
+      return failed ? merchantView(failed) : null;
+    },
+
+    async saveDraft(input: SaveMerchantStyleDraftInput): Promise<MerchantStyleView> {
+      const title = validateTitle(input.title);
+      const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
+      if (!record || record.status !== 'needs_review') throw new Error('style_not_editable');
+      const snapshot = input.selections.length > 0
+        ? await deriveSnapshot(input.merchantId, input.selections)
+        : { previewPriceCents: null, previewDurationMin: null, selections: [] };
+      const saved = await repository.setConfig({
+        id: input.styleId,
+        merchantId: input.merchantId,
+        title,
+        description: input.description.trim(),
+        discoveryFacets: record.discoveryFacets,
+        items: snapshot.selections,
+        previewPriceCents: snapshot.previewPriceCents,
+        previewDurationMin: snapshot.previewDurationMin,
+      });
+      if (!saved) throw new Error('style_not_editable');
+      return merchantView(saved);
     },
 
     async publish(input: PublishMerchantStyleServiceInput): Promise<MerchantStyleView> {
@@ -229,7 +266,7 @@ export function createMerchantStyleService(
         merchantId: input.merchantId,
         description: input.description.trim(),
         discoveryFacets: record.discoveryFacets,
-        items: input.selections,
+        items: snapshot.selections,
         previewPriceCents: snapshot.previewPriceCents,
         previewDurationMin: snapshot.previewDurationMin,
       });

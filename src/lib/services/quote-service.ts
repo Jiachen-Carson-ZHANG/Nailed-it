@@ -4,6 +4,7 @@
 // silently offering it free.
 
 import type { CatalogSelection, PricingUnit } from '@/domain/catalog';
+import { normalizeQuantityForPricingUnit } from '@/domain/catalog-selection';
 import { resolveEffectivePricing } from '@/domain/pricing-resolver';
 import type { RepositoryBundle } from '@/lib/repositories/types';
 
@@ -82,18 +83,19 @@ export function createQuoteService(repos: RepositoryBundle): QuoteService {
           unbookable.push(sel.catalogItemId);
           continue;
         }
+        const quantity = normalizeQuantityForPricingUnit(sel.quantity, eff.pricingUnit);
         const unitDurationMin = staffDur.get(sel.catalogItemId) ?? eff.durationMin;
         // durationMin is the LINE total: scaled by quantity for per-finger / per-piece units so the
         // reserved booking time matches the work (5 painted nails = 5x), counted once otherwise.
         const lineDurationMin = durationScalesWithQuantity(eff.pricingUnit)
-          ? unitDurationMin * sel.quantity
+          ? unitDurationMin * quantity
           : unitDurationMin;
         lines.push({
           catalogItemId: item.id,
           label: item.nameZh,
           unitPriceCents: eff.priceCents,
-          quantity: sel.quantity,
-          linePriceCents: eff.priceCents * sel.quantity,
+          quantity,
+          linePriceCents: eff.priceCents * quantity,
           durationMin: lineDurationMin,
           pricingUnit: eff.pricingUnit,
           affectsDuration: item.affectsBookingDuration === 'yes',
