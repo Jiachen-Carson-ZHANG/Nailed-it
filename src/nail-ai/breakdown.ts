@@ -21,7 +21,7 @@ import { defaultTryOnModel } from './try-on';
 
 export class BreakdownError extends Error {
   constructor(
-    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output',
+    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output' | 'invalid_input',
     message: string,
     options?: ErrorOptions
   ) {
@@ -373,6 +373,12 @@ function buildPrompt(): string {
 
 // ── Main function ─────────────────────────────────────────────────────────────
 
+const nailValidationPrompt =
+  'You are validating an image for a nail salon analysis app. ' +
+  'Determine whether the image shows a nail art or nail style photo (finished nails on hands, nail swatches, or nail design references). ' +
+  'Return ONLY valid JSON (no markdown fences): {"valid":true} or {"valid":false,"error":"原因（用中文）"}. ' +
+  'Output only the JSON object, nothing else.';
+
 export async function runGlossaryBreakdown(
   imageBase64: string,
   mimeType: string,
@@ -383,8 +389,25 @@ export async function runGlossaryBreakdown(
   if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
 
   const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
-  return parseBreakdownModelOutput(
-    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() }),
-    merchantSettings,
+
+  // ── Validate image is a nail photo before running the expensive prompt ────────
+  try {
+    const valRaw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: nailValidationPrompt });
+    const val = asRecord(valRaw);
+    if (val.valid === false) {
+      const msg = typeof val.error === 'string' ? val.error : '请上传一张美甲照片（指甲特写或美甲款式图）。';
+      throw new BreakdownError('invalid_input', msg);
+    }
+  } catch (err) {
+    if (err instanceof BreakdownError) throw err;
+    // Validation call itself failed — proceed anyway rather than blocking user
+  }
+
+  const raw = asRecord(
+    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() })
+  );
+
+  const settingsById = new Map<string, GlossaryEntrySettings>(
+    merchantSettings.map((s) => [s.id, s])
   );
 }

@@ -15,9 +15,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof TryOnError) {
+      const status =
+        error.code === 'missing_config' ? 500 :
+        error.code === 'invalid_input'  ? 422 : 502;
       return NextResponse.json(
         { error: error.message, code: error.code },
-        { status: error.code === 'missing_config' ? 500 : 502 }
+        { status }
       );
     }
 
