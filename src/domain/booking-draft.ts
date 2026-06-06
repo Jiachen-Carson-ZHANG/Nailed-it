@@ -1,4 +1,5 @@
 import type { CustomerBookingDraft } from './nail';
+import { getBrowserStorage } from '@/lib/browser-storage';
 
 // The customer booking draft carries the recognition + estimate + (possibly base64) image
 // between the booking and confirm pages. It lives in sessionStorage rather than module
@@ -13,19 +14,8 @@ export type CustomerBookingDraftSnapshot = {
   version: number;
 };
 
-function getStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
 function readSnapshot(): CustomerBookingDraftSnapshot | null {
-  const storage = getStorage();
+  const storage = getBrowserStorage('session');
   if (!storage) {
     return null;
   }
@@ -52,7 +42,7 @@ export function saveCustomerBookingDraft(draft: CustomerBookingDraft): CustomerB
     draft,
     version: (previous?.version ?? 0) + 1
   };
-  const storage = getStorage();
+  const storage = getBrowserStorage('session');
   if (storage) {
     try {
       storage.setItem(DRAFT_KEY, JSON.stringify(snapshot));
@@ -79,10 +69,11 @@ export function consumeCustomerBookingDraft(version?: number): CustomerBookingDr
   if (typeof version === 'number' && version !== snapshot.version) {
     return null;
   }
-  getStorage()?.removeItem(DRAFT_KEY);
+  getBrowserStorage('session')?.removeItem(DRAFT_KEY);
   return snapshot.draft;
 }
 
 export function clearCustomerBookingDraft(): void {
-  getStorage()?.removeItem(DRAFT_KEY);
+  getBrowserStorage('session')?.removeItem(DRAFT_KEY);
 }
+

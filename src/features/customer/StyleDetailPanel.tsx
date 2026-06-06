@@ -117,7 +117,7 @@ export function StyleDetailPanel({
       </section>
 
       <div className="detail-actions">
-        <Link className="button button-primary button-block" href={recognition ? `${getCustomerBookingPath()}?styleId=${style.id}` : getCustomerBookingPath()}>
+        <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
           {recognition ? 'Book this look' : 'Analyze and book this look'}
         </Link>
         <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>

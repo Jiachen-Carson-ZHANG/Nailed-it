@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
-import { billableComponents, glossaryById, serviceModules } from '@/data/glossary';
+import {
+  billableComponents,
+  billableVisualAttributes,
+  glossaryById,
+  serviceModules
+} from '@/data/glossary';
 import {
   loadGlossarySettings,
   saveGlossarySettings
@@ -12,7 +17,7 @@ import {
 import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
 import { GlossaryEntryCard } from '@/features/merchant/GlossaryEntryCard';
 
-// Group billable components by their parent service_module id
+// Group billable_components by their parent service_module id
 const componentsByModule: { moduleId: string; entries: typeof billableComponents }[] = serviceModules
   .map((mod) => ({
     moduleId: mod.id,
@@ -53,6 +58,7 @@ export default function MerchantManagePage() {
         <h1>设置单价与时长</h1>
       </section>
 
+      {/* ─── Billable components grouped by service module ─── */}
       {componentsByModule.map(({ moduleId, entries }) => {
         const module = glossaryById.get(moduleId);
         if (!module) return null;
@@ -74,6 +80,28 @@ export default function MerchantManagePage() {
           </section>
         );
       })}
+
+      {/* ─── Optional billable visual attributes ─── */}
+      {billableVisualAttributes.length > 0 && (
+        <section className="pricing-section">
+          <h2>视觉效果附加费（可选）</h2>
+          <p className="helper-copy" style={{ marginBottom: '0.5rem' }}>
+            以下效果由 AI 识别后展示，可选择是否单独收费。启用后将计入报价。
+          </p>
+          {billableVisualAttributes.map((entry) => {
+            const s = settingsById.get(entry.id);
+            if (!s) return null;
+            return (
+              <GlossaryEntryCard
+                key={entry.id}
+                entry={entry}
+                settings={s}
+                onChange={updateSetting}
+              />
+            );
+          })}
+        </section>
+      )}
 
       <div className="pricing-save-bar" data-dirty={dirty}>
         <span className="pricing-save-status">

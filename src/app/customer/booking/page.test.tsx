@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
-import CustomerBookingPage from './page';
+import { CustomerBookingContent } from './booking-content';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/customer/booking',
@@ -17,7 +17,7 @@ describe('CustomerBookingPage', () => {
   it('walks through the three-step booking flow and persists the draft', async () => {
     vi.useFakeTimers();
 
-    render(<CustomerBookingPage />);
+    render(<CustomerBookingContent />);
 
     // Step 1: Upload
     const recognizeButton = screen.getByRole('button', { name: /analyze my photo/i });
@@ -88,7 +88,7 @@ describe('CustomerBookingPage', () => {
       )
     );
 
-    render(<CustomerBookingPage />);
+    render(<CustomerBookingContent />);
 
     const file = new File(['fake image bytes'], 'french.png', { type: 'image/png' });
     fireEvent.change(screen.getByLabelText(/choose nail reference photo/i), {

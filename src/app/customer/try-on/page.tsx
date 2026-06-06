@@ -1,15 +1,15 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { TryOnPanel } from '@/features/customer/TryOnPanel';
-import { findStyleById } from '@/mock/styles';
+import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-actions';
 
-function TryOnPageContent() {
-  const searchParams = useSearchParams();
-  const styleId = searchParams.get('styleId');
-  const styleImageUrl = styleId ? (findStyleById(styleId)?.imageUrl ?? '') : '';
+type TryOnPageProps = {
+  searchParams: Promise<{ styleId?: string }>;
+};
+
+export default async function CustomerTryOnPage({ searchParams }: TryOnPageProps) {
+  const { styleId } = await searchParams;
+  const style = styleId ? await getCustomerPublishedStyleAction(styleId) : null;
+  const styleImageUrl = style?.imageUrl ?? '';
 
   return (
     <MobileLayout role="customer" title="Virtual Try-On">
@@ -20,15 +20,7 @@ function TryOnPageContent() {
           Upload a photo of your hand and see how a nail style looks on you.
         </p>
       </section>
-      <TryOnPanel prefillStyleImageUrl={styleImageUrl || undefined} styleId={styleId ?? undefined} />
+      <TryOnPanel prefillStyleImageUrl={styleImageUrl || undefined} styleId={styleId} />
     </MobileLayout>
-  );
-}
-
-export default function CustomerTryOnPage() {
-  return (
-    <Suspense fallback={null}>
-      <TryOnPageContent />
-    </Suspense>
   );
 }

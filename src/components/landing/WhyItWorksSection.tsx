@@ -1,34 +1,47 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import styles from './LandingPage.module.css';
 import { whyItWorksLines } from './landing-content';
 import { LoopArrowGraphic } from './LoopArrowGraphic';
 
-const RAW_PROGRESS_MAX = 0.999999;
-const STEP_PROGRESS_START = 0.18;
-const STEP_PROGRESS_END = 0.82;
+const WHY_AUTOPLAY_INTERVAL_MS = 1600;
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
+const whyLinePositions = ['right', 'bottom', 'left', 'top'] as const;
+
+function splitWhyLine(line: string) {
+  return line.split('，').map((part) => part.trim());
 }
 
-function getStepFromProgress(progress: number, stepCount: number) {
-  const calibratedProgress = clamp(
-    (progress - STEP_PROGRESS_START) / (STEP_PROGRESS_END - STEP_PROGRESS_START),
-    0,
-    RAW_PROGRESS_MAX
-  );
-  const safeStepCount = Math.max(stepCount, 1);
-  const nextStep = Math.floor(calibratedProgress * safeStepCount);
+function getNextStep(currentStep: number) {
+  return (currentStep + 1) % whyLinePositions.length;
+}
 
-  return Math.min(safeStepCount - 1, nextStep);
+function getRotatingPosition(itemIndex: number, activeStep: number) {
+  const safeStep = activeStep % whyLinePositions.length;
+  const positionIndex = (itemIndex - safeStep + whyLinePositions.length) % whyLinePositions.length;
+
+  return whyLinePositions[positionIndex];
 }
 
 export function WhyItWorksSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
+  const autoplayIntervalRef = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState(0);
+  const [rotationStep, setRotationStep] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const whyLineItems = useMemo(
+    () =>
+      whyItWorksLines.map((line, index) => ({
+        key: line,
+        itemIndex: index,
+        lines: splitWhyLine(line),
+        position: getRotatingPosition(index, activeStep)
+      })),
+    [activeStep]
+  );
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -41,28 +54,59 @@ export function WhyItWorksSection() {
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
+      setActiveStep(0);
+      setRotationStep(0);
       return;
     }
 
-    const updateActiveStep = () => {
-      const rect = section.getBoundingClientRect();
-      const sectionTop = window.scrollY + rect.top;
-      const scrollDistance = window.scrollY + window.innerHeight - sectionTop;
-      const scrollRange = Math.max(rect.height + window.innerHeight, 1);
-      // 中文注释：先算出 section 的基础曝光进度，再交给显式阈值做 4 段步进映射。
-      const progress = clamp(scrollDistance / scrollRange, 0, RAW_PROGRESS_MAX);
-      const nextStep = getStepFromProgress(progress, whyItWorksLines.length);
+    if (typeof IntersectionObserver !== 'function') {
+      setActiveStep(0);
+      setRotationStep(0);
+      return;
+    }
 
-      setActiveStep((currentStep) => (currentStep === nextStep ? currentStep : nextStep));
-    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) {
+          return;
+        }
 
-    updateActiveStep();
-    window.addEventListener('scroll', updateActiveStep, { passive: true });
-    window.addEventListener('resize', updateActiveStep);
+        if (entry.isIntersecting) {
+          setIsAnimating(true);
+
+          if (autoplayIntervalRef.current !== null) {
+            return;
+          }
+
+          autoplayIntervalRef.current = window.setInterval(() => {
+            setActiveStep((currentStep) => getNextStep(currentStep));
+            // 中文注释：单独累计旋转步数，避免 270deg 回到 0deg 时出现反向补间。
+            setRotationStep((currentStep) => currentStep + 1);
+          }, WHY_AUTOPLAY_INTERVAL_MS);
+
+          return;
+        }
+
+        setIsAnimating(false);
+
+        if (autoplayIntervalRef.current !== null) {
+          window.clearInterval(autoplayIntervalRef.current);
+          autoplayIntervalRef.current = null;
+        }
+      },
+      {
+        threshold: 0.42
+      }
+    );
+
+    observer.observe(section);
 
     return () => {
-      window.removeEventListener('scroll', updateActiveStep);
-      window.removeEventListener('resize', updateActiveStep);
+      observer.disconnect();
+      if (autoplayIntervalRef.current !== null) {
+        window.clearInterval(autoplayIntervalRef.current);
+        autoplayIntervalRef.current = null;
+      }
     };
   }, []);
 
@@ -71,25 +115,39 @@ export function WhyItWorksSection() {
       ref={sectionRef}
       aria-labelledby="why-it-works-heading"
       className={`${styles.section} ${styles.why}`}
+      data-active-step={activeStep}
+      data-animated={isAnimating}
+      data-rotation-step={rotationStep}
     >
-      <h2
-        id="why-it-works-heading"
-        className={styles.hiddenHeading}
-      >
-        Why It Works
-      </h2>
-      <LoopArrowGraphic activeStep={activeStep} />
-      <div className={styles.whyLines}>
-        {whyItWorksLines.map((line, index) => (
-          <p
-            key={line}
-            className={styles.whyLine}
-            data-active={index === activeStep}
-            data-step={index}
-          >
-            {line}
-          </p>
-        ))}
+      <div className={`${styles.sectionContent} ${styles.whyContent}`}>
+        <h2
+          id="why-it-works-heading"
+          className={styles.hiddenHeading}
+        >
+          Why It Works
+        </h2>
+        <p className={styles.whyTitle}>
+          Nailed-it 不只是预约入口，而是一套
+          <br />
+          从选款到成交、从服务到复购的美甲运营闭环
+        </p>
+        <div className={styles.whyOrbit}>
+          <LoopArrowGraphic rotationStep={rotationStep} />
+          {whyLineItems.map((item, index) => (
+            <p
+              key={item.key}
+              className={styles.whyLine}
+              data-active={index === activeStep}
+              data-line-index={item.itemIndex}
+              data-position={item.position}
+              data-step={index}
+            >
+              {item.lines.map((part) => (
+                <span key={part}>{part}</span>
+              ))}
+            </p>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -164,4 +164,30 @@ export const serviceModules = glossaryEntries.filter((e) => e.type === 'service_
 
 export const billableComponents = glossaryEntries.filter((e) => e.type === 'billable_component');
 
+// visual_attribute entries that the merchant can optionally price (billable: true | 'optional')
+export const billableVisualAttributes = glossaryEntries.filter(
+  (e) => e.type === 'visual_attribute' && e.billable !== false
+);
+
+// Everything a merchant needs to configure: all billable_components + billable visual_attributes
+export const configurableComponents = [...billableComponents, ...billableVisualAttributes];
+
+// billable_components that AI can detect from a photo (ai_detectable === 'yes')
 export const aiDetectableComponents = billableComponents.filter((e) => e.ai_detectable === 'yes');
+
+// All procedures (always inferred — not AI-detected from image, derived from service modules present)
+export const allProcedures = glossaryEntries.filter((e) => e.type === 'procedure');
+
+// visual_attributes that AI can detect
+export const aiDetectableVisualAttributes = glossaryEntries.filter(
+  (e) => e.type === 'visual_attribute' && e.ai_detectable === 'yes'
+);
+
+// style_tags that AI can detect
+export const aiDetectableStyleTags = glossaryEntries.filter(
+  (e) => e.type === 'style_tag' && e.ai_detectable === 'yes'
+);
+
+// complexity levels
+export const complexityLevels = glossaryEntries.filter((e) => e.type === 'complexity_level');
+

@@ -11,9 +11,10 @@ type ImageUploaderProps = {
   imageUrl: string;
   onMockUpload: () => void;
   onImageSelected?: (image: SelectedNailImage) => void;
+  hideControls?: boolean;
 };
 
-export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: ImageUploaderProps) {
+export function ImageUploader({ imageUrl, onImageSelected, onMockUpload, hideControls }: ImageUploaderProps) {
   const hasImage = Boolean(imageUrl);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -45,7 +46,16 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
   return (
     <section className="image-uploader">
       {hasImage ? (
-        <img alt="Uploaded nail reference" src={imageUrl} />
+        <label style={{ cursor: 'pointer', display: 'block' }}>
+          <img alt="Uploaded nail reference" src={imageUrl} />
+          <input
+            aria-label="Choose nail reference photo"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+            hidden
+            type="file"
+            onChange={handleFileChange}
+          />
+        </label>
       ) : (
         <div className="image-uploader-placeholder" aria-hidden="true">
           <span className="image-uploader-mark">+</span>
@@ -59,19 +69,23 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload }: Image
             : 'Upload a nail photo to get your quote, or try with our example.'}
         </p>
       </div>
-      <label className="button button-primary button-default button-block">
-        Upload or take photo
-        <input
-          aria-label="Choose nail reference photo"
-          accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-          hidden
-          type="file"
-          onChange={handleFileChange}
-        />
-      </label>
-      <Button block onClick={onMockUpload} variant="secondary">
-        Try with example
-      </Button>
+      {!hideControls && (
+        <>
+          <label className="button button-primary button-default button-block">
+            Upload or take photo
+            <input
+              aria-label="Choose nail reference photo"
+              accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+              hidden
+              type="file"
+              onChange={handleFileChange}
+            />
+          </label>
+          <Button block onClick={onMockUpload} variant="secondary">
+            Try with example
+          </Button>
+        </>
+      )}
     </section>
   );
 }

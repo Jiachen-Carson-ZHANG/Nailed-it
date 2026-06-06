@@ -133,16 +133,29 @@ select {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: var(--radius-md);
-  background: var(--color-accent);
-  color: #ffffff;
-  font-size: 1.35rem;
-  font-weight: 800;
-  box-shadow: 0 12px 30px rgba(236, 93, 123, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  max-width: min(100%, 9rem);
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
+.brand-logo-topbar {
+  height: 1.9rem;
+  width: auto;
+  max-width: min(7.5rem, 40vw);
+}
+
+.brand-logo-hero-mark {
+  height: 2.75rem;
+  width: auto;
+  max-width: min(9rem, 55vw);
 }
 
 .landing-hero h1 {
@@ -318,8 +331,10 @@ select {
 }
 
 .top-brand {
-  font-size: 1rem;
-  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .top-subtitle {
@@ -335,7 +350,7 @@ select {
 }
 
 .mobile-content-with-tabs {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--tab-bar-height) + max(1rem, env(safe-area-inset-bottom)));
 }
 
 .bottom-tab-bar {
@@ -408,6 +423,9 @@ select {
 .button-block {
   display: flex;
   width: 100%;
+  white-space: normal;
+  text-align: center;
+  height: auto;
 }
 
 .button-default {
@@ -695,6 +713,23 @@ select {
 
 .breakdown-total .breakdown-price {
   color: var(--color-accent-strong);
+}
+
+/* Label-only table — no price/duration columns, more compact rows */
+.breakdown-table-labels td {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.breakdown-table-labels .breakdown-label {
+  color: var(--color-muted);
+}
+
+/* Section divider between priced and label tables */
+.breakdown-table + .breakdown-table-labels {
+  margin-top: 1rem;
+  border-top: 1px dashed var(--color-border);
+  padding-top: 0.25rem;
 }
 
 .detail-final-quote {
@@ -1017,6 +1052,11 @@ select {
   background: var(--color-surface-strong);
   padding: 0.75rem;
   color: var(--color-text);
+}
+
+.field textarea::placeholder {
+  color: var(--color-muted);
+  font-weight: 400;
 }
 
 .helper-copy {
@@ -1921,6 +1961,12 @@ select {
   padding: 0.85rem 0.95rem;
   text-align: center;
   box-shadow: 0 18px 36px rgba(36, 24, 31, 0.2);
+  opacity: 1;
+  transition: opacity 400ms var(--motion-ease);
+}
+
+.toast-fade-out {
+  opacity: 0;
 }
 
 .image-uploader,
@@ -2519,6 +2565,12 @@ select {
   border-top: 1px solid var(--color-border);
 }
 
+.breakdown-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .breakdown-mode-row {
   display: flex;
   align-items: center;
@@ -2567,6 +2619,12 @@ select {
 
 .breakdown-label {
   font-size: var(--text-sm);
+  vertical-align: middle;
+}
+
+.breakdown-qty {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
   vertical-align: middle;
 }
 

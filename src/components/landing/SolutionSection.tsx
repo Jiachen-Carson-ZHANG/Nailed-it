@@ -28,93 +28,95 @@ export function SolutionSection() {
   return (
     <section
       aria-label="Solution"
-      className={`${styles.section} ${styles.solution}`}
+      className={styles.section}
     >
-      <div className={styles.solutionVisual}>
-        <h2 className={styles.hiddenHeading}>Solution</h2>
-        <PhoneMockup />
-      </div>
-      <div className={styles.solutionPanelArea}>
-        <div
-          aria-label="Solution features"
-          role="tablist"
-          className={styles.solutionTabList}
-        >
-          {featureTabs.map((feature, featureIndex) => {
+      <div className={`${styles.sectionContent} ${styles.solution}`}>
+        <div className={styles.solutionVisual}>
+          <h2 className={styles.hiddenHeading}>Solution</h2>
+          <PhoneMockup />
+        </div>
+        <div className={styles.solutionPanelArea}>
+          <div
+            aria-label="Solution features"
+            role="tablist"
+            className={styles.solutionTabList}
+          >
+            {featureTabs.map((feature, featureIndex) => {
+              const tabId = `${tabsId}-tab-${feature.key}`;
+              const currentPanelId = `${tabsId}-panel-${feature.key}`;
+              const isActive = feature.key === activeFeature.key;
+
+              return (
+                <button
+                  key={feature.key}
+                  aria-controls={currentPanelId}
+                  aria-selected={isActive}
+                  data-variant={feature.key}
+                  id={tabId}
+                  ref={(element) => {
+                    tabRefs.current[featureIndex] = element;
+                  }}
+                  className={styles.solutionTab}
+                  role="tab"
+                  tabIndex={isActive ? 0 : -1}
+                  type="button"
+                  onClick={() => setActiveKey(feature.key)}
+                  onKeyDown={(event) => {
+                    switch (event.key) {
+                      case 'ArrowRight':
+                      case 'ArrowDown':
+                        event.preventDefault();
+                        activateTab((featureIndex + 1) % featureTabs.length);
+                        break;
+                      case 'ArrowLeft':
+                      case 'ArrowUp':
+                        event.preventDefault();
+                        activateTab((featureIndex - 1 + featureTabs.length) % featureTabs.length);
+                        break;
+                      case 'Home':
+                        event.preventDefault();
+                        activateTab(0);
+                        break;
+                      case 'End':
+                        event.preventDefault();
+                        activateTab(featureTabs.length - 1);
+                        break;
+                      default:
+                        break;
+                    }
+                  }}
+                >
+                  {feature.tabLabel}
+                </button>
+              );
+            })}
+          </div>
+          {featureTabs.map((feature) => {
             const tabId = `${tabsId}-tab-${feature.key}`;
-            const currentPanelId = `${tabsId}-panel-${feature.key}`;
+            const panelId = `${tabsId}-panel-${feature.key}`;
             const isActive = feature.key === activeFeature.key;
 
             return (
-              <button
+              <div
                 key={feature.key}
-                aria-controls={currentPanelId}
-                aria-selected={isActive}
+                aria-labelledby={tabId}
+                className={styles.solutionPanel}
                 data-variant={feature.key}
-                id={tabId}
-                ref={(element) => {
-                  tabRefs.current[featureIndex] = element;
-                }}
-                className={styles.solutionTab}
-                role="tab"
-                tabIndex={isActive ? 0 : -1}
-                type="button"
-                onClick={() => setActiveKey(feature.key)}
-                onKeyDown={(event) => {
-                  switch (event.key) {
-                    case 'ArrowRight':
-                    case 'ArrowDown':
-                      event.preventDefault();
-                      activateTab((featureIndex + 1) % featureTabs.length);
-                      break;
-                    case 'ArrowLeft':
-                    case 'ArrowUp':
-                      event.preventDefault();
-                      activateTab((featureIndex - 1 + featureTabs.length) % featureTabs.length);
-                      break;
-                    case 'Home':
-                      event.preventDefault();
-                      activateTab(0);
-                      break;
-                    case 'End':
-                      event.preventDefault();
-                      activateTab(featureTabs.length - 1);
-                      break;
-                    default:
-                      break;
-                  }
-                }}
+                hidden={!isActive}
+                id={panelId}
+                role="tabpanel"
               >
-                {feature.tabLabel}
-              </button>
+                <h3 className={styles.solutionHeading}>{feature.title}</h3>
+                <p className={styles.solutionSubtitle}>{feature.subtitle}</p>
+                <div className={styles.solutionCopy}>
+                  {feature.paragraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
             );
           })}
         </div>
-        {featureTabs.map((feature) => {
-          const tabId = `${tabsId}-tab-${feature.key}`;
-          const panelId = `${tabsId}-panel-${feature.key}`;
-          const isActive = feature.key === activeFeature.key;
-
-          return (
-            <div
-              key={feature.key}
-              aria-labelledby={tabId}
-              className={styles.solutionPanel}
-              data-variant={feature.key}
-              hidden={!isActive}
-              id={panelId}
-              role="tabpanel"
-            >
-              <h3 className={styles.solutionHeading}>{feature.title}</h3>
-              <p className={styles.solutionSubtitle}>{feature.subtitle}</p>
-              <div className={styles.solutionCopy}>
-                {feature.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </section>
   );
