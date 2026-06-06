@@ -9,13 +9,11 @@ import { quoteCatalogSelectionsAction } from '@/lib/actions/booking-actions';
 import { catalogItems } from '@/mock/catalog';
 import { durationAggregatingPackageIds } from '@/domain/catalog';
 
-// Time-only child steps of an aggregating package (e.g. the base manicure: clean / cuticle / prep /
-// shaping). They carry time but no price — their minutes sum into the parent's shown duration.
 function timeOnlyChildren(parentId: string): { nameZh: string; duration: number }[] {
   if (!durationAggregatingPackageIds.has(parentId)) return [];
   return catalogItems
-    .filter((c) => c.parentId === parentId && c.billable === 'no')
-    .map((c) => ({ nameZh: c.nameZh, duration: c.defaultDurationMin ?? 0 }));
+    .filter((item) => item.parentId === parentId && item.billable === 'no')
+    .map((item) => ({ nameZh: item.nameZh, duration: item.defaultDurationMin ?? 0 }));
 }
 
 type ComponentBreakdownPanelProps = {
@@ -24,14 +22,13 @@ type ComponentBreakdownPanelProps = {
   onResult?: (result: BreakdownResult) => void;
 };
 
-// ── Badge colour by glossaryType ──────────────────────────────────────────────
 const TYPE_BADGE_CLASS: Record<string, string> = {
-  service_module:     'breakdown-category-base',
+  service_module: 'breakdown-category-base',
   billable_component: 'breakdown-category-color_style',
-  procedure:          'breakdown-category-other',
-  visual_attribute:   'breakdown-category-shape',
-  complexity_level:   'breakdown-category-addon',
-  style_tag:          'breakdown-category-addon',
+  procedure: 'breakdown-category-other',
+  visual_attribute: 'breakdown-category-shape',
+  complexity_level: 'breakdown-category-addon',
+  style_tag: 'breakdown-category-addon',
 };
 
 function badgeClass(glossaryType: string): string {
@@ -39,12 +36,11 @@ function badgeClass(glossaryType: string): string {
 }
 
 const UNIT_ZH: Record<string, string> = {
-  set:    '套',
+  set: '套',
   finger: '指',
-  piece:  '颗',
+  piece: '颗',
 };
 
-// ── Quantity stepper ──────────────────────────────────────────────────────────
 function QuantityStepper({
   value,
   unit,
@@ -52,35 +48,34 @@ function QuantityStepper({
 }: {
   value: number;
   unit: string;
-  onChange: (n: number) => void;
+  onChange: (quantity: number) => void;
 }) {
   const unitZh = UNIT_ZH[unit] ?? unit;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.4rem' }}>
       <input
-        type="number"
-        min={1}
-        value={value}
-        onChange={(e) => {
-          const n = Math.max(1, Math.round(Number(e.target.value) || 1));
-          onChange(n);
-        }}
         aria-label="数量"
+        min={1}
         style={{
-          width: '2.6rem', textAlign: 'center', fontSize: 'var(--text-sm)',
-          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-          background: 'var(--color-surface-strong)', padding: '0.1rem 0.2rem',
-          color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums',
+          width: '2.6rem',
+          textAlign: 'center',
+          fontSize: 'var(--text-sm)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--color-surface-strong)',
+          padding: '0.1rem 0.2rem',
+          color: 'var(--color-text)',
+          fontVariantNumeric: 'tabular-nums',
         }}
+        type="number"
+        value={value}
+        onChange={(event) => onChange(Math.max(1, Math.round(Number(event.target.value) || 1)))}
       />
-      {unitZh && (
-        <span className="breakdown-qty">{unitZh}</span>
-      )}
+      {unitZh ? <span className="breakdown-qty">{unitZh}</span> : null}
     </span>
   );
 }
 
-// ── Priced table ──────────────────────────────────────────────────────────────
 const PRICED_TYPES = new Set(['service_module', 'billable_component']);
 
 type PricedTableProps = {
@@ -88,38 +83,37 @@ type PricedTableProps = {
   quantities: Map<string, number>;
   totalDuration?: number;
   totalPrice?: number;
-  onQuantityChange?: (glossaryId: string, qty: number) => void;
+  onQuantityChange?: (glossaryId: string, quantity: number) => void;
 };
 
 function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityChange }: PricedTableProps) {
-  const priced = items.filter((i) => PRICED_TYPES.has(i.glossaryType));
+  const priced = items.filter((item) => PRICED_TYPES.has(item.glossaryType));
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   if (priced.length === 0) return null;
 
   function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
+    setExpanded((current) => {
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   }
 
-  const calculatedPrice = priced.reduce((s, i) => {
-    const qty = quantities.get(i.glossaryId) ?? i.quantity;
-    return s + i.price * qty;
+  const calculatedPrice = priced.reduce((sum, item) => {
+    const quantity = quantities.get(item.glossaryId) ?? item.quantity;
+    return sum + item.price * quantity;
   }, 0);
-  const calculatedDuration = priced.reduce((s, i) => {
-    const qty = quantities.get(i.glossaryId) ?? i.quantity;
-    // duration scales with quantity only for billable_component
-    return s + (i.glossaryType === 'billable_component' ? i.duration * qty : i.duration);
+  const calculatedDuration = priced.reduce((sum, item) => {
+    const quantity = quantities.get(item.glossaryId) ?? item.quantity;
+    return sum + (item.glossaryType === 'billable_component' ? item.duration * quantity : item.duration);
   }, 0);
 
   return (
     <table className="breakdown-table" aria-label="收费项目明细">
       <tbody>
         {priced.map((item) => {
-          const qty = quantities.get(item.glossaryId) ?? item.quantity;
+          const quantity = quantities.get(item.glossaryId) ?? item.quantity;
           const isBillable = item.glossaryType === 'billable_component';
           const steps = timeOnlyChildren(item.glossaryId);
           const isOpen = expanded.has(item.glossaryId);
@@ -127,15 +121,13 @@ function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityC
             <Fragment key={item.glossaryId}>
               <tr>
                 <td>
-                  <span className={`breakdown-category-badge ${badgeClass(item.glossaryType)}`}>
-                    {item.typeZh}
-                  </span>
+                  <span className={`breakdown-category-badge ${badgeClass(item.glossaryType)}`}>{item.typeZh}</span>
                   <span className="breakdown-label">{item.nameZh}</span>
                   {steps.length > 0 ? (
                     <button
-                      type="button"
-                      className="breakdown-steps-toggle"
                       aria-expanded={isOpen}
+                      className="breakdown-steps-toggle"
+                      type="button"
                       onClick={() => toggle(item.glossaryId)}
                     >
                       {isOpen ? '▾' : '▸'} 工时明细
@@ -143,23 +135,19 @@ function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityC
                   ) : null}
                   {isBillable && onQuantityChange ? (
                     <QuantityStepper
-                      value={qty}
                       unit={item.unit}
-                      onChange={(n) => onQuantityChange(item.glossaryId, n)}
+                      value={quantity}
+                      onChange={(next) => onQuantityChange(item.glossaryId, next)}
                     />
-                  ) : (
-                    qty > 1 && (
-                      <span className="breakdown-qty"> ×{qty} {item.unit}</span>
-                    )
-                  )}
+                  ) : quantity > 1 ? (
+                    <span className="breakdown-qty"> ×{quantity} {item.unit}</span>
+                  ) : null}
                 </td>
                 <td className="breakdown-duration">
-                  {item.duration > 0
-                    ? `${isBillable ? item.duration * qty : item.duration} min`
-                    : '—'}
+                  {item.duration > 0 ? `${isBillable ? item.duration * quantity : item.duration} min` : '—'}
                 </td>
                 <td className="breakdown-price">
-                  {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : '—'}
+                  {item.price > 0 ? `$${(item.price * quantity).toFixed(2)}` : '—'}
                 </td>
               </tr>
               {isOpen && steps.length > 0 ? (
@@ -191,31 +179,25 @@ function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityC
   );
 }
 
-// ── Label summary paragraph ───────────────────────────────────────────────────
 const LABEL_TYPES = new Set(['visual_attribute', 'complexity_level', 'style_tag']);
-
 const TYPE_ZH_LABEL: Record<string, string> = {
   visual_attribute: '视觉效果',
   complexity_level: '复杂度',
-  style_tag:        '风格',
+  style_tag: '风格',
 };
 
 function LabelSummary({ items }: { items: GlossaryBreakdownItem[] }) {
-  const labels = items.filter((i) => LABEL_TYPES.has(i.glossaryType));
+  const labels = items.filter((item) => LABEL_TYPES.has(item.glossaryType));
   if (labels.length === 0) return null;
 
   const groups = new Map<string, string[]>();
   for (const item of labels) {
     const existing = groups.get(item.glossaryType);
-    if (existing) {
-      existing.push(item.nameZh);
-    } else {
-      groups.set(item.glossaryType, [item.nameZh]);
-    }
+    if (existing) existing.push(item.nameZh);
+    else groups.set(item.glossaryType, [item.nameZh]);
   }
-
   const lines = Array.from(groups.entries()).map(
-    ([type, names]) => `${TYPE_ZH_LABEL[type] ?? type}：${names.join('、')}。`
+    ([type, names]) => `${TYPE_ZH_LABEL[type] ?? type}：${names.join('、')}。`,
   );
 
   return (
@@ -237,9 +219,8 @@ function LabelSummary({ items }: { items: GlossaryBreakdownItem[] }) {
   );
 }
 
-// ── Full breakdown export (used by TryOn) ─────────────────────────────────────
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
-  const quantities = new Map(result.items.map((i) => [i.glossaryId, i.quantity]));
+  const quantities = new Map(result.items.map((item) => [item.glossaryId, item.quantity]));
   return (
     <div className="breakdown-inline">
       <PricedTable
@@ -253,17 +234,15 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
   );
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
 export function ComponentBreakdownPanel({ image, cachedResult, onResult }: ComponentBreakdownPanelProps) {
   const [result, setResult] = useState<BreakdownResult | null>(cachedResult ?? null);
   const [quantities, setQuantities] = useState<Map<string, number>>(
-    () => new Map((cachedResult?.items ?? []).map((i) => [i.glossaryId, i.quantity]))
+    () => new Map((cachedResult?.items ?? []).map((item) => [item.glossaryId, item.quantity])),
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  // If we have a cached result, mark the image as already analysed so we don't re-run
   const lastAnalysedRef = useRef<string | null>(
-    cachedResult && image ? image.imageBase64.slice(0, 64) : null
+    cachedResult && image ? image.imageBase64.slice(0, 64) : null,
   );
 
   useEffect(() => {
@@ -288,33 +267,32 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: image.imageBase64, mimeType: image.mimeType }),
       });
-
       const body = (await response.json()) as BreakdownResult & { error?: string };
       if (!response.ok) throw new Error(body.error ?? 'Breakdown failed.');
 
       setResult(body);
-      setQuantities(new Map(body.items.map((i) => [i.glossaryId, i.quantity])));
+      setQuantities(new Map(body.items.map((item) => [item.glossaryId, item.quantity])));
       onResult?.(body);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Breakdown failed.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Breakdown failed.');
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleQuantityChange(glossaryId: string, qty: number) {
+  async function handleQuantityChange(glossaryId: string, quantity: number) {
     if (!result) return;
     const next = new Map(quantities);
-    next.set(glossaryId, qty);
+    next.set(glossaryId, quantity);
     setQuantities(next);
 
-    const updatedItems = result.items.map((i) => ({
-      ...i,
-      quantity: next.get(i.glossaryId) ?? i.quantity,
+    const updatedItems = result.items.map((item) => ({
+      ...item,
+      quantity: next.get(item.glossaryId) ?? item.quantity,
     }));
-    const catalogSelections = (result.catalogSelections ?? []).map((selection) =>
-      selection.catalogItemId === glossaryId ? { ...selection, quantity: qty } : selection,
-    );
+    const catalogSelections = (result.catalogSelections ?? []).map((selection) => (
+      selection.catalogItemId === glossaryId ? { ...selection, quantity } : selection
+    ));
     try {
       const quote = await quoteCatalogSelectionsAction(catalogSelections);
       const updated = {
@@ -326,8 +304,8 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
       };
       setResult(updated);
       onResult?.(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Quote failed.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Quote failed.');
     }
   }
 
@@ -339,7 +317,6 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
   if (isLoading) {
     return <LoadingState title="Analysing nail components" body="Identifying services from the glossary…" />;
   }
-
   if (error) {
     return (
       <section className="summary-card" role="alert">
@@ -349,7 +326,6 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
       </section>
     );
   }
-
   if (!result) return null;
 
   return (

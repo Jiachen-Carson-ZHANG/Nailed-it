@@ -4,6 +4,7 @@ import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerMessagesPage from './page';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/messages'
 }));
 

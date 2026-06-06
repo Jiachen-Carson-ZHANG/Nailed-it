@@ -4,6 +4,7 @@ import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import { CustomerBookingContent } from './booking-content';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/booking',
   useSearchParams: () => new URLSearchParams(),
 }));

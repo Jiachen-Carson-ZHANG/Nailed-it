@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AITrendingResponse, AITrendingStyle } from '@/domain/nail';
 import { Button } from '@/components/ui/Button';
 
@@ -21,7 +21,6 @@ function TrendingRow({ style }: { style: AITrendingStyle }) {
     <div className="trending-row">
       <span className="trending-rank" aria-label={`Rank ${style.rank}`}>{rankGlyph}</span>
       <span className="trending-name">{style.nameCn}</span>
-      <span className="trending-name-en">{style.name}</span>
       {links.length > 0 && (
         <span className="trending-row-links">
           {links.map((link) => (
@@ -53,7 +52,7 @@ export function TrendingStylesPanel() {
   const [data, setData] = useState<AITrendingResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [hasFetched, setHasFetched] = useState(false);
+  const hasAutoLoadedRef = useRef(false);
 
   async function loadTrending() {
     setIsLoading(true);
@@ -68,7 +67,6 @@ export function TrendingStylesPanel() {
       }
 
       setData(body);
-      setHasFetched(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load trending styles.');
     } finally {
@@ -76,20 +74,28 @@ export function TrendingStylesPanel() {
     }
   }
 
+  useEffect(() => {
+    // 中文注释：开发环境下 React Strict Mode 会重复触发 effect，这里挡掉首次重复请求。
+    if (hasAutoLoadedRef.current) return;
+
+    hasAutoLoadedRef.current = true;
+    void loadTrending();
+  }, []);
+
   return (
     <section className="trending-panel" aria-labelledby="trending-panel-title">
       <div className="trending-panel-header">
         <div>
-          <h2 id="trending-panel-title" className="trending-panel-title">Trending Now</h2>
-          <p className="trending-panel-subtitle">热门款式</p>
+          <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
+          <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
         </div>
         <Button
           size="compact"
-          variant={hasFetched ? 'secondary' : 'primary'}
+          variant="secondary"
           onClick={loadTrending}
           disabled={isLoading}
         >
-          {isLoading ? 'Loading…' : hasFetched ? 'Refresh' : 'Load trends'}
+          {isLoading ? 'Loading…' : 'Refresh'}
         </Button>
       </div>
 
@@ -112,10 +118,6 @@ export function TrendingStylesPanel() {
             <TrendingRow key={style.rank} style={style} />
           ))}
         </div>
-      )}
-
-      {!isLoading && !data && !error && (
-        <p className="helper-copy">Tap "Load trends" to see what&apos;s trending right now.</p>
       )}
     </section>
   );

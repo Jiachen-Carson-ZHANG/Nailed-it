@@ -5,6 +5,7 @@ import { mockMerchantStyles } from '@/mock/merchant-styles';
 import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/home'
 }));
 

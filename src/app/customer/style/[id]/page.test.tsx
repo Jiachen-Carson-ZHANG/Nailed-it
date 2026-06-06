@@ -1,11 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import StyleDetailPage from './page';
-import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
+import { getStyleDefinitionById } from '@/mock/styles';
+import { mockMerchantStyles } from '@/mock/merchant-styles';
 import { getCustomerBookingPath, getMockSession } from '@/domain/session';
 
 describe('StyleDetailPage', () => {
   it('renders a published merchant style from the DB-backed source', async () => {
-    const style = findStyleById('rose-cat-eye');
+    const style = mockMerchantStyles.find((candidate) => candidate.id === 'rose-cat-eye');
     const definition = getStyleDefinitionById('rose-cat-eye');
 
     expect(style).toBeDefined();
@@ -19,7 +20,10 @@ describe('StyleDetailPage', () => {
       })
     ).toBeInTheDocument();
     expect(screen.getByText(definition?.recognition.selection.otherNotes ?? '')).toBeInTheDocument();
-    expect(screen.getAllByText(new RegExp(String(style?.previewQuote.price ?? ''), 'i')).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(new RegExp(String((style?.previewPriceCents ?? 0) / 100), 'i')).length
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(`${style?.previewDurationMin} 分钟`)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /back to discovery/i })).toHaveAttribute(
       'href',
       getMockSession('customer').homePath

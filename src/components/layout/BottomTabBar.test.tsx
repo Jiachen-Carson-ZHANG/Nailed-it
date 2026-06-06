@@ -5,6 +5,7 @@ import { BottomTabBar } from './BottomTabBar';
 let mockedPathname = '/customer/home';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => mockedPathname
 }));
 

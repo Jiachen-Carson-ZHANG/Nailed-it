@@ -10,6 +10,7 @@ import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerBookingConfirmPage from './page';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/customer/booking/confirm'
 }));
 

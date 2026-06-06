@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
@@ -8,6 +8,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
+import { consumeTryOnImage } from '@/domain/tryon-image-store';
 import type { AIRecognitionResult, BreakdownResult, RuleBasedQuote, StylePreviewQuote } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import { getCustomerBookingConfirmPath } from '@/domain/session';
@@ -42,6 +43,7 @@ type CustomerBookingContentProps = {
   prefillDescription?: string;
   prefillRecognition?: AIRecognitionResult;
   prefillPreviewQuote?: StylePreviewQuote;
+  skipToResult?: boolean;
 };
 
 export function CustomerBookingContent({
@@ -51,14 +53,26 @@ export function CustomerBookingContent({
   prefillDescription,
   prefillRecognition,
   prefillPreviewQuote,
+  skipToResult,
 }: CustomerBookingContentProps) {
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
-  const [step, setStep] = useState<BookingStep>(hasPrefill ? 'quote' : 'upload');
-  const [imageUrl, setImageUrl] = useState(prefillImageUrl ?? '');
-  // For prefill, we hold the remote URL and convert it to base64 on demand
-  const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(null);
+  // Consume once; both state initializers below read the same ref
+  const tryOnImageOnce = useRef<SelectedNailImage | null | undefined>(undefined);
+  const tryOnImage = (() => {
+    if (tryOnImageOnce.current === undefined) tryOnImageOnce.current = consumeTryOnImage();
+    return tryOnImageOnce.current;
+  })();
+
+  const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(() => tryOnImage);
+  const [step, setStep] = useState<BookingStep>(() => {
+    if (hasPrefill) return 'quote';
+    if (skipToResult && getBreakdownResult()) return 'result';
+    if (tryOnImage) return 'result';
+    return 'upload';
+  });
+  const [imageUrl, setImageUrl] = useState(prefillImageUrl ?? tryOnImage?.previewUrl ?? '');
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [recognition, setRecognition] = useState<AIRecognitionResult>(prefillRecognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');

@@ -7,6 +7,7 @@ import { mockAIResult } from '@/mock/ai';
 import MerchantCalendarPage from './page';
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/merchant/calendar'
 }));
 
