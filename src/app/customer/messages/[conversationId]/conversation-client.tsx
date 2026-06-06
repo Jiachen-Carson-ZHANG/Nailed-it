@@ -1,31 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { toConversationForRole } from '@/domain/messaging';
+import { LoadingState } from '@/components/ui/LoadingState';
 import type { Conversation } from '@/domain/nail';
 import { ChatRoom } from '@/features/messages/ChatRoom';
-import { getConversationForRole, sendMessage } from '@/mock/operations-store';
+import { getCustomerConversationAction, sendCustomerMessageAction } from '@/lib/actions/conversation-actions';
 
 type CustomerConversationClientProps = {
   conversationId: string;
 };
 
 export function CustomerConversationClient({ conversationId }: CustomerConversationClientProps) {
-  const [conversation, setConversation] = useState<Conversation | null>(() =>
-    getConversationForRole(conversationId, 'customer')
-  );
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function handleSend(body: string) {
-    const updatedThread = sendMessage({
-      authorRole: 'customer',
-      body,
-      conversationId
-    });
+  useEffect(() => {
+    let active = true;
+    getCustomerConversationAction(conversationId)
+      .then((c) => {
+        if (active) setConversation(c);
+      })
+      .catch(() => {
+        /* leave null → not-found */
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [conversationId]);
 
-    if (updatedThread) {
-      setConversation(toConversationForRole(updatedThread, 'customer'));
-    }
+  async function handleSend(body: string) {
+    const updated = await sendCustomerMessageAction(conversationId, body);
+    if (updated) setConversation(updated);
+  }
+
+  if (loading) {
+    return (
+      <section className="page-heading">
+        <LoadingState title="Loading conversation" body="Fetching your messages." />
+      </section>
+    );
   }
 
   return conversation ? (

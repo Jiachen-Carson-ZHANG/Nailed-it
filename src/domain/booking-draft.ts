@@ -1,54 +1,88 @@
 import type { CustomerBookingDraft } from './nail';
 
-let currentCustomerBookingDraft: CustomerBookingDraft | null = null;
-let currentCustomerBookingDraftVersion = 0;
+// The customer booking draft carries the recognition + estimate + (possibly base64) image
+// between the booking and confirm pages. It lives in sessionStorage rather than module
+// memory: a module-level `let` is shared across all requests on a serverless instance and
+// lost on reload, whereas sessionStorage is per-tab, per-user, and survives a refresh.
+// JSON round-tripping also gives clone isolation for free.
+
+const DRAFT_KEY = 'nailed-it.customer-booking-draft.v1';
 
 export type CustomerBookingDraftSnapshot = {
   draft: CustomerBookingDraft;
   version: number;
 };
 
-function cloneCustomerBookingDraft(draft: CustomerBookingDraft): CustomerBookingDraft {
-  return structuredClone(draft);
+function getStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readSnapshot(): CustomerBookingDraftSnapshot | null {
+  const storage = getStorage();
+  if (!storage) {
+    return null;
+  }
+  const raw = storage.getItem(DRAFT_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<CustomerBookingDraftSnapshot>;
+    if (!parsed || typeof parsed.version !== 'number' || !parsed.draft) {
+      storage.removeItem(DRAFT_KEY);
+      return null;
+    }
+    return { draft: parsed.draft, version: parsed.version };
+  } catch {
+    storage.removeItem(DRAFT_KEY);
+    return null;
+  }
 }
 
 export function saveCustomerBookingDraft(draft: CustomerBookingDraft): CustomerBookingDraft {
-  currentCustomerBookingDraft = cloneCustomerBookingDraft(draft);
-  currentCustomerBookingDraftVersion += 1;
-
-  return cloneCustomerBookingDraft(currentCustomerBookingDraft);
+  const previous = readSnapshot();
+  const snapshot: CustomerBookingDraftSnapshot = {
+    draft,
+    version: (previous?.version ?? 0) + 1
+  };
+  const storage = getStorage();
+  if (storage) {
+    try {
+      storage.setItem(DRAFT_KEY, JSON.stringify(snapshot));
+    } catch {
+      // storage unavailable/full — the draft simply won't persist
+    }
+  }
+  return structuredClone(draft);
 }
 
 export function getCustomerBookingDraft(): CustomerBookingDraft | null {
-  return currentCustomerBookingDraft ? cloneCustomerBookingDraft(currentCustomerBookingDraft) : null;
+  return readSnapshot()?.draft ?? null;
 }
 
 export function readCustomerBookingDraftSnapshot(): CustomerBookingDraftSnapshot | null {
-  if (!currentCustomerBookingDraft) {
-    return null;
-  }
-
-  return {
-    draft: cloneCustomerBookingDraft(currentCustomerBookingDraft),
-    version: currentCustomerBookingDraftVersion
-  };
+  return readSnapshot();
 }
 
 export function consumeCustomerBookingDraft(version?: number): CustomerBookingDraft | null {
-  if (!currentCustomerBookingDraft) {
+  const snapshot = readSnapshot();
+  if (!snapshot) {
     return null;
   }
-
-  if (typeof version === 'number' && version !== currentCustomerBookingDraftVersion) {
+  if (typeof version === 'number' && version !== snapshot.version) {
     return null;
   }
-
-  const consumedDraft = cloneCustomerBookingDraft(currentCustomerBookingDraft);
-  currentCustomerBookingDraft = null;
-
-  return consumedDraft;
+  getStorage()?.removeItem(DRAFT_KEY);
+  return snapshot.draft;
 }
 
-export function clearCustomerBookingDraft() {
-  currentCustomerBookingDraft = null;
+export function clearCustomerBookingDraft(): void {
+  getStorage()?.removeItem(DRAFT_KEY);
 }

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { homePathForRole } from '@/domain/session';
 import { StyleDetailPanel } from '@/features/customer/StyleDetailPanel';
-import { findStyleById, getStyleDefinitionById } from '@/mock/styles';
+import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-actions';
 
 type StyleDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -10,12 +10,9 @@ type StyleDetailPageProps = {
 
 export default async function StyleDetailPage({ params }: StyleDetailPageProps) {
   const { id } = await params;
-  const style = findStyleById(id);
-  const definition = getStyleDefinitionById(id);
+  const style = await getCustomerPublishedStyleAction(id);
 
-  // 中文注释：详情页需要卡片级报价和识别结果两类数据，分别从共享 helper 与原始定义读取，
-  // 保持所有展示仍然回到同一份 mock style source-of-truth，而不是在页面里重新拼数据。
-  if (!style || !definition) {
+  if (!style) {
     notFound();
   }
 
@@ -28,7 +25,7 @@ export default async function StyleDetailPage({ params }: StyleDetailPageProps) 
     >
       <StyleDetailPanel
         backHref={homePathForRole('customer')}
-        recognition={definition.recognition}
+        recognition={style.recognition}
         style={style}
       />
     </MobileLayout>

@@ -1,17 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
+import type { Booking, Conversation } from '@/domain/nail';
 import { getMerchantManagePath, homePathForRole } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
+import { MerchantStylePreview } from '@/features/merchant/MerchantStylePreview';
 import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
-import { getBookingsSnapshot, getConversationsForRole } from '@/mock/operations-store';
+import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listMerchantConversationsAction } from '@/lib/actions/conversation-actions';
 import { mockTechnicians } from '@/mock/technicians';
 
 export default function MerchantProfilePage() {
-  const [bookings] = useState(() => getBookingsSnapshot());
-  const [conversations] = useState(() => getConversationsForRole('merchant'));
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([listMerchantBookingViewsAction(), listMerchantConversationsAction()])
+      .then(([b, c]) => {
+        if (active) {
+          setBookings(b);
+          setConversations(c);
+        }
+      })
+      .catch(() => {
+        /* leave empty */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const pendingBookings = bookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)
   );
@@ -51,6 +72,8 @@ export default function MerchantProfilePage() {
         technicians={mockTechnicians}
         title="Technician workload"
       />
+
+      <MerchantStylePreview />
 
       <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         Open pricing rules

@@ -1,35 +1,43 @@
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import CustomerHomePage from './page';
-import * as stylesModule from '@/mock/styles';
+import { mockMerchantStyles } from '@/mock/merchant-styles';
+import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/customer/home'
 }));
 
 describe('CustomerHomePage', () => {
-  it('renders the discovery feed with all trending styles and the upload CTA', () => {
-    render(<CustomerHomePage />);
+  function renderPage() {
+    return render(
+      <SavedStylesProvider>
+        <CustomerHomePage />
+      </SavedStylesProvider>
+    );
+  }
+
+  it('renders the discovery feed with published merchant styles and the upload CTA', async () => {
+    renderPage();
 
     expect(screen.getByRole('link', { name: /new nail design/i })).toHaveAttribute(
       'href',
       '/customer/booking'
     );
 
-    for (const style of stylesModule.getTrendingStyles()) {
+    for (const style of mockMerchantStyles) {
       expect(
-        screen.getByRole('link', {
+        await screen.findByRole('link', {
           name: new RegExp(style.title, 'i')
         })
       ).toHaveAttribute('href', `/customer/style/${style.id}`);
     }
   });
 
-  it('renders gracefully when no styles are available', () => {
-    vi.spyOn(stylesModule, 'getTrendingStyles').mockReturnValueOnce([]);
-
-    render(<CustomerHomePage />);
+  it('renders without non-finite values while styles load', async () => {
+    renderPage();
 
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
+    await screen.findByRole('link', { name: /Rose Cat Eye Shine/i });
   });
 });
