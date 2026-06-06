@@ -1,4 +1,4 @@
-import { configurableComponents } from './glossary';
+import { configurableComponents, basicServiceProcedures, glossaryById } from './glossary';
 import { getBrowserStorage } from '@/lib/browser-storage';
 
 const STORAGE_KEY = 'nailed-it.glossary-settings.v1';
@@ -8,15 +8,27 @@ export type GlossaryEntrySettings = {
   price: number;
   duration: number;
   enabled: boolean;
+  unit?: string;
 };
 
 export function getDefaultSettings(): GlossaryEntrySettings[] {
-  return configurableComponents.map((entry) => ({
+  const basicModule = glossaryById.get('basic_manicure_service');
+  const moduleEntry: GlossaryEntrySettings[] = basicModule
+    ? [{ id: basicModule.id, price: 0, duration: basicModule.default_duration_min, enabled: true, unit: 'per_set' }]
+    : [];
+  const procedureEntries: GlossaryEntrySettings[] = basicServiceProcedures.map((e) => ({
+    id: e.id,
+    price: 0,
+    duration: e.default_duration_min,
+    enabled: true,
+  }));
+  const componentEntries = configurableComponents.map((entry) => ({
     id: entry.id,
     price: 0,
     duration: entry.default_duration_min,
-    enabled: true
+    enabled: true,
   }));
+  return [...moduleEntry, ...procedureEntries, ...componentEntries];
 }
 
 export function loadGlossarySettings(): GlossaryEntrySettings[] {
