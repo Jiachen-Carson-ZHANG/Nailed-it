@@ -23,8 +23,7 @@ export function HeroSection() {
         />
         <h1 className={styles.heroTitle}>少沟通，多成交</h1>
         <p className={styles.heroSubtitle}>
-          让美甲预约更智能： 基于AI拆解美甲款式图片， 集合报价、 预约、
-          款式库的智能全链运营系统
+          让美甲预约更智能：基于 AI 拆解美甲款式图片，集合报价、预约、款式库的智能全链运营系统
         </p>
         <div className={styles.heroActions}>
           <Link

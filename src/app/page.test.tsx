@@ -89,11 +89,11 @@ describe('LandingPage', () => {
     await user.click(within(solution).getByRole('tab', { name: '款式购物车' }));
 
     expect(within(solution).getByRole('heading', { name: '款式购物车' })).toBeInTheDocument();
-    expect(within(solution).getByText('试戴比较， 快速决策')).toBeInTheDocument();
+    expect(within(solution).getByText('试戴比较，快速决策')).toBeInTheDocument();
 
     await user.click(within(solution).getByRole('tab', { name: '商家图册' }));
 
     expect(within(solution).getByRole('heading', { name: '商家图册' })).toBeInTheDocument();
-    expect(within(solution).getByText('自动归档， 持续种草')).toBeInTheDocument();
+    expect(within(solution).getByText('自动归档，持续种草')).toBeInTheDocument();
   });
 });

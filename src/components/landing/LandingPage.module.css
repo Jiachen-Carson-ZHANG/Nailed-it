@@ -9,21 +9,20 @@
   --landing-lavender: #d8c7fa;
   --landing-content-max: 72rem;
   --landing-problem-icon-height: clamp(10rem, 15vw, 12.75rem);
-  height: 100vh;
+  min-height: 100dvh;
   background: #ffffff;
   color: var(--landing-deep);
   font-family: var(--font-landing-serif), 'Songti SC', 'STSong', serif;
-  overflow-y: auto;
   scroll-behavior: smooth;
-  scroll-snap-type: y mandatory;
+  scroll-snap-type: none;
 }
 
 .section {
   position: relative;
-  min-height: 100vh;
+  min-height: auto;
   overflow: clip;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
 }
 
 .hiddenHeading {
@@ -47,12 +46,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 3.5rem;
-  padding: 0 2rem;
+  padding: 0 1.5rem;
   border: 1px solid transparent;
   border-radius: 999px;
   color: var(--landing-deep);
-  font-size: clamp(1rem, 1.4vw, 1.4rem);
+  font-size: clamp(1rem, 2.8vw, 1.2rem);
   font-weight: 700;
   line-height: 1;
   transition:
@@ -75,47 +75,48 @@
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(22rem, 35.5rem);
-  align-items: center;
-  gap: clamp(2rem, 5vw, 5rem);
-  padding: clamp(3rem, 7vw, 5rem) clamp(1.5rem, 6vw, 5rem) clamp(3.5rem, 7vw, 4.5rem);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1.75rem;
+  padding: clamp(1.5rem, 6vw, 3rem) clamp(1rem, 5vw, 2rem) clamp(2.5rem, 7vw, 3.5rem);
 }
 
 .heroCopy {
   display: grid;
-  gap: clamp(1rem, 2vw, 1.75rem);
-  align-content: center;
-  justify-items: start;
-  max-width: 39rem;
+  gap: clamp(0.9rem, 3vw, 1.25rem);
+  align-content: start;
+  justify-items: stretch;
+  max-width: 100%;
   animation: hero-enter 300ms ease-out both;
 }
 
 .heroLogo {
-  width: clamp(15rem, 31vw, 28rem);
+  width: clamp(10.5rem, 48vw, 18rem);
   height: auto;
 }
 
 .heroTitle {
   margin: 0;
   color: var(--landing-purple);
-  font-size: clamp(2.4rem, 4.1vw, 4.4rem);
-  line-height: 1.08;
+  font-size: clamp(1.85rem, 9.2vw, 3rem);
+  line-height: 1.02;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .heroSubtitle {
   margin: 0;
   color: var(--landing-purple);
-  font-size: clamp(1.2rem, 2vw, 1.95rem);
-  line-height: 1.45;
-  max-width: 36rem;
+  font-size: clamp(0.98rem, 3.9vw, 1.28rem);
+  line-height: 1.6;
+  max-width: 32rem;
+  text-wrap: pretty;
 }
 
 .heroActions,
 .ctaActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 1.25rem;
+  display: grid;
+  gap: 0.9rem;
 }
 
 .heroCustomerButton,
@@ -132,21 +133,21 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 28rem;
+  min-height: clamp(14rem, 62vw, 20rem);
   animation: hero-enter 300ms ease-out both;
 }
 
 .heroIllustration {
   position: relative;
   z-index: 1;
-  width: min(100%, 34rem);
+  width: min(100%, 22rem);
   height: auto;
 }
 
 .heroShadow {
   position: absolute;
-  inset: auto 7% 5% 14%;
-  height: 3.6rem;
+  inset: auto 10% 6% 16%;
+  height: 2.6rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.18);
   filter: blur(18px);
@@ -154,31 +155,32 @@
 
 .problem {
   background: var(--landing-purple);
-  padding: clamp(3rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem) clamp(3.6rem, 6vw, 4.8rem);
+  padding: clamp(2.5rem, 7vw, 3.25rem) clamp(1rem, 5vw, 2rem) clamp(3rem, 8vw, 3.8rem);
 }
 
 .problemTitle {
-  margin: 0 0 clamp(2rem, 3.4vw, 2.9rem);
+  margin: 0 0 clamp(1.6rem, 4vw, 2.25rem);
   color: var(--landing-cream);
   text-align: center;
-  font-size: clamp(2rem, 4vw, 3.6rem);
-  line-height: 1.14;
+  font-size: clamp(1.8rem, 8vw, 2.8rem);
+  line-height: 1.12;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .problemGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(1.5rem, 2vw, 2.2rem);
+  grid-template-columns: 1fr;
+  gap: 1.4rem;
   align-items: start;
 }
 
 .problemCard {
   display: grid;
-  grid-template-rows: var(--landing-problem-icon-height) 1fr;
+  grid-template-rows: auto 1fr;
   justify-items: center;
   align-items: stretch;
-  gap: 1.15rem;
+  gap: 0.9rem;
   height: 100%;
 }
 
@@ -186,8 +188,8 @@
   display: grid;
   place-items: end center;
   color: #ffffff;
-  width: min(100%, 12.75rem);
-  min-height: var(--landing-problem-icon-height);
+  width: min(100%, 10rem);
+  min-height: clamp(7.5rem, 34vw, 10rem);
 }
 
 .problemIconWrap img,
@@ -199,10 +201,10 @@
 
 .problemCardBody {
   width: 100%;
-  min-height: 18.5rem;
+  min-height: auto;
   height: 100%;
-  padding: 1.75rem 1.5rem 1.9rem;
-  border-radius: 2.125rem;
+  padding: 1.35rem 1.15rem 1.5rem;
+  border-radius: 1.75rem;
   background: #ffffff;
   color: var(--landing-deep);
 }
@@ -210,7 +212,7 @@
 .problemCardTitle {
   margin: 0 0 1rem;
   text-align: center;
-  font-size: clamp(1.7rem, 2.35vw, 2.45rem);
+  font-size: clamp(1.55rem, 6vw, 2.05rem);
   line-height: 1.08;
   font-weight: 800;
 }
@@ -219,18 +221,18 @@
   margin: 0;
   padding-left: 1.25rem;
   display: grid;
-  gap: 0.85rem;
-  font-size: clamp(0.95rem, 1.18vw, 1.18rem);
+  gap: 0.75rem;
+  font-size: clamp(0.95rem, 3.4vw, 1.08rem);
   line-height: 1.55;
 }
 
 .solution {
   display: grid;
-  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
-  gap: clamp(1.8rem, 3.2vw, 3.25rem);
-  align-items: center;
-  min-height: calc(100vh - clamp(6rem, 10vw, 8rem));
-  padding: clamp(3rem, 5vw, 4.2rem) clamp(1.5rem, 4vw, 3rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  min-height: auto;
+  padding: clamp(2.5rem, 7vw, 3rem) clamp(1rem, 5vw, 2rem);
 }
 
 .solutionVisual {
@@ -242,23 +244,30 @@
 .solutionPanelArea {
   display: grid;
   align-self: stretch;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .solutionTabList {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem 1rem;
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: none;
+}
+
+.solutionTabList::-webkit-scrollbar {
+  display: none;
 }
 
 .solutionTab {
-  width: 100%;
+  flex: 0 0 auto;
+  min-width: 7.5rem;
   min-height: 3.875rem;
-  padding: 0.75rem 1.35rem;
+  padding: 0.75rem 1.1rem;
   border: 0;
   border-radius: 999px;
   color: var(--landing-deep);
-  font-size: clamp(0.92rem, 1.12vw, 1.12rem);
+  font-size: clamp(0.92rem, 3vw, 1rem);
   font-weight: 800;
   font-family: inherit;
   transition:
@@ -292,9 +301,9 @@
 .solutionPanel {
   display: grid;
   grid-template-rows: auto auto 1fr;
-  min-height: 27rem;
-  padding: clamp(1.75rem, 3vw, 2.8rem);
-  border-radius: 2.125rem;
+  min-height: auto;
+  padding: clamp(1.35rem, 5vw, 1.75rem);
+  border-radius: 1.75rem;
   animation: panel-fade 180ms ease;
 }
 
@@ -317,9 +326,10 @@
 .solutionHeading {
   margin: 0;
   color: var(--landing-deep);
-  font-size: clamp(3rem, 5.4vw, 5.4rem);
+  font-size: clamp(2.25rem, 10vw, 3.4rem);
   line-height: 0.96;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .solutionPanel[data-variant='cart'] .solutionHeading {
@@ -333,31 +343,33 @@
 .solutionSubtitle {
   margin: 1rem 0 0;
   color: #000000;
-  font-size: clamp(1.45rem, 2.15vw, 2.15rem);
-  line-height: 1.22;
+  font-size: clamp(1.1rem, 4.8vw, 1.55rem);
+  line-height: 1.3;
   font-weight: 600;
+  text-wrap: balance;
 }
 
 .solutionCopy {
   display: grid;
   align-content: start;
-  gap: 1rem;
-  margin-top: clamp(1.5rem, 3.8vw, 3rem);
+  gap: 0.85rem;
+  margin-top: 1.25rem;
 }
 
 .solutionCopy p {
   margin: 0;
   color: #000000;
-  font-size: clamp(0.98rem, 1.2vw, 1.18rem);
+  font-size: clamp(0.98rem, 3.3vw, 1.08rem);
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .phoneMockup {
   position: relative;
-  width: min(100%, 18.75rem);
-  height: clamp(27rem, 52vw, 35rem);
-  border: 1rem solid var(--landing-deep);
-  border-radius: 3.8rem;
+  width: min(100%, 15.5rem);
+  height: clamp(22rem, 92vw, 28rem);
+  border: 0.8rem solid var(--landing-deep);
+  border-radius: 3rem;
   background: #ffffff;
 }
 
@@ -365,27 +377,27 @@
   position: absolute;
   top: -1px;
   left: 50%;
-  width: 9.25rem;
-  height: 1.6rem;
-  border-bottom-left-radius: 1.4rem;
-  border-bottom-right-radius: 1.4rem;
+  width: 8rem;
+  height: 1.4rem;
+  border-bottom-left-radius: 1.2rem;
+  border-bottom-right-radius: 1.2rem;
   background: var(--landing-deep);
   transform: translateX(-50%);
 }
 
 .phoneScreen {
   position: absolute;
-  inset: 1rem;
-  border-radius: 2.75rem;
+  inset: 0.8rem;
+  border-radius: 2.2rem;
   background: #ffffff;
 }
 
 .phoneFooterDot {
   position: absolute;
-  bottom: 1.5rem;
+  bottom: 1.25rem;
   left: 50%;
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 0.65rem;
+  height: 0.65rem;
   border-radius: 999px;
   background: var(--landing-deep);
   transform: translateX(-50%);
@@ -393,10 +405,10 @@
 
 .phoneFooterLine {
   position: absolute;
-  bottom: 3rem;
+  bottom: 2.6rem;
   left: 50%;
   width: 34%;
-  height: 0.35rem;
+  height: 0.3rem;
   border-radius: 999px;
   background: rgba(87, 106, 143, 0.32);
   transform: translateX(-50%);
@@ -409,12 +421,10 @@
 
 .journeyRow {
   display: grid;
-  grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-items: stretch;
   overflow: clip;
-  min-height: 100vh;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  min-height: auto;
 }
 
 .journeyRow[data-theme='cool'] {
@@ -428,10 +438,11 @@
 .journeyTitleBlock {
   display: grid;
   place-items: center;
-  min-height: clamp(16rem, 24vw, 20rem);
-  align-self: center;
+  min-height: auto;
+  align-self: stretch;
   margin: 0;
-  border-radius: 0 2.7rem 2.7rem 0;
+  padding: 1.8rem 1.2rem 1.35rem;
+  border-radius: 0 0 2rem 2rem;
 }
 
 .journeyRow[data-theme='cool'] .journeyTitleBlock {
@@ -447,7 +458,7 @@
   gap: 0.25rem;
   margin: 0;
   color: #ffffff;
-  font-size: clamp(2.5rem, 4.6vw, 4.2rem);
+  font-size: clamp(2rem, 9vw, 3rem);
   line-height: 1.02;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -464,31 +475,30 @@
 
 .journeyRail {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto;
   align-content: stretch;
-  gap: 1.3rem;
+  gap: 1rem;
   min-height: 100%;
-  padding: clamp(2.5rem, 4vw, 3.4rem) clamp(1.5rem, 3vw, 2.75rem)
-    clamp(2rem, 3vw, 2.8rem) clamp(1.5rem, 3vw, 2.75rem);
+  padding: 1.35rem 1rem 2rem;
 }
 
 .journeyCards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(0.9rem, 1.6vw, 1.45rem);
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .journeyCard {
-  min-height: clamp(9.25rem, 12vw, 11rem);
-  padding: 1.15rem 1rem 1.05rem;
-  border-radius: 1.75rem;
+  min-height: auto;
+  padding: 1.1rem 0.95rem 1rem;
+  border-radius: 1.4rem;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 0.85rem 2rem rgba(87, 106, 143, 0.14);
-  opacity: 0;
-  transform: translateY(1rem);
+  opacity: 1;
+  transform: none;
   transition:
     opacity 420ms ease,
     transform 180ms ease,
@@ -514,7 +524,7 @@
 .journeyCardTitle {
   margin: 0;
   color: var(--landing-deep);
-  font-size: clamp(1.08rem, 1.35vw, 1.45rem);
+  font-size: clamp(1.08rem, 4vw, 1.3rem);
   line-height: 1.18;
   font-weight: 800;
   text-align: center;
@@ -523,75 +533,16 @@
 .journeyCardCopy {
   margin: 0;
   color: rgba(31, 27, 29, 0.84);
-  font-size: clamp(0.86rem, 0.95vw, 0.98rem);
+  font-size: clamp(0.9rem, 3vw, 1rem);
   line-height: 1.52;
   text-align: center;
 }
 
-.journeyTimeline {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: center;
-  gap: clamp(0.9rem, 1.6vw, 1.45rem);
-  min-height: 1.7rem;
-}
-
-.journeyTimeline::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: clamp(1.4rem, 2vw, 1.9rem);
-  right: clamp(1.4rem, 2vw, 1.9rem);
-  height: 2px;
-  background: rgba(87, 106, 143, 0.38);
-  transform: translateY(-50%);
-}
-
-.journeyNode {
-  position: relative;
-  z-index: 1;
-  justify-self: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 0.28rem solid rgba(255, 255, 255, 0.88);
-  border-radius: 999px;
-  background: var(--landing-deep);
-  box-shadow: 0 0.35rem 0.8rem rgba(87, 106, 143, 0.22);
-  opacity: 0;
-  transform: translateY(0.65rem) scale(0.94);
-  transition:
-    opacity 420ms ease,
-    transform 180ms ease,
-    box-shadow 180ms ease;
-  transition-delay: calc(var(--journey-index, 0) * 80ms + 100ms);
-}
-
-.journeyRow[data-visible='true'] .journeyCard,
-.journeyRow[data-visible='true'] .journeyNode,
-.journeyRow[data-visible='true'] .journeyScreenshotSlot {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.journeyScreenshotRow {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(0.9rem, 1.6vw, 1.45rem);
-  align-items: center;
-  min-height: clamp(18rem, 30vh, 23rem);
-  padding-top: clamp(0.5rem, 1vw, 0.9rem);
-}
-
+.journeyTimeline,
+.journeyNode,
+.journeyScreenshotRow,
 .journeyScreenshotSlot {
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  transform: translateY(1rem);
-  transition:
-    opacity 420ms ease,
-    transform 180ms ease;
-  transition-delay: calc(var(--journey-index, 0) * 80ms + 160ms);
+  display: none;
 }
 
 .journeyScreenshotFrame {
@@ -621,23 +572,23 @@
 }
 
 .why {
-  padding: clamp(3rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(2.75rem, 8vw, 3.5rem) clamp(1rem, 5vw, 2rem);
   background: var(--landing-purple);
 }
 
 .whyContent {
   display: grid;
   place-items: center;
-  gap: clamp(1.75rem, 3vw, 2.5rem);
-  min-height: calc(100vh - clamp(6rem, 10vw, 8rem));
+  gap: 1.5rem;
+  min-height: auto;
 }
 
 .whyTitle {
   margin: 0;
   color: #ffffff;
   text-align: center;
-  font-size: clamp(1.6rem, 3.1vw, 3rem);
-  line-height: 1.18;
+  font-size: clamp(1.5rem, 7vw, 2.35rem);
+  line-height: 1.16;
   font-weight: 800;
   width: min(100%, 72rem);
   max-width: 72rem;
@@ -645,22 +596,22 @@
 }
 
 .whyOrbit {
-  position: relative;
-  width: min(100%, 68rem);
-  min-height: clamp(28rem, 52vh, 34rem);
-  padding-top: clamp(1.6rem, 3vh, 2.4rem);
-  padding-bottom: clamp(1.8rem, 3.4vh, 2.8rem);
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: min(100%, 30rem);
+  min-height: auto;
+  padding: 0;
 }
 
 .loopGraphic {
-  position: absolute;
-  top: 50%;
-  left: 42%;
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: clamp(16rem, 22vw, 20rem);
-  transform: translate(-50%, -50%) rotate(calc(var(--why-loop-rotation-step, 0) * 90deg));
+  order: 2;
+  width: min(100%, 11rem);
+  transform: rotate(calc(var(--why-loop-rotation-step, 0) * 90deg));
   transform-origin: center center;
   transition: transform 950ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -672,120 +623,76 @@
 }
 
 .whyLine {
-  position: absolute;
+  position: static;
+  width: 100%;
   margin: 0;
   color: #ffffff;
   display: grid;
   gap: 0.15em;
+  padding: 0.2rem 0;
   text-align: center;
-  font-size: clamp(1.45rem, 2.4vw, 2.5rem);
-  line-height: 1.04;
+  font-size: clamp(1.15rem, 5vw, 1.55rem);
+  line-height: 1.1;
   font-weight: 800;
   letter-spacing: 0.01em;
-  transform: translate3d(0, 0.8rem, 0) scale(0.72);
-  transform-origin: center center;
-  opacity: 0.54;
+  opacity: 0.82;
   transition:
-    transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 420ms ease,
-    font-size 620ms cubic-bezier(0.22, 1, 0.36, 1);
+    filter 420ms ease;
 }
 
 .whyLine span {
   display: block;
-  white-space: nowrap;
+  white-space: normal;
+  text-wrap: balance;
 }
 
-.whyLine[data-position='top'] {
-  top: -0.3rem;
-  left: 42%;
-  width: clamp(11rem, 14vw, 13rem);
-  transform: translate(-50%, 0.8rem) scale(0.72);
+.whyLine[data-line-index='0'] {
+  order: 1;
 }
 
-.whyLine[data-position='right'] {
-  top: 50%;
-  right: 0;
-  width: clamp(22rem, 28vw, 29rem);
-  font-size: clamp(2.15rem, 4.4vw, 4.7rem);
-  transform: translate3d(0, -50%, 0) scale(0.72);
+.whyLine[data-line-index='1'] {
+  order: 3;
 }
 
-.whyLine[data-position='bottom'] {
-  bottom: -0.35rem;
-  left: 42%;
-  width: clamp(12rem, 15vw, 14rem);
-  transform: translate(-50%, 0) scale(0.72);
+.whyLine[data-line-index='2'] {
+  order: 4;
 }
 
-.whyLine[data-position='left'] {
-  top: 50%;
-  left: 0;
-  width: clamp(13rem, 17vw, 16rem);
-  transform: translate3d(0, -50%, 0) scale(0.72);
-}
-
-.whyLine[data-line-index='2'][data-position='left'],
-.whyLine[data-line-index='2'][data-position='right'] {
-  width: clamp(16rem, 20vw, 18rem);
-}
-
-.whyLine[data-line-index='2'][data-position='top'],
-.whyLine[data-line-index='2'][data-position='bottom'] {
-  width: clamp(16rem, 20vw, 18rem);
-}
-
-.whyLine[data-line-index='1'][data-position='left'],
-.whyLine[data-line-index='1'][data-position='right'] {
-  width: clamp(15rem, 18vw, 17rem);
+.whyLine[data-line-index='3'] {
+  order: 5;
 }
 
 .whyLine[data-active='true'] {
   opacity: 1;
-}
-
-.whyLine[data-position='top'][data-active='true'] {
-  transform: translate(-50%, 0) scale(1);
-}
-
-.whyLine[data-position='right'][data-active='true'] {
-  transform: translate3d(0, -50%, 0) scale(1);
-}
-
-.whyLine[data-position='bottom'][data-active='true'] {
-  transform: translate(-50%, 0) scale(1);
-}
-
-.whyLine[data-position='left'][data-active='true'] {
-  transform: translate3d(0, -50%, 0) scale(1);
-  opacity: 1;
+  filter: saturate(1.08);
 }
 
 .cta {
   display: grid;
   align-items: center;
-  padding: clamp(3rem, 6vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(2.5rem, 8vw, 3.5rem) clamp(1rem, 5vw, 2rem);
 }
 
 .ctaContent {
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 1rem;
-  min-height: calc(100vh - clamp(6rem, 10vw, 8rem));
-  padding-top: clamp(5rem, 12vh, 8rem);
+  gap: 0.85rem;
+  min-height: auto;
+  padding-top: 0;
   text-align: center;
 }
 
 .ctaLogo {
-  width: clamp(14rem, 24vw, 20rem);
+  width: clamp(10rem, 44vw, 16rem);
   height: auto;
 }
 
 .ctaSlogan {
   margin: 0;
   color: var(--landing-purple);
-  font-size: clamp(1.9rem, 3.7vw, 3.4rem);
+  font-size: clamp(1.7rem, 7vw, 2.6rem);
   line-height: 1.06;
   font-weight: 800;
 }
@@ -793,16 +700,18 @@
 .ctaTitle {
   margin: 0.4rem 0 0;
   color: var(--landing-purple);
-  font-size: clamp(1.7rem, 3.3vw, 3rem);
+  font-size: clamp(1.5rem, 6vw, 2.2rem);
   line-height: 1.12;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .ctaSubtitle {
   margin: 0;
   color: var(--landing-deep);
-  font-size: clamp(1rem, 1.45vw, 1.4rem);
+  font-size: clamp(1rem, 3.8vw, 1.2rem);
   line-height: 1.5;
+  text-wrap: pretty;
 }
 
 @keyframes hero-enter {
@@ -827,191 +736,461 @@
   }
 }
 
-@media (max-width: 1024px) {
-  .hero,
-  .solution {
-    grid-template-columns: 1fr;
+@media (min-width: 640px) {
+  .buttonBase {
+    width: auto;
+    padding: 0 2rem;
   }
 
-  .heroVisual,
-  .solutionVisual,
-  .loopGraphic {
-    justify-items: center;
+  .heroActions,
+  .ctaActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.25rem;
   }
 
-  .loopGraphic {
-    left: 50%;
-    width: min(100%, 22rem);
-  }
-
-  .whyOrbit {
-    min-height: clamp(32rem, 62vh, 38rem);
-    padding-top: 1.75rem;
-    padding-bottom: 2.2rem;
-  }
-
-  .whyLine[data-position='top'] {
-    top: -0.35rem;
-    left: 50%;
-  }
-
-  .whyLine[data-position='right'] {
-    top: 47%;
-    right: 4%;
-    width: clamp(18rem, 34vw, 23rem);
-    font-size: clamp(2.1rem, 5vw, 4rem);
-  }
-
-  .whyLine[data-position='bottom'] {
-    bottom: -0.5rem;
-    left: 50%;
-  }
-
-  .whyLine[data-position='left'] {
-    top: 47%;
-    left: 4%;
-  }
-
-  .whyLine[data-position='top'][data-active='true'] {
-    transform: translate(-50%, 0) scale(0.94);
-  }
-
-  .whyLine[data-position='right'][data-active='true'] {
-    transform: translate3d(0, -50%, 0) scale(0.94);
-  }
-
-  .whyLine[data-position='bottom'][data-active='true'] {
-    transform: translate(-50%, 0) scale(0.94);
-  }
-
-  .whyLine[data-position='left'][data-active='true'] {
-    transform: translate3d(0, -50%, 0) scale(0.94);
-  }
-
-  .journeyRow {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .journeyTitleBlock {
-    min-height: auto;
-    margin: 0;
-    padding: 2.2rem 1.5rem 1.8rem;
-    border-radius: 0 0 2.4rem 2.4rem;
-  }
-
-  .journeyRail {
-    padding-top: 1.75rem;
-  }
-
-  .journeyCards,
-  .journeyScreenshotRow {
+  .problemGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .solution {
-    min-height: auto;
-  }
-}
-
-@media (max-width: 800px) {
-  .problemGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .journeyCards,
-  .journeyScreenshotRow {
-    grid-template-columns: 1fr;
-  }
-
-  .journeyCard {
-    min-height: auto;
-  }
-
-  .journeyScreenshotFrame {
-    width: min(100%, 12rem);
-  }
-
-  .journeyTimeline {
-    display: none;
-  }
-
-  .why {
-    padding-top: 2.5rem;
-    padding-bottom: 2.5rem;
-  }
-
-  .whyContent {
-    min-height: auto;
-  }
-
-  .whyTitle {
-    font-size: clamp(1.45rem, 5vw, 2.1rem);
-  }
-
-  .whyOrbit {
-    display: grid;
-    gap: 1.5rem;
-    min-height: auto;
-    padding-top: 0.5rem;
-  }
-
-  .loopGraphic,
-  .loopGraphic {
-    position: relative;
-    top: auto;
-    left: auto;
-    width: min(100%, 19rem);
-    justify-self: center;
-    transform: none;
-  }
-
-  .whyLine {
-    position: static;
-    width: 100%;
-    max-width: 16rem;
-    justify-self: center;
-    transform: scale(0.84);
-  }
-
-  .whyLine[data-position='right'] {
-    font-size: clamp(1.9rem, 8vw, 3rem);
-  }
-
-  .whyLine[data-position='top'],
-  .whyLine[data-position='bottom'],
-  .whyLine[data-position='left'],
-  .whyLine[data-position='right'] {
-    transform: scale(0.84);
-  }
-
-  .whyLine[data-position='top'][data-active='true'],
-  .whyLine[data-position='bottom'][data-active='true'],
-  .whyLine[data-position='left'][data-active='true'],
-  .whyLine[data-position='right'][data-active='true'] {
-    transform: scale(1);
-  }
-
-  .solutionTabList {
-    grid-template-columns: 1fr;
-  }
-
-  .solutionPanel {
-    min-height: auto;
-  }
-
-  .ctaActions {
-    flex-direction: column;
-    width: min(100%, 18rem);
+  .journeyCards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ctaContent {
-    min-height: auto;
-    padding-top: 3rem;
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .page {
+    scroll-snap-type: y mandatory;
   }
 
-  .ctaActions .buttonBase {
+  .section {
+    min-height: 100svh;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 35.5rem);
+    align-items: center;
+    gap: clamp(2rem, 5vw, 5rem);
+    padding: clamp(3rem, 7vw, 5rem) clamp(1.5rem, 6vw, 5rem) clamp(3.5rem, 7vw, 4.5rem);
+  }
+
+  .heroCopy {
+    gap: clamp(1rem, 2vw, 1.75rem);
+    align-content: center;
+    justify-items: start;
+    max-width: 39rem;
+  }
+
+  .heroLogo {
+    width: clamp(15rem, 31vw, 28rem);
+  }
+
+  .heroTitle {
+    font-size: clamp(2.4rem, 4.1vw, 4.4rem);
+    line-height: 1.08;
+  }
+
+  .heroSubtitle {
+    font-size: clamp(1.2rem, 2vw, 1.95rem);
+    line-height: 1.45;
+    max-width: 36rem;
+  }
+
+  .heroVisual {
+    min-height: 28rem;
+  }
+
+  .heroIllustration {
+    width: min(100%, 34rem);
+  }
+
+  .heroShadow {
+    inset: auto 7% 5% 14%;
+    height: 3.6rem;
+  }
+
+  .problem {
+    padding: clamp(3rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem) clamp(3.6rem, 6vw, 4.8rem);
+  }
+
+  .problemTitle {
+    font-size: clamp(2rem, 4vw, 3.6rem);
+  }
+
+  .problemGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(1.5rem, 2vw, 2.2rem);
+  }
+
+  .problemCard {
+    grid-template-rows: var(--landing-problem-icon-height) 1fr;
+    gap: 1.15rem;
+  }
+
+  .problemIconWrap {
+    width: min(100%, 12.75rem);
+    min-height: var(--landing-problem-icon-height);
+  }
+
+  .problemCardBody {
+    min-height: 18.5rem;
+    padding: 1.75rem 1.5rem 1.9rem;
+    border-radius: 2.125rem;
+  }
+
+  .problemCardTitle {
+    font-size: clamp(1.7rem, 2.35vw, 2.45rem);
+  }
+
+  .problemList {
+    gap: 0.85rem;
+    font-size: clamp(0.95rem, 1.18vw, 1.18rem);
+  }
+
+  .solution {
+    grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
+    gap: clamp(1.8rem, 3.2vw, 3.25rem);
+    align-items: center;
+    min-height: calc(100svh - clamp(6rem, 10vw, 8rem));
+    padding: clamp(3rem, 5vw, 4.2rem) clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .solutionPanelArea {
+    gap: 1.25rem;
+  }
+
+  .solutionTabList {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem 1rem;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .solutionTab {
     width: 100%;
+    min-width: 0;
+    padding: 0.75rem 1.35rem;
+    font-size: clamp(0.92rem, 1.12vw, 1.12rem);
+  }
+
+  .solutionPanel {
+    min-height: 27rem;
+    padding: clamp(1.75rem, 3vw, 2.8rem);
+    border-radius: 2.125rem;
+  }
+
+  .solutionHeading {
+    font-size: clamp(3rem, 5.4vw, 5.4rem);
+  }
+
+  .solutionSubtitle {
+    font-size: clamp(1.45rem, 2.15vw, 2.15rem);
+    line-height: 1.22;
+  }
+
+  .solutionCopy {
+    gap: 1rem;
+    margin-top: clamp(1.5rem, 3.8vw, 3rem);
+  }
+
+  .solutionCopy p {
+    font-size: clamp(0.98rem, 1.2vw, 1.18rem);
+  }
+
+  .phoneMockup {
+    width: min(100%, 18.75rem);
+    height: clamp(27rem, 52vw, 35rem);
+    border-width: 1rem;
+    border-radius: 3.8rem;
+  }
+
+  .phoneNotch {
+    width: 9.25rem;
+    height: 1.6rem;
+    border-bottom-left-radius: 1.4rem;
+    border-bottom-right-radius: 1.4rem;
+  }
+
+  .phoneScreen {
+    inset: 1rem;
+    border-radius: 2.75rem;
+  }
+
+  .phoneFooterDot {
+    bottom: 1.5rem;
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+
+  .phoneFooterLine {
+    bottom: 3rem;
+    height: 0.35rem;
+  }
+
+  .journeyRow {
+    grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+    min-height: 100svh;
+  }
+
+  .journeyTitleBlock {
+    min-height: clamp(16rem, 24vw, 20rem);
+    align-self: center;
+    padding: 0;
+    border-radius: 0 2.7rem 2.7rem 0;
+  }
+
+  .journeyTitle {
+    font-size: clamp(2.5rem, 4.6vw, 4.2rem);
+  }
+
+  .journeyRail {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 1.3rem;
+    padding: clamp(2.5rem, 4vw, 3.4rem) clamp(1.5rem, 3vw, 2.75rem)
+      clamp(2rem, 3vw, 2.8rem) clamp(1.5rem, 3vw, 2.75rem);
+  }
+
+  .journeyCards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(0.9rem, 1.6vw, 1.45rem);
+  }
+
+  .journeyCard {
+    min-height: clamp(9.25rem, 12vw, 11rem);
+    padding: 1.15rem 1rem 1.05rem;
+    border-radius: 1.75rem;
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  .journeyCardTitle {
+    font-size: clamp(1.08rem, 1.35vw, 1.45rem);
+  }
+
+  .journeyCardCopy {
+    font-size: clamp(0.86rem, 0.95vw, 0.98rem);
+  }
+
+  .journeyTimeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    gap: clamp(0.9rem, 1.6vw, 1.45rem);
+    min-height: 1.7rem;
+  }
+
+  .journeyTimeline::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: clamp(1.4rem, 2vw, 1.9rem);
+    right: clamp(1.4rem, 2vw, 1.9rem);
+    height: 2px;
+    background: rgba(87, 106, 143, 0.38);
+    transform: translateY(-50%);
+  }
+
+  .journeyNode {
+    position: relative;
+    z-index: 1;
+    display: block;
+    justify-self: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 0.28rem solid rgba(255, 255, 255, 0.88);
+    border-radius: 999px;
+    background: var(--landing-deep);
+    box-shadow: 0 0.35rem 0.8rem rgba(87, 106, 143, 0.22);
+    opacity: 0;
+    transform: translateY(0.65rem) scale(0.94);
+    transition:
+      opacity 420ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease;
+    transition-delay: calc(var(--journey-index, 0) * 80ms + 100ms);
+  }
+
+  .journeyRow[data-visible='true'] .journeyCard,
+  .journeyRow[data-visible='true'] .journeyNode,
+  .journeyRow[data-visible='true'] .journeyScreenshotSlot {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .journeyScreenshotRow {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(0.9rem, 1.6vw, 1.45rem);
+    align-items: center;
+    min-height: clamp(18rem, 30vh, 23rem);
+    padding-top: clamp(0.5rem, 1vw, 0.9rem);
+  }
+
+  .journeyScreenshotSlot {
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    transform: translateY(1rem);
+    transition:
+      opacity 420ms ease,
+      transform 180ms ease;
+    transition-delay: calc(var(--journey-index, 0) * 80ms + 160ms);
+  }
+
+  .why {
+    padding: clamp(3rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .whyContent {
+    gap: clamp(1.75rem, 3vw, 2.5rem);
+    min-height: calc(100svh - clamp(6rem, 10vw, 8rem));
+  }
+
+  .whyTitle {
+    font-size: clamp(1.6rem, 3.1vw, 3rem);
+    line-height: 1.18;
+  }
+
+  .whyOrbit {
+    position: relative;
+    display: block;
+    width: min(100%, 68rem);
+    min-height: clamp(28rem, 52vh, 34rem);
+    padding-top: clamp(1.6rem, 3vh, 2.4rem);
+    padding-bottom: clamp(1.8rem, 3.4vh, 2.8rem);
+  }
+
+  .loopGraphic {
+    position: absolute;
+    top: 50%;
+    left: 42%;
+    order: initial;
+    width: clamp(16rem, 22vw, 20rem);
+    transform: translate(-50%, -50%) rotate(calc(var(--why-loop-rotation-step, 0) * 90deg));
+  }
+
+  .whyLine {
+    position: absolute;
+    width: auto;
+    padding: 0;
+    font-size: clamp(1.45rem, 2.4vw, 2.5rem);
+    line-height: 1.04;
+    opacity: 0.54;
+    transition:
+      transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 420ms ease,
+      font-size 620ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translate3d(0, 0.8rem, 0) scale(0.72);
+  }
+
+  .whyLine span {
+    white-space: nowrap;
+  }
+
+  .whyLine[data-line-index='0'],
+  .whyLine[data-line-index='1'],
+  .whyLine[data-line-index='2'],
+  .whyLine[data-line-index='3'] {
+    order: initial;
+  }
+
+  .whyLine[data-position='top'] {
+    top: -0.3rem;
+    left: 42%;
+    width: clamp(11rem, 14vw, 13rem);
+    transform: translate(-50%, 0.8rem) scale(0.72);
+  }
+
+  .whyLine[data-position='right'] {
+    top: 50%;
+    right: 0;
+    width: clamp(22rem, 28vw, 29rem);
+    font-size: clamp(2.15rem, 4.4vw, 4.7rem);
+    transform: translate3d(0, -50%, 0) scale(0.72);
+  }
+
+  .whyLine[data-position='bottom'] {
+    bottom: -0.35rem;
+    left: 42%;
+    width: clamp(12rem, 15vw, 14rem);
+    transform: translate(-50%, 0) scale(0.72);
+  }
+
+  .whyLine[data-position='left'] {
+    top: 50%;
+    left: 0;
+    width: clamp(13rem, 17vw, 16rem);
+    transform: translate3d(0, -50%, 0) scale(0.72);
+  }
+
+  .whyLine[data-line-index='2'][data-position='left'],
+  .whyLine[data-line-index='2'][data-position='right'] {
+    width: clamp(16rem, 20vw, 18rem);
+  }
+
+  .whyLine[data-line-index='2'][data-position='top'],
+  .whyLine[data-line-index='2'][data-position='bottom'] {
+    width: clamp(16rem, 20vw, 18rem);
+  }
+
+  .whyLine[data-line-index='1'][data-position='left'],
+  .whyLine[data-line-index='1'][data-position='right'] {
+    width: clamp(15rem, 18vw, 17rem);
+  }
+
+  .whyLine[data-active='true'] {
+    filter: none;
+  }
+
+  .whyLine[data-position='top'][data-active='true'] {
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  .whyLine[data-position='right'][data-active='true'] {
+    transform: translate3d(0, -50%, 0) scale(1);
+  }
+
+  .whyLine[data-position='bottom'][data-active='true'] {
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  .whyLine[data-position='left'][data-active='true'] {
+    transform: translate3d(0, -50%, 0) scale(1);
+    opacity: 1;
+  }
+
+  .cta {
+    padding: clamp(3rem, 6vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .ctaContent {
+    gap: 1rem;
+    min-height: calc(100svh - clamp(6rem, 10vw, 8rem));
+    padding-top: clamp(5rem, 12vh, 8rem);
+  }
+
+  .ctaLogo {
+    width: clamp(14rem, 24vw, 20rem);
+  }
+
+  .ctaSlogan {
+    font-size: clamp(1.9rem, 3.7vw, 3.4rem);
+  }
+
+  .ctaTitle {
+    font-size: clamp(1.7rem, 3.3vw, 3rem);
+  }
+
+  .ctaSubtitle {
+    font-size: clamp(1rem, 1.45vw, 1.4rem);
   }
 }
 
@@ -1023,7 +1202,8 @@
   .journeyCard,
   .journeyNode,
   .solutionTab,
-  .buttonBase {
+  .buttonBase,
+  .loopGraphic {
     animation: none;
     transition: none;
   }
