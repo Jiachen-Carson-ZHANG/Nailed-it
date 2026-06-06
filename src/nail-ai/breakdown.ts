@@ -1,6 +1,14 @@
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
-import { aiDetectableComponents, glossaryById } from '@/data/glossary';
+import {
+  aiDetectableComponents,
+  aiDetectableVisualAttributes,
+  aiDetectableStyleTags,
+  allProcedures,
+  complexityLevels,
+  serviceModules,
+  glossaryById
+} from '@/data/glossary';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 import { defaultTryOnModel } from './try-on';
 
@@ -53,23 +61,129 @@ async function callOpenRouterWithImage(opts: {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function idList(entries: { id: string; name_zh: string }[]): string {
+  return entries.map((e) => `  - ${e.id} (${e.name_zh})`).join('\n');
+}
+
 function buildPrompt(): string {
-  const componentList = JSON.stringify(
-    aiDetectableComponents.map((e) => ({ id: e.id, name_zh: e.name_zh })),
-    null,
-    2
-  );
+  // ── Part A: Service modules ─────────────────────────────────────────────────
+  const smList = idList(serviceModules.filter((e) => e.ai_detectable !== 'no'));
+
+  // ── Part B: Billable components grouped by service module ───────────────────
+  const byModule = new Map<string, typeof aiDetectableComponents>();
+  for (const entry of aiDetectableComponents) {
+    const list = byModule.get(entry.parent_id) ?? [];
+    list.push(entry);
+    byModule.set(entry.parent_id, list);
+  }
+
+  const moduleGuide: Record<string, string> = {
+    extension_service:    'Are the nails extended? What length?',
+    builder_service:      'Is builder gel or structural thickness visible?',
+    color_effect_service: 'List EVERY color treatment and effect (ombre, cat-eye, chrome, glitter, translucent, etc.).',
+    art_service:          'List ALL nail art (french, hand-paint, line art, 3D, patterns).',
+    decoration_service:   'List ALL decorations (rhinestones, pearls, charms, foil, stickers) with quantities.',
+    finish_service:       'Any special finish such as matte top coat?',
+  };
+
+  const moduleOrder = [
+    'extension_service', 'builder_service', 'color_effect_service',
+    'art_service', 'decoration_service', 'finish_service',
+  ];
+
+  const billableSections = moduleOrder
+    .map((mid) => {
+      const entries = byModule.get(mid);
+      if (!entries?.length) return null;
+      const name = glossaryById.get(mid)?.name_zh ?? mid;
+      return `[${name} — 收费组件]\nHint: ${moduleGuide[mid] ?? ''}\n${idList(entries)}`;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  // ── Part C: Procedures — infer from image context ───────────────────────────
+  const proceduresByModule = new Map<string, typeof allProcedures>();
+  for (const p of allProcedures) {
+    const list = proceduresByModule.get(p.parent_id) ?? [];
+    list.push(p);
+    proceduresByModule.set(p.parent_id, list);
+  }
+  const procedureSections = [...proceduresByModule.entries()]
+    .map(([moduleId, procs]) => {
+      const name = glossaryById.get(moduleId)?.name_zh ?? moduleId;
+      return `[${name} — 工序]\n${idList(procs)}`;
+    })
+    .join('\n\n');
+
+  // ── Part D: Visual attributes ───────────────────────────────────────────────
+  const colourList  = idList(aiDetectableVisualAttributes.filter((e) => e.category === 'color'));
+  const shapeList   = idList(aiDetectableVisualAttributes.filter((e) => e.category === 'nail_shape'));
+  const lengthList  = idList(aiDetectableVisualAttributes.filter((e) => e.category === 'nail_length'));
+  const textureList = idList(aiDetectableVisualAttributes.filter((e) => e.category === 'texture'));
+
+  // ── Part E: Complexity level ────────────────────────────────────────────────
+  const complexityList = idList(complexityLevels);
+
+  // ── Part F: Style tags ──────────────────────────────────────────────────────
+  const styleList = idList(aiDetectableStyleTags);
+
   return [
-    'You are a nail analysis AI. Examine this image and identify which of the following nail service components are visible.',
-    'Return ONLY valid JSON (no markdown) with a "detected" array.',
-    'Each entry must have: id (exactly as listed), quantity (integer ≥ 1), unit (one of: "set", "finger", "piece").',
-    'Only include items clearly visible in the image. Do not invent items not in the list.',
-    'For decorations like rhinestones or charms, estimate a realistic quantity.',
+    'You are an expert nail technician analysing a nail photograph.',
+    'Your task: produce a comprehensive, structured JSON breakdown covering ALL six categories below.',
     '',
-    'Available components:',
-    componentList
+    'Return ONLY valid JSON with NO markdown fences, in exactly this shape:',
+    '{',
+    '  "service_modules":    [{"id":"...", "quantity":1, "unit":"set"}, ...],',
+    '  "billable_components":[{"id":"...", "quantity":1, "unit":"set|finger|piece"}, ...],',
+    '  "procedures":         [{"id":"...", "quantity":1, "unit":"set"}, ...],',
+    '  "visual_attributes":  [{"id":"...", "quantity":1, "unit":"set"}, ...],',
+    '  "complexity_level":   [{"id":"...", "quantity":1, "unit":"set"}],',
+    '  "style_tags":         [{"id":"...", "quantity":1, "unit":"set"}, ...]',
+    '}',
+    '',
+    'GENERAL RULES:',
+    '- Use ONLY exact IDs from the lists below. Never invent IDs.',
+    '- Be COMPREHENSIVE — go through every section carefully. Missing items is a bigger error than including an uncertain one.',
+    '- solid_color: include if any solid base color is visible (almost always yes).',
+    '- Rhinestones/charms: estimate total count across all nails.',
+    '- Per-finger art: quantity = number of affected fingers.',
+    '',
+    '=== A. 服务模块 (service_modules) ===',
+    'Include every service module that applies to this nail set.',
+    smList,
+    '',
+    '=== B. 收费组件 (billable_components) ===',
+    'Go through EVERY module block below. Include ALL matching components.',
+    billableSections,
+    '',
+    '=== C. 工序 (procedures) ===',
+    'Include all procedures that would be performed given the services detected in A.',
+    'These are inferred from the style — not directly visible.',
+    procedureSections,
+    '',
+    '=== D. 视觉属性 (visual_attributes) ===',
+    'Mandatory: pick AT LEAST ONE colour, ONE shape, ONE length, and ALL applicable textures.',
+    `[颜色 — pick ALL]\n${colourList}`,
+    '',
+    `[甲型 — pick ONE]\n${shapeList}`,
+    '',
+    `[甲长 — pick ONE]\n${lengthList}`,
+    '',
+    `[质感 — pick ALL that apply]\n${textureList}`,
+    '',
+    '=== E. 复杂度等级 (complexity_level) ===',
+    'Pick exactly ONE based on overall nail complexity.',
+    complexityList,
+    '',
+    '=== F. 风格标签 (style_tags) ===',
+    'Pick ALL matching style descriptors.',
+    styleList,
   ].join('\n');
 }
+
+// ── Main function ─────────────────────────────────────────────────────────────
 
 export async function runGlossaryBreakdown(
   imageBase64: string,
@@ -85,43 +199,71 @@ export async function runGlossaryBreakdown(
     await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() })
   );
 
-  const rawDetected = Array.isArray(raw.detected) ? raw.detected : [];
   const settingsById = new Map<string, GlossaryEntrySettings>(
     merchantSettings.map((s) => [s.id, s])
   );
 
-  const items: GlossaryBreakdownItem[] = rawDetected
-    .map((d: unknown) => {
-      const det = asRecord(d);
-      const id = typeof det.id === 'string' ? det.id.trim() : '';
-      const entry = glossaryById.get(id);
-      if (!entry) return null;
+  type RawSection = 'service_modules' | 'billable_components' | 'procedures' | 'visual_attributes' | 'complexity_level' | 'style_tags';
+  type GlossaryTypeName = GlossaryBreakdownItem['glossaryType'];
 
-      const settings = settingsById.get(id);
-      const price = settings?.enabled !== false ? (settings?.price ?? 0) : 0;
-      const duration = settings?.enabled !== false ? (settings?.duration ?? entry.default_duration_min) : 0;
+  const sectionTypeMap: Record<RawSection, GlossaryTypeName> = {
+    service_modules:    'service_module',
+    billable_components:'billable_component',
+    procedures:         'procedure',
+    visual_attributes:  'visual_attribute',
+    complexity_level:   'complexity_level',
+    style_tags:         'style_tag',
+  };
 
-      const quantity = typeof det.quantity === 'number' && det.quantity >= 1 ? Math.round(det.quantity) : 1;
-      const unit = typeof det.unit === 'string' ? det.unit.trim() : entry.default_pricing_unit;
+  // Sections that can have merchant-configured prices
+  const pricedSections = new Set<RawSection>(['billable_components', 'visual_attributes']);
 
-      const parentEntry = glossaryById.get(entry.parent_id);
-      const parentNameZh = parentEntry?.name_zh ?? entry.parent_id;
+  function parseSection(section: RawSection): GlossaryBreakdownItem[] {
+    const rawArray = Array.isArray(raw[section]) ? (raw[section] as unknown[]) : [];
+    const glossaryType = sectionTypeMap[section];
+    const allowPricing = pricedSections.has(section);
 
-      return {
-        mode: 'glossary' as const,
-        glossaryId: id,
-        nameZh: entry.name_zh,
-        typeZh: entry.type_zh,
-        parentId: entry.parent_id,
-        parentNameZh,
-        quantity,
-        unit,
-        price,
-        duration
-      };
-    })
-    .filter((item): item is GlossaryBreakdownItem => item !== null);
+    return rawArray
+      .map((d: unknown) => {
+        const det = asRecord(d);
+        const id = typeof det.id === 'string' ? det.id.trim() : '';
+        const entry = glossaryById.get(id);
+        if (!entry) return null;
 
+        const settings = allowPricing ? settingsById.get(id) : undefined;
+        const isEnabled = settings?.enabled !== false;
+        const price = (allowPricing && isEnabled) ? (settings?.price ?? 0) : 0;
+        const duration = (allowPricing && isEnabled) ? (settings?.duration ?? entry.default_duration_min) : 0;
+
+        const quantity = typeof det.quantity === 'number' && det.quantity >= 1 ? Math.round(det.quantity) : 1;
+        const unit = typeof det.unit === 'string' ? det.unit.trim() : entry.default_pricing_unit;
+
+        const parentEntry = glossaryById.get(entry.parent_id);
+        const parentNameZh = parentEntry?.name_zh ?? entry.type_zh;
+
+        return {
+          mode: 'glossary' as const,
+          glossaryId: id,
+          glossaryType,
+          nameZh: entry.name_zh,
+          typeZh: entry.type_zh,
+          parentId: entry.parent_id,
+          parentNameZh,
+          quantity,
+          unit,
+          price,
+          duration,
+        } satisfies GlossaryBreakdownItem;
+      })
+      .filter((item): item is GlossaryBreakdownItem => item !== null);
+  }
+
+  const sections: RawSection[] = [
+    'service_modules', 'billable_components', 'procedures',
+    'visual_attributes', 'complexity_level', 'style_tags',
+  ];
+
+  const items = sections.flatMap(parseSection);
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalDuration = items.reduce((sum, item) => sum + item.duration, 0);
 

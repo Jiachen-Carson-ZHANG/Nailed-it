@@ -176,9 +176,11 @@ function CustomerBookingContent() {
             <h1>Style detected</h1>
           </section>
 
-          <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
-
-          <NailAttributeEditor value={recognition} onChange={setRecognition} />
+          {imageUrl && (
+            <div className="booking-result-preview">
+              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+            </div>
+          )}
 
           <ComponentBreakdownPanel image={selectedImage} onResult={handleBreakdownResult} />
 

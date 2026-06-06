@@ -219,6 +219,7 @@ export type AITrendingResponse = {
 export type GlossaryBreakdownItem = {
   mode: 'glossary';
   glossaryId: string;
+  glossaryType: 'service_module' | 'procedure' | 'billable_component' | 'visual_attribute' | 'complexity_level' | 'style_tag';
   nameZh: string;
   typeZh: string;
   parentId: string;

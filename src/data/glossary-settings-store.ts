@@ -1,4 +1,4 @@
-import { billableComponents } from './glossary';
+import { configurableComponents } from './glossary';
 
 const STORAGE_KEY = 'nailed-it.glossary-settings.v1';
 
@@ -10,7 +10,7 @@ export type GlossaryEntrySettings = {
 };
 
 export function getDefaultSettings(): GlossaryEntrySettings[] {
-  return billableComponents.map((entry) => ({
+  return configurableComponents.map((entry) => ({
     id: entry.id,
     price: 0,
     duration: entry.default_duration_min,
