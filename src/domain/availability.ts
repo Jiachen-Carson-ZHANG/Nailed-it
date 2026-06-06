@@ -46,9 +46,10 @@ export function findTechnicianSlots({
     if (booking.status === 'cancelled') continue;
     const startMs = slotMs(booking.date, booking.time);
     const interval = { startMs, endMs: startMs + durationOrFallback(booking.quote.duration) * 60_000 };
-    const list = busyByTechnician.get(booking.technician.id) ?? [];
-    list.push(interval);
-    busyByTechnician.set(booking.technician.id, list);
+    if (!busyByTechnician.has(booking.technician.id)) {
+      busyByTechnician.set(booking.technician.id, []);
+    }
+    busyByTechnician.get(booking.technician.id)!.push(interval);
   }
 
   const activeTechnicians = technicians.filter((technician) => technician.active);

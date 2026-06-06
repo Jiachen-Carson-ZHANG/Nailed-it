@@ -3,18 +3,7 @@ import type { CSSProperties } from 'react';
 import styles from './LandingPage.module.css';
 import { journeyRows } from './landing-content';
 
-const JOURNEY_ROW_COUNT = 2;
-const JOURNEY_STEP_COUNT = 4;
-
-function splitJourneyTitle(title: string) {
-  const suffix = '旅程';
-
-  if (!title.endsWith(suffix)) {
-    return [title];
-  }
-
-  return [title.slice(0, -suffix.length), suffix];
-}
+const JOURNEY_SUFFIX = '旅程';
 
 export function JourneySection() {
   return (
@@ -29,9 +18,10 @@ export function JourneySection() {
         Journey
       </h2>
       <div className={styles.journeyStack}>
-        {journeyRows.slice(0, JOURNEY_ROW_COUNT).map((row) => {
-          const visibleItems = row.items.slice(0, JOURNEY_STEP_COUNT);
-          const titleLines = splitJourneyTitle(row.title);
+        {journeyRows.map((row) => {
+          const titleLines = row.title.endsWith(JOURNEY_SUFFIX)
+            ? [row.title.slice(0, -JOURNEY_SUFFIX.length), JOURNEY_SUFFIX]
+            : [row.title];
 
           return (
             <section
@@ -52,7 +42,7 @@ export function JourneySection() {
               </div>
               <div className={styles.journeyRail}>
                 <ol className={styles.journeyCards}>
-                  {visibleItems.map((item, index) => (
+                  {row.items.map((item, index) => (
                     <li
                       key={item.title}
                       className={styles.journeyCard}
@@ -69,7 +59,7 @@ export function JourneySection() {
                   aria-hidden="true"
                   className={styles.journeyTimeline}
                 >
-                  {visibleItems.map((item) => (
+                  {row.items.map((item) => (
                     <span
                       key={item.title}
                       className={styles.journeyNode}

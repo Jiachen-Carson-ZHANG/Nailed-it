@@ -1,4 +1,5 @@
 import { configurableComponents } from './glossary';
+import { getBrowserStorage } from '@/lib/browser-storage';
 
 const STORAGE_KEY = 'nailed-it.glossary-settings.v1';
 
@@ -18,17 +19,8 @@ export function getDefaultSettings(): GlossaryEntrySettings[] {
   }));
 }
 
-function getStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 export function loadGlossarySettings(): GlossaryEntrySettings[] {
-  const storage = getStorage();
+  const storage = getBrowserStorage('local');
   if (!storage) return getDefaultSettings();
 
   const raw = storage.getItem(STORAGE_KEY);
@@ -61,7 +53,7 @@ export function loadGlossarySettings(): GlossaryEntrySettings[] {
 }
 
 export function saveGlossarySettings(settings: GlossaryEntrySettings[]): void {
-  const storage = getStorage();
+  const storage = getBrowserStorage('local');
   if (!storage) return;
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -69,3 +61,4 @@ export function saveGlossarySettings(settings: GlossaryEntrySettings[]): void {
     console.warn('Unable to persist glossary settings to localStorage.');
   }
 }
+
