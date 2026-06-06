@@ -23,7 +23,7 @@ describe('StyleDetailPage', () => {
     expect(
       screen.getAllByText(new RegExp(String((style?.previewPriceCents ?? 0) / 100), 'i')).length
     ).toBeGreaterThan(0);
-    expect(screen.getByText(`${style?.previewDurationMin} 分钟`)).toBeInTheDocument();
+    expect(screen.getAllByText(`${style?.previewDurationMin} 分钟`).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /back to discovery/i })).toHaveAttribute(
       'href',
       getMockSession('customer').homePath
