@@ -1,7 +1,11 @@
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import { canTransitionMerchantStyle } from '@/domain/merchant-style';
 import { mockMerchantStyles } from '@/mock/merchant-styles';
-import type { MerchantStyleRepository, PublishMerchantStyleInput } from '../types';
+import type {
+  MerchantStyleRepository,
+  PublishMerchantStyleInput,
+  SetMerchantStyleConfigInput,
+} from '../types';
 
 export function createMemoryMerchantStyleRepository(
   seed: MerchantStyleRecord[] = mockMerchantStyles,
@@ -34,6 +38,21 @@ export function createMemoryMerchantStyleRepository(
       return structuredClone(record);
     },
 
+    async setConfig(input: SetMerchantStyleConfigInput) {
+      const record = state.find(
+        (style) => style.id === input.id && style.merchantId === input.merchantId,
+      );
+      if (!record) return null;
+      if (input.title && input.title.trim()) record.title = input.title.trim();
+      record.description = input.description;
+      record.discoveryFacets = structuredClone(input.discoveryFacets);
+      record.catalogBreakdown = structuredClone(input.items);
+      record.previewPriceCents = input.previewPriceCents;
+      record.previewDurationMin = input.previewDurationMin;
+      record.updatedAt = new Date().toISOString();
+      return structuredClone(record);
+    },
+
     async publish(input: PublishMerchantStyleInput) {
       const record = state.find(
         (style) => style.id === input.id && style.merchantId === input.merchantId,
@@ -41,6 +60,7 @@ export function createMemoryMerchantStyleRepository(
       if (!record || !canTransitionMerchantStyle(record.status, 'published')) return null;
 
       record.title = input.title;
+      record.description = input.description;
       record.previewPriceCents = input.previewPriceCents;
       record.previewDurationMin = input.previewDurationMin;
       record.status = 'published';

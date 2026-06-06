@@ -45,6 +45,15 @@ export type CreateBookingFromSnapshotInput = {
 
 export type BookingService = {
   createBooking(input: CreateBookingInput): Promise<IntervalBooking>;
+  /**
+   * Like createBooking (catalog selections → quoteService → relational booking_items), but also
+   * creates the conversation thread in the same atomic step. Used for booking a published merchant
+   * style from its curated catalogBreakdown.
+   */
+  createBookingWithThreadFromSelections(
+    input: CreateBookingInput,
+    buildThread: (booking: IntervalBooking) => BookingConversationThread,
+  ): Promise<IntervalBooking>;
   createBookingFromSnapshot(input: CreateBookingFromSnapshotInput): Promise<IntervalBooking>;
   /**
    * Like createBookingFromSnapshot, but creates the booking and its conversation thread in one
@@ -111,46 +120,61 @@ export function createBookingService(repos: RepositoryBundle): BookingService {
     return { booking, item };
   }
 
+  // Builds the interval booking + its relational booking_items from catalog selections, pricing
+  // them through quoteService (real catalog ids, per-line price/duration). Enforces the tenant
+  // guard + positive duration; does not write.
+  async function buildFromSelections(input: CreateBookingInput) {
+    const merchant = await resolveMerchantWithTechnicianGuard(input.merchantId, input.technicianId);
+
+    const quote = await quoteService.buildQuote({
+      merchantId: input.merchantId,
+      technicianId: input.technicianId,
+      selections: input.selections,
+    });
+    if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
+
+    const request = resolveSlot(merchant.timezone, input.date, input.time, quote.totalDurationMin);
+    const bookingId = `booking-${randomUUID()}`;
+    const booking: IntervalBooking = {
+      id: bookingId,
+      merchantId: input.merchantId,
+      technicianId: input.technicianId,
+      customerName: input.customerName,
+      styleTitle: input.styleTitle,
+      styleImageUrl: input.styleImageUrl,
+      startAt: new Date(request.interval.startMs).toISOString(),
+      endAt: new Date(request.interval.endMs).toISOString(),
+      durationMin: quote.totalDurationMin,
+      status: input.status ?? 'confirmed',
+      notes: input.notes ?? '',
+    };
+    const items: BookingItem[] = quote.lines.map((l) => ({
+      id: `bitem-${randomUUID()}`,
+      bookingId,
+      catalogItemId: l.catalogItemId,
+      label: l.label,
+      priceCents: l.linePriceCents,
+      durationMin: l.durationMin,
+      quantity: l.quantity,
+      pricingUnit: l.pricingUnit,
+      affectsDuration: l.affectsDuration,
+    }));
+    return { booking, items };
+  }
+
   return {
     async createBooking(input: CreateBookingInput): Promise<IntervalBooking> {
-      const merchant = await resolveMerchantWithTechnicianGuard(input.merchantId, input.technicianId);
-
-      const quote = await quoteService.buildQuote({
-        merchantId: input.merchantId,
-        technicianId: input.technicianId,
-        selections: input.selections,
-      });
-      if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
-
-      const request = resolveSlot(merchant.timezone, input.date, input.time, quote.totalDurationMin);
-      const bookingId = `booking-${randomUUID()}`;
-      const booking: IntervalBooking = {
-        id: bookingId,
-        merchantId: input.merchantId,
-        technicianId: input.technicianId,
-        customerName: input.customerName,
-        styleTitle: input.styleTitle,
-        styleImageUrl: input.styleImageUrl,
-        startAt: new Date(request.interval.startMs).toISOString(),
-        endAt: new Date(request.interval.endMs).toISOString(),
-        durationMin: quote.totalDurationMin,
-        status: input.status ?? 'confirmed',
-        notes: input.notes ?? '',
-      };
-      const items: BookingItem[] = quote.lines.map((l) => ({
-        id: `bitem-${randomUUID()}`,
-        bookingId,
-        catalogItemId: l.catalogItemId,
-        label: l.label,
-        priceCents: l.linePriceCents,
-        durationMin: l.durationMin,
-        quantity: l.quantity,
-        pricingUnit: l.pricingUnit,
-        affectsDuration: l.affectsDuration,
-      }));
-
+      const { booking, items } = await buildFromSelections(input);
       // Throws 'booking_overlap' if the interval collides (exclusion constraint / in-memory mirror).
       return repos.intervalBookings.create(booking, items);
+    },
+
+    async createBookingWithThreadFromSelections(
+      input: CreateBookingInput,
+      buildThread: (booking: IntervalBooking) => BookingConversationThread,
+    ): Promise<IntervalBooking> {
+      const { booking, items } = await buildFromSelections(input);
+      return repos.intervalBookings.createWithThread(booking, items, buildThread(booking));
     },
 
     async createBookingFromSnapshot(input: CreateBookingFromSnapshotInput): Promise<IntervalBooking> {

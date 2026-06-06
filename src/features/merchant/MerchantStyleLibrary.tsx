@@ -4,13 +4,16 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { MerchantStyleView } from '@/domain/merchant-style';
 import {
   archiveMerchantStyleAction,
+  listConfigurableCatalogAction,
   listMerchantStylesAction,
   publishMerchantStyleAction,
   uploadMerchantStyleAction,
+  type ConfigurableCatalogItem,
 } from '@/lib/actions/merchant-style-actions';
 
 export function MerchantStyleLibrary() {
   const [styles, setStyles] = useState<MerchantStyleView[]>([]);
+  const [catalog, setCatalog] = useState<ConfigurableCatalogItem[]>([]);
   const [message, setMessage] = useState('');
   const [isPending, setIsPending] = useState(false);
 
@@ -20,6 +23,9 @@ export function MerchantStyleLibrary() {
 
   useEffect(() => {
     refresh().catch(() => setMessage('Unable to load the style library.'));
+    listConfigurableCatalogAction()
+      .then(setCatalog)
+      .catch(() => setMessage('Unable to load the catalog.'));
   }, [refresh]);
 
   function run(command: () => Promise<unknown>, success: string) {
@@ -41,13 +47,18 @@ export function MerchantStyleLibrary() {
   function handlePublish(event: FormEvent<HTMLFormElement>, styleId: string) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    // Price + duration are derived server-side from the chosen catalog items, never typed here.
+    const selections = data.getAll('selection').map((id) => {
+      const quantity = Number(data.get(`qty-${String(id)}`)) || 1;
+      return { catalogItemId: String(id), quantity };
+    });
     run(
       () =>
         publishMerchantStyleAction({
           styleId,
           title: String(data.get('title') ?? ''),
-          previewPriceCents: Math.round(Number(data.get('price')) * 100),
-          previewDurationMin: Number(data.get('duration')),
+          description: String(data.get('description') ?? ''),
+          selections,
         }),
       'Style published to customer discovery.',
     );
@@ -92,16 +103,38 @@ export function MerchantStyleLibrary() {
                     <span>Reviewed title</span>
                     <input defaultValue={style.title} name="title" required type="text" />
                   </label>
-                  <div className="merchant-style-review-numbers">
-                    <label className="field">
-                      <span>From price</span>
-                      <input min="0" name="price" required step="0.01" type="number" />
-                    </label>
-                    <label className="field">
-                      <span>Duration min</span>
-                      <input min="1" name="duration" required step="1" type="number" />
-                    </label>
-                  </div>
+                  <label className="field">
+                    <span>Description</span>
+                    <textarea defaultValue={style.description} name="description" rows={2} />
+                  </label>
+                  <fieldset className="merchant-style-selections">
+                    <legend>Service breakdown (price &amp; time are auto-calculated)</legend>
+                    {catalog.map((item) => {
+                      const existing = style.catalogBreakdown.find((s) => s.catalogItemId === item.id);
+                      return (
+                        <div className="merchant-style-selection-row" key={item.id}>
+                          <label>
+                            <input
+                              defaultChecked={Boolean(existing)}
+                              name="selection"
+                              type="checkbox"
+                              value={item.id}
+                            />
+                            <span>{item.nameZh}</span>
+                            <small>{item.defaultPricingUnit}</small>
+                          </label>
+                          <input
+                            aria-label={`${item.nameZh} quantity`}
+                            defaultValue={existing?.quantity ?? 1}
+                            min="1"
+                            name={`qty-${item.id}`}
+                            step="1"
+                            type="number"
+                          />
+                        </div>
+                      );
+                    })}
+                  </fieldset>
                   <button className="button button-primary button-block" disabled={isPending} type="submit">
                     Publish
                   </button>

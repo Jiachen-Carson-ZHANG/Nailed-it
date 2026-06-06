@@ -1,3 +1,5 @@
+import type { CatalogSelection } from './catalog';
+
 export type UserRole = 'customer' | 'merchant';
 
 export type NailShape =
@@ -54,6 +56,8 @@ export type TechnicianSlot = {
   label: string;
   time: string;
   technician: TechnicianSnapshot;
+  /** Exact server-derived quote for this technician, including staff duration overrides. */
+  quote?: BookingQuote;
   rankReason?: 'shortest_wait' | 'earliest_available';
 };
 
@@ -62,6 +66,14 @@ export type CustomerBookingDraft = {
   imageUrl: string;
   recognition: AIRecognitionResult;
   breakdowns?: { glossary: BreakdownResult | null };
+  /** Validated AI catalog selections. Price/duration are always recomputed server-side. */
+  catalogSelections?: CatalogSelection[];
+  /**
+   * When the booking originated from a published merchant style, its id. The confirm step then books
+   * the style's curated catalog breakdown (server-derived price) instead of a flat recognition estimate.
+   */
+  styleId?: string;
+  styleTitle?: string;
 };
 
 export type StyleDiscoveryFacetKind = 'style' | 'addon' | 'shape' | 'mood' | 'lifestyle';
@@ -235,6 +247,8 @@ export type BreakdownItem = GlossaryBreakdownItem;
 
 export type BreakdownResult = {
   items: GlossaryBreakdownItem[];
+  /** Validated catalog ids + quantities used by quoteService and bookingService. */
+  catalogSelections: CatalogSelection[];
   totalPrice: number;
   totalDuration: number;
   mode: 'glossary';

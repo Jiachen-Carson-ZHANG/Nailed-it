@@ -106,7 +106,6 @@ async function readMelissaRows(): Promise<BackfillRow[]> {
             { kind: 'mood', label: 'Showcase' },
           ],
           recognition: null,
-          catalog_breakdown: [],
           preview_price_cents: previewPriceCents,
           preview_duration_min: previewDurationMin,
           published_at: timestamp,

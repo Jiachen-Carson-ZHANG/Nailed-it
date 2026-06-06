@@ -1,5 +1,126 @@
 # Implementation Log
 
+## 2026-06-06 — Live catalog-id recognizer (reuse the breakdown) + glossary unification
+
+The merchant style "brain": instead of a parallel recognizer, the existing customer breakdown is
+reused — it already turns an image into catalog selections.
+- **Glossary unified onto the catalog.** `src/data/glossary.ts` no longer hand-lists entries; it
+  derives them from `src/mock/catalog.ts` (109 ids). The breakdown prompt can now only ever name valid
+  catalog ids — the 114-vs-109 drift (7 dead ids the model could emit, e.g. `extension_short`; 4
+  missing new ids) is structurally gone. Only `breakdown.ts` consumes the glossary; behaviour
+  unchanged, ids corrected.
+- **`recognizeStyleConfig` (`src/nail-ai/style-config-recognition.ts`).** image → `runGlossaryBreakdown`
+  (catalog-id detection) → `buildStyleConfig` (validated split: priced→selections, descriptive→facets)
+  + one naming call → `{ catalogSelections, discoveryFacets, name, description }`. Same vision pipeline
+  as the customer side; no second recognizer.
+- **`npm run configure:styles --ai`.** Backfills the 35 live styles from their Storage images: real
+  per-image breakdown, AI name, AI description, derived price. Validated live on one row →
+  `奶油香槟金箔钻`, `gradient×5 + rhinestone_large + foil_piece×2 + chain_charm`, $45 / 125 min (vs the
+  $28 default). `--limit=N` caps the run; without `--ai` it falls back to the curatable default.
+- **AI-suggest is the default on merchant upload.** `uploadMerchantStyleAction` runs `recognizeStyleConfig`
+  after the upload and applies it (best-effort: a missing key / model error / no priceable items leaves
+  the draft in `needs_review` for manual config). The merchant review form already reads the style's
+  `catalogBreakdown` / `description` / `title` into editable fields, so the merchant edits the AI
+  suggestion before publishing. `set_merchant_style_config` now also sets the title (the AI name),
+  added to migration `0014` (`p_title`, empty preserves the existing title); `service.applyConfig`
+  derives the preview from the selections and persists items + facets + description + name.
+
+Note: upload AI runs inline (two model calls, ~seconds) so the upload request blocks until config
+returns; acceptable for the demo. Naming/description quality depends on the model run.
+
+## 2026-06-06 — Merchant style integrity hardening (migration 0014, audit follow-up)
+
+Pure-SQL follow-up to the second Phase 2 audit (0013 already applied, so fixes land in `0014`; RPC
+signatures unchanged → no application code changes):
+- `merchant_style_item` quantity gains an upper bound (`<= 100`) to match quoteService's accepted range.
+- `set_merchant_style_config` now validates `p_items` / `p_discovery_facets` are JSONB arrays and refuses to edit an archived style (it previously checked only id + merchant). Items + derived preview are still written in one transaction so they can't diverge.
+- `publish_merchant_style` now requires ≥ 1 relational item and **no longer writes the preview snapshot** — `set_merchant_style_config` is the sole atomic writer of items + preview, so a concurrent reconfigure can't leave items from B with a price from A (audit finding 3). Signature unchanged (preview params accepted but ignored); the publishable CHECK still guarantees a non-null preview at publish.
+- Fixed `scripts/backfill-melissa-assets.ts`: stopped sending the dropped `catalog_breakdown` column (rerun would otherwise fail after uploading assets).
+- ADR-0005 P6.5 row updated: migrations `0009`–`0014` are live; the relational breakdown is authoritative.
+
+Apply: run `0014` in the Supabase SQL editor.
+
+Still open from the audit (next): the live catalog-id recognizer (reuse `runGlossaryBreakdown`, which already emits `catalogSelections`) + glossary→catalog prompt unification (the breakdown prompt is built from `src/data/glossary.ts`, 114 ids vs the catalog's 109, so the model can name dead ids); auth (no authenticated identities; service-role bypasses RLS).
+
+## 2026-06-06 — Phase 2.5 authoritative quote contract
+
+What changed:
+- Catalog selections now drive the entire configured booking path. Availability quotes each
+  technician separately (including `staff_item_duration`), attaches that exact quote to the offered
+  slot, and creation requotes the same selections + technician before the atomic write.
+- Published styles open directly on their frozen merchant-reviewed quote and no longer rerun image
+  recognition during booking.
+- Custom-image breakdowns return catalog selections. The breakdown API loads effective merchant
+  pricing server-side and requotes through `quoteService`; browser-supplied prices/durations were
+  removed.
+- Merchant Manage now reads/writes `merchant_pricing` through server actions and renders the
+  generated catalog. The obsolete `glossary-settings-store.ts` localStorage path was deleted.
+- `quoteService` rejects non-integer, non-finite, zero/negative, and excessive quantities.
+
+Why:
+- Displayed totals, offered duration, and persisted booking duration could previously come from
+  three different contracts. This bridge makes one server-derived catalog quote authoritative
+  before Phase 3 adds more AI/configuration behavior.
+
+Tradeoff:
+- The legacy flat snapshot action remains as a compatibility fallback for old or unconfigured
+  drafts. It always enters `pending_review`.
+- `src/data/glossary.ts` still duplicates prompt metadata from the generated catalog; it no longer
+  controls pricing but should be unified during the remaining live recognizer work.
+
+Aligned assumptions:
+- Browser catalog ids/quantities are choices, not price/duration authority.
+- Published styles use curated relational `merchant_style_item` selections and do not rerun AI.
+- See `docs/plans/2026-06-06-phase-2-5-authoritative-quote-contract.md`.
+
+Verification:
+- `242` Vitest tests passed.
+- `npx tsc --noEmit` passed.
+- `npm run build` passed.
+
+## 2026-06-06 — Style config pipeline, server-derived pricing, relational breakdown (Phase 2)
+
+Resolves the second Phase 2 audit (server-derived publishing, config persistence, customer/booking
+wiring, quantity-aware duration, relational breakdown). Earlier in the day this section overstated a
+`description`-field-plus-orphaned-helper as "Phase 2"; the entry below is the real, wired state.
+
+Pricing + duration are now DERIVED, never client-supplied:
+- Duration-aggregation policy made explicit (`durationAggregatingPackageIds` allowlist in `catalog.ts`). The old "aggregate any parent with billable='no' children" heuristic silently changed `color_effect_service` (20→24) and `finish_service` (15→51); now only `basic_manicure_service` (30→51) aggregates. (Audit finding 2.)
+- `quoteService` scales booking duration by quantity for `per_finger`/`per_piece` (5 painted nails = 5× one nail), counted once for `per_set`/`fixed`/`included`/`tag_only`. `QuoteLine.durationMin` is now the line total. (Finding 6.)
+- Merchant `publish` no longer accepts price/duration. It takes catalog `selections`, runs them through `quoteService`, and persists the derived snapshots. The merchant form is now a catalog-item selection editor (price/time shown as auto-calculated). (Finding 1.)
+
+Config pipeline + relational model:
+- `buildStyleConfig(recognized: RecognizedCatalogItem[], catalog, confirmedUncertainIds?)` now flows through `bucketRecognition` + `toCatalogSelections` (validates ids, drops unknown/non-detectable, preserves quantity), then splits: priced billable → `catalogBreakdown`; descriptive/containers → `discoveryFacets`. (Finding 3.)
+- New relational table `merchant_style_item` (FK → `catalog_item`, quantity) is the authoritative breakdown; `merchant_style.catalog_breakdown` jsonb is dropped. `recognition` stays jsonb. `MerchantStyle.catalogBreakdown` is now `CatalogSelection[]`, read by join. New `set_merchant_style_config` RPC writes items + facets + description + derived snapshots in place, preserving status/media (finding 7). (Migration `0013`.)
+- `scripts/configure-merchant-styles.ts` (`npm run configure:styles`) backfills the 35 live styles in place: each gets a curatable breakdown (default `basic_manicure_service`; per-id `OVERRIDES`), derives price/duration, writes via the RPC. Replaces the fake flat $88/90 snapshot with a real derived $28/51. Idempotent.
+
+Customer/booking consumption (finding 4):
+- A published style booking now books its CURATED `catalogBreakdown` → `quoteService` → relational `booking_item` rows, via `createBookingWithThreadFromSelections` (booking-service) + `createBookingFromStyleAction`. The customer draft carries `styleId`; the confirm step branches to the style action (else the legacy recognition snapshot). Same server guards (forced `pending_review`, availability enforced for the derived duration).
+- The booking quote + detail show the style's derived price + `description` for a prefilled style instead of the flat rule-based estimate.
+
+Migrations to apply (manual SQL editor — no CLI/exec_sql here), in order:
+- `0012_merchant_style_description.sql`: `merchant_style.description` + 9-param `publish_merchant_style`.
+- `0013_merchant_style_item.sql`: `merchant_style_item` table, drop `catalog_breakdown`, `create_merchant_style` (now carries description, no breakdown), `set_merchant_style_config`.
+Then `npm run configure:styles` to backfill the 35.
+
+Known gaps: the live catalog-id vision recognizer is still not wired, so the 35 get a default breakdown pending per-image curation (`OVERRIDES` in the script). Auto-config on manual upload (recognizer → buildStyleConfig at upload) is deferred; merchants configure via the publish selection editor.
+
+## 2026-06-06 — Catalog dictionary refresh + platform default price (Phase 1)
+
+What changed:
+- New generator `scripts/generate-catalog.mjs`: parses the Lark "Dictionary" CSV export → `src/mock/catalog.ts`, validating enums, parent refs, units, and `affects=yes`→duration. It refuses to emit data the integrity test / DB CHECKs would reject (caught real issues: `na` sentinels for non-timed tags, the dropped allowed-units column).
+- Regenerated `catalog.ts`: 112 → 109 items (−7 `extension_*`/`magnetic_special_effect`/`removal_short_extension`/`texture_cat_eye_light`, +4 `removal_short_origin`/`dual_color`/`aurora_powder`/`pearl_powder`). The sheet dropped its allowed-units list, so `allowedPricingUnits` is now the single default unit.
+- New `CatalogItem.defaultPriceCents` (null = no platform default). `pricing-resolver` precedence is now override → `defaultPriceCents` → (required ? unresolved : free). This closes the "$0 catalog quote" gap (`catalog_default` used to always return price 0).
+- Migration `0011_catalog_default_price.sql`: adds `catalog_item.default_price_cents`, drops the 7 removed items (all leaves; no FK refs). `scripts/seed-supabase.ts` now writes `default_price_cents`; re-run it after applying `0011`.
+
+Pricing/time model (confirmed with product):
+- `basic_manicure_service` is the only priced *parent* (a $28/per_set package); its 5 children are `billable=no`, time-only. Other parents are unpriced containers; their priced leaf children are à la carte add-ons.
+- Base-package booking time = **sum of its child steps**, not the parent's stored duration (decided 2026-06-06). The aggregation lives in the quote/breakdown layer (Phase 2); `catalog.ts` stays a faithful mirror.
+
+Apply: run `0011` in Supabase, then `npx tsx scripts/seed-supabase.ts`.
+
+Known follow-up: `src/data/glossary.ts` is a hand-maintained second copy of the dictionary (consumed only by the breakdown route, not yet wired into the config pipeline). It still lists the 7 removed ids and lacks the 4 new ones. Reconcile it in Phase 2 (ideally unify it with the generated catalog rather than maintain two copies).
+
 ## 2026-06-06 — Remove obsolete localStorage operations store
 
 What changed:

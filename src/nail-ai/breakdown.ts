@@ -1,5 +1,5 @@
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
-import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
+import type { MerchantPricingSetting } from '@/domain/merchant';
 import {
   aiDetectableComponents,
   aiDetectableVisualAttributes,
@@ -188,7 +188,7 @@ function buildPrompt(): string {
 export async function runGlossaryBreakdown(
   imageBase64: string,
   mimeType: string,
-  merchantSettings: GlossaryEntrySettings[],
+  merchantSettings: MerchantPricingSetting[],
   env = process.env
 ): Promise<BreakdownResult> {
   const apiKey = env.OPENROUTER_API_KEY;
@@ -199,7 +199,7 @@ export async function runGlossaryBreakdown(
     await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() })
   );
 
-  const settingsById = new Map<string, GlossaryEntrySettings>(
+  const settingsById = new Map<string, MerchantPricingSetting>(
     merchantSettings.map((s) => [s.id, s])
   );
 
@@ -215,13 +215,9 @@ export async function runGlossaryBreakdown(
     style_tags:         'style_tag',
   };
 
-  // Sections that can have merchant-configured prices
-  const pricedSections = new Set<RawSection>(['billable_components', 'visual_attributes']);
-
   function parseSection(section: RawSection): GlossaryBreakdownItem[] {
     const rawArray = Array.isArray(raw[section]) ? (raw[section] as unknown[]) : [];
     const glossaryType = sectionTypeMap[section];
-    const allowPricing = pricedSections.has(section);
 
     return rawArray
       .map((d: unknown) => {
@@ -230,7 +226,8 @@ export async function runGlossaryBreakdown(
         const entry = glossaryById.get(id);
         if (!entry) return null;
 
-        const settings = allowPricing ? settingsById.get(id) : undefined;
+        const settings = settingsById.get(id);
+        const allowPricing = Boolean(settings);
         const isEnabled = settings?.enabled !== false;
         const price = (allowPricing && isEnabled) ? (settings?.price ?? 0) : 0;
         const duration = (allowPricing && isEnabled) ? (settings?.duration ?? entry.default_duration_min) : 0;
@@ -264,8 +261,17 @@ export async function runGlossaryBreakdown(
   ];
 
   const items = sections.flatMap(parseSection);
+  const selectionById = new Map<string, number>();
+  for (const item of items) {
+    if (!settingsById.has(item.glossaryId)) continue;
+    selectionById.set(item.glossaryId, (selectionById.get(item.glossaryId) ?? 0) + item.quantity);
+  }
+  const catalogSelections = [...selectionById].map(([catalogItemId, quantity]) => ({
+    catalogItemId,
+    quantity,
+  }));
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalDuration = items.reduce((sum, item) => sum + item.duration, 0);
 
-  return { items, totalPrice, totalDuration, mode: 'glossary' };
+  return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }

@@ -66,7 +66,35 @@ export type CatalogItem = {
   defaultDurationMin: number | null;
   allowedPricingUnits: PricingUnit[];
   defaultPricingUnit: PricingUnit;
+  /** Platform default price in cents (null = no platform default; merchant must price it). */
+  defaultPriceCents: number | null;
   quantitySupported: TriState;
   complexitySupported: YesNo;
   notes: string;
 };
+
+/**
+ * Packages whose booking time is the SUM of their non-billable, time-only child steps rather than
+ * their own stored duration. This is an EXPLICIT policy, not inferred from child billability:
+ * other container parents (color_effect_service, finish_service) also have billable='no' children
+ * but must keep their own duration. Eventually this belongs in the Lark Dictionary as a column;
+ * until then it is a curated allowlist (product decision 2026-06-06).
+ */
+export const durationAggregatingPackageIds = new Set<string>(['basic_manicure_service']);
+
+/**
+ * The effective service duration of selecting this item, in minutes.
+ *
+ * For an aggregating package (see `durationAggregatingPackageIds`) — e.g. the base manicure, whose
+ * clean / cuticle / prep / shaping sub-steps each carry time but no price — the booking time is the
+ * SUM of those child steps. For every other item it is the item's own default duration.
+ */
+export function effectiveDurationMin(item: CatalogItem, catalog: CatalogItem[]): number {
+  if (durationAggregatingPackageIds.has(item.id)) {
+    const timeOnlyChildren = catalog.filter((c) => c.parentId === item.id && c.billable === 'no');
+    if (timeOnlyChildren.length > 0) {
+      return timeOnlyChildren.reduce((sum, c) => sum + (c.defaultDurationMin ?? 0), 0);
+    }
+  }
+  return item.defaultDurationMin ?? 0;
+}

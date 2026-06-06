@@ -1,4 +1,5 @@
-// AUTO-GENERATED from the Lark "Disctionary" sheet. Catalog source of truth (ADR-0005).
+// AUTO-GENERATED from the Lark "Dictionary" sheet via scripts/generate-catalog.mjs.
+// Catalog source of truth (ADR-0005). Do not edit by hand — edit the sheet and regenerate.
 import type { CatalogItem } from '@/domain/catalog';
 
 export const catalogItems: CatalogItem[] = [
@@ -20,6 +21,7 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 2800,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "打包清洁、修死皮、打磨甲面、底胶、基础修整等"
@@ -39,369 +41,13 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "per_set",
       "fixed"
     ],
     "defaultPricingUnit": "fixed",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "yes",
     "notes": "卸甲依赖用户当前手部状态，不完全依赖图片"
-  },
-  {
-    "id": "extension_service",
-    "nameZh": "延长服务",
-    "type": "service_module",
-    "category": "structure",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 30,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "yes",
-    "notes": "延长时间因美甲师差异较大"
-  },
-  {
-    "id": "builder_service",
-    "nameZh": "建构服务",
-    "type": "service_module",
-    "category": "structure",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "weak",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 30,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "yes",
-    "notes": "图片不一定能判断是否建构，常需用户确认"
-  },
-  {
-    "id": "color_effect_service",
-    "nameZh": "颜色与效果服务",
-    "type": "service_module",
-    "category": "color_effect",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "optional",
-    "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 20,
-    "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "optional",
-    "complexitySupported": "yes",
-    "notes": "包含猫眼、魔镜粉、渐变、晕染等"
-  },
-  {
-    "id": "art_service",
-    "nameZh": "美术设计服务",
-    "type": "service_module",
-    "category": "art",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 40,
-    "allowedPricingUnits": [
-      "per_finger",
-      "per_level"
-    ],
-    "defaultPricingUnit": "per_level",
-    "quantitySupported": "yes",
-    "complexitySupported": "yes",
-    "notes": "手绘、法式、复杂设计等"
-  },
-  {
-    "id": "decoration_service",
-    "nameZh": "装饰服务",
-    "type": "service_module",
-    "category": "decoration",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "optional",
-    "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 15,
-    "allowedPricingUnits": [
-      "per_piece",
-      "per_finger",
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_piece",
-    "quantitySupported": "yes",
-    "complexitySupported": "yes",
-    "notes": "贴钻、饰品、珍珠、金属件等"
-  },
-  {
-    "id": "finish_service",
-    "nameZh": "收尾保护服务",
-    "type": "service_module",
-    "category": "finish",
-    "parentId": null,
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 15,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "包边、封层、擦拭修整等，通常不单独展示"
-  },
-  {
-    "id": "cleaning_disinfection",
-    "nameZh": "清洁消毒",
-    "type": "procedure",
-    "category": "base_service",
-    "parentId": "basic_manicure_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 2,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "不单独给商家配置，打包进基础护理"
-  },
-  {
-    "id": "cuticle_care",
-    "nameZh": "修死皮",
-    "type": "procedure",
-    "category": "base_service",
-    "parentId": "basic_manicure_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 8,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "默认按 5–10min 中值估算"
-  },
-  {
-    "id": "nail_surface_prep",
-    "nameZh": "打磨甲面",
-    "type": "procedure",
-    "category": "base_service",
-    "parentId": "basic_manicure_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 8,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "打包进基础护理"
-  },
-  {
-    "id": "base_gel",
-    "nameZh": "底胶",
-    "type": "procedure",
-    "category": "base_service",
-    "parentId": "basic_manicure_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 8,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "打包进基础护理"
-  },
-  {
-    "id": "nail_shaping_work",
-    "nameZh": "磨甲型工序",
-    "type": "procedure",
-    "category": "base_service",
-    "parentId": "basic_manicure_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "optional",
-    "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 25,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "不是甲型标签，而是真实修型工序"
-  },
-  {
-    "id": "base_color_gel",
-    "nameZh": "打底色胶",
-    "type": "procedure",
-    "category": "color_effect",
-    "parentId": "color_effect_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 12,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "不论款式如何通常需要"
-  },
-  {
-    "id": "main_color_gel",
-    "nameZh": "主色胶",
-    "type": "procedure",
-    "category": "color_effect",
-    "parentId": "color_effect_service",
-    "userVisible": "no",
-    "aiDetectable": "weak",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 12,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "主色本身作为 visual_attribute 展示"
-  },
-  {
-    "id": "edge_sealing_work",
-    "nameZh": "包边工序",
-    "type": "procedure",
-    "category": "finish",
-    "parentId": "finish_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 15,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "有贴纸或贴钻时，后端可自动加时间"
-  },
-  {
-    "id": "top_coat",
-    "nameZh": "封层",
-    "type": "procedure",
-    "category": "finish",
-    "parentId": "finish_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 18,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "最后一层保护胶"
-  },
-  {
-    "id": "final_cleaning",
-    "nameZh": "擦拭修整",
-    "type": "procedure",
-    "category": "finish",
-    "parentId": "finish_service",
-    "userVisible": "no",
-    "aiDetectable": "no",
-    "billable": "no",
-    "merchantPriceRequired": "no",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 8,
-    "allowedPricingUnits": [
-      "included"
-    ],
-    "defaultPricingUnit": "included",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "最后清理和指缘油"
   },
   {
     "id": "removal_basic_gel",
@@ -418,16 +64,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
-      "fixed"
+      "per_set"
     ],
-    "defaultPricingUnit": "fixed",
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "主要由用户选择是否需要卸甲"
   },
   {
-    "id": "removal_short_extension",
-    "nameZh": "卸短甲",
+    "id": "removal_short_origin",
+    "nameZh": "卸本甲",
     "type": "billable_component",
     "category": "removal",
     "parentId": "removal_service",
@@ -440,16 +87,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "fixed"
+      "per_set"
     ],
-    "defaultPricingUnit": "fixed",
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "短甲卸甲"
   },
   {
     "id": "removal_extension",
-    "nameZh": "卸延长",
+    "nameZh": "卸建构甲",
     "type": "billable_component",
     "category": "removal",
     "parentId": "removal_service",
@@ -465,6 +113,7 @@ export const catalogItems: CatalogItem[] = [
       "fixed"
     ],
     "defaultPricingUnit": "fixed",
+    "defaultPriceCents": 2000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "适用于延长甲、贴片甲"
@@ -487,9 +136,56 @@ export const catalogItems: CatalogItem[] = [
       "fixed"
     ],
     "defaultPricingUnit": "fixed",
+    "defaultPriceCents": 2500,
     "quantitySupported": "no",
     "complexitySupported": "yes",
     "notes": "复杂卸甲，应由用户确认"
+  },
+  {
+    "id": "extension_service",
+    "nameZh": "延长服务",
+    "type": "service_module",
+    "category": "structure",
+    "parentId": null,
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "yes",
+    "durationConfigLevel": "staff_level",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 30,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "yes",
+    "notes": "延长时间因美甲师差异较大"
+  },
+  {
+    "id": "builder_service",
+    "nameZh": "建构服务",
+    "type": "service_module",
+    "category": "structure",
+    "parentId": null,
+    "userVisible": "yes",
+    "aiDetectable": "weak",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "yes",
+    "durationConfigLevel": "staff_level",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 30,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "yes",
+    "notes": "图片不一定能判断是否建构，常需用户确认"
   },
   {
     "id": "natural_nail",
@@ -499,8 +195,8 @@ export const catalogItems: CatalogItem[] = [
     "parentId": "extension_service",
     "userVisible": "yes",
     "aiDetectable": "yes",
-    "billable": "no",
-    "merchantPriceRequired": "no",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "none",
     "affectsBookingDuration": "no",
@@ -509,97 +205,10 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "用户可见标签，不计价"
-  },
-  {
-    "id": "extension_short",
-    "nameZh": "短款延长",
-    "type": "billable_component",
-    "category": "structure",
-    "parentId": "extension_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 25,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "可由 AI 识别，但建议用户确认"
-  },
-  {
-    "id": "extension_medium",
-    "nameZh": "中款延长",
-    "type": "billable_component",
-    "category": "structure",
-    "parentId": "extension_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 35,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "比短款时间更长"
-  },
-  {
-    "id": "extension_long",
-    "nameZh": "长款延长",
-    "type": "billable_component",
-    "category": "structure",
-    "parentId": "extension_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 45,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "长度越长越影响时间"
-  },
-  {
-    "id": "extension_extra_long",
-    "nameZh": "超长延长",
-    "type": "billable_component",
-    "category": "structure",
-    "parentId": "extension_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "yes",
-    "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 60,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "yes",
-    "notes": "建议进入用户确认"
   },
   {
     "id": "builder_gel",
@@ -619,6 +228,7 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
     "quantitySupported": "no",
     "complexitySupported": "yes",
     "notes": "图片难判断，建议默认进入 uncertain_items"
@@ -641,6 +251,7 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 5000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可作为延长子类"
@@ -663,6 +274,7 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 6000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可后续合并到 extension_short / extension_medium"
@@ -685,9 +297,332 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 6000,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "MVP 可不单独展示"
+  },
+  {
+    "id": "color_effect_service",
+    "nameZh": "颜色与效果服务",
+    "type": "service_module",
+    "category": "color_effect",
+    "parentId": null,
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "optional",
+    "durationConfigLevel": "merchant_optional",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 20,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": null,
+    "quantitySupported": "optional",
+    "complexitySupported": "yes",
+    "notes": "包含猫眼、魔镜粉、渐变、晕染等"
+  },
+  {
+    "id": "art_service",
+    "nameZh": "美术设计服务",
+    "type": "service_module",
+    "category": "art",
+    "parentId": null,
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "yes",
+    "durationConfigLevel": "staff_level",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 40,
+    "allowedPricingUnits": [
+      "per_level"
+    ],
+    "defaultPricingUnit": "per_level",
+    "defaultPriceCents": null,
+    "quantitySupported": "yes",
+    "complexitySupported": "yes",
+    "notes": "手绘、法式、复杂设计等"
+  },
+  {
+    "id": "decoration_service",
+    "nameZh": "装饰服务",
+    "type": "service_module",
+    "category": "decoration",
+    "parentId": null,
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "optional",
+    "durationConfigLevel": "merchant_optional",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 15,
+    "allowedPricingUnits": [
+      "per_piece"
+    ],
+    "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": null,
+    "quantitySupported": "yes",
+    "complexitySupported": "yes",
+    "notes": "贴钻、饰品、珍珠、金属件等"
+  },
+  {
+    "id": "finish_service",
+    "nameZh": "收尾保护服务",
+    "type": "service_module",
+    "category": "finish",
+    "parentId": null,
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 15,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "包边、封层、擦拭修整等，通常不单独展示"
+  },
+  {
+    "id": "cleaning_disinfection",
+    "nameZh": "清洁消毒",
+    "type": "procedure",
+    "category": "base_service",
+    "parentId": "basic_manicure_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 2,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "不单独给商家配置，打包进基础护理"
+  },
+  {
+    "id": "cuticle_care",
+    "nameZh": "修死皮",
+    "type": "procedure",
+    "category": "base_service",
+    "parentId": "basic_manicure_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 8,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "默认按 5–10min 中值估算"
+  },
+  {
+    "id": "nail_surface_prep",
+    "nameZh": "打磨甲面",
+    "type": "procedure",
+    "category": "base_service",
+    "parentId": "basic_manicure_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 8,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "打包进基础护理"
+  },
+  {
+    "id": "base_gel",
+    "nameZh": "底胶",
+    "type": "procedure",
+    "category": "base_service",
+    "parentId": "basic_manicure_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 8,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "打包进基础护理"
+  },
+  {
+    "id": "nail_shaping_work",
+    "nameZh": "磨甲型工序",
+    "type": "procedure",
+    "category": "base_service",
+    "parentId": "basic_manicure_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "optional",
+    "durationConfigLevel": "merchant_optional",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 25,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "不是甲型标签，而是真实修型工序"
+  },
+  {
+    "id": "base_color_gel",
+    "nameZh": "打底色胶",
+    "type": "procedure",
+    "category": "color_effect",
+    "parentId": "color_effect_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 12,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "不论款式如何通常需要"
+  },
+  {
+    "id": "main_color_gel",
+    "nameZh": "主色胶",
+    "type": "procedure",
+    "category": "color_effect",
+    "parentId": "color_effect_service",
+    "userVisible": "no",
+    "aiDetectable": "weak",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 12,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "主色本身作为 visual_attribute 展示"
+  },
+  {
+    "id": "edge_sealing_work",
+    "nameZh": "包边工序",
+    "type": "procedure",
+    "category": "finish",
+    "parentId": "finish_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 15,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "有贴纸或贴钻时，后端可自动加时间"
+  },
+  {
+    "id": "top_coat",
+    "nameZh": "封层",
+    "type": "procedure",
+    "category": "finish",
+    "parentId": "finish_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 18,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "最后一层保护胶"
+  },
+  {
+    "id": "final_cleaning",
+    "nameZh": "擦拭修整",
+    "type": "procedure",
+    "category": "finish",
+    "parentId": "finish_service",
+    "userVisible": "no",
+    "aiDetectable": "no",
+    "billable": "no",
+    "merchantPriceRequired": "no",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 8,
+    "allowedPricingUnits": [
+      "included"
+    ],
+    "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "最后清理和指缘油"
   },
   {
     "id": "solid_color",
@@ -704,13 +639,36 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 15,
     "allowedPricingUnits": [
-      "included",
-      "per_set"
+      "included"
     ],
     "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "多数商家把纯色包含在基础价"
+  },
+  {
+    "id": "dual_color",
+    "nameZh": "跳色",
+    "type": "billable_component",
+    "category": "color_effect",
+    "parentId": "color_effect_service",
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "optional",
+    "durationConfigLevel": "merchant_optional",
+    "affectsBookingDuration": "no",
+    "defaultDurationMin": 10,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1000,
+    "quantitySupported": "no",
+    "complexitySupported": "no",
+    "notes": "跳一色价格，也就是在纯色的基础上加一个颜色"
   },
   {
     "id": "gradient",
@@ -727,10 +685,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "yes",
     "notes": "晕染 / 渐变类效果"
@@ -750,10 +708,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "yes",
     "notes": "属于晕染类效果"
@@ -773,17 +731,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 25,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "yes",
     "notes": "比普通渐变复杂"
   },
   {
     "id": "jelly_translucent",
-    "nameZh": "冰透效果",
+    "nameZh": "透色",
     "type": "billable_component",
     "category": "color_effect",
     "parentId": "color_effect_service",
@@ -796,17 +754,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 15,
     "allowedPricingUnits": [
-      "included",
-      "per_set"
+      "included"
     ],
     "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "也可作为视觉属性"
   },
   {
     "id": "cat_eye",
-    "nameZh": "猫眼效果",
+    "nameZh": "猫眼色",
     "type": "billable_component",
     "category": "color_effect",
     "parentId": "color_effect_service",
@@ -819,40 +777,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
+      "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1000,
     "quantitySupported": "optional",
     "complexitySupported": "no",
     "notes": "猫眼通常需要磁吸操作"
   },
   {
-    "id": "chrome_powder",
-    "nameZh": "魔镜粉",
-    "type": "billable_component",
-    "category": "color_effect",
-    "parentId": "color_effect_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "no",
-    "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 5,
-    "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "optional",
-    "complexitySupported": "no",
-    "notes": "镜面、极光、金属粉效果"
-  },
-  {
     "id": "glitter",
-    "nameZh": "亮片效果",
+    "nameZh": "亮片色",
     "type": "billable_component",
     "category": "color_effect",
     "parentId": "color_effect_service",
@@ -865,17 +800,17 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
+      "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
     "quantitySupported": "optional",
     "complexitySupported": "no",
     "notes": "亮片胶、闪粉、碎钻感"
   },
   {
     "id": "matte_top",
-    "nameZh": "磨砂效果",
+    "nameZh": "磨砂色",
     "type": "billable_component",
     "category": "color_effect",
     "parentId": "finish_service",
@@ -891,31 +826,10 @@ export const catalogItems: CatalogItem[] = [
       "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可作为封层加价项"
-  },
-  {
-    "id": "magnetic_special_effect",
-    "nameZh": "特殊磁吸效果",
-    "type": "billable_component",
-    "category": "color_effect",
-    "parentId": "color_effect_service",
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "optional",
-    "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 25,
-    "allowedPricingUnits": [
-      "per_set"
-    ],
-    "defaultPricingUnit": "per_set",
-    "quantitySupported": "no",
-    "complexitySupported": "yes",
-    "notes": "复杂猫眼、星河猫眼等"
   },
   {
     "id": "french_tip_basic",
@@ -932,10 +846,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 25,
     "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
+      "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
     "quantitySupported": "optional",
     "complexitySupported": "no",
     "notes": "普通法式边"
@@ -955,10 +869,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 35,
     "allowedPricingUnits": [
-      "per_set",
-      "per_finger"
+      "per_set"
     ],
     "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 2000,
     "quantitySupported": "optional",
     "complexitySupported": "yes",
     "notes": "斜法式、双层法式、多色法式"
@@ -978,10 +892,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 30,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set"
+      "per_finger"
     ],
     "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "yes",
     "notes": "线条、小花、小图案"
@@ -1001,10 +915,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 45,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set"
+      "per_finger"
     ],
     "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "yes",
     "notes": "花朵、蝴蝶结、局部图案"
@@ -1024,11 +938,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 60,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set",
-      "per_level"
+      "per_finger"
     ],
-    "defaultPricingUnit": "per_level",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "yes",
     "notes": "多指复杂图案、人物、复杂图案等"
@@ -1048,10 +961,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "yes",
     "notes": "可并入简单手绘"
@@ -1071,10 +984,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 45,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set"
+      "per_finger"
     ],
     "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "yes",
     "notes": "格纹、豹纹、棋盘格等"
@@ -1094,10 +1007,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 30,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set"
+      "per_finger"
     ],
     "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "yes",
     "notes": "3D 雕花、浮雕等"
@@ -1117,10 +1030,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
-      "per_finger",
-      "per_set"
+      "per_finger"
     ],
     "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "美甲贴纸"
@@ -1140,10 +1053,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 2,
     "allowedPricingUnits": [
-      "per_piece",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_piece",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "AI 识别数量可能不准，需要用户修正"
@@ -1163,10 +1076,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 4,
     "allowedPricingUnits": [
-      "per_piece",
-      "per_finger"
+      "per_piece"
     ],
     "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "单颗价格更高"
@@ -1186,10 +1099,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 30,
     "allowedPricingUnits": [
-      "per_set",
-      "per_level"
+      "per_set"
     ],
-    "defaultPricingUnit": "per_level",
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1000,
     "quantitySupported": "no",
     "complexitySupported": "yes",
     "notes": "当钻很多时不适合逐颗算"
@@ -1212,6 +1125,7 @@ export const catalogItems: CatalogItem[] = [
       "per_piece"
     ],
     "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "可作为饰品子类"
@@ -1234,6 +1148,7 @@ export const catalogItems: CatalogItem[] = [
       "per_piece"
     ],
     "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "金属蝴蝶结、链条、吊饰等"
@@ -1256,6 +1171,7 @@ export const catalogItems: CatalogItem[] = [
       "per_piece"
     ],
     "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "常见热门款式元素"
@@ -1278,6 +1194,7 @@ export const catalogItems: CatalogItem[] = [
       "per_piece"
     ],
     "defaultPricingUnit": "per_piece",
+    "defaultPriceCents": 500,
     "quantitySupported": "yes",
     "complexitySupported": "no",
     "notes": "可并入金属饰品"
@@ -1297,10 +1214,10 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "no",
     "notes": "常见夏季款"
@@ -1320,13 +1237,82 @@ export const catalogItems: CatalogItem[] = [
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 8,
     "allowedPricingUnits": [
-      "per_set",
       "per_finger"
     ],
-    "defaultPricingUnit": "per_set",
+    "defaultPricingUnit": "per_finger",
+    "defaultPriceCents": 500,
     "quantitySupported": "optional",
     "complexitySupported": "no",
     "notes": "可作为装饰或效果"
+  },
+  {
+    "id": "chrome_powder",
+    "nameZh": "魔镜粉",
+    "type": "billable_component",
+    "category": "decoration",
+    "parentId": "color_effect_service",
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 5,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
+    "quantitySupported": "optional",
+    "complexitySupported": "no",
+    "notes": "镜面、极光、金属粉效果"
+  },
+  {
+    "id": "aurora_powder",
+    "nameZh": "极光粉",
+    "type": "billable_component",
+    "category": "decoration",
+    "parentId": "color_effect_service",
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 5,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
+    "quantitySupported": "optional",
+    "complexitySupported": "no",
+    "notes": "镜面、极光、金属粉效果"
+  },
+  {
+    "id": "pearl_powder",
+    "nameZh": "珍珠粉",
+    "type": "billable_component",
+    "category": "decoration",
+    "parentId": "color_effect_service",
+    "userVisible": "yes",
+    "aiDetectable": "yes",
+    "billable": "yes",
+    "merchantPriceRequired": "yes",
+    "merchantDurationRequired": "no",
+    "durationConfigLevel": "platform_default",
+    "affectsBookingDuration": "yes",
+    "defaultDurationMin": 5,
+    "allowedPricingUnits": [
+      "per_set"
+    ],
+    "defaultPricingUnit": "per_set",
+    "defaultPriceCents": 1500,
+    "quantitySupported": "optional",
+    "complexitySupported": "no",
+    "notes": "镜面、极光、金属粉效果"
   },
   {
     "id": "decoration_sealing_extra",
@@ -1336,17 +1322,17 @@ export const catalogItems: CatalogItem[] = [
     "parentId": "finish_service",
     "userVisible": "no",
     "aiDetectable": "no",
-    "billable": "optional",
-    "merchantPriceRequired": "optional",
+    "billable": "no",
+    "merchantPriceRequired": "no",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "platform_default",
     "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
-      "included",
-      "fixed"
+      "included"
     ],
     "defaultPricingUnit": "included",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "后端可在有贴钻 / 贴纸时自动加时"
@@ -1369,6 +1355,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "不影响价格"
@@ -1391,6 +1378,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "不影响价格"
@@ -1413,6 +1401,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "推荐作为常用默认"
@@ -1435,6 +1424,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "不影响价格"
@@ -1457,6 +1447,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "中长甲常见"
@@ -1479,6 +1470,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "常见长甲"
@@ -1501,6 +1493,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "也可叫芭蕾甲"
@@ -1523,6 +1516,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可与 coffin 合并"
@@ -1545,6 +1539,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "小众甲型"
@@ -1567,6 +1562,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "仅标签"
@@ -1589,6 +1585,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "仅标签"
@@ -1611,6 +1608,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可能辅助判断 extension_long"
@@ -1633,6 +1631,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可能辅助判断 extension_extra_long"
@@ -1655,6 +1654,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1677,6 +1677,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "常见主色"
@@ -1699,6 +1700,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "常见法式 / 清透"
@@ -1721,6 +1723,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "酷感风格"
@@ -1743,6 +1746,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1765,6 +1769,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1787,6 +1792,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1809,6 +1815,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1831,6 +1838,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1853,6 +1861,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "秋冬款常见"
@@ -1875,6 +1884,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -1897,6 +1907,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可搭配金属 / 魔镜粉"
@@ -1919,6 +1930,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "装饰感强"
@@ -1941,6 +1953,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可能提示复杂度更高"
@@ -1963,6 +1976,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "冰透、果冻感"
@@ -1985,6 +1999,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可与 jelly_translucent 关联"
@@ -1997,17 +2012,17 @@ export const catalogItems: CatalogItem[] = [
     "parentId": null,
     "userVisible": "yes",
     "aiDetectable": "yes",
-    "billable": "optional",
-    "merchantPriceRequired": "optional",
+    "billable": "no",
+    "merchantPriceRequired": "no",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "platform_default",
     "affectsBookingDuration": "optional",
     "defaultDurationMin": 5,
     "allowedPricingUnits": [
-      "tag_only",
-      "per_set"
+      "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "如果商家磨砂封层收费，可映射 matte_top"
@@ -2030,6 +2045,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "默认视觉标签"
@@ -2042,8 +2058,8 @@ export const catalogItems: CatalogItem[] = [
     "parentId": null,
     "userVisible": "yes",
     "aiDetectable": "yes",
-    "billable": "optional",
-    "merchantPriceRequired": "optional",
+    "billable": "no",
+    "merchantPriceRequired": "no",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "platform_default",
     "affectsBookingDuration": "optional",
@@ -2052,6 +2068,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可映射 chrome_powder"
@@ -2064,8 +2081,8 @@ export const catalogItems: CatalogItem[] = [
     "parentId": null,
     "userVisible": "yes",
     "aiDetectable": "yes",
-    "billable": "optional",
-    "merchantPriceRequired": "optional",
+    "billable": "no",
+    "merchantPriceRequired": "no",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "platform_default",
     "affectsBookingDuration": "optional",
@@ -2074,31 +2091,10 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "可映射 glitter"
-  },
-  {
-    "id": "texture_cat_eye_light",
-    "nameZh": "猫眼光感",
-    "type": "visual_attribute",
-    "category": "texture",
-    "parentId": null,
-    "userVisible": "yes",
-    "aiDetectable": "yes",
-    "billable": "yes",
-    "merchantPriceRequired": "yes",
-    "merchantDurationRequired": "optional",
-    "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
-    "defaultDurationMin": 20,
-    "allowedPricingUnits": [
-      "tag_only"
-    ],
-    "defaultPricingUnit": "tag_only",
-    "quantitySupported": "no",
-    "complexitySupported": "no",
-    "notes": "可映射 cat_eye"
   },
   {
     "id": "complexity_simple",
@@ -2118,6 +2114,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "适用于 hand_paint / french_tip / gradient / decoration"
@@ -2140,6 +2137,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "有明确图案或多元素组合"
@@ -2162,6 +2160,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "多指复杂图案、立体、重装饰"
@@ -2184,6 +2183,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "AI 低置信度时使用"
@@ -2206,6 +2206,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2228,6 +2229,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2250,6 +2252,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "不等于收费项 french_tip"
@@ -2272,6 +2275,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2294,6 +2298,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2316,6 +2321,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2338,6 +2344,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "款式库筛选"
@@ -2360,6 +2367,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "多与金属、钻饰相关"
@@ -2382,6 +2390,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "蝴蝶结、小图案常见"
@@ -2404,6 +2413,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "黑色、金属、尖甲常见"
@@ -2426,6 +2436,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "夏季、贝壳、亮色"
@@ -2448,6 +2459,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "白色、珍珠、法式常见"
@@ -2470,6 +2482,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "低饱和、裸色、短甲"
@@ -2492,6 +2505,7 @@ export const catalogItems: CatalogItem[] = [
       "tag_only"
     ],
     "defaultPricingUnit": "tag_only",
+    "defaultPriceCents": null,
     "quantitySupported": "no",
     "complexitySupported": "no",
     "notes": "高闪、重钻、金属"

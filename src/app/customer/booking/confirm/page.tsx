@@ -14,7 +14,14 @@ import type { Booking } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
-import { createBookingAction, listAvailableSlotsAction } from '@/lib/actions/booking-actions';
+import {
+  createBookingAction,
+  createBookingFromSelectionsAction,
+  createBookingFromStyleAction,
+  listAvailableSlotsAction,
+  listAvailableSlotsForSelectionsAction,
+  listAvailableSlotsForStyleAction,
+} from '@/lib/actions/booking-actions';
 
 const DEFAULT_NOTES_PLACEHOLDER = '如有特殊要求请在此注明，例如：对某些材料过敏、希望避免某些颜色、甲型偏好等。';
 
@@ -51,7 +58,12 @@ export default function CustomerBookingConfirmPage() {
       return undefined;
     }
     let active = true;
-    listAvailableSlotsAction(draft.estimate.duration)
+    const request = draft.styleId
+      ? listAvailableSlotsForStyleAction(draft.styleId)
+      : draft.catalogSelections?.length
+        ? listAvailableSlotsForSelectionsAction(draft.catalogSelections)
+        : listAvailableSlotsAction(draft.estimate.duration);
+    request
       .then((days) => {
         if (active) setAvailableDays(days);
       })
@@ -93,16 +105,35 @@ export default function CustomerBookingConfirmPage() {
     setIsConfirming(true);
 
     try {
-      // Identity, price, and review status are all derived server-side from the recognition.
-      const booking = await createBookingAction({
-        technicianId: selectedSlot.technician.id,
-        recognition: draft.recognition,
-        styleTitle: 'Custom AI reference',
-        styleImageUrl: draft.imageUrl,
-        date: selectedSlot.date,
-        time: selectedSlot.time,
-        notes
-      });
+      // A published style books its curated catalog breakdown (server-derived price + relational
+      // booking_items); a free-form photo books the flat recognition estimate. Identity, price, and
+      // review status are always derived server-side.
+      const booking = draft.styleId
+        ? await createBookingFromStyleAction({
+            styleId: draft.styleId,
+            technicianId: selectedSlot.technician.id,
+            date: selectedSlot.date,
+            time: selectedSlot.time,
+            notes,
+          })
+        : draft.catalogSelections?.length
+          ? await createBookingFromSelectionsAction({
+              selections: draft.catalogSelections,
+              technicianId: selectedSlot.technician.id,
+              styleImageUrl: draft.imageUrl,
+              date: selectedSlot.date,
+              time: selectedSlot.time,
+              notes,
+            })
+          : await createBookingAction({
+              technicianId: selectedSlot.technician.id,
+              recognition: draft.recognition,
+              styleTitle: 'Custom AI reference',
+              styleImageUrl: draft.imageUrl,
+              date: selectedSlot.date,
+              time: selectedSlot.time,
+              notes,
+            });
       setCreatedBooking(booking);
       setToastMessage(
         booking.status === 'confirmed'
@@ -120,9 +151,11 @@ export default function CustomerBookingConfirmPage() {
     }
   }
 
-  const displayEstimate = draft.breakdowns?.glossary
-    ? { price: draft.breakdowns.glossary.totalPrice, duration: draft.breakdowns.glossary.totalDuration }
-    : { price: draft.estimate.price, duration: draft.estimate.duration };
+  const displayEstimate = selectedSlot?.quote
+    ? selectedSlot.quote
+    : draft.breakdowns?.glossary
+      ? { price: draft.breakdowns.glossary.totalPrice, duration: draft.breakdowns.glossary.totalDuration }
+      : { price: draft.estimate.price, duration: draft.estimate.duration };
 
   return (
     <MobileLayout

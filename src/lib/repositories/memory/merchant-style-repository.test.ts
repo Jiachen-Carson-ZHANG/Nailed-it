@@ -34,6 +34,7 @@ describe('createMemoryMerchantStyleRepository', () => {
       id: draft.id,
       merchantId: draft.merchantId,
       title: 'Reviewed title',
+      description: '裸色美甲',
       previewPriceCents: 7200,
       previewDurationMin: 95,
       publishedBucket: 'merchant-style-published',

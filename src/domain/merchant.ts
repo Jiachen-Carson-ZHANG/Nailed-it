@@ -16,6 +16,16 @@ export type MerchantPricing = {
   enabled: boolean;
 };
 
+/** Merchant-facing editable view. Money is expressed in major currency units for form controls. */
+export type MerchantPricingSetting = {
+  id: string;
+  nameZh: string;
+  groupLabel: string;
+  price: number;
+  duration: number;
+  enabled: boolean;
+};
+
 export type EffectivePricing = {
   catalogItemId: string;
   priceCents: number;

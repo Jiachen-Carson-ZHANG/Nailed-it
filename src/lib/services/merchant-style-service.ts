@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { CatalogSelection } from '@/domain/catalog';
+import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type {
   MerchantStyleRecord,
   MerchantStyleView,
@@ -6,6 +8,7 @@ import type {
 } from '@/domain/merchant-style';
 import { toPublishedMerchantStyle } from '@/domain/merchant-style';
 import type { MerchantStyleRepository } from '@/lib/repositories';
+import type { QuoteService } from '@/lib/services/quote-service';
 import {
   merchantStyleOriginalsBucket,
   merchantStylePublishedBucket,
@@ -30,24 +33,24 @@ export type PublishMerchantStyleServiceInput = {
   merchantId: string;
   styleId: string;
   title: string;
-  previewPriceCents: number;
-  previewDurationMin: number;
+  description: string;
+  /** Catalog selections; price + duration are DERIVED from these, never client-supplied. */
+  selections: CatalogSelection[];
+};
+
+export type ApplyStyleConfigInput = {
+  merchantId: string;
+  styleId: string;
+  name: string;
+  description: string;
+  discoveryFacets: StyleDiscoveryFacet[];
+  selections: CatalogSelection[];
 };
 
 function validateTitle(title: string): string {
   const trimmed = title.trim();
   if (!trimmed) throw new Error('style_title_required');
   return trimmed;
-}
-
-function validateReview(input: PublishMerchantStyleServiceInput): void {
-  validateTitle(input.title);
-  if (!Number.isInteger(input.previewPriceCents) || input.previewPriceCents <= 0) {
-    throw new Error('invalid_preview_price');
-  }
-  if (!Number.isInteger(input.previewDurationMin) || input.previewDurationMin <= 0) {
-    throw new Error('invalid_preview_duration');
-  }
 }
 
 function hasValidImageSignature(mimeType: string, bytes: Uint8Array): boolean {
@@ -73,7 +76,18 @@ function hasValidImageSignature(mimeType: string, bytes: Uint8Array): boolean {
 export function createMerchantStyleService(
   repository: MerchantStyleRepository,
   storage: StyleMediaStorage,
+  quoteService: QuoteService,
 ) {
+  // Derive price + duration from catalog selections — the merchant never types them (finding 1).
+  // Throws if the selections cannot be priced into a bookable (>0 price, >0 duration) style.
+  async function deriveSnapshot(merchantId: string, selections: CatalogSelection[]) {
+    if (selections.length === 0) throw new Error('style_selections_required');
+    const quote = await quoteService.buildQuote({ merchantId, selections });
+    if (quote.totalPriceCents <= 0) throw new Error('invalid_preview_price');
+    if (quote.totalDurationMin <= 0) throw new Error('invalid_preview_duration');
+    return { previewPriceCents: quote.totalPriceCents, previewDurationMin: quote.totalDurationMin };
+  }
+
   async function merchantView(record: MerchantStyleRecord): Promise<MerchantStyleView> {
     const imageUrl =
       record.status === 'published' && record.media.publishedBucket && record.media.publishedPath
@@ -83,7 +97,9 @@ export function createMerchantStyleService(
       id: record.id,
       merchantId: record.merchantId,
       title: record.title,
+      description: record.description,
       status: record.status,
+      catalogBreakdown: structuredClone(record.catalogBreakdown),
       previewPriceCents: record.previewPriceCents,
       previewDurationMin: record.previewDurationMin,
       updatedAt: record.updatedAt,
@@ -135,6 +151,7 @@ export function createMerchantStyleService(
         merchantId: input.merchantId,
         primaryMediaAssetId: mediaId,
         title,
+        description: '',
         status: 'needs_review',
         discoveryFacets: [],
         recognition: null,
@@ -177,10 +194,46 @@ export function createMerchantStyleService(
       }
     },
 
+    // Apply an AI-recognized config to a draft: derive price from the selections, persist items +
+    // facets + description + name (title). Empty selections are allowed (leaves preview null, still
+    // needs_review) so a poor recognition still lands editable rather than failing the upload.
+    async applyConfig(input: ApplyStyleConfigInput): Promise<MerchantStyleView | null> {
+      const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
+      if (!record) return null;
+      const snapshot = input.selections.length > 0
+        ? await deriveSnapshot(input.merchantId, input.selections)
+        : { previewPriceCents: null, previewDurationMin: null };
+      const updated = await repository.setConfig({
+        id: input.styleId,
+        merchantId: input.merchantId,
+        title: input.name,
+        description: input.description,
+        discoveryFacets: input.discoveryFacets,
+        items: input.selections,
+        previewPriceCents: snapshot.previewPriceCents,
+        previewDurationMin: snapshot.previewDurationMin,
+      });
+      return updated ? merchantView(updated) : null;
+    },
+
     async publish(input: PublishMerchantStyleServiceInput): Promise<MerchantStyleView> {
-      validateReview(input);
+      const title = validateTitle(input.title);
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
       if (!record || record.status !== 'needs_review') throw new Error('style_not_publishable');
+
+      // Server derives price/duration from the chosen catalog items (finding 1). Persist the items +
+      // derived snapshots first so the published row's preview always traces back to its breakdown.
+      const snapshot = await deriveSnapshot(input.merchantId, input.selections);
+      const configured = await repository.setConfig({
+        id: input.styleId,
+        merchantId: input.merchantId,
+        description: input.description.trim(),
+        discoveryFacets: record.discoveryFacets,
+        items: input.selections,
+        previewPriceCents: snapshot.previewPriceCents,
+        previewDurationMin: snapshot.previewDurationMin,
+      });
+      if (!configured) throw new Error('style_not_publishable');
 
       const extension = imageExtensions[record.media.mimeType];
       if (!extension) throw new Error('unsupported_image_type');
@@ -197,9 +250,10 @@ export function createMerchantStyleService(
         const published = await repository.publish({
           id: input.styleId,
           merchantId: input.merchantId,
-          title: validateTitle(input.title),
-          previewPriceCents: input.previewPriceCents,
-          previewDurationMin: input.previewDurationMin,
+          title,
+          description: input.description.trim(),
+          previewPriceCents: snapshot.previewPriceCents,
+          previewDurationMin: snapshot.previewDurationMin,
           publishedBucket: merchantStylePublishedBucket,
           publishedPath,
           publishedAt: new Date().toISOString(),

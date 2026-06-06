@@ -7,7 +7,11 @@ import type {
 } from '@/domain/merchant-style';
 import type { AIRecognitionResult, StyleDiscoveryFacet } from '@/domain/nail';
 import { getServiceClient } from '@/lib/db/client';
-import type { MerchantStyleRepository, PublishMerchantStyleInput } from '../types';
+import type {
+  MerchantStyleRepository,
+  PublishMerchantStyleInput,
+  SetMerchantStyleConfigInput,
+} from '../types';
 
 type MediaAssetRow = {
   id: string;
@@ -24,15 +28,21 @@ type MediaAssetRow = {
   updated_at: string;
 };
 
+type MerchantStyleItemRow = {
+  catalog_item_id: string;
+  quantity: number;
+  position: number;
+};
+
 type MerchantStyleRow = {
   id: string;
   merchant_id: string;
   primary_media_asset_id: string;
   title: string;
+  description: string;
   status: MerchantStyleStatus;
   discovery_facets: StyleDiscoveryFacet[];
   recognition: AIRecognitionResult | null;
-  catalog_breakdown: unknown[];
   preview_price_cents: number | null;
   preview_duration_min: number | null;
   published_at: string | null;
@@ -40,9 +50,11 @@ type MerchantStyleRow = {
   created_at: string;
   updated_at: string;
   media_asset: MediaAssetRow;
+  merchant_style_item: MerchantStyleItemRow[];
 };
 
-const selectRecord = '*, media_asset!merchant_style_media_same_merchant_fk(*)';
+const selectRecord =
+  '*, media_asset!merchant_style_media_same_merchant_fk(*), merchant_style_item(catalog_item_id, quantity, position)';
 
 function rowToMedia(row: MediaAssetRow): MediaAsset {
   return {
@@ -67,10 +79,13 @@ function rowToRecord(row: MerchantStyleRow): MerchantStyleRecord {
     merchantId: row.merchant_id,
     primaryMediaAssetId: row.primary_media_asset_id,
     title: row.title,
+    description: row.description,
     status: row.status,
     discoveryFacets: row.discovery_facets,
     recognition: row.recognition,
-    catalogBreakdown: row.catalog_breakdown,
+    catalogBreakdown: [...(row.merchant_style_item ?? [])]
+      .sort((a, b) => a.position - b.position)
+      .map((i) => ({ catalogItemId: i.catalog_item_id, quantity: i.quantity })),
     previewPriceCents: row.preview_price_cents,
     previewDurationMin: row.preview_duration_min,
     publishedAt: row.published_at,
@@ -100,10 +115,10 @@ function styleToRpc(record: MerchantStyleRecord) {
     merchant_id: record.merchantId,
     primary_media_asset_id: record.primaryMediaAssetId,
     title: record.title,
+    description: record.description,
     status: record.status,
     discovery_facets: record.discoveryFacets,
     recognition: record.recognition,
-    catalog_breakdown: record.catalogBreakdown,
     preview_price_cents: record.previewPriceCents,
     preview_duration_min: record.previewDurationMin,
   };
@@ -166,11 +181,32 @@ export function createSupabaseMerchantStyleRepository(): MerchantStyleRepository
       return created;
     },
 
+    async setConfig(input: SetMerchantStyleConfigInput) {
+      const { error } = await getServiceClient().rpc('set_merchant_style_config', {
+        p_style_id: input.id,
+        p_merchant_id: input.merchantId,
+        p_description: input.description,
+        p_discovery_facets: input.discoveryFacets,
+        p_items: input.items.map((sel, index) => ({
+          id: `msitem-${input.id}-${sel.catalogItemId}`,
+          catalog_item_id: sel.catalogItemId,
+          quantity: sel.quantity,
+          position: index,
+        })),
+        p_preview_price_cents: input.previewPriceCents,
+        p_preview_duration_min: input.previewDurationMin,
+        p_title: input.title ?? '',
+      });
+      if (error) throw new Error(`MerchantStyleRepository.setConfig failed: ${error.message}`);
+      return getByIdForMerchant(input.id, input.merchantId);
+    },
+
     async publish(input: PublishMerchantStyleInput) {
       const { error } = await getServiceClient().rpc('publish_merchant_style', {
         p_style_id: input.id,
         p_merchant_id: input.merchantId,
         p_title: input.title,
+        p_description: input.description,
         p_preview_price_cents: input.previewPriceCents,
         p_preview_duration_min: input.previewDurationMin,
         p_published_bucket: input.publishedBucket,

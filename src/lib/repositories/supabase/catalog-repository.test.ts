@@ -22,6 +22,7 @@ function itemToRow(i: CatalogItem): CatalogItemRow {
     default_duration_min: i.defaultDurationMin,
     allowed_pricing_units: i.allowedPricingUnits,
     default_pricing_unit: i.defaultPricingUnit,
+    default_price_cents: i.defaultPriceCents,
     quantity_supported: i.quantitySupported,
     complexity_supported: i.complexitySupported,
     notes: i.notes
@@ -52,6 +53,7 @@ describe('supabase catalog row mapper', () => {
       default_duration_min: 42,
       allowed_pricing_units: ['per_finger', 'per_set'],
       default_pricing_unit: 'per_finger',
+      default_price_cents: 1500,
       quantity_supported: 'yes',
       complexity_supported: 'no',
       notes: 'n'
@@ -72,6 +74,7 @@ describe('supabase catalog row mapper', () => {
       defaultDurationMin: 42,
       allowedPricingUnits: ['per_finger', 'per_set'],
       defaultPricingUnit: 'per_finger',
+      defaultPriceCents: 1500,
       quantitySupported: 'yes',
       complexitySupported: 'no',
       notes: 'n'

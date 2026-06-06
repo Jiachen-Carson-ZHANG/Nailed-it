@@ -1,11 +1,22 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
-import { loadGlossarySettings } from '@/data/glossary-settings-store';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { quoteCatalogSelectionsAction } from '@/lib/actions/booking-actions';
+import { catalogItems } from '@/mock/catalog';
+import { durationAggregatingPackageIds } from '@/domain/catalog';
+
+// Time-only child steps of an aggregating package (e.g. the base manicure: clean / cuticle / prep /
+// shaping). They carry time but no price — their minutes sum into the parent's shown duration.
+function timeOnlyChildren(parentId: string): { nameZh: string; duration: number }[] {
+  if (!durationAggregatingPackageIds.has(parentId)) return [];
+  return catalogItems
+    .filter((c) => c.parentId === parentId && c.billable === 'no')
+    .map((c) => ({ nameZh: c.nameZh, duration: c.defaultDurationMin ?? 0 }));
+}
 
 type ComponentBreakdownPanelProps = {
   image: SelectedNailImage | null;
@@ -75,18 +86,30 @@ const PRICED_TYPES = new Set(['service_module', 'billable_component']);
 type PricedTableProps = {
   items: GlossaryBreakdownItem[];
   quantities: Map<string, number>;
+  totalDuration?: number;
+  totalPrice?: number;
   onQuantityChange?: (glossaryId: string, qty: number) => void;
 };
 
-function PricedTable({ items, quantities, onQuantityChange }: PricedTableProps) {
+function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityChange }: PricedTableProps) {
   const priced = items.filter((i) => PRICED_TYPES.has(i.glossaryType));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   if (priced.length === 0) return null;
 
-  const totalPrice = priced.reduce((s, i) => {
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const calculatedPrice = priced.reduce((s, i) => {
     const qty = quantities.get(i.glossaryId) ?? i.quantity;
     return s + i.price * qty;
   }, 0);
-  const totalDuration = priced.reduce((s, i) => {
+  const calculatedDuration = priced.reduce((s, i) => {
     const qty = quantities.get(i.glossaryId) ?? i.quantity;
     // duration scales with quantity only for billable_component
     return s + (i.glossaryType === 'billable_component' ? i.duration * qty : i.duration);
@@ -98,42 +121,70 @@ function PricedTable({ items, quantities, onQuantityChange }: PricedTableProps) 
         {priced.map((item) => {
           const qty = quantities.get(item.glossaryId) ?? item.quantity;
           const isBillable = item.glossaryType === 'billable_component';
+          const steps = timeOnlyChildren(item.glossaryId);
+          const isOpen = expanded.has(item.glossaryId);
           return (
-            <tr key={item.glossaryId}>
-              <td>
-                <span className={`breakdown-category-badge ${badgeClass(item.glossaryType)}`}>
-                  {item.typeZh}
-                </span>
-                <span className="breakdown-label">{item.nameZh}</span>
-                {isBillable && onQuantityChange ? (
-                  <QuantityStepper
-                    value={qty}
-                    unit={item.unit}
-                    onChange={(n) => onQuantityChange(item.glossaryId, n)}
-                  />
-                ) : (
-                  qty > 1 && (
-                    <span className="breakdown-qty"> ×{qty} {item.unit}</span>
-                  )
-                )}
-              </td>
-              <td className="breakdown-duration">
-                {item.duration > 0
-                  ? `${isBillable ? item.duration * qty : item.duration} min`
-                  : '—'}
-              </td>
-              <td className="breakdown-price">
-                {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : '—'}
-              </td>
-            </tr>
+            <Fragment key={item.glossaryId}>
+              <tr>
+                <td>
+                  <span className={`breakdown-category-badge ${badgeClass(item.glossaryType)}`}>
+                    {item.typeZh}
+                  </span>
+                  <span className="breakdown-label">{item.nameZh}</span>
+                  {steps.length > 0 ? (
+                    <button
+                      type="button"
+                      className="breakdown-steps-toggle"
+                      aria-expanded={isOpen}
+                      onClick={() => toggle(item.glossaryId)}
+                    >
+                      {isOpen ? '▾' : '▸'} 工时明细
+                    </button>
+                  ) : null}
+                  {isBillable && onQuantityChange ? (
+                    <QuantityStepper
+                      value={qty}
+                      unit={item.unit}
+                      onChange={(n) => onQuantityChange(item.glossaryId, n)}
+                    />
+                  ) : (
+                    qty > 1 && (
+                      <span className="breakdown-qty"> ×{qty} {item.unit}</span>
+                    )
+                  )}
+                </td>
+                <td className="breakdown-duration">
+                  {item.duration > 0
+                    ? `${isBillable ? item.duration * qty : item.duration} min`
+                    : '—'}
+                </td>
+                <td className="breakdown-price">
+                  {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : '—'}
+                </td>
+              </tr>
+              {isOpen && steps.length > 0 ? (
+                <tr className="breakdown-steps-row">
+                  <td colSpan={3}>
+                    <ul className="breakdown-steps">
+                      {steps.map((step) => (
+                        <li key={step.nameZh}>
+                          <span>{step.nameZh}</span>
+                          <span className="breakdown-steps-min">{step.duration} min</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
           );
         })}
       </tbody>
       <tfoot>
         <tr className="breakdown-total">
           <td>总计</td>
-          <td className="breakdown-duration">{totalDuration} min</td>
-          <td className="breakdown-price">${totalPrice.toFixed(2)}</td>
+          <td className="breakdown-duration">{totalDuration ?? calculatedDuration} min</td>
+          <td className="breakdown-price">${(totalPrice ?? calculatedPrice).toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
@@ -191,7 +242,12 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
   const quantities = new Map(result.items.map((i) => [i.glossaryId, i.quantity]));
   return (
     <div className="breakdown-inline">
-      <PricedTable items={result.items} quantities={quantities} />
+      <PricedTable
+        items={result.items}
+        quantities={quantities}
+        totalDuration={result.totalDuration}
+        totalPrice={result.totalPrice}
+      />
       <LabelSummary items={result.items} />
     </div>
   );
@@ -227,11 +283,10 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
     setQuantities(new Map());
 
     try {
-      const merchantSettings = loadGlossarySettings();
       const response = await fetch('/api/ai/breakdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: image.imageBase64, mimeType: image.mimeType, merchantSettings }),
+        body: JSON.stringify({ imageBase64: image.imageBase64, mimeType: image.mimeType }),
       });
 
       const body = (await response.json()) as BreakdownResult & { error?: string };
@@ -247,25 +302,33 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
     }
   }
 
-  function handleQuantityChange(glossaryId: string, qty: number) {
+  async function handleQuantityChange(glossaryId: string, qty: number) {
     if (!result) return;
     const next = new Map(quantities);
     next.set(glossaryId, qty);
     setQuantities(next);
 
-    // Recompute totals and notify parent
     const updatedItems = result.items.map((i) => ({
       ...i,
       quantity: next.get(i.glossaryId) ?? i.quantity,
     }));
-    const totalPrice = updatedItems
-      .filter((i) => PRICED_TYPES.has(i.glossaryType))
-      .reduce((s, i) => s + i.price * i.quantity, 0);
-    const totalDuration = updatedItems
-      .filter((i) => PRICED_TYPES.has(i.glossaryType))
-      .reduce((s, i) => s + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration), 0);
-
-    onResult?.({ ...result, items: updatedItems, totalPrice, totalDuration });
+    const catalogSelections = (result.catalogSelections ?? []).map((selection) =>
+      selection.catalogItemId === glossaryId ? { ...selection, quantity: qty } : selection,
+    );
+    try {
+      const quote = await quoteCatalogSelectionsAction(catalogSelections);
+      const updated = {
+        ...result,
+        items: updatedItems,
+        catalogSelections,
+        totalPrice: quote.totalPriceCents / 100,
+        totalDuration: quote.totalDurationMin,
+      };
+      setResult(updated);
+      onResult?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Quote failed.');
+    }
   }
 
   function handleReAnalyse() {
@@ -291,7 +354,13 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
 
   return (
     <div className="breakdown-inline">
-      <PricedTable items={result.items} quantities={quantities} onQuantityChange={handleQuantityChange} />
+      <PricedTable
+        items={result.items}
+        quantities={quantities}
+        totalDuration={result.totalDuration}
+        totalPrice={result.totalPrice}
+        onQuantityChange={handleQuantityChange}
+      />
       <LabelSummary items={result.items} />
       <Button block size="compact" variant="secondary" disabled={isLoading} onClick={handleReAnalyse}>
         重新分析

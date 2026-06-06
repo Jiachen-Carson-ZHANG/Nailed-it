@@ -275,10 +275,10 @@ describe('createMemoryStyleRepository', () => {
 // ─── CatalogRepository ───────────────────────────────────────────────────────
 
 describe('catalog repository', () => {
-  it('list() returns 112 items', async () => {
+  it('list() returns 109 items', async () => {
     const repo = createMemoryCatalogRepository();
     const result = await repo.list();
-    expect(result).toHaveLength(112);
+    expect(result).toHaveLength(109);
   });
 
   it('getById() returns item when found', async () => {
@@ -294,10 +294,10 @@ describe('catalog repository', () => {
     expect(result).toBeNull();
   });
 
-  it('listByType() returns 41 billable_component items', async () => {
+  it('listByType() returns 39 billable_component items', async () => {
     const repo = createMemoryCatalogRepository();
     const result = await repo.listByType('billable_component');
-    expect(result).toHaveLength(41);
+    expect(result).toHaveLength(39);
     expect(result.every((item) => item.type === 'billable_component')).toBe(true);
   });
 

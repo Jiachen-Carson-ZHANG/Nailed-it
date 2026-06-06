@@ -39,10 +39,11 @@ describe('merchant style actions', () => {
     const published = await publishMerchantStyleAction({
       styleId: draft.id,
       title: 'Reviewed upload',
-      previewPriceCents: 4500,
-      previewDurationMin: 60,
+      description: '法式渐变美甲',
+      selections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
     });
     expect(published.status).toBe('published');
+    expect(published.previewPriceCents).toBe(2800); // derived, not supplied
 
     expect(await archiveMerchantStyleAction(draft.id)).toMatchObject({ status: 'archived' });
   });

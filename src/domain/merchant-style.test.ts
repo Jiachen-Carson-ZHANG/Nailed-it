@@ -10,6 +10,7 @@ const publishedRecord: MerchantStyleRecord = {
   merchantId: 'merchant-1',
   primaryMediaAssetId: 'media-1',
   title: 'Rose chrome',
+  description: '圆形，玫瑰镀铬美甲',
   status: 'published',
   discoveryFacets: [{ kind: 'style', label: 'Chrome' }],
   recognition: null,

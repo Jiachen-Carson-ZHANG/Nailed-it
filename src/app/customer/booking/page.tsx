@@ -16,7 +16,9 @@ export default async function CustomerBookingPage({ searchParams }: BookingPageP
         prefillStyleId={styleId}
         prefillImageUrl={style?.imageUrl}
         prefillTitle={style?.title}
+        prefillDescription={style?.description}
         prefillRecognition={style?.recognition ?? undefined}
+        prefillPreviewQuote={style?.previewQuote}
       />
     </Suspense>
   );

@@ -51,7 +51,7 @@ describe('CustomerBookingConfirmPage', () => {
     render(<CustomerBookingConfirmPage />);
 
     expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue(/edited note carried into confirmation/i)).toBeInTheDocument();
+    expect(screen.getByText(/edited note carried into confirmation/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
   });
 
@@ -139,6 +139,21 @@ describe('CustomerBookingConfirmPage', () => {
     expect(confirmButton).toHaveTextContent(/pending review/i);
     const messagesLink = screen.getByRole('link', { name: /open booking messages/i });
     expect(messagesLink.getAttribute('href')).toMatch(/^\/customer\/messages\/conv-booking-/);
+  });
+
+  it('replaces a draft snapshot with the exact selected-technician catalog quote', async () => {
+    const user = userEvent.setup();
+    saveCustomerBookingDraft({
+      estimate: { source: 'pricing_rules', price: 999, duration: 1 },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: mockAIResult,
+      catalogSelections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+    });
+
+    render(<CustomerBookingConfirmPage />);
+    await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
+
+    expect(screen.getByText(/estimated: sgd 28 · 45 min/i)).toBeInTheDocument();
   });
 });
 

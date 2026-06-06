@@ -1,3 +1,4 @@
+import type { CatalogSelection } from './catalog';
 import type { AIRecognitionResult, NailStyleCard, StyleDiscoveryFacet } from './nail';
 
 export const merchantStyleStatuses = [
@@ -32,10 +33,12 @@ export type MerchantStyle = {
   merchantId: string;
   primaryMediaAssetId: string;
   title: string;
+  description: string;
   status: MerchantStyleStatus;
   discoveryFacets: StyleDiscoveryFacet[];
   recognition: AIRecognitionResult | null;
-  catalogBreakdown: unknown[];
+  /** Authoritative catalog selections (relational merchant_style_item). Derives price + duration. */
+  catalogBreakdown: CatalogSelection[];
   previewPriceCents: number | null;
   previewDurationMin: number | null;
   publishedAt: string | null;
@@ -50,6 +53,9 @@ export type MerchantStyleRecord = MerchantStyle & {
 
 export type PublishedMerchantStyle = NailStyleCard & {
   merchantId: string;
+  description: string;
+  /** The published catalog selections, so the customer booking flow can re-quote them server-side. */
+  catalogBreakdown: CatalogSelection[];
   recognition: AIRecognitionResult | null;
 };
 
@@ -58,7 +64,9 @@ export type MerchantStyleView = Pick<
   | 'id'
   | 'merchantId'
   | 'title'
+  | 'description'
   | 'status'
+  | 'catalogBreakdown'
   | 'previewPriceCents'
   | 'previewDurationMin'
   | 'updatedAt'
@@ -101,6 +109,8 @@ export function toPublishedMerchantStyle(
     id: record.id,
     merchantId: record.merchantId,
     title: record.title,
+    description: record.description,
+    catalogBreakdown: structuredClone(record.catalogBreakdown),
     imageUrl: publicImageUrl,
     discoveryFacets: structuredClone(record.discoveryFacets),
     popularityScore: 0,
