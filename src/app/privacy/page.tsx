@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandLogo } from '@/components/layout/BrandLogo';
 
 const policySections = [
   {
@@ -38,8 +39,8 @@ export default function PrivacyPage() {
     <main className="landing-page">
       <section className="landing-hero" aria-labelledby="privacy-title">
         <span className="eyebrow">Privacy Policy</span>
-        <div className="brand-mark" aria-hidden="true">
-          N
+        <div className="brand-mark">
+          <BrandLogo variant="hero-mark" />
         </div>
         <h1 id="privacy-title">Privacy Policy</h1>
         <p className="tagline">Last updated: May 26, 2026</p>

@@ -4,15 +4,15 @@ import loopImage from '@/landing_assets/loop.PNG?url';
 import styles from './LandingPage.module.css';
 
 type LoopArrowGraphicProps = {
-  activeStep: number;
+  rotationStep: number;
 };
 
-export function LoopArrowGraphic({ activeStep }: LoopArrowGraphicProps) {
+export function LoopArrowGraphic({ rotationStep }: LoopArrowGraphicProps) {
   return (
     <div
       aria-hidden="true"
       className={styles.loopGraphic}
-      data-step={activeStep}
+      style={{ ['--why-loop-rotation-step' as string]: rotationStep }}
     >
       <Image
         className={styles.loopImage}
