@@ -9,6 +9,7 @@ import {
 } from '@/domain/session';
 import { BottomTabBar } from './BottomTabBar';
 import { TopBar } from './TopBar';
+import { ResetLink } from '@/components/ui/ResetLink';
 
 type MobileLayoutProps = {
   brandHref?: string;
@@ -33,9 +34,9 @@ export function MobileLayout({
   const rightSlot = (
     <>
       {role === 'customer' ? (
-        <Link className="top-bar-cta" href={getCustomerBookingPath()}>
+        <ResetLink className="top-bar-cta" href={getCustomerBookingPath()}>
           ＋ New Nail Design
-        </Link>
+        </ResetLink>
       ) : null}
       <Link aria-label="Open profile" className="top-bar-avatar" href={profilePath}>
         {avatarInitial}

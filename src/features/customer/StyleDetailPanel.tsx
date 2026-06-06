@@ -1,124 +1,44 @@
 import Link from 'next/link';
-import type { AIRecognitionResult, NailStyleCard, PricingItem } from '@/domain/nail';
-import { pricingTargetLabels } from '@/domain/nail';
+import type { NailStyleCard } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
-import { defaultPricingRules } from '@/mock/pricing';
-
-type BreakdownRow = { label: string; price: number; duration: number };
-
-const rulesByTarget = new Map<string, PricingItem>(
-  defaultPricingRules.map((r) => [r.target, r])
-);
-
-function buildBreakdown(recognition: AIRecognitionResult): BreakdownRow[] {
-  const rows: BreakdownRow[] = [];
-
-  const candidates = [
-    ...recognition.selection.baseServices,
-    recognition.selection.nailShape,
-    ...recognition.selection.styles,
-    ...recognition.selection.addons
-  ];
-
-  for (const key of candidates) {
-    const rule = rulesByTarget.get(key);
-    if (rule && rule.price > 0) {
-      rows.push({ label: pricingTargetLabels[key as keyof typeof pricingTargetLabels] ?? key, price: rule.price, duration: rule.duration });
-    }
-  }
-  return rows;
-}
 
 type StyleDetailPanelProps = {
   backHref: string;
-  recognition: AIRecognitionResult | null;
+  recognition: unknown;
   style: NailStyleCard;
 };
 
-export function StyleDetailPanel({
-  backHref,
-  recognition,
-  style
-}: StyleDetailPanelProps) {
-  const breakdown = recognition ? buildBreakdown(recognition) : [];
-  const breakdownTotal = breakdown.reduce((s, r) => s + r.price, 0);
-  const breakdownDuration = breakdown.reduce((s, r) => s + r.duration, 0);
-
-  const selectionGroups = recognition
-    ? [
-        { label: 'Base', values: recognition.selection.baseServices },
-        { label: 'Shape', values: [recognition.selection.nailShape] },
-        { label: 'Style', values: recognition.selection.styles },
-        { label: 'Add-ons', values: recognition.selection.addons }
-      ].filter((group) => group.values.length > 0)
-    : [];
+export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
+  const { previewQuote } = style;
 
   return (
     <article className="style-detail-panel">
       <div className="style-detail-hero">
         <img alt={style.title} className="style-detail-image" src={style.imageUrl} />
         <div className="style-detail-summary">
-          <p className="section-eyebrow">Style brief</p>
           <h1>{style.title}</h1>
-          <p>{recognition?.selection.otherNotes || 'Published by the merchant and ready to use as your booking reference.'}</p>
         </div>
       </div>
 
-      <section className="detail-surface" aria-labelledby="style-detail-pricing-title">
-        <div className="detail-surface-header">
-          <h2 id="style-detail-pricing-title">Your quote</h2>
+      <div className="analyze-summary-bar">
+        <div className="analyze-summary-item">
+          <span className="analyze-summary-label">参考总价</span>
+          <span className="analyze-summary-value">
+            {previewQuote.price > 0 ? `${previewQuote.price.toFixed(2)}` : '—'}
+          </span>
         </div>
-
-        {breakdown.length > 0 && (
-          <table className="breakdown-table" aria-label="Price breakdown">
-            <tbody>
-              {breakdown.map((row) => (
-                <tr key={row.label}>
-                  <td>{row.label}</td>
-                  <td className="breakdown-duration">{row.duration} min</td>
-                  <td className="breakdown-price">${row.price}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="breakdown-total">
-                <td>Total</td>
-                <td className="breakdown-duration">{breakdownDuration} min</td>
-                <td className="breakdown-price">${breakdownTotal}</td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-
-        <div className="detail-final-quote">
-          <strong>${style.previewQuote.price}</strong>
-          <p>{style.previewQuote.duration} min · merchant price</p>
+        <div className="analyze-summary-divider" />
+        <div className="analyze-summary-item">
+          <span className="analyze-summary-label">参考时长</span>
+          <span className="analyze-summary-value">
+            {previewQuote.duration > 0 ? `${previewQuote.duration} 分钟` : '—'}
+          </span>
         </div>
-      </section>
-
-      <section className="detail-surface" aria-labelledby="style-detail-selection-title">
-        <div className="detail-surface-header">
-          <h2 id="style-detail-selection-title">Style details</h2>
-        </div>
-        <div className="detail-selection-list">
-          {selectionGroups.map((group) => (
-            <div key={group.label} className="detail-selection-group">
-              <span>{group.label}</span>
-              <div className="style-tag-row">
-                {group.values.map((value) => (
-                  <span key={value} className="style-tag style-tag-readonly">
-                    {value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      </div>
 
       <div className="detail-actions">
         <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
-          {recognition ? 'Book this look' : 'Analyze and book this look'}
+          Book this look
         </Link>
         <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
           Try on this look
@@ -131,3 +51,4 @@ export function StyleDetailPanel({
     </article>
   );
 }
+

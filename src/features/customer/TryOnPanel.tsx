@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { TryOnResult } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { getCustomerBookingPath } from '@/domain/session';
-import { saveBreakdownResult } from '@/domain/breakdown-store';
+import { saveTryOnImage } from '@/domain/tryon-image-store';
 
 type ImageSlotProps = {
   label: string;
@@ -66,12 +65,12 @@ type TryOnPanelProps = {
 };
 
 export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
+  const router = useRouter();
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
   const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(null);
   const [result, setResult] = useState<TryOnResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
-  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const canGenerate = Boolean(handImage) && (Boolean(styleImage) || Boolean(prefillStyleImageUrl));
 
@@ -105,7 +104,7 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
       return;
     }
 
-    setIsLoading(true);
+    setIsGenerating(true);
     setError('');
     setResult(null);
 
@@ -131,8 +130,16 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Try-on failed.');
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
+  }
+
+  function analyzeAndBook() {
+    if (!result) return;
+    saveTryOnImage({ imageBase64: result.imageBase64, mimeType: result.mimeType, previewUrl: `data:${result.mimeType};base64,${result.imageBase64}` });
+    const base = styleId ? `${getCustomerBookingPath()}?styleId=${styleId}` : getCustomerBookingPath();
+    const sep = styleId ? '&' : '?';
+    router.push(`${base}${sep}t=${Date.now()}`);
   }
 
   return (
@@ -155,12 +162,12 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
 
       {error && (
         <section className="summary-card" role="alert">
-          <strong>Try-on error</strong>
+          <strong>Error</strong>
           <p>{error}</p>
         </section>
       )}
 
-      {isLoading ? (
+      {isGenerating ? (
         <LoadingState
           title="Generating your try-on"
           body="Applying the style to your nails — this may take a moment."
@@ -188,26 +195,13 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
             </a>
           </p>
           <div className="try-on-result-actions">
-            <Button
-              block
-              onClick={() => setShowBreakdown((v) => !v)}
-            >
-              {showBreakdown ? 'Hide analysis' : 'Analyze style + get quote'}
+            <Button block onClick={analyzeAndBook}>
+              Analyze style + get quote
             </Button>
-            <Link
-              className="button button-secondary button-block"
-              href={styleId ? `${getCustomerBookingPath()}?styleId=${styleId}` : getCustomerBookingPath()}
-            >
-              Book this look
-            </Link>
+            <Button block variant="secondary" onClick={() => router.back()}>
+              ← 返回上一页
+            </Button>
           </div>
-          {showBreakdown && (
-            <ComponentBreakdownPanel
-              image={{ imageBase64: result.imageBase64, mimeType: result.mimeType, previewUrl: `data:${result.mimeType};base64,${result.imageBase64}` }}
-              // Persists results so the booking page can show them when the user taps "Book this look"
-              onResult={saveBreakdownResult}
-            />
-          )}
         </section>
       )}
     </div>
