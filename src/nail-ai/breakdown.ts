@@ -21,7 +21,7 @@ import { defaultTryOnModel } from './try-on';
 
 export class BreakdownError extends Error {
   constructor(
-    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output',
+    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output' | 'invalid_input',
     message: string,
     options?: ErrorOptions
   ) {
@@ -36,6 +36,7 @@ async function callOpenRouterWithImage(opts: {
   imageBase64: string;
   mimeType: string;
   prompt: string;
+  structured?: boolean;
 }): Promise<unknown> {
   let data: unknown;
   try {
@@ -51,13 +52,16 @@ async function callOpenRouterWithImage(opts: {
             ]
           }
         ],
-        response_format: breakdownResponseFormat,
-        provider: { require_parameters: true },
-        plugins: [{ id: 'response-healing' }],
+        ...(opts.structured && {
+          response_format: breakdownResponseFormat,
+          provider: { require_parameters: true },
+          plugins: [{ id: 'response-healing' }],
+        }),
       },
       opts.apiKey
     );
   } catch (error) {
+    if (!opts.structured) return null;
     throw new BreakdownError('provider_error', 'OpenRouter breakdown request failed.', { cause: error });
   }
 
@@ -65,6 +69,7 @@ async function callOpenRouterWithImage(opts: {
     const text = extractTextContent(data);
     return JSON.parse(stripJsonFence(text));
   } catch (error) {
+    if (!opts.structured) return null;
     throw new BreakdownError('invalid_model_output', 'OpenRouter breakdown response did not include valid JSON.', {
       cause: error
     });
@@ -151,10 +156,6 @@ function isPricingUnit(value: string): value is PricingUnit {
   return pricingUnits.includes(value as PricingUnit);
 }
 
-/**
- * Validate provider JSON again before it enters pricing. Provider-side schema enforcement reduces
- * failures; this runtime boundary remains authoritative if a provider ignores or repairs the shape.
- */
 const BASE_MANICURE_ID = 'basic_manicure_service';
 
 // Build the base-manicure breakdown row from merchant settings + glossary. Its booking time is the sum
@@ -183,6 +184,10 @@ function baseManicureItem(
   };
 }
 
+/**
+ * Validate provider JSON again before it enters pricing. Provider-side schema enforcement reduces
+ * failures; this runtime boundary remains authoritative if a provider ignores or repairs the shape.
+ */
 export function parseBreakdownModelOutput(
   value: unknown,
   merchantSettings: MerchantPricingSetting[],
@@ -404,7 +409,16 @@ function buildPrompt(): string {
   ].join('\n');
 }
 
+let _breakdownPrompt: string | undefined;
+const breakdownPrompt = () => (_breakdownPrompt ??= buildPrompt());
+
 // ── Main function ─────────────────────────────────────────────────────────────
+
+const nailValidationPrompt =
+  'You are validating an image for a nail salon analysis app. ' +
+  'Determine whether the image shows a nail art or nail style photo (finished nails on hands, nail swatches, or nail design references). ' +
+  'Return ONLY valid JSON (no markdown fences): {"valid":true} or {"valid":false,"error":"原因（用中文）"}. ' +
+  'Output only the JSON object, nothing else.';
 
 export async function runGlossaryBreakdown(
   imageBase64: string,
@@ -416,8 +430,20 @@ export async function runGlossaryBreakdown(
   if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
 
   const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
-  return parseBreakdownModelOutput(
-    await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: buildPrompt() }),
-    merchantSettings,
-  );
+
+  // ── Validate image is a nail photo before running the expensive prompt ────────
+  try {
+    const valRaw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: nailValidationPrompt });
+    const val = isRecord(valRaw) ? valRaw : {};
+    if (val.valid === false) {
+      const msg = typeof val.error === 'string' ? val.error : '请上传一张美甲照片（指甲特写或美甲款式图）。';
+      throw new BreakdownError('invalid_input', msg);
+    }
+  } catch (err) {
+    if (err instanceof BreakdownError) throw err;
+    // Validation call itself failed — proceed anyway rather than blocking user
+  }
+
+  const raw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: breakdownPrompt(), structured: true });
+  return parseBreakdownModelOutput(raw, merchantSettings);
 }

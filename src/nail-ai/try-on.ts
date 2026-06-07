@@ -121,16 +121,14 @@ async function validateImages(opts: {
     return;
   }
 
-  const errors: string[] = [];
-  if (result.handValid === false) {
-    errors.push(typeof result.handError === 'string' ? result.handError : '请上传一张清晰的手部照片，确保手指和指甲可见。');
-  }
-  if (result.styleValid === false) {
-    errors.push(typeof result.styleError === 'string' ? result.styleError : '请上传一张美甲参考照片。');
-  }
-  if (errors.length > 0) {
-    throw new TryOnError('invalid_input', errors.join(' | '));
-  }
+  const handError = result.handValid === false
+    ? (typeof result.handError === 'string' ? result.handError : '请上传一张清晰的手部照片，确保手指和指甲可见。')
+    : null;
+  const styleError = result.styleValid === false
+    ? (typeof result.styleError === 'string' ? result.styleError : '请上传一张美甲参考照片。')
+    : null;
+  const combined = [handError, styleError].filter(Boolean).join(' | ');
+  if (combined) throw new TryOnError('invalid_input', combined);
 }
 
 function extractImageFromResponse(data: unknown): TryOnResult {

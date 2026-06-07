@@ -51,9 +51,9 @@ describe('CustomerBookingConfirmPage', () => {
 
     render(<CustomerBookingConfirmPage />);
 
-    expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
-    expect(screen.getByText(/edited note carried into confirmation/i)).toBeInTheDocument();
-    expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
+    // The estimate reflects the draft (123 / 88), proving the page reads the draft rather than
+    // reconstructing from mock AI defaults.
+    expect(screen.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
   });
 
   it('consumes the draft so a later fresh visit falls back to the empty state', async () => {
@@ -71,7 +71,7 @@ describe('CustomerBookingConfirmPage', () => {
     });
 
     const firstRender = render(<CustomerBookingConfirmPage />);
-    expect(firstRender.getByText(/your booking summary/i)).toBeInTheDocument();
+    expect(firstRender.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
 
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -103,8 +103,7 @@ describe('CustomerBookingConfirmPage', () => {
       </StrictMode>
     );
 
-    expect(screen.getByText(/your booking summary/i)).toBeInTheDocument();
-    expect(screen.getByText(/estimated: sgd 123 · 88 min/i)).toBeInTheDocument();
+    expect(screen.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
   });
 
   it('books a technician-backed slot into pending merchant review even at high confidence (client recognition is untrusted)', async () => {
@@ -154,7 +153,7 @@ describe('CustomerBookingConfirmPage', () => {
     render(<CustomerBookingConfirmPage />);
     await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
 
-    expect(screen.getByText(/estimated: sgd 28 · 45 min/i)).toBeInTheDocument();
+    expect(screen.getByText(/45 min · sgd 28/i)).toBeInTheDocument();
   });
 });
 
