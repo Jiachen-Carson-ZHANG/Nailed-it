@@ -35,9 +35,9 @@ describe('LanguageProvider', () => {
     );
 
     expect(screen.getByTestId('language').textContent).toBe('zh-CN');
-    expect(screen.getByTestId('switch-label').textContent).toBe('切换语言');
+    expect(screen.getByTestId('switch-label').textContent).toBe('语言设置');
     expect(screen.getByTestId('language-zh').textContent).toBe('中文');
-    expect(screen.getByTestId('language-en').textContent).toBe('英文');
+    expect(screen.getByTestId('language-en').textContent).toBe('English');
     expect(screen.getByTestId('open-profile').textContent).toBe('打开个人资料');
     expect(screen.getByTestId('new-nail-design').textContent).toBe('新的美甲设计');
   });
@@ -63,13 +63,13 @@ describe('LanguageProvider', () => {
 
     expect(screen.getByTestId('language').textContent).toBe('zh-CN');
     expect(screen.getByTestId('role').textContent).toBe('customer');
-    expect(screen.getByTestId('switch-label').textContent).toBe('切换语言');
+    expect(screen.getByTestId('switch-label').textContent).toBe('语言设置');
     expect(screen.getByTestId('new-nail-design').textContent).toBe('新的美甲设计');
 
     fireEvent.click(screen.getByRole('button', { name: 'switch' }));
 
     expect(screen.getByTestId('language').textContent).toBe('en');
-    expect(screen.getByTestId('switch-label').textContent).toBe('Switch language');
+    expect(screen.getByTestId('switch-label').textContent).toBe('Language');
     expect(screen.getByTestId('language-zh').textContent).toBe('Chinese');
     expect(screen.getByTestId('language-en').textContent).toBe('English');
     expect(screen.getByTestId('open-profile').textContent).toBe('Open profile');

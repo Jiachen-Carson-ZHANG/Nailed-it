@@ -86,8 +86,6 @@ export default function CustomerProfilePage() {
         </article>
       </section>
 
-      <LanguageSwitcher />
-
       <section className="profile-section">
         <h2>{copy.bookingHistory}</h2>
         <div className="history-list">
@@ -96,6 +94,8 @@ export default function CustomerProfilePage() {
           ))}
         </div>
       </section>
+
+      <LanguageSwitcher />
 
       <Link className="button button-secondary button-block" href="/privacy">
         {copy.privacyPolicy}

@@ -88,8 +88,6 @@ function MerchantProfileContent() {
         <p className="section-copy">{copy.workspaceCopy}</p>
       </section>
 
-      <LanguageSwitcher />
-
       <section className="analytics-grid" aria-label={copy.analyticsLabel}>
         <MerchantAnalyticsCard
           detail={copy.appointmentsThisWeekDetail}
@@ -119,6 +117,8 @@ function MerchantProfileContent() {
       <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         {copy.openPricingRules}
       </Link>
+
+      <LanguageSwitcher />
 
       <Link className="button button-secondary button-block" href="/privacy">
         {copy.privacyPolicy}

@@ -88,9 +88,9 @@ export type UiMessageKey = (typeof uiMessageKeys)[number];
 export type UiMessages = Record<UiMessageKey, string>;
 
 const zhCNMessages = {
-  'profile.language.switch': '切换语言',
+  'profile.language.switch': '语言设置',
   'profile.language.zh': '中文',
-  'profile.language.en': '英文',
+  'profile.language.en': 'English',
   'layout.openProfile': '打开个人资料',
   'layout.newNailDesign': '新的美甲设计',
   'booking.steps.upload': '上传',

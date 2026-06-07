@@ -63,15 +63,27 @@ describe('CustomerProfilePage', () => {
 
     expect(screen.getByRole('heading', { name: '预约历史' })).toBeInTheDocument();
     expect(screen.getByText('即将到来的预约')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '中文' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: '英文' })).toHaveAttribute('aria-pressed', 'false');
+    const entry = screen.getByRole('button', { name: '语言设置' });
+    const privacy = screen.getByRole('link', { name: '隐私政策' });
 
-    await user.click(screen.getByRole('button', { name: '英文' }));
+    expect(entry).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'English' })).not.toBeInTheDocument();
+    expect(entry.compareDocumentPosition(privacy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(entry);
+
+    expect(screen.getByRole('radiogroup', { name: '语言设置' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '中文' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'English' })).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(screen.getByRole('radio', { name: 'English' }));
 
     expect(screen.getByRole('heading', { name: 'Booking history' })).toBeInTheDocument();
+    const englishEntry = screen.getByRole('button', { name: 'Language' });
     expect(screen.getByText('Upcoming bookings')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Chinese' })).toHaveAttribute('aria-pressed', 'false');
+    expect(englishEntry).toHaveAttribute('aria-expanded', 'false');
+    expect(englishEntry).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Chinese' })).not.toBeInTheDocument();
   });
 
   it('localizes booking history detail actions after switching to English', async () => {
@@ -85,10 +97,36 @@ describe('CustomerProfilePage', () => {
       '/customer/messages/conv-melissa'
     );
 
-    await user.click(screen.getByRole('button', { name: '英文' }));
+    await user.click(screen.getByRole('button', { name: '语言设置' }));
+    await user.click(screen.getByRole('radio', { name: 'English' }));
     expect(screen.getByRole('link', { name: 'Message studio' })).toHaveAttribute(
       'href',
       '/customer/messages/conv-melissa'
     );
+  });
+
+  it('supports tabbing into the radiogroup and using arrow keys to switch language', async () => {
+    const user = userEvent.setup();
+
+    renderCustomerProfilePage();
+
+    const entry = screen.getByRole('button', { name: '语言设置' });
+    entry.focus();
+    expect(entry).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+
+    const zhRadio = screen.getByRole('radio', { name: '中文' });
+    expect(screen.getByRole('radiogroup', { name: '语言设置' })).toBeInTheDocument();
+
+    await user.tab();
+    expect(zhRadio).toHaveFocus();
+
+    await user.keyboard('{ArrowRight}');
+
+    const englishEntry = screen.getByRole('button', { name: 'Language' });
+    expect(englishEntry).toHaveFocus();
+    expect(screen.getByRole('heading', { name: 'Booking history' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Chinese' })).not.toBeInTheDocument();
   });
 });
