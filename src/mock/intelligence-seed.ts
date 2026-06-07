@@ -142,5 +142,31 @@ export function generateSeedEvents(now: string | number | Date = Date.now()): Ne
   ], 0.6);
   push({ eventType: 'booking_confirmed', customerId: RACHEL_CUSTOMER_ID, styleId: RACHEL_SWEET[0], metadata: { price: 70 }, createdAt: at(2.5) });
 
+  // ----- Additive top-of-funnel (ADR-0006 addendum 2026-06-08) -----
+  // The outcome events above (try-ons, bookings, searches) carry the narrative but no upstream
+  // discovery, so the journey funnel was inverted (0 impressions, try-ons ≫ clicks). Layer
+  // monotonic 曝光 ≥ 点击 ≥ 详情 above each style's existing try-ons so 曝光→点击→详情→试戴→预约
+  // is a true funnel both per-style and in aggregate. Nothing above is changed; this only adds
+  // discovery signal, current-week-weighted (spread 0.3..9 ⇒ ~77% inside the 7-day window).
+  const upstreamFunnel: Array<[styleId: string, impressions: number, clicks: number, details: number]> = [
+    [LOW_CONVERSION_ID, 130, 70, 38],            // 鎏金奢华 — heavy interest, cliff at booking
+    [TOP_CONVERTER_ID, 40, 20, 12],              // 极光法式碎钻 — converts all the way down
+    ['style-melissa-img-8282', 20, 9, 3],        // 清冷冰蓝冷光甲
+    ['style-melissa-img-8254', 14, 6, 2],        // 奶咖拼图
+    [GAP_STYLE_ID, 26, 9, 4],                    // 千禧迷幻克罗心 (暗黑) — searched a lot
+    ['style-melissa-img-8273', 22, 7, 3],        // 梦幻马卡龙
+    ['style-melissa-img-8274', 20, 6, 2],        // 碎冰玫瑰猫眼
+    ['style-melissa-img-8249', 10, 2, 1],        // 薄荷青法式
+    ['style-melissa-img-8275', 10, 2, 1],        // 碎钻冰花法式
+    ['style-melissa-img-8266', 8, 2, 0],         // 温柔奶茶果冻
+    ['style-melissa-img-8277', 8, 1, 0],         // 焦糖布丁布丁狗
+    ['style-melissa-img-8261', 8, 1, 0],         // 极光甜心
+  ];
+  for (const [styleId, impressions, clicks, details] of upstreamFunnel) {
+    spread(impressions, 0.3, 9, (i, d) => push({ eventType: 'style_impression', customerId: vol(i), styleId, createdAt: at(d) }));
+    spread(clicks, 0.3, 9, (i, d) => push({ eventType: 'style_card_click', customerId: vol(i), styleId, createdAt: at(d) }));
+    spread(details, 0.3, 9, (i, d) => push({ eventType: 'style_detail_view', customerId: vol(i), styleId, createdAt: at(d) }));
+  }
+
   return events;
 }

@@ -69,6 +69,7 @@ function buildSnapshot(current: AnalyticsEvent[], rangeDays: number): InsightsSn
     rangeDays,
     impressions: count('style_impression'),
     clicks: count('style_card_click'),
+    detailViews: count('style_detail_view'),
     saves: count('style_save'),
     tryOns: count('try_on_completed'),
     bookings: count('booking_confirmed'),

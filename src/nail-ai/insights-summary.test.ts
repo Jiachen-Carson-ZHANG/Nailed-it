@@ -3,7 +3,7 @@ import type { MerchantInsights } from '@/domain/intelligence';
 import { summarizeInsights } from './insights-summary';
 
 const insights: MerchantInsights = {
-  snapshot: { rangeDays: 7, impressions: 0, clicks: 5, saves: 3, tryOns: 34, bookings: 2, searches: 21, activeCustomers: 6 },
+  snapshot: { rangeDays: 7, impressions: 0, clicks: 5, detailViews: 0, saves: 3, tryOns: 34, bookings: 2, searches: 21, activeCustomers: 6 },
   demandTrends: [{ label: '金属感', category: 'texture', current: 42, previous: 29, delta: 13, direction: 'up' }],
   designPerformance: {
     styles: [
@@ -52,14 +52,20 @@ describe('summarizeInsights', () => {
     expect(r.source).toBe('fallback');
   });
 
-  it('says 数据不足 when there is no behavioural data', async () => {
+  it('says insufficient data when there is no behavioural data', async () => {
     const empty: MerchantInsights = {
-      snapshot: { rangeDays: 7, impressions: 0, clicks: 0, saves: 0, tryOns: 0, bookings: 0, searches: 0, activeCustomers: 0 },
+      snapshot: { rangeDays: 7, impressions: 0, clicks: 0, detailViews: 0, saves: 0, tryOns: 0, bookings: 0, searches: 0, activeCustomers: 0 },
       demandTrends: [],
       designPerformance: { styles: [], highInterestLowConversion: [] },
       catalogGaps: [],
     };
     const r = await summarizeInsights(empty, { env: env({}) });
-    expect(r.headline).toContain('数据不足');
+    expect(r.headline).toMatch(/数据不足|Insufficient data/);
+  });
+
+  it('falls back in English when language is en', async () => {
+    const r = await summarizeInsights(insights, { env: env({}), language: 'en' });
+    expect(r.source).toBe('fallback');
+    expect(r.headline).toContain('searches');
   });
 });

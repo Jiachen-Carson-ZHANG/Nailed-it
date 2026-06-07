@@ -90,3 +90,21 @@ during the demo.
   the hackathon timeline and the PRD's own non-goals; intelligence would be empty at demo time.
 - **Build the PRD's parallel `style_tag_definitions` / `style_tags`.** Rejected: duplicates the
   catalog and `discovery_facets`, reintroducing the taxonomy-drift bug already fixed this cycle.
+
+## Addendum (2026-06-08): funnel-coherent seed + data-story presentation
+
+The first insights surface presented computed numbers as siloed text lists with no spine and
+over-claimed precision at low volume. Two refinements (they extend, not reverse, this ADR):
+
+- **Seed must be funnel-coherent.** The original seed generated outcomes (try-ons, bookings,
+  searches) but no top-of-funnel, so `snapshot` had 0 impressions and try-ons (35) above clicks
+  (5) — no honest funnel could be drawn. Fix is **additive**: keep every existing event, layer
+  monotonic `style_impression`/`style_card_click`/`style_detail_view` above each try-on beat,
+  proportional per style. Every number still traces to an event (§2 holds); the seed stays
+  disclosed-as-seed.
+- **Presentation = one journey spine + 3 acts**, hand-rolled SVG/CSS (no chart dependency), with
+  honesty rules codified in the components (counts primary; rates gated by sample size; explicit
+  units; never draw an inverted funnel). This is the §5 "AI narrates computed metrics, never
+  invents numbers" principle applied to the visual layer.
+
+Detail: `docs/plans/2026-06-08-merchant-insights-data-story.md`.

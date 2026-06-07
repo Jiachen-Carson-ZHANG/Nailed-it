@@ -40,6 +40,25 @@ beforeAll(async () => {
 });
 
 describe('intelligence demo seed → read model narrative', () => {
+  it('produces a monotonic discovery funnel (曝光 ≥ 点击 ≥ 详情 ≥ 试戴 ≥ 预约)', () => {
+    const s = insights.snapshot;
+    expect(s.impressions).toBeGreaterThanOrEqual(s.clicks);
+    expect(s.clicks).toBeGreaterThanOrEqual(s.detailViews);
+    expect(s.detailViews).toBeGreaterThanOrEqual(s.tryOns);
+    expect(s.tryOns).toBeGreaterThanOrEqual(s.bookings);
+    // The narrative volumes survive: still a real try-on surge and a few bookings.
+    expect(s.tryOns).toBeGreaterThanOrEqual(20);
+    expect(s.bookings).toBeGreaterThanOrEqual(5);
+  });
+
+  it('keeps every flagged style funnel-monotonic per style (曝光 ≥ 点击 ≥ 试戴 ≥ 预约)', () => {
+    for (const st of insights.designPerformance.styles) {
+      expect(st.impressions).toBeGreaterThanOrEqual(st.clicks);
+      expect(st.clicks).toBeGreaterThanOrEqual(st.tryOns);
+      expect(st.tryOns).toBeGreaterThanOrEqual(st.bookings);
+    }
+  });
+
   it('surfaces 暗黑 as the honest catalog gap (high demand, exactly 1 published style)', () => {
     const gap = insights.catalogGaps.find((g) => g.label === '暗黑');
     expect(gap).toBeDefined();

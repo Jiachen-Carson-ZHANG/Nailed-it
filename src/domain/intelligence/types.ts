@@ -54,6 +54,7 @@ export type InsightsSnapshot = {
   rangeDays: number;
   impressions: number;
   clicks: number;
+  detailViews: number;
   saves: number;
   tryOns: number;
   bookings: number;
