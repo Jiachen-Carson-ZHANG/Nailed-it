@@ -135,6 +135,13 @@ describe('CustomerBookingPage', () => {
         }
       })
     );
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      imageBase64: expect.any(String),
+      language: 'zh-CN',
+      mimeType: 'image/png',
+    });
   });
 
   it('opens a published style on its frozen quote without rerunning image analysis', () => {
@@ -168,5 +175,38 @@ describe('CustomerBookingPage', () => {
     expect(screen.getByText('Quote')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New nail design' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open profile' })).toBeInTheDocument();
+  });
+
+  it('sends the current language with the live recognition request', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          recognition: {
+            selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'English note.' },
+            meta: { confidence: 0.9, aiSuggestedQuote: { source: 'ai_suggestion', price: 0, duration: 0 } }
+          }
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    );
+
+    renderBookingContent(<CustomerBookingContent />, 'en');
+    const file = new File(['fake image bytes'], 'french.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Choose nail reference photo'), {
+      target: { files: [file] }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Analyze my photo' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze my photo' }));
+    await screen.findByText(/english note/i);
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    expect(JSON.parse(String(request?.body))).toMatchObject({ language: 'en' });
   });
 });

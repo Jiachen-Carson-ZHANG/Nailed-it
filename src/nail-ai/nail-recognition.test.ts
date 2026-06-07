@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  getNailRecognitionPrompt,
   normalizeNailRecognition,
   recognizeNailImageWithTelemetry,
   defaultVisionModel,
@@ -121,5 +122,30 @@ describe('recognizeNailImageWithTelemetry', () => {
         fetchImpl
       )
     ).rejects.toMatchObject({ code: 'invalid_model_output' } satisfies Partial<NailRecognitionError>);
+  });
+
+  it('builds prompts in the requested language', () => {
+    expect(getNailRecognitionPrompt('zh-CN')).toContain('written in Simplified Chinese');
+    expect(getNailRecognitionPrompt('en')).toContain('written in English');
+  });
+
+  it('sends the requested language prompt to OpenRouter', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ confidence: 0.5 }) } }],
+      }),
+    }));
+
+    await recognizeNailImageWithTelemetry(
+      { imageBase64: 'abc123', mimeType: 'image/jpeg', language: 'en' },
+      { OPENROUTER_API_KEY: 'test-or-key' },
+      fetchImpl
+    );
+
+    const [, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(request?.body));
+    expect(body.messages[0].content[1].text).toContain('written in English');
   });
 });

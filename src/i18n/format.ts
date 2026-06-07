@@ -25,6 +25,9 @@ const pricingUnitLabels: Record<PricingUnitLabel, LanguageTextMap> = {
 
 const statusLabels: Record<BookingStatusLabel, LanguageTextMap> = {
   pending_review: { 'zh-CN': '待确认', en: 'Pending review' },
+  confirmed: { 'zh-CN': '已确认', en: 'Confirmed' },
+  completed: { 'zh-CN': '已完成', en: 'Completed' },
+  cancelled: { 'zh-CN': '已取消', en: 'Cancelled' },
 };
 
 export function formatCurrency({ cents, language }: CurrencyInput) {

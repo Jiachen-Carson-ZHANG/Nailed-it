@@ -32,8 +32,8 @@ describe('CustomerProfilePage', () => {
     // identity is static; the history loads from the booking service.
     expect(screen.getByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '预约历史' })).toBeInTheDocument();
-    expect(await screen.findByText(/rose cat eye shine/i)).toBeInTheDocument();
-    expect(screen.getByText(/awaiting confirmation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/rose cat-eye/i)).toBeInTheDocument();
+    expect(screen.getByText('待确认')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
   });
 
@@ -72,5 +72,23 @@ describe('CustomerProfilePage', () => {
     expect(screen.getByText('Upcoming bookings')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Chinese' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('localizes booking history detail actions after switching to English', async () => {
+    const user = userEvent.setup();
+
+    renderCustomerProfilePage();
+    await screen.findByText(/rose cat-eye/i);
+    await user.click(screen.getByRole('button', { name: /rose cat-eye/i }));
+    expect(screen.getByRole('link', { name: '联系门店' })).toHaveAttribute(
+      'href',
+      '/customer/messages/conv-melissa'
+    );
+
+    await user.click(screen.getByRole('button', { name: '英文' }));
+    expect(screen.getByRole('link', { name: 'Message studio' })).toHaveAttribute(
+      'href',
+      '/customer/messages/conv-melissa'
+    );
   });
 });

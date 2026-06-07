@@ -7,11 +7,13 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ConversationListItem } from '@/features/messages/ConversationListItem';
 import type { Conversation } from '@/domain/nail';
 import { getCustomerMessagesPath } from '@/domain/session';
+import { useLanguage } from '@/i18n/context';
 import { listCustomerConversationsAction } from '@/lib/actions/conversation-actions';
 
 export default function CustomerMessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
 
   useEffect(() => {
     let active = true;
@@ -36,17 +38,20 @@ export default function CustomerMessagesPage() {
       title="Nailed-it"
     >
       <section className="page-heading">
-        <p className="section-eyebrow">Inbox</p>
-        <h1>Messages</h1>
-        <p className="section-copy">Stay aligned with your merchant before the appointment starts.</p>
+        <p className="section-eyebrow">{t('messages.customer.eyebrow')}</p>
+        <h1>{t('messages.customer.title')}</h1>
+        <p className="section-copy">{t('messages.customer.body')}</p>
       </section>
       {loading ? (
-        <LoadingState title="Loading messages" body="Fetching your conversations." />
+        <LoadingState
+          title={t('messages.customer.loadingTitle')}
+          body={t('messages.customer.loadingBody')}
+        />
       ) : conversations.length === 0 ? (
         <EmptyState
           icon="✉︎"
-          title="No messages yet"
-          body="Once you confirm a booking, your studio replies will land here."
+          title={t('messages.customer.emptyTitle')}
+          body={t('messages.customer.emptyBody')}
         />
       ) : (
         <>
@@ -60,7 +65,7 @@ export default function CustomerMessagesPage() {
             ))}
           </section>
           <p className="messages-footer-hint">
-            New replies from your studio appear here automatically.
+            {t('messages.customer.footer')}
           </p>
         </>
       )}

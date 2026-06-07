@@ -136,7 +136,7 @@ export function CustomerBookingContent({
 
     try {
       const nextRecognition = selectedImage
-        ? await requestLiveRecognition(selectedImage)
+        ? await requestLiveRecognition(selectedImage, language)
         : await getSampleRecognition();
 
       setRecognition(nextRecognition);
@@ -363,12 +363,16 @@ async function getSampleRecognition(): Promise<AIRecognitionResult> {
   return mockAIResult;
 }
 
-async function requestLiveRecognition(image: SelectedNailImage): Promise<AIRecognitionResult> {
+async function requestLiveRecognition(
+  image: SelectedNailImage,
+  language: 'zh-CN' | 'en'
+): Promise<AIRecognitionResult> {
   const response = await fetch('/api/ai/recognize-nail-style', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       imageBase64: image.imageBase64,
+      language,
       mimeType: image.mimeType,
     }),
   });
