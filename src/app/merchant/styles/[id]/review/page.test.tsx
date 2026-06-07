@@ -50,11 +50,11 @@ describe('MerchantStyleReviewPage', () => {
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
     await user.click(await screen.findByRole('button', { name: /ai breakdown/i }));
-    expect(await screen.findByText(/review the design manually|ai breakdown ready/i)).toBeInTheDocument();
 
+    // The editor appears once analysis resolves; the base manicure is auto-included (the $28/51-min
+    // floor), so the quote is priced immediately.
     const title = await screen.findByRole('textbox', { name: /design title/i });
     fireEvent.change(title, { target: { value: 'Reviewed design' } });
-    await user.click(screen.getByRole('button', { name: /add 基础护理服务/i }));
 
     await waitFor(() => {
       expect(screen.getByText('$28.00')).toBeInTheDocument();

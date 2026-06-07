@@ -22,6 +22,15 @@ const imageExtensions: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+// Every nail set includes the base manicure (clean / cuticle / prep) — the $28/51-min floor. It is
+// ai_detectable='no', so it is never recognised and must be injected on every write, regardless of
+// whether the config came from AI or manual editing. Without it a style can derive $0 / no prep steps.
+const BASE_MANICURE_ID = 'basic_manicure_service';
+function withBaseManicure(selections: CatalogSelection[]): CatalogSelection[] {
+  if (selections.some((selection) => selection.catalogItemId === BASE_MANICURE_ID)) return selections;
+  return [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...selections];
+}
+
 export type UploadMerchantStyleInput = {
   merchantId: string;
   title: string;
@@ -212,9 +221,7 @@ export function createMerchantStyleService(
     async completeAnalysis(input: ApplyStyleConfigInput): Promise<MerchantStyleView | null> {
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
       if (!record || record.status !== 'processing') return null;
-      const snapshot = input.selections.length > 0
-        ? await deriveSnapshot(input.merchantId, input.selections)
-        : { previewPriceCents: null, previewDurationMin: null, selections: [] };
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
       const completed = await repository.completeAnalysis({
         id: input.styleId,
         merchantId: input.merchantId,
@@ -242,9 +249,7 @@ export function createMerchantStyleService(
       if (!record || (record.status !== 'needs_review' && record.status !== 'published')) {
         throw new Error('style_not_editable');
       }
-      const snapshot = input.selections.length > 0
-        ? await deriveSnapshot(input.merchantId, input.selections)
-        : { previewPriceCents: null, previewDurationMin: null, selections: [] };
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
       const saved = await repository.setConfig({
         id: input.styleId,
         merchantId: input.merchantId,
@@ -266,7 +271,7 @@ export function createMerchantStyleService(
 
       // Server derives price/duration from the chosen catalog items (finding 1). Persist the items +
       // derived snapshots first so the published row's preview always traces back to its breakdown.
-      const snapshot = await deriveSnapshot(input.merchantId, input.selections);
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
       const configured = await repository.setConfig({
         id: input.styleId,
         merchantId: input.merchantId,

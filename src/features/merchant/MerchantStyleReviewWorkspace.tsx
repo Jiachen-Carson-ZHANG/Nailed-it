@@ -22,6 +22,8 @@ type MerchantStyleReviewWorkspaceProps = {
   styleId: string;
 };
 
+const BASE_MANICURE_ID = 'basic_manicure_service';
+
 function normalizeSelection(item: ConfigurableCatalogItem, quantity: number): CatalogSelection {
   return {
     catalogItemId: item.id,
@@ -47,7 +49,10 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
     setStyle(next);
     setTitle(next.title);
     setDescription(next.description);
-    setSelections(next.catalogBreakdown);
+    // Always show the mandatory base manicure (the $28/51-min floor) so the live total is right and
+    // the merchant can see the prep that's included. The server injects it on save regardless.
+    const hasBase = next.catalogBreakdown.some((s) => s.catalogItemId === BASE_MANICURE_ID);
+    setSelections(hasBase ? next.catalogBreakdown : [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...next.catalogBreakdown]);
   }
 
   useEffect(() => {
@@ -369,7 +374,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
                     <button
                       aria-label={`Remove ${item.nameZh}`}
                       className="merchant-review-remove"
-                      disabled={!editable || isSaving}
+                      disabled={!editable || isSaving || item.id === BASE_MANICURE_ID}
                       type="button"
                       onClick={() => removeSelection(item.id)}
                     >
