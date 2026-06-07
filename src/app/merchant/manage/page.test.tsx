@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
+import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import MerchantManagePage from './page';
 
@@ -19,8 +20,16 @@ describe('MerchantManagePage', () => {
     resetRepositoriesForTests();
   });
 
+  function renderManagePage(language: 'zh-CN' | 'en' = 'zh-CN') {
+    return render(
+      <LanguageProvider initialLanguage={language} role="merchant">
+        <MerchantManagePage />
+      </LanguageProvider>
+    );
+  }
+
   it('renders the pricing panels and saves changes to the DB', async () => {
-    render(<MerchantManagePage />);
+    renderManagePage();
 
     // Default panel renders.
     expect(screen.getByRole('heading', { name: '基础服务' })).toBeInTheDocument();
@@ -33,5 +42,13 @@ describe('MerchantManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /保存价格表/i }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(/价格表已更新/i);
+  });
+
+  it('renders merchant manage copy in English', async () => {
+    renderManagePage('en');
+
+    expect(screen.getByRole('heading', { name: 'Basic services' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview and confirm' })).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Basic manicure service price/i)).toBeInTheDocument();
   });
 });
