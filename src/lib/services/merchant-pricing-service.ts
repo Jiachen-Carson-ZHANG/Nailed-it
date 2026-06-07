@@ -31,12 +31,16 @@ export function createMerchantPricingService(repos: RepositoryBundle): MerchantP
         .filter((item) => item.billable !== 'no')
         .map((item) => {
           const row = effectiveById.get(item.id);
+          const groupLabelLocalized = item.parentId
+            ? (catalogById.get(item.parentId)?.name ?? item.name)
+            : item.name;
+
           return {
             id: item.id,
+            name: item.name,
             nameZh: item.nameZh,
-            groupLabel: item.parentId
-              ? (catalogById.get(item.parentId)?.nameZh ?? item.category)
-              : item.nameZh,
+            groupLabel: groupLabelLocalized?.zh ?? item.nameZh,
+            groupLabelLocalized,
             price: (row?.priceCents ?? 0) / 100,
             duration: row?.durationMin ?? 0,
             enabled: row?.enabled ?? false,

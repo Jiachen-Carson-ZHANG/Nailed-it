@@ -1,8 +1,12 @@
-// AUTO-GENERATED from the Lark "Dictionary" sheet via scripts/generate-catalog.mjs.
-// Catalog source of truth (ADR-0005). Do not edit by hand — edit the sheet and regenerate.
+// AUTO-GENERATED raw catalog rows from the Lark "Dictionary" sheet via scripts/generate-catalog.mjs.
+// Catalog source of truth (ADR-0005): edit the sheet and regenerate the RAW section below.
+// The bilingual overlay appended after `rawCatalogItems` is part of the current app contract and
+// must be preserved until the generator itself emits bilingual fields directly.
 import type { CatalogItem } from '@/domain/catalog';
 
-export const catalogItems: CatalogItem[] = [
+type RawCatalogItem = Omit<CatalogItem, 'name' | 'notesLocalized'>;
+
+const rawCatalogItems: RawCatalogItem[] = [
   {
     "id": "basic_manicure_service",
     "nameZh": "基础护理服务",
@@ -2511,3 +2515,47 @@ export const catalogItems: CatalogItem[] = [
     "notes": "高闪、重钻、金属"
   }
 ];
+
+const upperCaseTokens = new Map<string, string>([
+  ['ai', 'AI'],
+  ['y2k', 'Y2K'],
+]);
+
+const englishNoteOverrides: Partial<Record<string, string>> = {
+  basic_manicure_service: 'Bundled cleaning, cuticle care, nail surface prep, base gel, and basic shaping.',
+  removal_service: 'Removal depends on the customer\'s current nail condition and cannot rely on the photo alone.',
+  removal_basic_gel: 'Usually determined by whether the customer requests removal.',
+};
+
+function toEnglishToken(token: string, index: number): string {
+  const normalized = token.toLowerCase();
+  const fixed = upperCaseTokens.get(normalized);
+  if (fixed) return fixed;
+  if (index === 0) return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return normalized;
+}
+
+function deriveEnglishName(itemId: string): string {
+  return itemId
+    .split('_')
+    .filter(Boolean)
+    .map((token, index) => toEnglishToken(token, index))
+    .join(' ');
+}
+
+function deriveEnglishNotes(item: RawCatalogItem): string {
+  return englishNoteOverrides[item.id] ?? `See catalog note for ${deriveEnglishName(item.id)}.`;
+}
+
+// 中文注释：当前生成器还只产出中文字段，所以这里用稳定 overlay 把 raw 行提升为双语 contract。
+export const catalogItems: CatalogItem[] = rawCatalogItems.map((item) => ({
+  ...item,
+  name: {
+    zh: item.nameZh,
+    en: deriveEnglishName(item.id),
+  },
+  notesLocalized: {
+    zh: item.notes,
+    en: deriveEnglishNotes(item),
+  },
+}));
