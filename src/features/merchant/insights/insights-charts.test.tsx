@@ -7,6 +7,7 @@ import { TrendBars } from './TrendBars';
 import { GapBar } from './GapBar';
 import { StyleConversionBars } from './StyleConversionBars';
 import { ActionCard } from './ActionCard';
+import { Sparkline } from './Sparkline';
 
 function wrap(ui: React.ReactNode) {
   return render(<LanguageProvider role="merchant">{ui}</LanguageProvider>);
@@ -62,6 +63,12 @@ describe('insights chart components', () => {
     // s3 has 1 try-on → below the min sample → no misleading 100%.
     expect(screen.getByText('样本不足')).toBeInTheDocument();
     expect(screen.queryByText('100%')).not.toBeInTheDocument();
+  });
+
+  it('Sparkline renders an accessible svg path', () => {
+    const { container } = wrap(<Sparkline points={[0, 2, 1, 5, 3]} label="试戴 近 14 天" />);
+    expect(screen.getByLabelText('试戴 近 14 天')).toBeInTheDocument();
+    expect(container.querySelector('path.sparkline-line')).toBeTruthy();
   });
 
   it('ActionCard renders a deep link with evidence', () => {

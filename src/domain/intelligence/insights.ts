@@ -2,6 +2,7 @@ import type { AnalyticsEvent } from '@/domain/analytics';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type {
   CatalogGap,
+  DailyPoint,
   DemandTrend,
   InsightsSnapshot,
   MerchantInsights,
@@ -186,4 +187,32 @@ function buildCatalogGaps(
     }))
     .filter((gap) => gap.searchCount >= GAP_SEARCH_THRESHOLD && gap.matchingActiveStyles <= GAP_MAX_MATCHING_STYLES)
     .sort((a, b) => b.searchCount - a.searchCount || a.label.localeCompare(b.label));
+}
+
+/**
+ * Per-day funnel pulse over the last `days` (inclusive of today), oldest → newest, zero-filled.
+ * Feeds the sparklines in the daily/weekly report cards. `now` is injectable for tests.
+ */
+export function getDailySeries(
+  events: AnalyticsEvent[],
+  merchantId: string,
+  days = 14,
+  now?: string | number | Date,
+): DailyPoint[] {
+  const nowMs = resolveNowMs(now);
+  const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const buckets = new Map<string, DailyPoint>();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const key = dayKey(nowMs - i * DAY_MS);
+    buckets.set(key, { date: key, tryOns: 0, bookings: 0, searches: 0 });
+  }
+  for (const event of events) {
+    if (event.merchantId !== merchantId) continue;
+    const bucket = buckets.get(dayKey(new Date(event.createdAt).getTime()));
+    if (!bucket) continue;
+    if (event.eventType === 'try_on_completed') bucket.tryOns += 1;
+    else if (event.eventType === 'booking_confirmed') bucket.bookings += 1;
+    else if (event.eventType === 'search_submitted') bucket.searches += 1;
+  }
+  return [...buckets.values()];
 }

@@ -9,6 +9,6 @@ export {
   type StyleTagIndex,
 } from './shared';
 export { getCustomerProfile } from './profile';
-export { getMerchantInsights, type InsightsRange } from './insights';
+export { getMerchantInsights, getDailySeries, type InsightsRange } from './insights';
 export { rankStyles, type RankContext } from './ranking';
 export { getCustomerIntelligence, type CustomerIntelInput, type IntelBooking } from './customer-intel';

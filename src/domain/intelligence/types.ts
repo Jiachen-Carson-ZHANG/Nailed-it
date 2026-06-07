@@ -72,6 +72,14 @@ export type MerchantInsights = {
   catalogGaps: CatalogGap[];
 };
 
+/** One day's funnel pulse, for sparklines in the daily/weekly report cards. `date` is an ISO day. */
+export type DailyPoint = {
+  date: string;
+  tryOns: number;
+  bookings: number;
+  searches: number;
+};
+
 /** Minimal shape a style needs to be ranked. Both NailStyleCard and PublishedMerchantStyle satisfy it. */
 export type RankCandidate = {
   id: string;

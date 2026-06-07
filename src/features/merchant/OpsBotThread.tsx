@@ -2,146 +2,217 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getMerchantInsightsAction, summarizeInsightsAction } from '@/lib/actions/insights-actions';
+import {
+  getMerchantInsightsAction,
+  getInsightsDailySeriesAction,
+  summarizeInsightsAction,
+} from '@/lib/actions/insights-actions';
 import { isGenericTag } from '@/domain/catalog-tags';
 import { getMerchantInsightsPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
-import type { MerchantInsights } from '@/domain/intelligence';
+import type { MerchantInsights, DailyPoint, StylePerformance } from '@/domain/intelligence';
 import type { AISummary } from '@/nail-ai/insights-summary';
+import { FunnelChart, type FunnelStage } from '@/features/merchant/insights/FunnelChart';
+import { TrendBars } from '@/features/merchant/insights/TrendBars';
+import { GapBar } from '@/features/merchant/insights/GapBar';
+import { StyleConversionBars } from '@/features/merchant/insights/StyleConversionBars';
+import { ActionCard } from '@/features/merchant/insights/ActionCard';
+import { Sparkline } from '@/features/merchant/insights/Sparkline';
+
+const MIN_CONVERSION_SAMPLE = 3;
 
 const opsBotCopy = {
   'zh-CN': {
     loading: '运营助手正在生成简报…',
     threadAria: '运营助手简报',
     greeting: '嗨，我是 Nailed AI 运营助手 👋 这是你的门店简报。',
-    today: '今日',
-    todayStats: (searches: number, tryOns: number, bookings: number, customers: number) =>
-      `搜索 ${searches} · 试戴 ${tryOns} · 预约 ${bookings} · 活跃顾客 ${customers}`,
-    weekSummary: '本周摘要',
-    demandRising: (label: string, current: number, previous: number) =>
-      `📈 需求上升：「${label}」本周 ${current}（上期 ${previous}）。`,
-    catalogGap: (label: string, searches: number, styles: number) =>
-      `⚠️ 品类缺口：顾客想要「${label}」，${searches} 次搜索但仅 ${styles} 款在售。建议上架补足。`,
-    topConverter: (title: string, rate: number) => `🔥 转化最高：${title}（${rate}%）`,
-    lowConversion: (title: string, tryOns: number, bookings: number) =>
-      `⚠️ ${title} 高意向低转化：试戴 ${tryOns} / 预约 ${bookings}`,
+    dailyTitle: '今日简报',
+    todayMetrics: (tryOns: number, bookings: number, customers: number) =>
+      `试戴 ${tryOns} · 预约 ${bookings} · 活跃顾客 ${customers}`,
+    sparkTryOns: '试戴',
+    sparkBookings: '预约',
+    last14: '近 14 天',
+    weeklyTitle: '本周报告',
+    funnelTitle: '客户旅程',
+    stageImpressions: '曝光',
+    stageClicks: '点击',
+    stageDetails: '详情',
+    stageTryOns: '试戴',
+    stageBookings: '预约',
+    demandTitle: '需求趋势',
+    gapTitle: '品类缺口',
+    perfTitle: '款式表现',
+    actionsTitle: '建议行动',
+    actionFixPricing: (title: string) => `复查「${title}」定价或展示，提升转化`,
+    actionAddStyles: (label: string) => `上架更多「${label}」风格，补足缺口`,
+    ctaEdit: '去编辑',
+    ctaUpload: '去上架',
     fullReport: '查看完整报告 →',
-    chipTrends: '需求趋势',
-    chipConversion: '转化榜',
-    chipGaps: '品类缺口',
   },
   en: {
     loading: 'Preparing your studio briefing…',
     threadAria: 'Ops assistant briefing',
     greeting: 'Hi, I\'m the Nailed AI ops assistant 👋 Here is your studio briefing.',
-    today: 'Today',
-    todayStats: (searches: number, tryOns: number, bookings: number, customers: number) =>
-      `${searches} searches · ${tryOns} try-ons · ${bookings} bookings · ${customers} active customers`,
-    weekSummary: 'This week',
-    demandRising: (label: string, current: number, previous: number) =>
-      `📈 Rising demand: "${label}" — ${current} this week (was ${previous}).`,
-    catalogGap: (label: string, searches: number, styles: number) =>
-      `⚠️ Catalog gap: customers want "${label}" — ${searches} searches but only ${styles} styles live. Consider adding more.`,
-    topConverter: (title: string, rate: number) => `🔥 Top converter: ${title} (${rate}%)`,
-    lowConversion: (title: string, tryOns: number, bookings: number) =>
-      `⚠️ ${title} — high interest, low conversion: ${tryOns} try-ons / ${bookings} bookings`,
+    dailyTitle: 'Today',
+    todayMetrics: (tryOns: number, bookings: number, customers: number) =>
+      `${tryOns} try-ons · ${bookings} bookings · ${customers} active customers`,
+    sparkTryOns: 'Try-ons',
+    sparkBookings: 'Bookings',
+    last14: 'last 14 days',
+    weeklyTitle: 'This week',
+    funnelTitle: 'Customer journey',
+    stageImpressions: 'Impressions',
+    stageClicks: 'Clicks',
+    stageDetails: 'Detail views',
+    stageTryOns: 'Try-ons',
+    stageBookings: 'Bookings',
+    demandTitle: 'Demand trends',
+    gapTitle: 'Catalog gaps',
+    perfTitle: 'Style performance',
+    actionsTitle: 'Recommended actions',
+    actionFixPricing: (title: string) => `Review “${title}” pricing or display to lift conversion`,
+    actionAddStyles: (label: string) => `Add more “${label}” styles to close the gap`,
+    ctaEdit: 'Edit',
+    ctaUpload: 'Add styles',
     fullReport: 'View full report →',
-    chipTrends: 'Demand trends',
-    chipConversion: 'Conversion rank',
-    chipGaps: 'Catalog gaps',
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
 
-function Bubble({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'alert' }) {
-  return <div className={`opsbot-bubble${tone === 'alert' ? ' opsbot-bubble-alert' : ''}`}>{children}</div>;
+function Bubble({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className={`opsbot-bubble${title ? ' opsbot-bubble-card' : ''}`}>
+      {title ? <p className="opsbot-bubble-title">{title}</p> : null}
+      {children}
+    </div>
+  );
 }
 
 /**
- * Deterministic ops-assistant digest (ADR-0006, Phase G2). Posts pre-computed insight cards (today
- * + week) as chat bubbles; quick-reply chips deep-link to the full report. No free-text NLP — the
- * AI only narrates the grounded summary.
+ * Ops-assistant report thread (ADR-0006, Phase G2 + 2026-06-08 data-story pass). Posts a light
+ * daily pulse card (today + 14-day sparklines) and a weekly digest card (funnel + demand + gap +
+ * conversion + actions) reusing the insights chart components. Deterministic — the AI only narrates
+ * the grounded weekly headline.
  */
 export function OpsBotThread() {
   const { language } = useLanguage();
   const copy = opsBotCopy[language];
   const [today, setToday] = useState<MerchantInsights | null>(null);
   const [week, setWeek] = useState<MerchantInsights | null>(null);
+  const [series, setSeries] = useState<DailyPoint[] | null>(null);
   const [summary, setSummary] = useState<AISummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    Promise.all([getMerchantInsightsAction(1), getMerchantInsightsAction(7)])
-      .then(([t, w]) => {
+    Promise.all([getMerchantInsightsAction(1), getMerchantInsightsAction(7), getInsightsDailySeriesAction(14)])
+      .then(([t, w, s]) => {
         if (active) {
           setToday(t);
           setWeek(w);
+          setSeries(s);
         }
       })
       .catch(() => {/* leave null */})
       .finally(() => active && setLoading(false));
-    summarizeInsightsAction(7).then((s) => active && setSummary(s)).catch(() => {/* bubble omitted */});
+    summarizeInsightsAction(7, language).then((s) => active && setSummary(s)).catch(() => {/* bubble omitted */});
     return () => {
       active = false;
     };
-  }, []);
+  }, [language]);
 
   if (loading || !today || !week) return <p className="helper-copy">{copy.loading}</p>;
 
   const ts = today.snapshot;
-  const rising = week.demandTrends.find((t) => t.direction === 'up' && !isGenericTag(t.label));
+  const ws = week.snapshot;
+  const funnelStages: FunnelStage[] = [
+    { label: copy.stageImpressions, count: ws.impressions },
+    { label: copy.stageClicks, count: ws.clicks },
+    { label: copy.stageDetails, count: ws.detailViews },
+    { label: copy.stageTryOns, count: ws.tryOns },
+    { label: copy.stageBookings, count: ws.bookings },
+  ];
+  const trendRows = week.demandTrends.filter((t) => !isGenericTag(t.label));
   const gap = week.catalogGaps[0];
   const low = week.designPerformance.highInterestLowConversion[0];
   const top = [...week.designPerformance.styles]
-    .filter((s) => s.tryOns >= 3 && s.conversionRate != null)
+    .filter((s: StylePerformance) => s.tryOns >= MIN_CONVERSION_SAMPLE && s.conversionRate != null)
     .sort((a, b) => b.conversionRate! - a.conversionRate!)[0];
 
   return (
     <div className="opsbot-thread" aria-label={copy.threadAria}>
       <Bubble>{copy.greeting}</Bubble>
 
-      <Bubble>
-        <strong>{copy.today}</strong>
-        <br />
-        {copy.todayStats(ts.searches, ts.tryOns, ts.bookings, ts.activeCustomers)}
+      <Bubble title={copy.dailyTitle}>
+        <p className="opsbot-metrics">{copy.todayMetrics(ts.tryOns, ts.bookings, ts.activeCustomers)}</p>
+        {series ? (
+          <div className="opsbot-sparkrow">
+            <div className="opsbot-spark">
+              <span className="opsbot-spark-label">{copy.sparkTryOns}</span>
+              <Sparkline points={series.map((p) => p.tryOns)} tone="accent" label={`${copy.sparkTryOns} ${copy.last14}`} />
+            </div>
+            <div className="opsbot-spark">
+              <span className="opsbot-spark-label">{copy.sparkBookings}</span>
+              <Sparkline points={series.map((p) => p.bookings)} tone="muted" label={`${copy.sparkBookings} ${copy.last14}`} />
+            </div>
+          </div>
+        ) : null}
       </Bubble>
 
-      {summary ? (
-        <Bubble>
-          <strong>{copy.weekSummary}</strong>
-          <br />
-          {summary.headline}
-          {summary.insights.map((line) => (
-            <div key={line} className="opsbot-bullet">· {line}</div>
-          ))}
-        </Bubble>
-      ) : null}
+      <Bubble title={copy.weeklyTitle}>
+        {summary ? <p className="opsbot-headline">{summary.headline}</p> : null}
+        <p className="opsbot-section-label">{copy.funnelTitle}</p>
+        <FunnelChart stages={funnelStages} />
+      </Bubble>
 
-      {rising ? (
-        <Bubble>{copy.demandRising(rising.label, rising.current, rising.previous)}</Bubble>
+      {trendRows.length > 0 ? (
+        <Bubble title={copy.demandTitle}>
+          <TrendBars rows={trendRows} limit={3} />
+        </Bubble>
       ) : null}
 
       {gap ? (
-        <Bubble tone="alert">
-          {copy.catalogGap(gap.label, gap.searchCount, gap.matchingActiveStyles)}
+        <Bubble title={copy.gapTitle}>
+          <GapBar gap={gap} />
         </Bubble>
       ) : null}
 
-      {top || low ? (
-        <Bubble>
-          {top ? copy.topConverter(top.title, Math.round((top.conversionRate ?? 0) * 100)) : ''}
-          {top && low ? <br /> : null}
-          {low ? copy.lowConversion(low.title, low.tryOns, low.bookings) : ''}
+      {week.designPerformance.styles.some((s) => s.tryOns > 0) ? (
+        <Bubble title={copy.perfTitle}>
+          <StyleConversionBars
+            styles={week.designPerformance.styles}
+            minTryOns={MIN_CONVERSION_SAMPLE}
+            limit={3}
+            winnerId={top?.styleId}
+            leakIds={low ? [low.styleId] : []}
+          />
         </Bubble>
       ) : null}
 
-      <div className="opsbot-chips">
-        <Link className="button button-primary button-compact" href={getMerchantInsightsPath()}>{copy.fullReport}</Link>
-        <Link className="opsbot-chip" href={getMerchantInsightsPath()}>{copy.chipTrends}</Link>
-        <Link className="opsbot-chip" href={getMerchantInsightsPath()}>{copy.chipConversion}</Link>
-        <Link className="opsbot-chip" href={getMerchantInsightsPath()}>{copy.chipGaps}</Link>
-      </div>
+      {(low || gap) ? (
+        <Bubble title={copy.actionsTitle}>
+          <div className="insights-action-queue">
+            {low ? (
+              <ActionCard
+                text={copy.actionFixPricing(low.title)}
+                evidence={`${copy.stageTryOns} ${low.tryOns} · ${copy.stageBookings} ${low.bookings}`}
+                href={`/merchant/styles/${low.styleId}/review`}
+                cta={copy.ctaEdit}
+              />
+            ) : null}
+            {gap ? (
+              <ActionCard
+                text={copy.actionAddStyles(gap.label)}
+                evidence={language === 'zh-CN' ? `${gap.searchCount} 次搜索 · 在售 ${gap.matchingActiveStyles} 款` : `${gap.searchCount} searches · ${gap.matchingActiveStyles} in stock`}
+                href="/merchant/styles"
+                cta={copy.ctaUpload}
+              />
+            ) : null}
+          </div>
+        </Bubble>
+      ) : null}
+
+      <Link className="button button-primary button-block" href={getMerchantInsightsPath()}>{copy.fullReport}</Link>
     </div>
   );
 }
