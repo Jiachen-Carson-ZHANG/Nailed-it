@@ -118,11 +118,16 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
   const image = formData.get('image');
   if (!image || typeof image === 'string') throw new Error('style_image_required');
   const bytes = new Uint8Array(await image.arrayBuffer());
+  const titleField = formData.get('title');
+  const title = typeof titleField === 'string' ? titleField : '';
+  const sourceField = formData.get('source');
+  const source = sourceField === 'completed_booking' ? 'completed_booking' : 'merchant_upload';
   return getService().upload({
     merchantId: demoMerchantId,
-    title: '',
+    title,
     mimeType: image.type,
     bytes,
+    source,
   });
 }
 

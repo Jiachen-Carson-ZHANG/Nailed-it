@@ -23,6 +23,7 @@ describe('MerchantStylesPage', () => {
 
   beforeEach(() => {
     push.mockReset();
+    window.sessionStorage.clear();
     resetRepositoriesForTests();
     resetStyleMediaStorageForTests();
   });
@@ -57,5 +58,14 @@ describe('MerchantStylesPage', () => {
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith(expect.stringMatching(/^\/merchant\/styles\/style-.+\/review$/));
     });
+  });
+
+  it('shows a success popup passed back from the editor', async () => {
+    window.sessionStorage.setItem('merchant-style-library-flash', 'Saved successfully');
+
+    renderPage();
+
+    expect(await screen.findByText('Saved successfully')).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('merchant-style-library-flash')).toBeNull();
   });
 });

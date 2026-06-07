@@ -56,18 +56,28 @@ describe('merchant style actions', () => {
       styleId: draft.id,
       title: 'Reviewed upload',
       description: '法式渐变美甲',
-      selections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      selections: [
+        { catalogItemId: 'basic_manicure_service', quantity: 1 },
+        { catalogItemId: 'color_effect_service', quantity: 1 },
+        { catalogItemId: 'art_service', quantity: 1 },
+        { catalogItemId: 'decoration_service', quantity: 1 },
+      ],
     });
     expect(saved).toMatchObject({ status: 'needs_review', previewPriceCents: 2800 });
+    expect(saved.catalogBreakdown).toEqual([{ catalogItemId: 'basic_manicure_service', quantity: 1 }]);
 
     const published = await publishMerchantStyleAction({
       styleId: draft.id,
       title: 'Reviewed upload',
       description: '法式渐变美甲',
-      selections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      selections: [
+        { catalogItemId: 'basic_manicure_service', quantity: 1 },
+        { catalogItemId: 'color_effect_service', quantity: 1 },
+      ],
     });
     expect(published.status).toBe('published');
     expect(published.previewPriceCents).toBe(2800); // derived, not supplied
+    expect(published.catalogBreakdown).toEqual([{ catalogItemId: 'basic_manicure_service', quantity: 1 }]);
 
     expect(await archiveMerchantStyleAction(draft.id)).toMatchObject({ status: 'archived' });
   });

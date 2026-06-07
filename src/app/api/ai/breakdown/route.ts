@@ -5,6 +5,7 @@ import { getRepositories } from '@/lib/repositories';
 import { createMerchantPricingService } from '@/lib/services/merchant-pricing-service';
 import { createQuoteService } from '@/lib/services/quote-service';
 import { demoMerchantId } from '@/mock/merchants';
+import { recognizeStyleName } from '@/nail-ai/style-config-recognition';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 
@@ -13,7 +14,13 @@ export async function POST(request: Request) {
     const body = parseRequestBody(await request.json());
     const repos = getRepositories();
     const merchantSettings = await createMerchantPricingService(repos).listSettings(demoMerchantId);
+    const suggestedStyleNamePromise = recognizeStyleName(body.imageBase64, body.mimeType, body.language)
+      .catch((nameError) => {
+        console.warn('[ai-breakdown] style naming failed; returning breakdown without name', nameError);
+        return undefined;
+      });
     const result = await runGlossaryBreakdown(body.imageBase64, body.mimeType, merchantSettings, body.language);
+    const suggestedStyleName = await suggestedStyleNamePromise;
     const quote = await createQuoteService(repos).buildQuote({
       merchantId: demoMerchantId,
       selections: result.catalogSelections,
@@ -21,6 +28,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...result,
+      suggestedStyleName,
       totalPrice: quote.totalPriceCents / 100,
       totalDuration: quote.totalDurationMin,
     });

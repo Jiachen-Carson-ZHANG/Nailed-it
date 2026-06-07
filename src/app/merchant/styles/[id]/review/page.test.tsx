@@ -52,12 +52,20 @@ async function renderReviewPage(id: string) {
 describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
   beforeEach(() => {
     push.mockReset();
+    window.sessionStorage.clear();
     resetRepositoriesForTests();
     resetStyleMediaStorageForTests();
     // The merchant editor reuses the customer panel, which runs the breakdown client-side.
     global.fetch = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ items: [], catalogSelections: [], totalPrice: 0, totalDuration: 0, mode: 'glossary' }),
+      json: async () => ({
+        items: [],
+        catalogSelections: [],
+        totalPrice: 0,
+        totalDuration: 0,
+        mode: 'glossary',
+        suggestedStyleName: { name: '猫眼星河', description: '蓝色猫眼光泽。' },
+      }),
     })) as unknown as typeof fetch;
   });
 
@@ -70,7 +78,8 @@ describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
     await renderReviewPage(draft.id);
 
     expect(screen.queryByRole('navigation', { name: /merchant navigation/i })).not.toBeInTheDocument();
-    expect(await screen.findByRole('textbox', { name: /设计名称/ })).toBeInTheDocument();
+    const title = await screen.findByRole('textbox', { name: /设计名称/ });
+    await waitFor(() => expect(title).toHaveValue('猫眼星河'));
     expect(await screen.findByRole('button', { name: /发布/ })).toBeInTheDocument();
     // 卸甲 is the customer-only removal section — hidden for merchant editing.
     expect(screen.queryByRole('heading', { name: /卸甲/ })).not.toBeInTheDocument();
@@ -91,7 +100,7 @@ describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'), { timeout: 2500 });
   });
 
-  it('saving a published style shows a success toast without leaving the editor', async () => {
+  it('saving a published style returns to the library with a success popup', async () => {
     const user = userEvent.setup();
     const published = await publishStyle();
     await renderReviewPage(published.id);
@@ -100,8 +109,8 @@ describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
     fireEvent.change(title, { target: { value: '甜美杏仁更新' } });
     await user.click(await screen.findByRole('button', { name: /^保存$/ }));
 
-    expect(await screen.findByText('保存成功')).toBeInTheDocument();
-    expect(push).not.toHaveBeenCalled();
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
+    expect(window.sessionStorage.getItem('merchant-style-library-flash')).toBe('保存成功');
   });
 
   it('republishes an archived style with the archived-specific label', async () => {
@@ -113,7 +122,8 @@ describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
     expect(await screen.findByRole('button', { name: /重新发布/ })).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: /重新发布/ }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'), { timeout: 2500 });
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
+    expect(window.sessionStorage.getItem('merchant-style-library-flash')).toBe('重新发布成功');
   });
 
   it('cancel discards the unpublished upload and returns to the library', async () => {

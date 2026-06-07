@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CatalogSelection } from '@/domain/catalog';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type {
+  MediaAssetSource,
   MerchantStyleRecord,
   MerchantStyleView,
   PublishedMerchantStyle,
@@ -31,11 +32,27 @@ function withBaseManicure(selections: CatalogSelection[]): CatalogSelection[] {
   return [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...selections];
 }
 
+const NON_QUOTE_SERVICE_MODULE_IDS = new Set([
+  'removal_service',
+  'extension_service',
+  'builder_service',
+  'color_effect_service',
+  'art_service',
+  'decoration_service',
+  'finish_service',
+]);
+
+function quoteableStyleSelections(selections: CatalogSelection[]): CatalogSelection[] {
+  return selections.filter((selection) => !NON_QUOTE_SERVICE_MODULE_IDS.has(selection.catalogItemId));
+}
+
 export type UploadMerchantStyleInput = {
   merchantId: string;
   title: string;
   mimeType: string;
   bytes: Uint8Array;
+  /** Defaults to merchant_upload; completed_booking tags photos captured at appointment checkout. */
+  source?: MediaAssetSource;
 };
 
 export type PublishMerchantStyleServiceInput = {
@@ -200,7 +217,7 @@ export function createMerchantStyleService(
           publishedPath: null,
           mimeType: input.mimeType,
           byteSize: input.bytes.byteLength,
-          source: 'merchant_upload',
+          source: input.source ?? 'merchant_upload',
           state: 'uploaded',
           createdAt: now,
           updatedAt: now,
@@ -226,7 +243,7 @@ export function createMerchantStyleService(
     async completeAnalysis(input: ApplyStyleConfigInput): Promise<MerchantStyleView | null> {
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
       if (!record || record.status !== 'processing') return null;
-      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(quoteableStyleSelections(input.selections)));
       const completed = await repository.completeAnalysis({
         id: input.styleId,
         merchantId: input.merchantId,
@@ -253,7 +270,7 @@ export function createMerchantStyleService(
       if (!record || (record.status !== 'needs_review' && record.status !== 'published')) {
         throw new Error('style_not_editable');
       }
-      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(quoteableStyleSelections(input.selections)));
       const saved = await repository.setConfig({
         id: input.styleId,
         merchantId: input.merchantId,
@@ -277,7 +294,7 @@ export function createMerchantStyleService(
 
       // Server derives price/duration from the chosen catalog items (finding 1). Persist the items +
       // derived snapshots first so the published row's preview always traces back to its breakdown.
-      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(input.selections));
+      const snapshot = await deriveSnapshot(input.merchantId, withBaseManicure(quoteableStyleSelections(input.selections)));
       const configured = await repository.setConfig({
         id: input.styleId,
         merchantId: input.merchantId,

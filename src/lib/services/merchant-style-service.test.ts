@@ -101,6 +101,9 @@ describe('merchant style service', () => {
       discoveryFacets: [{ kind: 'style', label: 'Cat eye' }],
       selections: [
         { catalogItemId: 'basic_manicure_service', quantity: 1 },
+        { catalogItemId: 'color_effect_service', quantity: 1 },
+        { catalogItemId: 'art_service', quantity: 1 },
+        { catalogItemId: 'decoration_service', quantity: 1 },
         { catalogItemId: 'cat_eye', quantity: 7 },
       ],
     });
