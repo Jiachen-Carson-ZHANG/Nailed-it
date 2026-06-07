@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import type { Conversation } from '@/domain/nail';
 import { ChatRoom } from '@/features/messages/ChatRoom';
+import { CustomerIntelPanel } from '@/features/merchant/CustomerIntelPanel';
 import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
 
 type MerchantConversationClientProps = {
@@ -46,7 +47,10 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
   }
 
   return conversation ? (
-    <ChatRoom conversation={conversation} onSend={handleSend} />
+    <>
+      <ChatRoom conversation={conversation} onSend={handleSend} />
+      <CustomerIntelPanel customerName={conversation.participantName} />
+    </>
   ) : (
     <section className="page-heading">
       <EmptyState

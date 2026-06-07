@@ -5,6 +5,8 @@ import type { AIRecognitionResult, StyleDiscoveryFacet, StyleDiscoveryFacetKind 
 import type { QuoteLine } from '@/lib/services/quote-service';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
 import { catalogItems } from '@/mock/catalog';
+import { demoCustomerId } from '@/mock/customers';
+import { TrackOnMount } from '@/features/analytics/TrackOnMount';
 
 const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
 const BASE_MANICURE_ID = 'basic_manicure_service';
@@ -96,6 +98,12 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
 
   return (
     <article className="style-detail-panel">
+      <TrackOnMount
+        eventType="style_detail_view"
+        styleId={style.id}
+        customerId={demoCustomerId}
+        eventSource="style_detail"
+      />
       <Link className="detail-back-link detail-back-top" href={backHref}>← Back to discovery</Link>
       <div className="style-detail-hero">
         <img alt={style.title} className="style-detail-image" src={style.imageUrl} />

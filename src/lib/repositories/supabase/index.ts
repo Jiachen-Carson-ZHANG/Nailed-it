@@ -14,6 +14,8 @@ import {
 } from './scheduling-repository';
 import { createSupabaseIntervalBookingRepository } from './interval-booking-repository';
 import { createSupabaseMerchantStyleRepository } from './merchant-style-repository';
+import { createSupabaseAnalyticsRepository } from './analytics-repository';
+import { createSupabaseCustomerRepository } from './customer-repository';
 
 export function createSupabaseRepositoryBundle(): RepositoryBundle {
   return {
@@ -30,5 +32,7 @@ export function createSupabaseRepositoryBundle(): RepositoryBundle {
     intervalBookings: createSupabaseIntervalBookingRepository(),
     staffItemDurations: createSupabaseStaffItemDurationRepository(),
     merchantStyles: createSupabaseMerchantStyleRepository(),
+    analytics: createSupabaseAnalyticsRepository(),
+    customers: createSupabaseCustomerRepository(),
   };
 }

@@ -1,5 +1,5 @@
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { MerchantStyleReviewWorkspace } from '@/features/merchant/MerchantStyleReviewWorkspace';
+import { MerchantStyleEditor } from '@/features/merchant/MerchantStyleEditor';
 
 type MerchantStyleReviewPageProps = {
   params: Promise<{ id: string }>;
@@ -13,9 +13,9 @@ export default async function MerchantStyleReviewPage({ params }: MerchantStyleR
       brandHref="/merchant/styles"
       role="merchant"
       showTabs={false}
-      subtitle="Review the AI suggestion before customers can see it."
+      subtitle="Edit the AI breakdown, then save or publish."
     >
-      <MerchantStyleReviewWorkspace styleId={id} />
+      <MerchantStyleEditor styleId={id} />
     </MobileLayout>
   );
 }

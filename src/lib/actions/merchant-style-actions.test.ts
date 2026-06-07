@@ -38,7 +38,7 @@ describe('merchant style actions', () => {
     upload.set('image', file);
 
     const draft = await uploadMerchantStyleAction(upload);
-    expect(draft).toMatchObject({ status: 'processing', title: '' });
+    expect(draft).toMatchObject({ status: 'processing', title: '未命名设计' });
     expect(await getMerchantStyleReviewAction(draft.id)).toMatchObject({ id: draft.id });
 
     // Tests have no OpenRouter key, so analysis fails closed into an editable manual-review draft.

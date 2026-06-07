@@ -18,16 +18,16 @@ function formatPreview(style: MerchantStyleView): string {
   return `$${(style.previewPriceCents / 100).toFixed(2)} · ${style.previewDurationMin} min`;
 }
 
-type LibraryTab = 'processing' | 'published' | 'archived';
+type LibraryTab = 'published' | 'archived';
 
-// needs_review + failed live with processing — none are published yet, so they share the same lane.
+// No "drafts" lane: a fresh upload opens the editor immediately and is published (or discarded) in one
+// sitting, so the library only lists what's live or retired. Unpublished rows (processing/needs_review)
+// are mid-edit and never parked in a tab.
 const TAB_STATUSES: Record<LibraryTab, MerchantStyleStatus[]> = {
-  processing: ['processing', 'needs_review', 'failed'],
   published: ['published'],
   archived: ['archived'],
 };
 const TAB_ORDER: { key: LibraryTab; label: string }[] = [
-  { key: 'processing', label: 'Processing' },
   { key: 'published', label: 'Published' },
   { key: 'archived', label: 'Archived' },
 ];
@@ -35,7 +35,7 @@ const TAB_ORDER: { key: LibraryTab; label: string }[] = [
 export function MerchantStyleLibrary() {
   const router = useRouter();
   const [styles, setStyles] = useState<MerchantStyleView[]>([]);
-  const [tab, setTab] = useState<LibraryTab>('processing');
+  const [tab, setTab] = useState<LibraryTab>('published');
   const [message, setMessage] = useState('');
   const [isPending, setIsPending] = useState(false);
 
@@ -105,7 +105,7 @@ export function MerchantStyleLibrary() {
   }
 
   const countByTab = useMemo(() => {
-    const counts: Record<LibraryTab, number> = { processing: 0, published: 0, archived: 0 };
+    const counts: Record<LibraryTab, number> = { published: 0, archived: 0 };
     for (const style of styles) {
       for (const key of TAB_ORDER) {
         if (TAB_STATUSES[key.key].includes(style.status)) counts[key.key] += 1;
@@ -173,7 +173,7 @@ export function MerchantStyleLibrary() {
                       className="button button-secondary button-default"
                       href={`/merchant/styles/${style.id}/review`}
                     >
-                      {isPublished ? 'Edit' : isArchived ? 'View' : 'Review'}
+                      {isPublished ? 'Edit' : isArchived ? 'View' : 'Edit'}
                     </Link>
                     {isPublished ? (
                       <button

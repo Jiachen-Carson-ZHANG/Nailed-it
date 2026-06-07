@@ -20,11 +20,34 @@ import { createQuoteService, type Quote } from '@/lib/services/quote-service';
 import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
 import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-actions';
 import { demoMerchantId } from '@/mock/merchants';
-import { demoCustomerName } from '@/mock/customers';
+import { demoCustomerName, demoCustomerId } from '@/mock/customers';
 
 const SLOT_LOOKAHEAD_DAYS = 7;
 const CANDIDATE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Emit the booking_confirmed conversion event (ADR-0006). The booking has already committed when
+// this runs, so a failed analytics insert is logged, never thrown — analytics must not surface as
+// a booking failure. styleId is present only when booking a published style (conversion attribution).
+async function recordBookingConfirmed(
+  repos: RepositoryBundle,
+  args: { bookingId: string; styleId: string | null; technicianId: string; priceDollars: number },
+): Promise<void> {
+  try {
+    await repos.analytics.record({
+      eventType: 'booking_confirmed',
+      merchantId: demoMerchantId,
+      customerId: demoCustomerId,
+      styleId: args.styleId,
+      bookingId: args.bookingId,
+      technicianId: args.technicianId,
+      eventSource: 'booking_confirm',
+      metadata: { price: args.priceDollars, status: 'pending_review' },
+    });
+  } catch (err) {
+    console.error('booking_confirmed capture failed', { bookingId: args.bookingId, err });
+  }
+}
 
 /** The next N calendar dates (YYYY-MM-DD) starting from `startDate`, in calendar order. */
 function nextDates(startDate: string, count: number): string[] {
@@ -396,8 +419,16 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
     }),
   );
 
+  const items = await repos.intervalBookings.listItems(booking.id);
+  await recordBookingConfirmed(repos, {
+    bookingId: booking.id,
+    styleId: null,
+    technicianId: input.technicianId,
+    priceDollars: estimate.price,
+  });
+
   return intervalBookingToUiBooking(
-    { booking, items: await repos.intervalBookings.listItems(booking.id) },
+    { booking, items },
     {
       timeZone,
       technician: technician
@@ -428,6 +459,8 @@ export type CreateBookingFromStyleActionInput = {
 
 type CreateCatalogBookingInput = CreateBookingFromSelectionsActionInput & {
   styleTitle: string;
+  /** Present only when booking a published style (conversion attribution); absent for custom selections. */
+  styleId?: string;
 };
 
 async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<Booking> {
@@ -487,8 +520,17 @@ async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<B
     }),
   );
 
+  const items = await repos.intervalBookings.listItems(booking.id);
+  const priceDollars = items.reduce((sum, item) => sum + item.priceCents, 0) / 100;
+  await recordBookingConfirmed(repos, {
+    bookingId: booking.id,
+    styleId: input.styleId ?? null,
+    technicianId: input.technicianId,
+    priceDollars,
+  });
+
   return intervalBookingToUiBooking(
-    { booking, items: await repos.intervalBookings.listItems(booking.id) },
+    { booking, items },
     {
       timeZone,
       technician: technician
@@ -521,5 +563,6 @@ export async function createBookingFromStyleAction(
     date: input.date,
     time: input.time,
     notes: input.notes,
+    styleId: input.styleId,
   });
 }

@@ -1,14 +1,9 @@
 import type { StyleDiscoveryFacet } from '@/domain/nail';
-import { catalogItems } from '@/mock/catalog';
+import { categoryOf, isServiceModule } from '@/domain/catalog-tags';
 
-// The AI dumps almost every facet into kind:"style", so the stored `kind` is unreliable for grouping.
-// Facet labels are catalog item names, so we re-bucket them by the catalog's real category instead.
-const catalogByName = new Map(catalogItems.map((item) => [item.nameZh, { category: item.category, type: item.type }]));
-
-// Container service modules (颜色与效果服务 / 美术设计服务 …) leaked into the AI facets — never a filter/tag.
-function isServiceModule(label: string): boolean {
-  return catalogByName.get(label)?.type === 'service_module';
-}
+// Tag→category resolution lives in the shared catalog adapter (catalog-tags.ts). This module owns
+// only the feed's discovery-filter sections — the AI's stored facet `kind` is unreliable, so labels
+// are bucketed by the catalog's real category.
 
 export type FacetSection = { key: string; label: string; categories: string[] };
 
@@ -25,7 +20,7 @@ const sectionKeyByCategory = new Map(
 );
 
 function sectionKeyForLabel(label: string): string | undefined {
-  const category = catalogByName.get(label)?.category;
+  const category = categoryOf(label);
   return category ? sectionKeyByCategory.get(category) : undefined;
 }
 

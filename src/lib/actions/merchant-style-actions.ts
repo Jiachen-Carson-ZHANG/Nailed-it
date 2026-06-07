@@ -8,6 +8,8 @@ import { createMerchantStyleService } from '@/lib/services/merchant-style-servic
 import { createMerchantPricingService } from '@/lib/services/merchant-pricing-service';
 import { createQuoteService } from '@/lib/services/quote-service';
 import { recognizeStyleConfig } from '@/nail-ai/style-config-recognition';
+import { buildStyleConfig } from '@/domain/style-config';
+import { catalogItems } from '@/mock/catalog';
 import { getStyleMediaStorage } from '@/lib/storage';
 import { demoMerchantId } from '@/mock/merchants';
 
@@ -43,6 +45,20 @@ export async function getMerchantStyleReviewAction(
   styleId: string,
 ): Promise<MerchantStyleView | null> {
   return getService().getMerchant(demoMerchantId, styleId);
+}
+
+// The cloned customer editor runs the breakdown client-side, so it needs the original image bytes.
+export async function getMerchantStyleImageAction(
+  styleId: string,
+): Promise<{ base64: string; mimeType: string }> {
+  const repos = getRepositories();
+  const record = await repos.merchantStyles.getByIdForMerchant(styleId, demoMerchantId);
+  if (!record) throw new Error('merchant_style_not_found');
+  const bytes = await getStyleMediaStorage().downloadOriginal(
+    record.media.originalBucket,
+    record.media.originalPath,
+  );
+  return { base64: Buffer.from(bytes).toString('base64'), mimeType: record.media.mimeType };
 }
 
 export type ConfigurableCatalogItem = {
@@ -95,8 +111,11 @@ export async function listConfigurableCatalogAction(): Promise<ConfigurableCatal
 }
 
 export async function uploadMerchantStyleAction(formData: FormData): Promise<MerchantStyleView> {
+  // `File` is not a global in Node 18 (it landed in Node 20), so `image instanceof File` throws
+  // "File is not defined" in this runtime and breaks every upload. FormData file entries are
+  // Blob-like; guard by excluding the string/empty case instead of referencing the File global.
   const image = formData.get('image');
-  if (!(image instanceof File)) throw new Error('style_image_required');
+  if (!image || typeof image === 'string') throw new Error('style_image_required');
   const bytes = new Uint8Array(await image.arrayBuffer());
   return getService().upload({
     merchantId: demoMerchantId,
@@ -158,11 +177,23 @@ export async function analyzeMerchantStyleAction(styleId: string): Promise<Merch
   return current;
 }
 
-/** Skip AI and open the draft for manual configuration (processing -> needs_review, empty config). */
+/**
+ * Open the draft for manual editing (processing -> needs_review). Idempotent: failAnalysis only
+ * transitions a 'processing' upload, so on a re-open or React StrictMode double-invoke the style is
+ * already needs_review and failAnalysis throws merchant_style_not_processing — that's fine, it's
+ * already open, so fall back to the current view.
+ */
 export async function configureMerchantStyleManuallyAction(styleId: string): Promise<MerchantStyleView> {
-  const opened = await getService().failAnalysis(demoMerchantId, styleId);
-  if (!opened) throw new Error('merchant_style_not_found');
-  return opened;
+  const service = getService();
+  try {
+    const opened = await service.failAnalysis(demoMerchantId, styleId);
+    if (opened) return opened;
+  } catch {
+    // Already past 'processing' — fall through to returning the current view.
+  }
+  const current = await service.getMerchant(demoMerchantId, styleId);
+  if (!current) throw new Error('merchant_style_not_found');
+  return current;
 }
 
 export async function previewMerchantStyleQuoteAction(selections: CatalogSelection[]) {
@@ -172,16 +203,34 @@ export async function previewMerchantStyleQuoteAction(selections: CatalogSelecti
   });
 }
 
+// Descriptive facets (colour / shape / length / finish …) are re-derived from the merchant's selections
+// so edits to them persist — buildStyleConfig splits selections into priced breakdown + facets exactly
+// like the analyze path, keeping one source of truth.
+function deriveDiscoveryFacets(selections: CatalogSelection[]) {
+  return buildStyleConfig(
+    selections.map((s) => ({ catalogItemId: s.catalogItemId, confidence: 1, quantity: s.quantity })),
+    catalogItems,
+  ).discoveryFacets;
+}
+
 export async function saveMerchantStyleDraftAction(
   input: SaveMerchantStyleDraftActionInput,
 ): Promise<MerchantStyleView> {
-  return getService().saveDraft({ ...input, merchantId: demoMerchantId });
+  return getService().saveDraft({
+    ...input,
+    merchantId: demoMerchantId,
+    discoveryFacets: deriveDiscoveryFacets(input.selections),
+  });
 }
 
 export async function publishMerchantStyleAction(
   input: PublishMerchantStyleActionInput,
 ): Promise<MerchantStyleView> {
-  return getService().publish({ ...input, merchantId: demoMerchantId });
+  return getService().publish({
+    ...input,
+    merchantId: demoMerchantId,
+    discoveryFacets: deriveDiscoveryFacets(input.selections),
+  });
 }
 
 export async function archiveMerchantStyleAction(styleId: string): Promise<MerchantStyleView | null> {

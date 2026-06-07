@@ -1,20 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NailStyleCard } from '@/domain/nail';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { demoCustomerId } from '@/mock/customers';
+import { track } from '@/features/analytics/track';
 import { StyleCard } from './StyleCard';
 import { cleanFacetLabels, groupLabelsBySection } from './style-facets';
 import { useSavedStyles } from './SavedStylesContext';
 
 type StyleWaterfallGridClientProps = {
   styles: NailStyleCard[];
+  /** styleId → personalized reason chip, from the ranking function (Melissa's feed). */
+  reasonByStyleId?: Record<string, string>;
 };
 
 const tabs = ['Trending', 'Saved'] as const;
 type TabLabel = typeof tabs[number];
 
-export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
+export function StyleWaterfallGridClient({ styles, reasonByStyleId }: StyleWaterfallGridClientProps) {
   const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -33,12 +37,21 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
   }, [styles]);
 
   function toggleTag(label: string) {
+    // Selecting a filter tag is an explicit demand signal — log it as a catalog-label "search".
+    const adding = !selectedTags.has(label);
     setSelectedTags((current) => {
       const next = new Set(current);
       if (next.has(label)) next.delete(label);
       else next.add(label);
       return next;
     });
+    if (adding) {
+      track('search_submitted', {
+        query: label,
+        customerId: demoCustomerId,
+        eventSource: 'home_feed_filter',
+      });
+    }
   }
 
   const tabStyles =
@@ -49,6 +62,23 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
     selectedTags.size === 0
       ? tabStyles
       : tabStyles.filter((style) => style.discoveryFacets.some((facet) => selectedTags.has(facet.label)));
+
+  // Log a no-result discovery so the merchant's catalog-gap card sees demand it can't satisfy.
+  // Dedupe per distinct selection so re-renders don't spam the same empty search.
+  const lastNoResultKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedTags.size > 0 && visibleStyles.length === 0) {
+      const key = Array.from(selectedTags).sort().join('|');
+      if (lastNoResultKey.current !== key) {
+        lastNoResultKey.current = key;
+        track('search_no_result', {
+          query: key,
+          customerId: demoCustomerId,
+          eventSource: 'home_feed_filter',
+        });
+      }
+    }
+  }, [selectedTags, visibleStyles.length]);
 
   return (
     <section className="xhs-feed" aria-label="Style discovery feed">
@@ -134,7 +164,13 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
       ) : (
         <div className="xhs-grid">
           {visibleStyles.map((style) => (
-            <StyleCard key={style.id} style={style} onTagClick={toggleTag} activeTags={selectedTags} />
+            <StyleCard
+              key={style.id}
+              style={style}
+              onTagClick={toggleTag}
+              activeTags={selectedTags}
+              reason={reasonByStyleId?.[style.id]}
+            />
           ))}
         </div>
       )}

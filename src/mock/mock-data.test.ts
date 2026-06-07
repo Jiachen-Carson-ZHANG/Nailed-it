@@ -92,7 +92,8 @@ describe('mock data coherence', () => {
     });
     expect(getMerchantBookingPath('booking-001')).toBe('/merchant/booking/booking-001');
     expect(getMerchantManagePath()).toBe('/merchant/manage');
-    expect(getMockSession('merchant').tabs).toHaveLength(4);
+    // 5 merchant tabs since the Insights tab (📊 /merchant/insights) was added.
+    expect(getMockSession('merchant').tabs).toHaveLength(5);
     expect(getRouteIntent('merchant', 'messages')).toMatchObject({
       key: 'messages',
       href: '/merchant/messages',

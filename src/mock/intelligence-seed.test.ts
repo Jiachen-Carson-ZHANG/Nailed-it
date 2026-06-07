@@ -1,0 +1,72 @@
+// Phase C regression / eval (ADR-0006 eval rules): the seeded demo dataset, run through the read
+// model, MUST produce the locked demo narrative. Deterministic (fixed `now`, no DB).
+
+import { describe, it, expect, beforeAll } from 'vitest';
+import { createMemoryAnalyticsRepository } from '@/lib/repositories/memory/analytics-repository';
+import {
+  buildStyleTagIndex,
+  getCustomerProfile,
+  getMerchantInsights,
+  type MerchantInsights,
+  type CustomerProfile,
+} from '@/domain/intelligence';
+import { demoMerchantId } from '@/mock/merchants';
+import { demoCustomerId } from '@/mock/customers';
+import {
+  generateSeedEvents,
+  seedStyleFixtures,
+  TOP_CONVERTER_ID,
+  LOW_CONVERSION_ID,
+} from './intelligence-seed';
+
+const NOW = '2026-06-07T12:00:00.000Z';
+
+let insights: MerchantInsights;
+let melissa: CustomerProfile;
+
+beforeAll(async () => {
+  const repo = createMemoryAnalyticsRepository();
+  for (const event of generateSeedEvents(NOW)) await repo.record(event);
+  const events = await repo.listByMerchant(demoMerchantId);
+  insights = getMerchantInsights(events, seedStyleFixtures, demoMerchantId, { days: 7 }, NOW);
+  melissa = getCustomerProfile(events, buildStyleTagIndex(seedStyleFixtures), demoCustomerId, NOW);
+});
+
+describe('intelligence demo seed → read model narrative', () => {
+  it('surfaces 暗黑 as the honest catalog gap (high demand, exactly 1 published style)', () => {
+    const gap = insights.catalogGaps.find((g) => g.label === '暗黑');
+    expect(gap).toBeDefined();
+    expect(gap!.matchingActiveStyles).toBe(1);
+    expect(gap!.searchCount).toBeGreaterThanOrEqual(10);
+    // 金属感 is in demand but well-supplied → must NOT be a gap.
+    expect(insights.catalogGaps.some((g) => g.label === '金属感')).toBe(false);
+  });
+
+  it('shows 金属感 demand rising this period vs last', () => {
+    const trend = insights.demandTrends.find((t) => t.label === '金属感');
+    expect(trend?.direction).toBe('up');
+    expect(trend!.current).toBeGreaterThan(trend!.previous);
+  });
+
+  it('flags 鎏金奢华 (8284) as high-interest / low-conversion', () => {
+    const flagged = insights.designPerformance.highInterestLowConversion;
+    expect(flagged.map((s) => s.styleId)).toContain(LOW_CONVERSION_ID);
+    const lc = flagged.find((s) => s.styleId === LOW_CONVERSION_ID)!;
+    expect(lc.tryOns).toBeGreaterThanOrEqual(8);
+    expect(lc.bookings).toBeLessThanOrEqual(1);
+  });
+
+  it('ranks 极光法式碎钻 (8265) as the top converter', () => {
+    const withConversion = insights.designPerformance.styles.filter((s) => s.conversionRate !== null);
+    const top = withConversion.reduce((best, s) => (s.conversionRate! > best.conversionRate! ? s : best));
+    expect(top.styleId).toBe(TOP_CONVERTER_ID);
+    const lc = insights.designPerformance.styles.find((s) => s.styleId === LOW_CONVERSION_ID)!;
+    expect(top.conversionRate!).toBeGreaterThan(lc.conversionRate!);
+  });
+
+  it("captures Melissa's nude/french preference and ~SGD 80 budget", () => {
+    expect(melissa.topByCategory.color?.[0]).toBe('裸色');
+    expect(melissa.topByCategory.style?.slice(0, 2)).toContain('法式风');
+    expect(melissa.averageBudget).toBe(80);
+  });
+});

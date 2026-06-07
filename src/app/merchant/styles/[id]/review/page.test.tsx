@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { resetStyleMediaStorageForTests } from '@/lib/storage';
 import { uploadMerchantStyleAction } from '@/lib/actions/merchant-style-actions';
@@ -13,6 +13,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
+const originalFetch = global.fetch;
+
 async function uploadProcessingStyle() {
   const upload = new FormData();
   const bytes = new TextEncoder().encode('RIFF0000WEBP');
@@ -22,59 +24,57 @@ async function uploadProcessingStyle() {
   return uploadMerchantStyleAction(upload);
 }
 
-describe('MerchantStyleReviewPage', () => {
+describe('MerchantStyleReviewPage (cloned style-result editor)', () => {
   beforeEach(() => {
     push.mockReset();
     resetRepositoriesForTests();
     resetStyleMediaStorageForTests();
+    // The merchant editor reuses the customer panel, which runs the breakdown client-side.
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ items: [], catalogSelections: [], totalPrice: 0, totalDuration: 0, mode: 'glossary' }),
+    })) as unknown as typeof fetch;
   });
 
-  it('opens a processing upload on the AI-breakdown step, with no editor yet', async () => {
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('opens a fresh upload in the cloned editor — title + publish, no 卸甲, no old AI-breakdown trigger', async () => {
     const draft = await uploadProcessingStyle();
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
     expect(screen.queryByRole('navigation', { name: /merchant navigation/i })).not.toBeInTheDocument();
-    expect(document.querySelector('.mobile-shell-workspace')).not.toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: /analyze design/i })).toBeInTheDocument();
-
-    // Before AI runs, the only action is the breakdown trigger — the editor stays hidden.
-    expect(screen.getByRole('button', { name: /run ai breakdown/i })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: /design title/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('searchbox', { name: /search services/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^publish$/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: /设计名称/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /发布/ })).toBeInTheDocument();
+    // 卸甲 is the customer-only removal section — hidden for merchant editing.
+    expect(screen.queryByRole('heading', { name: /卸甲/ })).not.toBeInTheDocument();
+    // The old processing/review workspace is retired; there is no "save draft" (no drafts are parked).
+    expect(screen.queryByRole('button', { name: /run ai breakdown/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /保存草稿/ })).not.toBeInTheDocument();
   });
 
-  it('adds services, previews the deterministic quote, saves, and publishes', async () => {
+  it('publish returns to the library', async () => {
     const user = userEvent.setup();
     const draft = await uploadProcessingStyle();
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
-    await user.click(await screen.findByRole('button', { name: /ai breakdown/i }));
+    const title = await screen.findByRole('textbox', { name: /设计名称/ });
+    fireEvent.change(title, { target: { value: '甜美杏仁' } });
 
-    // The editor appears once analysis resolves; the base manicure is auto-included (the $28/51-min
-    // floor), so the quote is priced immediately.
-    const title = await screen.findByRole('textbox', { name: /design title/i });
-    fireEvent.change(title, { target: { value: 'Reviewed design' } });
-
-    await waitFor(() => {
-      expect(screen.getByText('$28.00')).toBeInTheDocument();
-      expect(screen.getByText('51 min')).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: /^publish$/i }));
+    await user.click(await screen.findByRole('button', { name: /发布/ }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
   });
 
-  it('save draft returns to the library', async () => {
-    const user = userEvent.setup();
+  it('cancel discards the unpublished upload and returns to the library', async () => {
     const draft = await uploadProcessingStyle();
     render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
 
-    await user.click(await screen.findByRole('button', { name: /ai breakdown/i }));
-    const title = await screen.findByRole('textbox', { name: /design title/i });
-    fireEvent.change(title, { target: { value: 'Draft name' } });
+    // Let the editor settle (panel analysis + onResult re-render) before interacting.
+    const title = await screen.findByRole('textbox', { name: /设计名称/ });
+    fireEvent.change(title, { target: { value: 'x' } });
 
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /取消/ }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
   });
 });

@@ -193,6 +193,8 @@ describe('merchant style service', () => {
         { catalogItemId: 'basic_manicure_service', quantity: 1 },
         { catalogItemId: 'cat_eye', quantity: 7 },
       ],
+      // Descriptive facets are derived from the selections by the caller and persisted, so edits stick.
+      discoveryFacets: [{ kind: 'shape', label: '圆形' }],
     });
 
     expect(published.catalogBreakdown).toEqual([
@@ -200,6 +202,7 @@ describe('merchant style service', () => {
       { catalogItemId: 'cat_eye', quantity: 1 },
     ]);
     expect(published.previewPriceCents).toBe(3800);
+    expect(published.discoveryFacets).toEqual([{ kind: 'shape', label: '圆形' }]);
   });
 
   it('saves an editable review draft without allowing processing styles to be edited', async () => {

@@ -67,6 +67,7 @@ export type MerchantStyleView = Pick<
   | 'description'
   | 'status'
   | 'catalogBreakdown'
+  | 'discoveryFacets'
   | 'previewPriceCents'
   | 'previewDurationMin'
   | 'updatedAt'

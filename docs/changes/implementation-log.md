@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-06-07 — Merchant upload fix + cloned style-result editor (instant draft, no processing detour)
+
+What changed:
+- **Upload bug fixed.** `uploadMerchantStyleAction` used `image instanceof File`, but this runtime is Node 18 where `File` is not a global → every upload threw "File is not defined". Now guards by excluding the string case. (Only one site; customer recognition uses base64 API routes.)
+- **Merchant editor = the customer style-result panel.** `ComponentBreakdownPanel` gained `showRemoval` (default true) + a `footer` slot; a shared `buildBreakdownFromSelections` seeds it from stored selections. New `MerchantStyleEditor` renders the panel with `showRemoval={false}` (卸甲 hidden) + a title field + Save/Publish wired to the existing `saveMerchantStyleDraftAction` / `publishMerchantStyleAction`. New `getMerchantStyleImageAction` returns the draft image base64 so the panel runs the breakdown client-side.
+- **Instant-draft flow.** Opening the editor flips a fresh `processing` upload to an editable draft (`needs_review`) via `configureMerchantStyleManuallyAction`; the panel auto-analyzes (fresh) or seeds from stored selections (re-edit). Library "Processing" tab → "Drafts"; card action → "Edit". The old `MerchantStyleReviewWorkspace` is retired (deleted).
+
+Why:
+- Merchants couldn't upload at all (Node-18 `File` crash). The review/publish flow also wanted to match the customer book-flow style-result UI and drop the separate processing/review detour ("商家拍照上传 → AI breakdown → 直接入库 → 直接修改"). Reusing the customer panel gives one consistent editor + the "breakdown fills in" behavior for free.
+
+Tests: 281/281. Plan: docs/plans/2026-06-07-merchant-upload-instant-draft-and-cloned-editor.md.
+
 ## 2026-06-07 — Discovery facets re-bucketed by catalog category (grouped filter + multi-tag cards)
 
 What changed:
@@ -456,3 +468,87 @@ Aligned assumptions:
 - P4a/P4b DB tables, RPC, and services remain the target architecture.
 - P4d must move the related reader surfaces with the DB write path, or customer/merchant views can disagree.
 - P6 catalog recognition is still needed for a clean quote-to-booking item mapping.
+
+## 2026-06-07 — Intelligence Layer Phase A: event-sourced capture seam
+
+What changed:
+- Migration `0017_intelligence_layer.sql` adds two server-only tables: `customers` (seeded personas) and `analytics_events` (real behavioural log). All id/ref columns are `text` to match existing PKs; `analytics_events.id` is `uuid`. RLS on, no anon policies (service-role only, mirrors 0006). **Manual step:** run in the Supabase SQL editor before seeding (no CLI here).
+- Domain contracts `src/domain/analytics.ts`: `AnalyticsEvent`, `NewAnalyticsEvent` (optional `createdAt` so the seed can backdate ~2 weeks), `Customer`, `AnalyticsEventType` + guard.
+- New repositories `analytics` + `customers` (supabase + memory variants) wired into `RepositoryBundle`. `record/listByMerchant/listByCustomer` and `getByHandle/getById/listByMerchant`.
+- `trackEventAction` server action (validates event_type at the public boundary; logs + swallows failures) and a fire-and-forget client `track()` helper (`src/features/analytics/track.ts`, per-tab session id) + `TrackOnMount` for view events.
+- Real capture wired: `style_card_click` + `style_save` (StyleCard), `search_submitted` + `search_no_result` (feed tag-filter = catalog-label intents), `style_detail_view` (StyleDetailPanel), `try_on_completed` (TryOnPanel), and `booking_confirmed` server-side in the booking action (carries `style_id` for per-style conversion).
+- Mock `customers.ts` now exports the Melissa persona (`cust-melissa` / handle `melissa` / name `Melissa Tan`) so the demo session attaches events to her and the appointment-context join lands.
+
+Why:
+- ADR-0006: only two real tables; everything else (profiles, trends, gaps, ranking) is computed on read from this log. Capture is real so the system keeps accumulating after the demo.
+
+Tradeoff / scope:
+- `style_impression` (IntersectionObserver) deliberately deferred for Phase A — the seed supplies the impression history; live impression capture adds observer noise for little demo value. Revisit if the dashboard needs a live CTR denominator.
+- Live-capture verification is blocked on the manual 0017 apply; memory-repo unit tests cover the seam meanwhile (10 new tests; full suite 281 green).
+
+Aligned assumptions:
+- Phase B builds the read model over `analytics_events` via the catalog adapter; Phase C seeds the demo dataset (gap tag = 暗黑, anchors 8284 / 8265) bound to real published style_ids.
+- `current-state.md` rewrite is deferred to Phase F (docs+dry-run) when the layer is complete, per the plan's phasing.
+
+## 2026-06-07 — Intelligence Layer Phase B: read model (compute-on-read)
+
+What changed:
+- `src/domain/catalog-tags.ts` — shared catalog→tag adapter (`categoryOf`, `isServiceModule`, `tagsByCategory`, `tagLabelsOf`). The catalog IS the taxonomy; one source of truth for both the feed filter and the read model. `src/features/customer/style-facets.ts` refactored to consume it (behaviour unchanged — feed tests green).
+- `src/domain/intelligence/` — pure, compute-on-read functions over `analytics_events` + published styles:
+  - `getCustomerProfile` — weighted (save 3 / try-on 4 / booking 6 / click 1 / detail 2 / search 2), time-decayed (1.0/0.7/0.4/0.2 by age) tag affinity per category, plus averageBudget + recentInterest.
+  - `getMerchantInsights` — snapshot + demand trends (this period vs previous) + design performance (incl. high-interest/low-conversion: tryOns≥8 & bookings≤1) + catalog gaps (search≥10 & matchingActiveStyles≤1, the ADR-0006 ≤1 rule).
+  - `rankStyles` — tag affinity (normalized) + popularity + freshness, reason-coded; one function, two call sites.
+  - `getCustomerIntelligence` — profile + ranked recommendations + appointment context (booking.customer_name == customer.name join).
+  - shared helpers: `buildStyleTagIndex`, `buildPopularityIndex`, `EVENT_WEIGHTS`, decay. `now` is injectable everywhere for deterministic tests.
+- Tests: catalog-tags + profile + insights (mirrors the demo narrative: 暗黑 gap surfaced, 甜美 ignored as saturated, 金属感 low-conversion flagged) + ranking + customer-intel. 16 new tests; typecheck clean.
+
+Why:
+- ADR-0006: no materialized profile/metric tables — every number derives on read from the event log through the catalog adapter, traceable to events.
+
+Notes:
+- `summarizeInsights` (AI narration) deferred to Phase D — it needs the model client; the read model feeds it pre-computed numbers.
+- Pre-existing unrelated breakage observed: a separate uncommitted "merchant cloned-editor" WIP in this working tree (MerchantStyleEditor + ComponentBreakdownPanel changes + a leftover `console.error('DBG cancelEdit status=')`) has one failing test (`review/page.test.tsx > cancel …`, a disabled-button race). Proven independent of Phase A/B by stashing only the intelligence-layer edits — the failure persists. Not in scope; flagged for its owner.
+
+## 2026-06-07 — Intelligence Layer Phase C: demo-truth seed
+
+What changed:
+- `src/mock/intelligence-seed.ts` — pure, deterministic generator bound to the real Phase-0 style_ids: `seedCustomers` (Melissa + 5 personas), `generateSeedEvents(now)` (~123 events over 2 weeks), and `seedStyleFixtures` (real facets, for the regression's supply side). Style anchors: top converter `8265` (裸色+法式风), low-conversion `8284` (金属感), gap style `8281` (暗黑).
+- `src/mock/intelligence-seed.test.ts` — Phase C regression/eval (5 tests): runs the read model over the generated seed (fixed `now`) and asserts the locked narrative — 暗黑 gap (1 matching style), 金属感 trend up, 8284 high-interest/low-conversion, 8265 top converter, Melissa 裸色(color)+法式风(style) + SGD 80 budget.
+- `scripts/seed-intelligence.ts` + `npm run seed:intelligence` — idempotent DB writer: upserts the 6 personas, replaces only seeded events (`session_id like 'seed-%'`, preserving live capture), inserts the backdated history. Standalone service-role client (app client is server-only).
+
+Verification:
+- Ran against live Supabase: 6 customers, 123 events (暗黑 21 / 金属感 35 / Melissa 8 / 8284 try-ons 34).
+- Typecheck clean; full suite 302 passed (60 files).
+
+Notes:
+- Generator anchors events to wall-clock `now` at seed time, so re-run `seed:intelligence` shortly before the demo to keep the "this week vs last week" windows fresh.
+- The flaky cloned-editor `review/page.test.tsx > cancel …` (separate uncommitted WIP, timing race) passed this run; still its owner's to stabilise.
+
+## 2026-06-07 — Intelligence Layer Phases D–F: dashboard, panel, ranked feed, docs
+
+What changed (D — Hero 1, merchant insights):
+- `/merchant/insights` route + nav tab (📊). `getMerchantInsightsAction` loads the live event log + published styles → `getMerchantInsights` (compute-on-read). `summarizeInsightsAction` → `src/nail-ai/insights-summary.ts`: grounded AI narration that is given ONLY pre-computed metrics, told never to invent numbers and to say "数据不足" when weak; deterministic fallback when the model is unavailable. Cards: AI summary, snapshot, demand trends (this vs last week), catalog gap, design performance (high-interest/low-conversion + top converter). Empty-state when data is thin. 4 summary tests.
+
+What changed (E — Hero 2, customer intel + ranked feed):
+- `src/lib/actions/customer-intel-actions.ts`: `getCustomerIntelligenceAction(name)` (profile + recommendations + appointment context), `recordRecommendedStyleAction` (logs `recommended_style_sent`), `getRankedFeedAction` (Melissa's feed via `rankStyles` + localized reason chips).
+- `CustomerIntelPanel` rendered below the merchant conversation chat (matched by `participantName`): preference chips, budget, appointment, recommended styles with "发送" (logs the event). Renders nothing for an unknown / no-history customer — never fakes a profile.
+- Customer feed (`PublishedStyleFeed` → `StyleWaterfallGridClient` → `StyleCard`) re-ordered by `getRankedFeedAction` with a per-card reason chip; falls back to the plain published list if ranking is unavailable.
+
+What changed (F — docs):
+- `docs/architecture/current-state.md`: added `/merchant/insights`, the `customers`/`analytics_events` persistence bullet, migration `0017` + `seed:intelligence`, and a dedicated "Intelligence layer (ADR-0006)" section.
+
+Verification:
+- Typecheck clean. New intelligence tests all green (catalog-tags, profile, insights, ranking, customer-intel, seed regression, summary). The merchant `tabs.length` mock-data assertion was already updated to 5 by parallel WIP and matches the added Insights tab (passes in isolation).
+- Known flaky-suite caveat: under the full `vitest run`, occasional single-test nondeterminism (the `mock-data` tab test and the unrelated cloned-editor cancel test) — both pass in isolation; this is pre-existing shared-state/timing flakiness in the suite, not a regression from these phases.
+
+Demo dry-run (the flow that ties it together):
+1. Re-seed: `npm run seed:intelligence` (fresh this-week/last-week windows).
+2. Merchant → Insights: 金属感 rising, 暗黑 gap (1 style), 鎏金奢华 high-interest/low-conversion, 极光法式碎钻 top converter, grounded AI summary.
+3. Customer (Melissa) → Home feed ordered to her taste with reason chips; click/save/try-on a 裸色/法式风 style → events land.
+4. Merchant → Messages → Melissa's thread: customer-intelligence panel (her 裸色/法式风 profile, SGD 80, appointment, recommended styles) → 发送 logs `recommended_style_sent`.
+5. Back to Insights: her live actions have moved the numbers.
+
+## 2026-06-07 — Intelligence Layer: post-smoke polish
+
+- **Reason chips** (`rankStyles`): added inverse-document-frequency weighting across the candidate set + a generic-filler suppression list, so a card's "why recommended" chip surfaces the customer's *distinctive* taste (法式风 · 裸色 · 杏仁形) instead of ubiquitous descriptors (亮面 · 日常通勤 · 果冻感). Ranking score also IDF-damped so rare matches rank higher. Confirmed live on Melissa's feed. New ranking test locks it.
+- **AI summary** (`summarizeInsights`): wrapped the model call in a timeout race (`INSIGHTS_TIMEOUT_MS`, default 6s) → falls back to the deterministic grounded summary fast instead of hanging the dashboard's AI card. New unit test (hanging model → fallback).

@@ -1,7 +1,8 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
+import type { CatalogSelection } from '@/domain/catalog';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { glossaryById, glossaryEntries } from '@/data/glossary';
 import { loadGlossarySettings } from '@/data/glossary-settings-store';
@@ -100,6 +101,42 @@ function seedStateFromBreakdown(result: BreakdownResult) {
   return { removalId, structureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
 }
 
+// ── Shared item builder (glossary id → priced breakdown row) ──────────────────
+type GlossarySettingMap = Map<string, ReturnType<typeof loadGlossarySettings>[number]>;
+
+function itemFromId(id: string, qty: number, settingsById: GlossarySettingMap): GlossaryBreakdownItem | null {
+  const entry = glossaryById.get(id);
+  if (!entry) return null;
+  const s = settingsById.get(id);
+  const parentEntry = entry.parent_id !== 'na' ? glossaryById.get(entry.parent_id) : undefined;
+  const unit = s?.unit ?? entry.default_pricing_unit;
+  return {
+    mode: 'glossary',
+    glossaryId: id,
+    glossaryType: entry.type as GlossaryBreakdownItem['glossaryType'],
+    nameZh: entry.name_zh,
+    typeZh: entry.type_zh,
+    parentId: entry.parent_id,
+    parentNameZh: parentEntry?.name_zh ?? '',
+    quantity: qty,
+    unit,
+    price: s?.price ?? 0,
+    duration: s?.duration ?? entry.default_duration_min,
+  };
+}
+
+function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; totalDuration: number } {
+  const PRICED = new Set(['service_module', 'billable_component']);
+  const priced = items.filter((i) => PRICED.has(i.glossaryType));
+  return {
+    totalPrice: priced.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    totalDuration: priced.reduce(
+      (sum, i) => sum + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration),
+      0,
+    ),
+  };
+}
+
 // ── Rebuild BreakdownResult from current selections ───────────────────────────
 function buildBreakdownResult(
   removalId: string | null,
@@ -113,8 +150,7 @@ function buildBreakdownResult(
   decoIds: Set<string>,
   quantities: Map<string, number>,
 ): BreakdownResult {
-  const merchantSettings = loadGlossarySettings();
-  const settingsById = new Map(merchantSettings.map((s) => [s.id, s]));
+  const settingsById: GlossarySettingMap = new Map(loadGlossarySettings().map((s) => [s.id, s]));
 
   const allIds = [
     ...(removalId ? [removalId] : []),
@@ -128,40 +164,48 @@ function buildBreakdownResult(
     ...decoIds,
   ];
 
-  const items: GlossaryBreakdownItem[] = [];
-  for (const id of allIds) {
-    const entry = glossaryById.get(id);
-    if (!entry) continue;
-    const s = settingsById.get(id);
-    const qty = quantities.get(id) ?? 1;
-    const parentEntry = entry.parent_id !== 'na' ? glossaryById.get(entry.parent_id) : undefined;
-    const unit = s?.unit ?? entry.default_pricing_unit;
-    items.push({
-      mode: 'glossary',
-      glossaryId: id,
-      glossaryType: entry.type as GlossaryBreakdownItem['glossaryType'],
-      nameZh: entry.name_zh,
-      typeZh: entry.type_zh,
-      parentId: entry.parent_id,
-      parentNameZh: parentEntry?.name_zh ?? '',
-      quantity: qty,
-      unit,
-      price: s?.price ?? 0,
-      duration: s?.duration ?? entry.default_duration_min,
-    });
-  }
+  const items = allIds.flatMap((id) => {
+    const item = itemFromId(id, quantities.get(id) ?? 1, settingsById);
+    return item ? [item] : [];
+  });
 
-  const PRICED = new Set(['service_module', 'billable_component']);
-  const totalPrice = items
-    .filter((i) => PRICED.has(i.glossaryType))
-    .reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const totalDuration = items
-    .filter((i) => PRICED.has(i.glossaryType))
-    .reduce((sum, i) => sum + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration), 0);
-
+  const { totalPrice, totalDuration } = pricedTotals(items);
   const catalogSelections = items.map((i) => ({ catalogItemId: i.glossaryId, quantity: i.quantity }));
-
   return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
+}
+
+// Seed the panel from already-stored catalog selections (merchant re-edit). glossary ids === catalog
+// ids in this codebase, so each selection resolves through glossaryById.
+export function buildBreakdownFromSelections(selections: CatalogSelection[]): BreakdownResult {
+  const settingsById: GlossarySettingMap = new Map(loadGlossarySettings().map((s) => [s.id, s]));
+  const items = selections.flatMap((sel) => {
+    const item = itemFromId(sel.catalogItemId, sel.quantity, settingsById);
+    return item ? [item] : [];
+  });
+  const { totalPrice, totalDuration } = pricedTotals(items);
+  return { items, catalogSelections: selections, totalPrice, totalDuration, mode: 'glossary' };
+}
+
+const glossaryByName = new Map(glossaryEntries.map((entry) => [entry.name_zh, entry.id]));
+
+// Seed from a stored style config: the priced selections (catalogBreakdown) PLUS the descriptive
+// facets (colour / shape / length / finish / style) the merchant pipeline stores as facets rather than
+// priced selections. Without this, a re-edited or published style shows no colour/shape selected even
+// though it has them. Facet labels are catalog names, so they resolve to ids via glossaryByName.
+export function buildBreakdownFromConfig(
+  selections: CatalogSelection[],
+  facetLabels: string[],
+): BreakdownResult {
+  const ids = new Set(selections.map((s) => s.catalogItemId));
+  const merged = [...selections];
+  for (const label of facetLabels) {
+    const id = glossaryByName.get(label);
+    if (id && !ids.has(id)) {
+      merged.push({ catalogItemId: id, quantity: 1 });
+      ids.add(id);
+    }
+  }
+  return buildBreakdownFromSelections(merged);
 }
 
 // ── Summary bar ───────────────────────────────────────────────────────────────
@@ -379,6 +423,10 @@ type ComponentBreakdownPanelProps = {
   image: SelectedNailImage | null;
   cachedResult?: BreakdownResult | null;
   onResult?: (result: BreakdownResult) => void;
+  // Merchant editing reuses this panel but never picks 卸甲 (removal is a customer-booking concern).
+  showRemoval?: boolean;
+  // Extra actions rendered under 重新分析 (merchant: Save / Publish). Customer leaves it empty.
+  footer?: ReactNode;
 };
 
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
@@ -425,7 +473,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 }
 
 // ── Main panel ────────────────────────────────────────────────────────────────
-export function ComponentBreakdownPanel({ image, cachedResult, onResult }: ComponentBreakdownPanelProps) {
+export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRemoval = true, footer }: ComponentBreakdownPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
   const currency = loadCurrency();
@@ -542,24 +590,26 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
       {/* ── Summary bar ── */}
       <BreakdownSummary breakdown={breakdown} currency={currency} />
 
-      {/* ── 卸甲 (single-select) ── */}
-      <div className="analyze-section">
-        <h3 className="analyze-section-title">卸甲</h3>
-        <div className="analyze-chip-group">
-          {REMOVAL_IDS.map((id) => {
-            const entry = glossaryById.get(id);
-            if (!entry) return null;
-            return (
-              <AnalyzeChip
-                key={id}
-                label={entry.name_zh}
-                active={removalId === id}
-                onToggle={() => toggleSingle(removalId, setRemovalId, id)}
-              />
-            );
-          })}
+      {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
+      {showRemoval && (
+        <div className="analyze-section">
+          <h3 className="analyze-section-title">卸甲</h3>
+          <div className="analyze-chip-group">
+            {REMOVAL_IDS.map((id) => {
+              const entry = glossaryById.get(id);
+              if (!entry) return null;
+              return (
+                <AnalyzeChip
+                  key={id}
+                  label={entry.name_zh}
+                  active={removalId === id}
+                  onToggle={() => toggleSingle(removalId, setRemovalId, id)}
+                />
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── 建构/延长 ── */}
       <div className="analyze-section">
@@ -622,6 +672,9 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
           重新分析
         </Button>
       </div>
+
+      {/* ── Extra actions (merchant: Save / Publish) ── */}
+      {footer}
     </div>
   );
 }

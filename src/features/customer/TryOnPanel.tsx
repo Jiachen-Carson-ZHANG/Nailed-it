@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { getCustomerBookingPath } from '@/domain/session';
 import { saveTryOnImage } from '@/domain/tryon-image-store';
+import { demoCustomerId } from '@/mock/customers';
+import { track } from '@/features/analytics/track';
 
 type ImageSlotProps = {
   label: string;
@@ -127,6 +129,11 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
       }
 
       setResult(body);
+      track('try_on_completed', {
+        styleId,
+        customerId: demoCustomerId,
+        eventSource: 'try_on',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Try-on failed.');
     } finally {

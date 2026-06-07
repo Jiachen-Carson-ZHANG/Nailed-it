@@ -12,6 +12,7 @@ import type { Merchant, MerchantPricing } from '@/domain/merchant';
 import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/scheduling';
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
+import type { AnalyticsEvent, Customer, NewAnalyticsEvent } from '@/domain/analytics';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -152,6 +153,23 @@ export interface MerchantStyleRepository {
   deleteDraft(id: string, merchantId: string): Promise<boolean>;
 }
 
+export interface AnalyticsRepository {
+  /** Append one event. Capture is fire-and-forget at the call site; this still throws on a real DB
+   *  error so the server action can log it. */
+  record(event: NewAnalyticsEvent): Promise<void>;
+  /** All events for a merchant, oldest first — the read model derives every metric from these. */
+  listByMerchant(merchantId: string): Promise<AnalyticsEvent[]>;
+  /** All events for one customer, oldest first — feeds the customer preference profile. */
+  listByCustomer(customerId: string): Promise<AnalyticsEvent[]>;
+}
+
+export interface CustomerRepository {
+  listByMerchant(merchantId: string): Promise<Customer[]>;
+  /** Resolve the mock-session handle ('melissa') to its persona row. */
+  getByHandle(handle: string): Promise<Customer | null>;
+  getById(id: string): Promise<Customer | null>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -166,4 +184,6 @@ export interface RepositoryBundle {
   intervalBookings: IntervalBookingRepository;
   staffItemDurations: StaffItemDurationRepository;
   merchantStyles: MerchantStyleRepository;
+  analytics: AnalyticsRepository;
+  customers: CustomerRepository;
 }

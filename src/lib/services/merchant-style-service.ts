@@ -45,6 +45,9 @@ export type PublishMerchantStyleServiceInput = {
   description: string;
   /** Catalog selections; price + duration are DERIVED from these, never client-supplied. */
   selections: CatalogSelection[];
+  /** Descriptive facets (colour / shape / …) derived from the same selections by the caller. When
+   *  omitted, the style keeps its existing facets. */
+  discoveryFacets?: StyleDiscoveryFacet[];
 };
 
 export type SaveMerchantStyleDraftInput = PublishMerchantStyleServiceInput;
@@ -118,6 +121,7 @@ export function createMerchantStyleService(
       description: record.description,
       status: record.status,
       catalogBreakdown: structuredClone(record.catalogBreakdown),
+      discoveryFacets: structuredClone(record.discoveryFacets),
       previewPriceCents: record.previewPriceCents,
       previewDurationMin: record.previewDurationMin,
       updatedAt: record.updatedAt,
@@ -164,8 +168,9 @@ export function createMerchantStyleService(
       if (input.bytes.byteLength > maxUploadBytes) throw new Error('image_too_large');
       if (!hasValidImageSignature(input.mimeType, input.bytes)) throw new Error('invalid_image_content');
 
-      // A fresh upload may have no title yet — the merchant names it during review (publish enforces it).
-      const title = input.title.trim();
+      // The DB requires a non-empty title (merchant_style_title_check). A fresh upload has none yet, so
+      // store a placeholder; the merchant renames it in the editor before publishing.
+      const title = input.title.trim() || '未命名设计';
       const now = new Date().toISOString();
       const styleId = `style-${randomUUID()}`;
       const mediaId = `media-${randomUUID()}`;
@@ -227,7 +232,7 @@ export function createMerchantStyleService(
         merchantId: input.merchantId,
         title: validateTitle(input.name),
         description: input.description.trim(),
-        discoveryFacets: input.discoveryFacets,
+        discoveryFacets: input.discoveryFacets ?? record.discoveryFacets,
         items: snapshot.selections,
         previewPriceCents: snapshot.previewPriceCents,
         previewDurationMin: snapshot.previewDurationMin,
@@ -255,7 +260,7 @@ export function createMerchantStyleService(
         merchantId: input.merchantId,
         title,
         description: input.description.trim(),
-        discoveryFacets: record.discoveryFacets,
+        discoveryFacets: input.discoveryFacets ?? record.discoveryFacets,
         items: snapshot.selections,
         previewPriceCents: snapshot.previewPriceCents,
         previewDurationMin: snapshot.previewDurationMin,
@@ -276,7 +281,7 @@ export function createMerchantStyleService(
         id: input.styleId,
         merchantId: input.merchantId,
         description: input.description.trim(),
-        discoveryFacets: record.discoveryFacets,
+        discoveryFacets: input.discoveryFacets ?? record.discoveryFacets,
         items: snapshot.selections,
         previewPriceCents: snapshot.previewPriceCents,
         previewDurationMin: snapshot.previewDurationMin,
