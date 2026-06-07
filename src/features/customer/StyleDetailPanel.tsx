@@ -90,6 +90,7 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
 
   return (
     <article className="style-detail-panel">
+      <Link className="detail-back-link detail-back-top" href={backHref}>← Back to discovery</Link>
       <div className="style-detail-hero">
         <img alt={style.title} className="style-detail-image" src={style.imageUrl} />
         <div className="style-detail-summary">
@@ -148,7 +149,6 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
               </tr>
             </tfoot>
           </table>
-          <p className="helper-copy">价格与时长为参考，实际以预约时商家报价为准。</p>
         </section>
       ) : null}
 
@@ -176,11 +176,9 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
         <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
           Book this look
         </Link>
-        <Link className="button button-ghost button-block" href={getCustomerTryOnPath(style.id)}>
-          Try on this look
+        <Link className="button button-secondary button-block" href={getCustomerTryOnPath(style.id)}>
+          Try it on first
         </Link>
-        <p className="detail-merchant-line">At <strong>Nailed-it Studio</strong> · Free cancellation up to 24 h before</p>
-        <Link className="detail-back-link" href={backHref}>← Back to discovery</Link>
       </div>
     </article>
   );

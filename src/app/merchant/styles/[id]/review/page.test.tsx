@@ -61,10 +61,20 @@ describe('MerchantStyleReviewPage', () => {
       expect(screen.getByText('51 min')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
-    expect(await screen.findByText(/draft saved/i)).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: /^publish$/i }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
+  });
+
+  it('save draft returns to the library', async () => {
+    const user = userEvent.setup();
+    const draft = await uploadProcessingStyle();
+    render(await MerchantStyleReviewPage({ params: Promise.resolve({ id: draft.id }) }));
+
+    await user.click(await screen.findByRole('button', { name: /ai breakdown/i }));
+    const title = await screen.findByRole('textbox', { name: /design title/i });
+    fireEvent.change(title, { target: { value: 'Draft name' } });
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/merchant/styles'));
   });
 });

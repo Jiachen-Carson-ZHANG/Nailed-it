@@ -121,5 +121,12 @@ export function createMemoryMerchantStyleRepository(
       record.updatedAt = archivedAt;
       return structuredClone(record);
     },
+
+    async deleteDraft(id, merchantId) {
+      const index = state.findIndex((style) => style.id === id && style.merchantId === merchantId);
+      if (index === -1 || state[index].status === 'published') return false;
+      state.splice(index, 1);
+      return true;
+    },
   };
 }

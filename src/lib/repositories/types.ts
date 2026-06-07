@@ -147,6 +147,9 @@ export interface MerchantStyleRepository {
   setConfig(input: SetMerchantStyleConfigInput): Promise<MerchantStyleRecord | null>;
   publish(input: PublishMerchantStyleInput): Promise<MerchantStyleRecord | null>;
   archive(id: string, merchantId: string, archivedAt: string): Promise<MerchantStyleRecord | null>;
+  /** Hard-delete an unpublished draft (processing / needs_review / failed). Returns false if not found
+   *  or already published (published styles are archived, not deleted). */
+  deleteDraft(id: string, merchantId: string): Promise<boolean>;
 }
 
 export interface RepositoryBundle {

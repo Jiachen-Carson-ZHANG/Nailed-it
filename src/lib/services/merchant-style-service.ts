@@ -155,7 +155,8 @@ export function createMerchantStyleService(
       if (input.bytes.byteLength > maxUploadBytes) throw new Error('image_too_large');
       if (!hasValidImageSignature(input.mimeType, input.bytes)) throw new Error('invalid_image_content');
 
-      const title = validateTitle(input.title);
+      // A fresh upload may have no title yet — the merchant names it during review (publish enforces it).
+      const title = input.title.trim();
       const now = new Date().toISOString();
       const styleId = `style-${randomUUID()}`;
       const mediaId = `media-${randomUUID()}`;
@@ -320,6 +321,20 @@ export function createMerchantStyleService(
         });
       }
       return archived ? merchantView(archived) : null;
+    },
+
+    // Hard-delete an unpublished draft and best-effort clean its stored original. Published styles
+    // are archived (kept), never deleted, so the repo refuses them.
+    async deleteDraft(merchantId: string, styleId: string): Promise<boolean> {
+      const existing = await repository.getByIdForMerchant(styleId, merchantId);
+      if (!existing || existing.status === 'published') return false;
+      const deleted = await repository.deleteDraft(styleId, merchantId);
+      if (deleted) {
+        await storage.remove(existing.media.originalBucket, existing.media.originalPath).catch((error) => {
+          console.error('[merchant-style] failed to remove deleted original', error);
+        });
+      }
+      return deleted;
     },
   };
 }

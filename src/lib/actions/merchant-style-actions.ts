@@ -92,7 +92,7 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
   const bytes = new Uint8Array(await image.arrayBuffer());
   return getService().upload({
     merchantId: demoMerchantId,
-    title: 'Untitled design',
+    title: '',
     mimeType: image.type,
     bytes,
   });
@@ -178,4 +178,9 @@ export async function publishMerchantStyleAction(
 
 export async function archiveMerchantStyleAction(styleId: string): Promise<MerchantStyleView | null> {
   return getService().archive(demoMerchantId, styleId);
+}
+
+/** Hard-delete an unpublished draft (processing / needs_review / failed). */
+export async function deleteMerchantStyleAction(styleId: string): Promise<boolean> {
+  return getService().deleteDraft(demoMerchantId, styleId);
 }

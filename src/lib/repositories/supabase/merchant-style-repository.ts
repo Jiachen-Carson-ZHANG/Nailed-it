@@ -267,5 +267,20 @@ export function createSupabaseMerchantStyleRepository(): MerchantStyleRepository
       if (error) throw new Error(`MerchantStyleRepository.archive failed: ${error.message}`);
       return data ? getByIdForMerchant(id, merchantId) : null;
     },
+
+    async deleteDraft(id, merchantId) {
+      const client = getServiceClient();
+      await client.from('merchant_style_item').delete().eq('merchant_style_id', id);
+      const { data, error } = await client
+        .from('merchant_style')
+        .delete()
+        .eq('id', id)
+        .eq('merchant_id', merchantId)
+        .neq('status', 'published')
+        .select('id')
+        .maybeSingle();
+      if (error) throw new Error(`MerchantStyleRepository.deleteDraft failed: ${error.message}`);
+      return Boolean(data);
+    },
   };
 }

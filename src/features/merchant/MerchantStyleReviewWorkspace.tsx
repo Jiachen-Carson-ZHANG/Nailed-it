@@ -191,13 +191,10 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         description,
         selections,
       });
-      // Update the record only — don't reset the fields the merchant is editing (that would
-      // re-trigger the quote effect and instantly clear this confirmation).
-      setStyle(saved);
-      setMessage(style.status === 'published' ? 'Changes saved.' : 'Draft saved.');
+      // Saving is a terminal step — return to the library so the merchant sees the updated card.
+      router.push('/merchant/styles');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save draft.');
-    } finally {
       setIsSaving(false);
     }
   }
@@ -254,13 +251,13 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
       <header className="merchant-review-heading">
         <Link className="merchant-review-back" href="/merchant/styles">← Collection</Link>
         <h1>{isProcessing || isAnalyzing ? 'Analyze design' : isPublished ? 'Published design' : 'Review design'}</h1>
-        <p>
-          {isProcessing || isAnalyzing
-            ? 'AI suggests the name, description, and service breakdown. You can edit everything after.'
-            : isPublished
-              ? 'This design is live. Edit any layer — changes update the customer view and re-derive price/time.'
+        {!isPublished ? (
+          <p>
+            {isProcessing || isAnalyzing
+              ? 'AI suggests the name, description, and service breakdown. You can edit everything after.'
               : 'Confirm every service that affects the customer price or booking time, then publish.'}
-        </p>
+          </p>
+        ) : null}
       </header>
 
       <div className="merchant-review-media">
@@ -321,6 +318,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
               <span>Design title</span>
               <input
                 disabled={!editable || isSaving}
+                placeholder="Name this design"
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}

@@ -28,7 +28,8 @@ describe('MerchantStylesPage', () => {
     expect(screen.queryByText(/service breakdown/i)).not.toBeInTheDocument();
     expect(await screen.findByText('Rose Cat Eye Shine')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /preview/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /view/i })[0]).toHaveAttribute(
+    // Published styles open the editor via "Edit" (they're revisable now, not read-only).
+    expect(screen.getAllByRole('link', { name: /edit/i })[0]).toHaveAttribute(
       'href',
       expect.stringMatching(/^\/merchant\/styles\/.+\/review$/),
     );
