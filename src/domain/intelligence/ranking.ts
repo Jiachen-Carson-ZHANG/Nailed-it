@@ -1,4 +1,4 @@
-import { tagsByCategory } from '@/domain/catalog-tags';
+import { isGenericTag, tagsByCategory } from '@/domain/catalog-tags';
 import type { CustomerProfile, RankCandidate, RankedStyle } from './types';
 import { DAY_MS, resolveNowMs, roundTo } from './shared';
 
@@ -13,15 +13,6 @@ export type RankContext = {
 const W_AFFINITY = 1.0;
 const W_POPULARITY = 0.3;
 const W_FRESHNESS = 0.2;
-
-// Generic descriptors (finish / texture / clarity / length / complexity / scene) that sit on most
-// styles — they carry little taste signal, so they never make a good "why recommended" reason even
-// when a customer's raw affinity for them is high. Ranking still scores them (IDF-damped); they are
-// only suppressed from the reason chip.
-const REASON_FILLER = new Set([
-  '日常通勤', '亮面', '果冻感', '透色', '纯色', '透感', '闪亮感', '简单', '中等', '复杂',
-  '短甲', '中长甲', '长甲', '超长甲',
-]);
 
 function freshnessScore(publishedAt: string | null | undefined, nowMs: number): number {
   if (!publishedAt) return 0;
@@ -74,7 +65,7 @@ export function rankStyles<T extends RankCandidate>(
 
     // Reason chip = the most distinctive matched tags, dropping generic filler; if all matches were
     // filler, fall back to the top matches so a chip still shows.
-    const distinctive = matched.filter((m) => !REASON_FILLER.has(m.label));
+    const distinctive = matched.filter((m) => !isGenericTag(m.label));
     const topMatched = (distinctive.length > 0 ? distinctive : matched).slice(0, 3).map((m) => m.label);
     const reasonCodes = topMatched.map((label) => `tag:${label}`);
     if (popNorm >= 0.8) reasonCodes.push('popular');

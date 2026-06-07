@@ -46,3 +46,16 @@ export function tagsByCategory(facets: StyleDiscoveryFacet[]): CategoryTag[] {
 export function tagLabelsOf(facets: StyleDiscoveryFacet[]): string[] {
   return tagsByCategory(facets).map((tag) => tag.label);
 }
+
+// Generic descriptors (finish / texture / clarity / length / complexity / scene) that sit on nearly
+// every style — true catalog tags, but they carry almost no taste/demand signal, so they are
+// suppressed from "why recommended" chips and from trend/bot headlines (the full report still lists
+// them). NOT dropped from scoring.
+const GENERIC_TAGS = new Set([
+  '日常通勤', '亮面', '果冻感', '透色', '纯色', '透感', '闪亮感', '简单', '中等', '复杂',
+  '短甲', '中长甲', '长甲', '超长甲',
+]);
+
+export function isGenericTag(label: string): boolean {
+  return GENERIC_TAGS.has(label);
+}

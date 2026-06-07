@@ -552,3 +552,66 @@ Demo dry-run (the flow that ties it together):
 
 - **Reason chips** (`rankStyles`): added inverse-document-frequency weighting across the candidate set + a generic-filler suppression list, so a card's "why recommended" chip surfaces the customer's *distinctive* taste (法式风 · 裸色 · 杏仁形) instead of ubiquitous descriptors (亮面 · 日常通勤 · 果冻感). Ranking score also IDF-damped so rare matches rank higher. Confirmed live on Melissa's feed. New ranking test locks it.
 - **AI summary** (`summarizeInsights`): wrapped the model call in a timeout race (`INSIGHTS_TIMEOUT_MS`, default 6s) → falls back to the deterministic grounded summary fast instead of hanging the dashboard's AI card. New unit test (hanging model → fallback).
+
+## 2026-06-07 — Intelligence Layer Phase G (partial): Messages as the intelligence surface
+
+Reframe (ADR-0006): demand intelligence moves from a dedicated tab into Messages (push, co-located
+with the action). Decisions: responsive target, deterministic bot (no NLP), 3 named personas.
+
+Shipped:
+- **G6 — named personas.** `src/mock/intelligence-seed.ts` now seeds Melissa Tan (裸色/法式), Amy Lim
+  (金属感/辣妹), Rachel Goh (甜美/可爱) — names match the real `conv-melissa`/`conv-amy`/`conv-rachel`
+  threads — plus anonymous volume personas. Regression asserts each profile; merchant narrative
+  invariants preserved. Re-seeded live (130 events).
+- **G4 — report upgrades** (`/merchant/insights`): 今日/本周 toggle (`getMerchantInsightsAction(rangeDays)`);
+  catalog-gap demand-vs-supply bars + evidence (not prose); full design-performance table, sortable
+  (转化率/试戴量) + collapsible; conversion min-sample guard (`tryOns ≥ 3`) so a 1-try/1-book style is
+  not a fake 100%.
+- **G2 — Nailed AI 运营助手 bot.** New route `src/app/merchant/messages/ops/page.tsx` +
+  `src/features/merchant/OpsBotThread.tsx`: a pinned, synthetic (non-DB) ops-assistant thread atop the
+  merchant inbox. Posts deterministic digest bubbles (today snapshot, rising tag, gap alert, conversion
+  winners) from `getMerchantInsights` (range 1 + 7) + grounded `summarizeInsights`; quick-reply chips
+  deep-link to the full report. No free-text NLP.
+- **G1 — Insights tab removed** (merchant tabs back to 4); the report is reached via the bot. `mock-data`
+  tab assertion updated to 4.
+- **Shared `isGenericTag`** promoted to `src/domain/catalog-tags.ts` (from ranking's local filler set);
+  now also cleans demand-trend display + the bot's "需求上升" headline (surfaces 金属感, not 亮面).
+
+Verification: typecheck clean; full suite green (exit 0). Bot + report + per-customer panel confirmed
+rendering live (mobile viewport).
+
+Pending (handed to the next agent):
+- **G5 — responsive desktop two-pane** Messages shell (mobile is complete; desktop split-view per the mock).
+- **G3 polish** — restyle the `CustomerIntelPanel` + an appointment-details card + chat bubbles to the
+  mock's visual quality (the panel already works on all 3 threads).
+
+## 2026-06-08 — Merchant style editor polish + archived republish
+
+What changed:
+- Merchant style review now has status-aware actions: draft = `发布` / `Publish`, published = `保存` /
+  `Save`, archived = `重新发布` / `Republish`.
+- Published edits stay in the editor and show a success toast after the server write completes; publish
+  and republish show a success toast before returning to the style library.
+- Archived republish is now a real lifecycle transition (`archived -> published`) with a fresh public image
+  copy and refreshed config/items. Migration `0018_republish_archived_merchant_styles.sql` updates the
+  Supabase RPCs to allow that explicit path and clear `archived_at`.
+- The cloned breakdown editor renders the style image at the top from the saved preview URL, so re-edits no
+  longer wait for original image bytes before showing the picture.
+- Customer home still receives the ranked feed order, but the visible pink "匹配你的..." reason chip was
+  removed from style cards.
+
+Verification:
+- `npm test -- src/domain/merchant-style.test.ts src/lib/services/merchant-style-service.test.ts src/app/merchant/styles/[id]/review/page.test.tsx`
+- Lints clean for edited files.
+- Local routes checked: `/`, `/merchant/styles`, `/merchant/styles/rose-cat-eye/review` return `200` and
+  no Next fallback; customer home HTML no longer contains `匹配你的`.
+
+## 2026-06-08 — Intelligence Layer: G3 done, G5 dropped (phone-only)
+
+- **G3 — `CustomerIntelPanel` polished.** Customer name, distinctive preference chips (filtered via the
+  shared `isGenericTag`, so 法式风/裸色/金属感 not 亮面/日常通勤/果冻感), 预算 + 互动 stat tiles, an
+  appointment-details card (style · date · time · status badge), and recommended styles with localized
+  「匹配 …」reasons + 发送 (logs `recommended_style_sent`). Verified live on all 3 named threads.
+- **G5 (desktop two-pane) dropped** — demo is phone-only; mobile flow complete. Two-pane scaffolding
+  reverted (`MerchantConversationList` removed, `ConversationListItem` active prop reverted).
+- Typecheck clean; full suite green.

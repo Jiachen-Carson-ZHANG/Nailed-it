@@ -46,12 +46,12 @@ const publishedRecord: MerchantStyleRecord = {
 };
 
 describe('merchant style lifecycle', () => {
-  it('permits explicit review and publication transitions only', () => {
+  it('permits explicit review, publication, archive, and republish transitions only', () => {
     expect(canTransitionMerchantStyle('processing', 'needs_review')).toBe(true);
     expect(canTransitionMerchantStyle('needs_review', 'published')).toBe(true);
     expect(canTransitionMerchantStyle('published', 'archived')).toBe(true);
+    expect(canTransitionMerchantStyle('archived', 'published')).toBe(true);
     expect(canTransitionMerchantStyle('processing', 'published')).toBe(false);
-    expect(canTransitionMerchantStyle('archived', 'published')).toBe(false);
   });
 
   it('maps a complete published record to a customer-safe style', () => {

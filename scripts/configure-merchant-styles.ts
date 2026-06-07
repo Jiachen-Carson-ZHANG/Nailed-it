@@ -59,10 +59,15 @@ const merchantSettings: MerchantPricingSetting[] = catalogItems
   .filter((item) => item.billable !== 'no')
   .map((item) => {
     const eff = effective.get(item.id);
+    const groupLabelLocalized = item.parentId
+      ? (catalogById.get(item.parentId)?.name ?? item.name)
+      : item.name;
     return {
       id: item.id,
+      name: item.name,
       nameZh: item.nameZh,
-      groupLabel: item.parentId ?? item.category,
+      groupLabel: groupLabelLocalized.zh,
+      groupLabelLocalized,
       price: (eff?.priceCents ?? 0) / 100,
       duration: eff?.durationMin ?? 0,
       enabled: eff?.enabled ?? false,
@@ -171,7 +176,10 @@ async function main(): Promise<void> {
   let skipped = 0;
 
   for (const row of styles as unknown as StyleRow[]) {
-    if (configuredIds.has(row.id)) {
+    // "Configured" means it has BOTH priced items AND descriptive facets. A style with items but no
+    // facets (e.g. an old default/junk config) still needs an AI pass to populate colour/shape/etc.
+    const hasFacets = Array.isArray(row.discovery_facets) && row.discovery_facets.length > 0;
+    if (configuredIds.has(row.id) && hasFacets) {
       skipped += 1;
       continue;
     }

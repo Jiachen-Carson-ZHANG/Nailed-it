@@ -189,6 +189,72 @@ Config:
   demo (`scripts/detect-sweet.ts` shows the model tagging them 甜美) — unrelated to the 暗黑 gap.
   A live close-the-loop is deferred (needs unpublished 暗黑 assets) — see Future roadmap.
 
+## Phase G — Messages as the intelligence surface (redesign)
+
+Reframe: instead of a separate Insights *tab* (pull), the merchant's demand intelligence lives in
+**Messages** (push, co-located with the action). Decisions (2026-06-07): **responsive** (mobile =
+full-screen thread, intel as a card/sheet; desktop ≥1024px = two-pane list|thread); **deterministic
+bot** (insight cards + quick-reply chips, NO free-text NLP — AI narrates numbers only); **seed 2-3
+named personas** matching real conversation threads.
+
+- **G1 — Drop the Insights tab.** Keep `/merchant/insights` as the "完整报告" detail page reached
+  from the bot (not a nav tab). Merchant tabs back to 4 (Calendar / Manage / Messages / Me).
+- **G2 — 「Nailed AI 运营助手」bot thread.** A synthetic (non-DB) conversation pinned atop the
+  merchant Messages list. Posts daily + weekly digest cards (snapshot, rising tags, top converter,
+  gap alert) built from `getMerchantInsights` (range 1 + 7) + grounded `summarizeInsights`.
+  Quick-reply chips (本周转化榜 / 需求趋势 / 暗黑缺口) swap the card or open the report page. No typing.
+- **G3 — Per-customer intel in each thread.** Reuse `CustomerIntelPanel` (E1) + an appointment-details
+  card, restyled into the thread (matches the mock's card below the chat).
+- **G4 — Report page improvements** (the "real numbers, visualised" surface): design performance
+  lists ALL styles with a conversion-% column, **sortable** + **collapsible**; the catalog-gap card
+  shows demand-vs-supply mini-bars + auditable evidence (real search count / trend), not prose;
+  a 今日 / 本周 range toggle (`getMerchantInsights` range 1 vs 7).
+- **G5 — Responsive Messages shell.** Mobile: list → full-screen thread. Desktop: two-pane split.
+- **G6 — Seed named personas.** Align seed customer names to real threads (Melissa Tan 裸色/法式,
+  Amy Lim 金属感/辣妹, Rachel Goh 甜美/可爱) with distinct event histories so several threads show
+  meaningful profiles; aggregate demand (暗黑 / 金属感) preserved.
+
+Scope cuts: no free-text bot NLP; the bot is not a DB conversation (synthetic, client-side); no new
+analytics tables (all from the existing read model).
+
+### Handover status (2026-06-07) — for the next agent
+
+**Done & live-verified:** G6, G4, G2, G1 (see implementation-log 2026-06-07 Phase G). Full suite green
+(exit 0). Dev server is running on **http://localhost:3000** (started this session).
+
+**Done (2026-06-07, second pass):**
+- **G3 — `CustomerIntelPanel` polished.** Name, distinctive preference chips (filtered via
+  `isGenericTag`, so 法式风/裸色/金属感 not 亮面/日常通勤), budget + 互动 stat tiles, an appointment-details
+  card (style · date · time · status badge), and recommended styles with localized 匹配 reasons + 发送
+  (logs `recommended_style_sent`). Verified live on all 3 named threads (conv-melissa/amy/rachel).
+
+**Dropped:**
+- **G5 — desktop two-pane.** Demo is **phone-only** (user decision 2026-06-07); the mobile flow is
+  complete. Two-pane scaffolding was reverted. Note: the customer-feed per-card reason chip was also
+  removed (intentional, by the other agent) — feed ranking order is kept; chips dropped.
+
+**Key files (this layer):**
+- Read model (pure): `src/domain/intelligence/*` + `src/domain/catalog-tags.ts` (`isGenericTag` = the
+  filler-suppression set used by chips, trends, and the bot).
+- Actions: `src/lib/actions/insights-actions.ts` (`getMerchantInsightsAction(rangeDays)`,
+  `summarizeInsightsAction(rangeDays)`), `src/lib/actions/customer-intel-actions.ts`
+  (`getCustomerIntelligenceAction`, `getRankedFeedAction`, `recordRecommendedStyleAction`),
+  `src/lib/actions/analytics-actions.ts` (`trackEventAction`).
+- Surfaces: report `src/app/merchant/insights/page.tsx`; bot `src/app/merchant/messages/ops/page.tsx`
+  + `src/features/merchant/OpsBotThread.tsx`; panel `src/features/merchant/CustomerIntelPanel.tsx`;
+  ranked feed `src/features/customer/PublishedStyleFeed.tsx` + `StyleWaterfallGridClient`/`StyleCard`.
+- AI: `src/nail-ai/insights-summary.ts` (grounded, 6s timeout → deterministic fallback).
+- Seed: `src/mock/intelligence-seed.ts` + `npm run seed:intelligence` (idempotent; **re-run shortly
+  before a demo** — windows are wall-clock relative).
+
+**Gotchas:**
+- A **separate agent owns the cloned-editor WIP** under `src/app/merchant/styles/**` +
+  `MerchantStyleEditor.tsx` (has a leftover `console.error('DBG …')` + a flaky `review/page.test.tsx`
+  cancel test). Do **not** edit those — not part of this layer.
+- The headless `browse` tool is flaky in this WSL env (drops to `about:blank` between commands); verify
+  UI with tight `goto`→`wait <selector>`→`screenshot` sequences, or trust the unit tests.
+- Migration `0017` is applied; `analytics_events` + `customers` are live (130 seeded + live-captured events).
+
 ## Future roadmap — NOT for the hackathon demo
 
 Deferred deliberately. Hackathon scope is ADR-0006 + Phases A–F above. Recorded here so the cuts

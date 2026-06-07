@@ -18,7 +18,7 @@ type StyleWaterfallGridClientProps = {
 const tabs = ['Trending', 'Saved'] as const;
 type TabLabel = typeof tabs[number];
 
-export function StyleWaterfallGridClient({ styles, reasonByStyleId }: StyleWaterfallGridClientProps) {
+export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
   const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -169,7 +169,6 @@ export function StyleWaterfallGridClient({ styles, reasonByStyleId }: StyleWater
               style={style}
               onTagClick={toggleTag}
               activeTags={selectedTags}
-              reason={reasonByStyleId?.[style.id]}
             />
           ))}
         </div>

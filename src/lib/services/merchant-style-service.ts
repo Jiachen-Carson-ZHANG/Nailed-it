@@ -249,8 +249,7 @@ export function createMerchantStyleService(
       const title = validateTitle(input.title);
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
       // Editable while a draft (needs_review) OR already published — a merchant can fix a wrong layer
-      // on a live style; set_merchant_style_config refuses only archived, so the live config + derived
-      // price/time update together.
+      // on a live style. Archived styles must go through publish(), so the public copy is recreated.
       if (!record || (record.status !== 'needs_review' && record.status !== 'published')) {
         throw new Error('style_not_editable');
       }
@@ -272,7 +271,9 @@ export function createMerchantStyleService(
     async publish(input: PublishMerchantStyleServiceInput): Promise<MerchantStyleView> {
       const title = validateTitle(input.title);
       const record = await repository.getByIdForMerchant(input.styleId, input.merchantId);
-      if (!record || record.status !== 'needs_review') throw new Error('style_not_publishable');
+      if (!record || (record.status !== 'needs_review' && record.status !== 'archived')) {
+        throw new Error('style_not_publishable');
+      }
 
       // Server derives price/duration from the chosen catalog items (finding 1). Persist the items +
       // derived snapshots first so the published row's preview always traces back to its breakdown.

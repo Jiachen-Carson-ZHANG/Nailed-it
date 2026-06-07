@@ -82,13 +82,13 @@ function MerchantProfileContent() {
       role="merchant"
       title="Nailed-it"
     >
+      <LanguageSwitcher />
+
       <section className="profile-hero">
         <p className="section-eyebrow">{copy.workspaceEyebrow}</p>
         <h1>{copy.studioProfile}</h1>
         <p className="section-copy">{copy.workspaceCopy}</p>
       </section>
-
-      <LanguageSwitcher />
 
       <section className="analytics-grid" aria-label={copy.analyticsLabel}>
         <MerchantAnalyticsCard

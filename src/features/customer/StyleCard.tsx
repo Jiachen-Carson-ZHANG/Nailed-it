@@ -13,11 +13,9 @@ type StyleCardProps = {
   /** When provided, the card tags become buttons that toggle the matching feed filter. */
   onTagClick?: (label: string) => void;
   activeTags?: ReadonlySet<string>;
-  /** Personalized "why recommended" chip from the ranking function (ADR-0006). */
-  reason?: string;
 };
 
-export function StyleCard({ style, onTagClick, activeTags, reason }: StyleCardProps) {
+export function StyleCard({ style, onTagClick, activeTags }: StyleCardProps) {
   const { isSaved, toggle } = useSavedStyles();
   const saved = isSaved(style.id);
   const tags = cardFacetLabels(style.discoveryFacets);
@@ -67,7 +65,6 @@ export function StyleCard({ style, onTagClick, activeTags, reason }: StyleCardPr
       </button>
 
       <div className="xhs-card-info">
-        {reason ? <p className="xhs-card-reason">{reason}</p> : null}
         <p className="xhs-card-title">{style.title}</p>
         {tags.length > 0 ? (
           <div className="xhs-card-tags">

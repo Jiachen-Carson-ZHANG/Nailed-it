@@ -1,5 +1,6 @@
 import { getServiceClient } from '@/lib/db/client';
 import type {
+  BilingualText,
   CatalogItem,
   CatalogItemType,
   AiDetectable,
@@ -13,6 +14,7 @@ import type { CatalogRepository } from '../types';
 export interface CatalogItemRow {
   id: string;
   name_zh: string;
+  name?: BilingualText;
   type: string;
   category: string;
   parent_id: string | null;
@@ -30,11 +32,13 @@ export interface CatalogItemRow {
   quantity_supported: string;
   complexity_supported: string;
   notes: string;
+  notes_localized?: BilingualText;
 }
 
 export function rowToCatalogItem(row: CatalogItemRow): CatalogItem {
   return {
     id: row.id,
+    name: row.name ?? { zh: row.name_zh, en: row.name_zh },
     nameZh: row.name_zh,
     type: row.type as CatalogItemType,
     category: row.category,
@@ -53,6 +57,7 @@ export function rowToCatalogItem(row: CatalogItemRow): CatalogItem {
     quantitySupported: row.quantity_supported as TriState,
     complexitySupported: row.complexity_supported as YesNo,
     notes: row.notes,
+    notesLocalized: row.notes_localized ?? { zh: row.notes, en: row.notes },
   };
 }
 

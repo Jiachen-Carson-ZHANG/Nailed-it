@@ -170,6 +170,25 @@ describe('merchant style service', () => {
     const archived = await service.archive('merchant-1', draft.id);
     expect(archived?.imageUrl).toContain('https://private.example/merchant-style-originals/');
     expect([...storage.objects].some((key) => key.startsWith('merchant-style-published/'))).toBe(false);
+
+    const republished = await service.publish({
+      merchantId: 'merchant-1',
+      styleId: draft.id,
+      title: 'Republished design',
+      description: '重新上架的裸色美甲',
+      selections: [
+        { catalogItemId: 'basic_manicure_service', quantity: 1 },
+        { catalogItemId: 'solid_color', quantity: 1 },
+      ],
+    });
+    expect(republished).toMatchObject({
+      status: 'published',
+      title: 'Republished design',
+      description: '重新上架的裸色美甲',
+      previewPriceCents: 2800,
+    });
+    expect(republished.imageUrl).toContain('https://cdn.example/merchant-style-published/');
+    expect([...storage.objects].some((key) => key.startsWith('merchant-style-published/'))).toBe(true);
   });
 
   it('persists the normalized per-set selection used to derive the preview', async () => {

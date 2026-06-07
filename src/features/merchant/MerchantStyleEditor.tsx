@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Toast } from '@/components/ui/Toast';
+import { useLanguage } from '@/i18n/context';
 import {
   ComponentBreakdownPanel,
   buildBreakdownFromConfig,
@@ -27,14 +28,16 @@ import {
 // the panel runs the AI breakdown client-side; a re-edit seeds from the stored selections.
 export function MerchantStyleEditor({ styleId }: { styleId: string }) {
   const router = useRouter();
+  const { language } = useLanguage();
   const [style, setStyle] = useState<MerchantStyleView | null>(null);
   const [image, setImage] = useState<{ imageBase64: string; mimeType: string; previewUrl: string } | null>(null);
   const [cached, setCached] = useState<BreakdownResult | null>(null);
   const [title, setTitle] = useState('');
   const [selections, setSelections] = useState<CatalogSelection[]>([]);
   const [message, setMessage] = useState('');
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFresh, setIsFresh] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
@@ -44,33 +47,51 @@ export function MerchantStyleEditor({ styleId }: { styleId: string }) {
       try {
         let loaded = await getMerchantStyleReviewAction(styleId);
         if (!loaded) {
-          if (active) setMessage('Design not found.');
+          if (active) {
+            setMessage('Design not found.');
+            setIsLoading(false);
+          }
           return;
         }
         // A never-configured upload (no stored breakdown yet) should let the panel analyze the image;
         // a previously-saved design seeds from its stored selections so manual edits aren't discarded.
-        const isFresh = loaded.catalogBreakdown.length === 0;
+        const fresh = loaded.catalogBreakdown.length === 0;
         if (loaded.status === 'processing') {
           loaded = await configureMerchantStyleManuallyAction(styleId);
         }
-        const img = await getMerchantStyleImageAction(styleId);
         if (!active) return;
         setStyle(loaded);
+        setIsFresh(fresh);
         // Upload stores a placeholder title to satisfy the DB; show an empty field so the merchant names it.
         setTitle(loaded.title === '未命名设计' ? '' : loaded.title);
-        setImage({ imageBase64: img.base64, mimeType: img.mimeType, previewUrl: loaded.imageUrl });
-        // Seed from priced selections AND descriptive facets (colour/shape/length/finish), which the
-        // merchant pipeline stores as facets — otherwise those sections look unconfigured.
-        setCached(
-          isFresh
-            ? null
-            : buildBreakdownFromConfig(loaded.catalogBreakdown, loaded.discoveryFacets.map((f) => f.label)),
-        );
         setSelections(loaded.catalogBreakdown);
-      } catch (error) {
-        if (active) setMessage(error instanceof Error ? error.message : 'Unable to load this design.');
-      } finally {
+        const styleImageUrl = loaded.imageUrl;
+
+        if (fresh) {
+          // Never configured: the panel analyzes the image, so it must be loaded first.
+          const img = await getMerchantStyleImageAction(styleId);
+          if (!active) return;
+          setImage({ imageBase64: img.base64, mimeType: img.mimeType, previewUrl: styleImageUrl });
+          setCached(null);
+        } else {
+          // Re-edit: seed colour/shape/length/finish from priced selections + facets (the pipeline
+          // stores descriptive attrs as facets) and render immediately. The image loads in the
+          // background only for 重新分析, so a slow fetch never blocks the editor on "加载设计中".
+          setCached(buildBreakdownFromConfig(loaded.catalogBreakdown, loaded.discoveryFacets.map((f) => f.label)));
+          void getMerchantStyleImageAction(styleId)
+            .then((img) => {
+              if (active) setImage({ imageBase64: img.base64, mimeType: img.mimeType, previewUrl: styleImageUrl });
+            })
+            .catch(() => {
+              // 重新分析 unavailable without the image; editing the seeded config still works.
+            });
+        }
         if (active) setIsLoading(false);
+      } catch (error) {
+        if (active) {
+          setMessage(error instanceof Error ? error.message : 'Unable to load this design.');
+          setIsLoading(false);
+        }
       }
     }
 
@@ -80,19 +101,40 @@ export function MerchantStyleEditor({ styleId }: { styleId: string }) {
     };
   }, [styleId]);
 
-  async function persist(publish: boolean) {
+  function showToast(nextMessage: string) {
+    setToast({ id: Date.now(), message: nextMessage });
+  }
+
+  async function persist(action: 'save' | 'publish' | 'republish') {
     if (!style) return;
     setIsBusy(true);
     setMessage('');
     try {
       const input = { styleId: style.id, title: title.trim(), description: style.description, selections };
-      if (publish) await publishMerchantStyleAction(input);
-      else await saveMerchantStyleDraftAction(input);
-      // Confirm success, then return to the library (it shows up under Published).
-      setToast(publish ? '已发布到作品库 ✓' : '已保存 ✓');
-      setTimeout(() => router.push('/merchant/styles'), 900);
+      const saved =
+        action === 'save'
+          ? await saveMerchantStyleDraftAction(input)
+          : await publishMerchantStyleAction(input);
+      setStyle(saved);
+      if (action === 'save') {
+        showToast(language === 'zh-CN' ? '保存成功' : 'Saved successfully');
+        setIsBusy(false);
+        return;
+      }
+      showToast(
+        action === 'republish'
+          ? language === 'zh-CN' ? '重新发布成功' : 'Republished successfully'
+          : language === 'zh-CN' ? '发布成功' : 'Published successfully',
+      );
+      setTimeout(() => router.push('/merchant/styles'), 1200);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : publish ? 'Unable to publish.' : 'Unable to save.');
+      const fallback =
+        action === 'save'
+          ? language === 'zh-CN' ? '保存失败。' : 'Unable to save.'
+          : action === 'republish'
+            ? language === 'zh-CN' ? '重新发布失败。' : 'Unable to republish.'
+            : language === 'zh-CN' ? '发布失败。' : 'Unable to publish.';
+      setMessage(error instanceof Error ? error.message : fallback);
       setIsBusy(false);
     }
   }
@@ -114,32 +156,40 @@ export function MerchantStyleEditor({ styleId }: { styleId: string }) {
     return <EmptyState title="Design not found" body={message || 'This design could not be loaded.'} />;
   }
 
-  const canPublish = style.status !== 'published';
+  const action = style.status === 'published' ? 'save' : style.status === 'archived' ? 'republish' : 'publish';
+  const actionLabel =
+    action === 'save'
+      ? language === 'zh-CN' ? '保存' : 'Save'
+      : action === 'republish'
+        ? language === 'zh-CN' ? '重新发布' : 'Republish'
+        : language === 'zh-CN' ? '发布' : 'Publish';
 
   return (
     <div className="merchant-style-editor">
       <label className="merchant-editor-title-field">
-        <span className="merchant-editor-title-label">设计名称</span>
+        <span className="merchant-editor-title-label">{language === 'zh-CN' ? '设计名称' : 'Design name'}</span>
         <input
           className="merchant-editor-title-input"
           value={title}
-          placeholder="给这款设计起个名字"
+          placeholder={language === 'zh-CN' ? '给这款设计起个名字' : 'Name this design'}
           onChange={(event) => setTitle(event.currentTarget.value)}
         />
       </label>
 
       <ComponentBreakdownPanel
         image={image}
+        previewUrl={style.imageUrl}
         cachedResult={cached}
         showRemoval={false}
+        autoAnalyze={isFresh}
         onResult={(result) => setSelections(result.catalogSelections)}
         footer={
           <div className="merchant-editor-actions">
             <Button variant="secondary" size="compact" disabled={isBusy} onClick={() => void cancelEdit()}>
-              取消
+              {language === 'zh-CN' ? '取消' : 'Cancel'}
             </Button>
-            <Button size="compact" disabled={isBusy || !title.trim()} onClick={() => void persist(canPublish)}>
-              {canPublish ? '发布' : '保存'}
+            <Button size="compact" disabled={isBusy || !title.trim()} onClick={() => void persist(action)}>
+              {actionLabel}
             </Button>
           </div>
         }
@@ -149,7 +199,7 @@ export function MerchantStyleEditor({ styleId }: { styleId: string }) {
         <p className="merchant-review-empty" role="alert">{message}</p>
       ) : null}
 
-      <Toast message={toast} />
+      <Toast key={toast?.id} message={toast?.message ?? ''} />
     </div>
   );
 }

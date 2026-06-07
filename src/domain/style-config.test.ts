@@ -4,8 +4,10 @@ import type { RecognizedCatalogItem } from './recognition-catalog';
 import { buildStyleConfig } from './style-config';
 
 function makeItem(overrides: Partial<CatalogItem> & { id: string }): CatalogItem {
+  const nameZh = overrides.nameZh ?? overrides.id;
   return {
-    nameZh: overrides.nameZh ?? overrides.id,
+    name: overrides.name ?? { zh: nameZh, en: nameZh },
+    nameZh,
     type: 'billable_component',
     category: 'base_service',
     parentId: null,
@@ -23,6 +25,7 @@ function makeItem(overrides: Partial<CatalogItem> & { id: string }): CatalogItem
     quantitySupported: 'no',
     complexitySupported: 'no',
     notes: '',
+    notesLocalized: overrides.notesLocalized ?? { zh: '', en: '' },
     ...overrides,
   };
 }

@@ -6,6 +6,7 @@ import { resolveEffectivePricing } from './pricing-resolver';
 function makeCatalogItem(overrides: Partial<CatalogItem> & { id: string; billable: CatalogItem['billable'] }): CatalogItem {
   const base: CatalogItem = {
     id: overrides.id,
+    name: { zh: '测试', en: 'Test' },
     nameZh: '测试',
     type: 'billable_component',
     category: 'test',
@@ -24,6 +25,7 @@ function makeCatalogItem(overrides: Partial<CatalogItem> & { id: string; billabl
     quantitySupported: 'no',
     complexitySupported: 'no',
     notes: '',
+    notesLocalized: { zh: '', en: '' },
   };
   return { ...base, ...overrides };
 }

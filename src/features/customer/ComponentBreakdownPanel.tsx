@@ -422,12 +422,17 @@ function PriceTable({ breakdown, currency }: { breakdown: BreakdownResult; curre
 // ── Public component props (unchanged interface) ──────────────────────────────
 type ComponentBreakdownPanelProps = {
   image: SelectedNailImage | null;
+  /** Display-only fallback, used when saved merchant styles render before original bytes finish loading. */
+  previewUrl?: string;
   cachedResult?: BreakdownResult | null;
   onResult?: (result: BreakdownResult) => void;
   // Merchant editing reuses this panel but never picks 卸甲 (removal is a customer-booking concern).
   showRemoval?: boolean;
   // Extra actions rendered under 重新分析 (merchant: Save / Publish). Customer leaves it empty.
   footer?: ReactNode;
+  // When false, a (possibly late-loaded) image is kept only for 重新分析 and never auto-analyzed —
+  // used by the merchant re-edit, which seeds from cachedResult and must not overwrite it.
+  autoAnalyze?: boolean;
 };
 
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
@@ -474,7 +479,15 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 }
 
 // ── Main panel ────────────────────────────────────────────────────────────────
-export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRemoval = true, footer }: ComponentBreakdownPanelProps) {
+export function ComponentBreakdownPanel({
+  image,
+  previewUrl,
+  cachedResult,
+  onResult,
+  showRemoval = true,
+  footer,
+  autoAnalyze = true,
+}: ComponentBreakdownPanelProps) {
   const { language } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
@@ -505,6 +518,12 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRem
     if (!image) return;
     const imageKey = image.imageBase64.slice(0, 64);
     if (lastAnalysedRef.current === imageKey) return;
+    // Merchant re-edit (autoAnalyze=false): keep the image for 重新分析 but don't overwrite the seeded
+    // config when it arrives in the background.
+    if (!autoAnalyze) {
+      lastAnalysedRef.current = imageKey;
+      return;
+    }
     lastAnalysedRef.current = imageKey;
     void runAnalysis();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -564,6 +583,8 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRem
 
   useEffect(() => { onResult?.(breakdown); }, [breakdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const displayPreviewUrl = image?.previewUrl ?? previewUrl;
+
   function toggleSet(setter: Dispatch<SetStateAction<Set<string>>>, id: string) {
     setter((prev) => {
       const next = new Set(prev);
@@ -603,6 +624,12 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRem
 
   return (
     <div className="analyze-flat-layout">
+      {displayPreviewUrl ? (
+        <div className="analyze-image-preview">
+          <img alt={language === 'zh-CN' ? '当前款式图片' : 'Current style'} src={displayPreviewUrl} />
+        </div>
+      ) : null}
+
       {/* ── Summary bar ── */}
       <BreakdownSummary breakdown={breakdown} currency={currency} />
 

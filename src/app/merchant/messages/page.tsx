@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { getMerchantMessagesPath } from '@/domain/session';
+import { getMerchantMessagesPath, getMerchantOpsBotPath } from '@/domain/session';
 import { ConversationListItem } from '@/features/messages/ConversationListItem';
 import type { Conversation } from '@/domain/nail';
 import { useLanguage } from '@/i18n/context';
@@ -42,6 +43,17 @@ export default function MerchantMessagesPage() {
         <h1>{t('messages.merchant.title')}</h1>
         <p className="section-copy">{t('messages.merchant.body')}</p>
       </section>
+
+      {/* Pinned AI ops-assistant thread — always available, top of the inbox. */}
+      <Link className="opsbot-entry" href={getMerchantOpsBotPath()}>
+        <span className="opsbot-entry-avatar" aria-hidden>AI</span>
+        <span className="opsbot-entry-body">
+          <strong>Nailed AI 运营助手</strong>
+          <span className="opsbot-entry-preview">今日经营快报已就绪 · 需求、缺口、转化</span>
+        </span>
+        <span className="opsbot-entry-badge" aria-hidden>📊</span>
+      </Link>
+
       {loading ? (
         <LoadingState
           title={t('messages.merchant.loadingTitle')}

@@ -9,6 +9,7 @@ function itemToRow(i: CatalogItem): CatalogItemRow {
   return {
     id: i.id,
     name_zh: i.nameZh,
+    name: i.name,
     type: i.type,
     category: i.category,
     parent_id: i.parentId,
@@ -25,7 +26,8 @@ function itemToRow(i: CatalogItem): CatalogItemRow {
     default_price_cents: i.defaultPriceCents,
     quantity_supported: i.quantitySupported,
     complexity_supported: i.complexitySupported,
-    notes: i.notes
+    notes: i.notes,
+    notes_localized: i.notesLocalized
   };
 }
 
@@ -60,6 +62,7 @@ describe('supabase catalog row mapper', () => {
     });
     expect(mapped).toEqual({
       id: 'x',
+      name: { zh: '测试', en: '测试' },
       nameZh: '测试',
       type: 'billable_component',
       category: 'art',
@@ -77,7 +80,8 @@ describe('supabase catalog row mapper', () => {
       defaultPriceCents: 1500,
       quantitySupported: 'yes',
       complexitySupported: 'no',
-      notes: 'n'
+      notes: 'n',
+      notesLocalized: { zh: 'n', en: 'n' },
     });
   });
 });

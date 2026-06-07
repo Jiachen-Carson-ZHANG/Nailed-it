@@ -1,6 +1,7 @@
 import { getServiceClient } from '@/lib/db/client';
 import type { StyleDefinition } from '@/mock/styles';
 import type { StyleDiscoveryFacet, AIRecognitionResult } from '@/domain/nail';
+import type { LocalizedText } from '@/i18n/types';
 import type { StyleRepository } from '../types';
 
 interface StyleRow {
@@ -10,12 +11,16 @@ interface StyleRow {
   popularity_score: number;
   discovery_facets: StyleDiscoveryFacet[];
   recognition: AIRecognitionResult;
+  title_localized?: LocalizedText;
+  description_localized?: LocalizedText;
 }
 
 function rowToStyleDefinition(row: StyleRow): StyleDefinition {
   return {
     id: row.id,
     title: row.title,
+    titleLocalized: row.title_localized ?? { 'zh-CN': row.title, en: row.title },
+    descriptionLocalized: row.description_localized ?? { 'zh-CN': '', en: '' },
     imageUrl: row.image_url,
     popularityScore: row.popularity_score,
     discoveryFacets: row.discovery_facets,

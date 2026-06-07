@@ -17,19 +17,26 @@ import {
   seedStyleFixtures,
   TOP_CONVERTER_ID,
   LOW_CONVERSION_ID,
+  AMY_CUSTOMER_ID,
+  RACHEL_CUSTOMER_ID,
 } from './intelligence-seed';
 
 const NOW = '2026-06-07T12:00:00.000Z';
 
 let insights: MerchantInsights;
 let melissa: CustomerProfile;
+let amy: CustomerProfile;
+let rachel: CustomerProfile;
 
 beforeAll(async () => {
   const repo = createMemoryAnalyticsRepository();
   for (const event of generateSeedEvents(NOW)) await repo.record(event);
   const events = await repo.listByMerchant(demoMerchantId);
+  const index = buildStyleTagIndex(seedStyleFixtures);
   insights = getMerchantInsights(events, seedStyleFixtures, demoMerchantId, { days: 7 }, NOW);
-  melissa = getCustomerProfile(events, buildStyleTagIndex(seedStyleFixtures), demoCustomerId, NOW);
+  melissa = getCustomerProfile(events, index, demoCustomerId, NOW);
+  amy = getCustomerProfile(events, index, AMY_CUSTOMER_ID, NOW);
+  rachel = getCustomerProfile(events, index, RACHEL_CUSTOMER_ID, NOW);
 });
 
 describe('intelligence demo seed → read model narrative', () => {
@@ -57,7 +64,9 @@ describe('intelligence demo seed → read model narrative', () => {
   });
 
   it('ranks 极光法式碎钻 (8265) as the top converter', () => {
-    const withConversion = insights.designPerformance.styles.filter((s) => s.conversionRate !== null);
+    // Min try-on sample so a 1-try / 1-book style does not show a misleading 100% (the dashboard's
+    // "转化最高" applies the same guard).
+    const withConversion = insights.designPerformance.styles.filter((s) => s.tryOns >= 3);
     const top = withConversion.reduce((best, s) => (s.conversionRate! > best.conversionRate! ? s : best));
     expect(top.styleId).toBe(TOP_CONVERTER_ID);
     const lc = insights.designPerformance.styles.find((s) => s.styleId === LOW_CONVERSION_ID)!;
@@ -68,5 +77,17 @@ describe('intelligence demo seed → read model narrative', () => {
     expect(melissa.topByCategory.color?.[0]).toBe('裸色');
     expect(melissa.topByCategory.style?.slice(0, 2)).toContain('法式风');
     expect(melissa.averageBudget).toBe(80);
+  });
+
+  it('gives Amy a distinct 金属感 / 辣妹风 profile (SGD 110)', () => {
+    expect(amy.topTags).toEqual(expect.arrayContaining(['金属感', '辣妹风']));
+    expect(amy.topTags).not.toContain('甜美');
+    expect(amy.averageBudget).toBe(110);
+  });
+
+  it('gives Rachel a distinct 甜美 / 可爱 profile (SGD 70)', () => {
+    expect(rachel.topTags).toEqual(expect.arrayContaining(['甜美', '可爱']));
+    expect(rachel.topTags).not.toContain('金属感');
+    expect(rachel.averageBudget).toBe(70);
   });
 });

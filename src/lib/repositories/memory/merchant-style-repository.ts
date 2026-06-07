@@ -105,6 +105,7 @@ export function createMemoryMerchantStyleRepository(
       record.previewDurationMin = input.previewDurationMin;
       record.status = 'published';
       record.publishedAt = input.publishedAt;
+      record.archivedAt = null;
       record.updatedAt = input.publishedAt;
       record.media.publishedBucket = input.publishedBucket;
       record.media.publishedPath = input.publishedPath;

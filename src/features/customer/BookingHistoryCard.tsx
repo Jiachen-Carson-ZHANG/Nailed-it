@@ -98,7 +98,7 @@ export function BookingHistoryCard({ booking, onWithdraw }: BookingHistoryCardPr
                 })} · {formatDuration({ minutes: booking.quote.duration, language })}
               </dd>
             </div>
-            {booking.notes ? <div><dt>{labels.notes}</dt><dd>{booking.notes}</dd></div> : null}
+            {booking.notes ? <div><dt>{labels.notes}</dt><dd className="history-card-fact-long">{booking.notes}</dd></div> : null}
           </dl>
           <div className="history-card-actions">
             {booking.conversationId ? (

@@ -16,16 +16,22 @@ import { recognizeStyleConfig } from '@/nail-ai/style-config-recognition';
 const effective = new Map(
   resolveEffectivePricing(catalogItems, []).map((e) => [e.catalogItemId, e]),
 );
+const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
 
 // Same effective-pricing shape runGlossaryBreakdown expects (mirrors configure-merchant-styles.ts).
 const merchantSettings = catalogItems
   .filter((item) => item.billable !== 'no')
   .map((item) => {
     const eff = effective.get(item.id);
+    const groupLabelLocalized = item.parentId
+      ? (catalogById.get(item.parentId)?.name ?? item.name)
+      : item.name;
     return {
       id: item.id,
+      name: item.name,
       nameZh: item.nameZh,
-      groupLabel: item.parentId ?? item.category,
+      groupLabel: groupLabelLocalized.zh,
+      groupLabelLocalized,
       price: (eff?.priceCents ?? 0) / 100,
       duration: eff?.durationMin ?? 0,
       enabled: eff?.enabled ?? false,

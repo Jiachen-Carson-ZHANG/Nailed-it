@@ -52,6 +52,7 @@ const merchantPaths = {
   bookingDetail: (id: string) => `/merchant/booking/${id}`,
   manage: '/merchant/manage',
   insights: '/merchant/insights',
+  opsBot: '/merchant/messages/ops',
   messages: '/merchant/messages',
   profile: '/merchant/profile',
   messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`
@@ -147,13 +148,6 @@ const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
         available: true
       },
       {
-        href: merchantPaths.insights,
-        label: 'Insights',
-        glyph: '📊',
-        matchPrefix: merchantPaths.insights,
-        available: true
-      },
-      {
         href: merchantPaths.messages,
         label: 'Messages',
         glyph: '✉',
@@ -220,6 +214,10 @@ export function getMerchantManagePath(): string {
 
 export function getMerchantInsightsPath(): string {
   return merchantPaths.insights;
+}
+
+export function getMerchantOpsBotPath(): string {
+  return merchantPaths.opsBot;
 }
 
 export function getMerchantMessagesPath(conversationId?: string): string {

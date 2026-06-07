@@ -84,7 +84,7 @@ const transitions: Record<MerchantStyleStatus, MerchantStyleStatus[]> = {
   processing: ['needs_review', 'failed'],
   needs_review: ['published', 'archived', 'failed'],
   published: ['archived'],
-  archived: [],
+  archived: ['published'],
   failed: ['needs_review', 'archived'],
 };
 

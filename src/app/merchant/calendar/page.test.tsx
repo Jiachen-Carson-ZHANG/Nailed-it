@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
 import { mockAIResult } from '@/mock/ai';
@@ -17,7 +18,11 @@ vi.mock('next/navigation', () => ({
 
 describe('MerchantCalendarPage', () => {
   async function renderPage() {
-    render(<MerchantCalendarPage />);
+    render(
+      <LanguageProvider initialLanguage="en" role="merchant">
+        <MerchantCalendarPage />
+      </LanguageProvider>
+    );
     await act(async () => {
       await vi.runAllTimersAsync();
     });

@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
+import { LanguageProvider } from '@/i18n/context';
 import { mockBookings } from '@/mock/bookings';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
@@ -16,13 +17,21 @@ describe('MerchantBookingDetailPage', () => {
     resetRepositoriesForTests();
   });
 
+  async function renderPage(id: string) {
+    render(
+      <LanguageProvider initialLanguage="en" role="merchant">
+        {await MerchantBookingDetailPage({ params: Promise.resolve({ id }) })}
+      </LanguageProvider>
+    );
+  }
+
   it('renders merchant booking detail read from the booking service', async () => {
     const price = mockBookings.find((b) => b.id === 'booking-001')?.quote.price ?? 0;
 
-    render(await MerchantBookingDetailPage({ params: Promise.resolve({ id: 'booking-001' }) }));
+    await renderPage('booking-001');
 
     expect(await screen.findByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
-    expect(screen.getByText(/rose cat eye shine/i)).toBeInTheDocument();
+    expect(screen.getByText(/rose cat-eye/i)).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`sgd ${price}`, 'i'))).toBeInTheDocument();
     expect(screen.getByText(/prefer a softer pink tone/i)).toBeInTheDocument();
     expect(screen.getByText(/technician: mei chen/i)).toBeInTheDocument();
@@ -46,7 +55,7 @@ describe('MerchantBookingDetailPage', () => {
       notes: 'Created from customer confirmation.'
     });
 
-    render(await MerchantBookingDetailPage({ params: Promise.resolve({ id: booking.id }) }));
+    await renderPage(booking.id);
 
     expect(await screen.findByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
     expect(screen.getByText(/technician: anna lim/i)).toBeInTheDocument();
