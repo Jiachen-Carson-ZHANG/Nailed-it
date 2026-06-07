@@ -5,10 +5,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { getMerchantMessagesPath } from '@/domain/session';
 import type { Conversation } from '@/domain/nail';
-import { ChatRoom } from '@/features/messages/ChatRoom';
+import { ChatRoom, type ChatAppointment } from '@/features/messages/ChatRoom';
 import { CustomerIntelPanel } from '@/features/merchant/CustomerIntelPanel';
 import { useLanguage } from '@/i18n/context';
 import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
+import { getCustomerIntelligenceAction } from '@/lib/actions/customer-intel-actions';
 import Link from 'next/link';
 
 type MerchantConversationClientProps = {
@@ -17,6 +18,7 @@ type MerchantConversationClientProps = {
 
 export function MerchantConversationClient({ conversationId }: MerchantConversationClientProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [appointment, setAppointment] = useState<ChatAppointment | null>(null);
   const [loading, setLoading] = useState(true);
   const { t } = useLanguage();
 
@@ -24,7 +26,15 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
     let active = true;
     getMerchantConversationAction(conversationId)
       .then((c) => {
-        if (active) setConversation(c);
+        if (!active) return;
+        setConversation(c);
+        // Linked appointment for the header button + inline card. Same compute-on-read source the
+        // intel panel uses (kept as a separate read so the shared panel stays self-contained).
+        if (c) {
+          getCustomerIntelligenceAction(c.participantName)
+            .then((intel) => active && setAppointment(intel?.appointmentContext ?? null))
+            .catch(() => {/* no appointment card */});
+        }
       })
       .catch(() => {
         /* leave null → not-found */
@@ -55,8 +65,12 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
 
   return conversation ? (
     <>
-      <ChatRoom conversation={conversation} onSend={handleSend} />
-      <CustomerIntelPanel customerName={conversation.participantName} />
+      <ChatRoom conversation={conversation} onSend={handleSend} viewerRole="merchant" appointment={appointment} />
+      <CustomerIntelPanel
+        customerName={conversation.participantName}
+        conversationId={conversationId}
+        onRecommendSent={setConversation}
+      />
       <Link className="button button-secondary" href={getMerchantMessagesPath()}>
         {t('messages.thread.back')}
       </Link>

@@ -3,29 +3,53 @@
 import { useEffect, useState } from 'react';
 import {
   getCustomerIntelligenceAction,
-  recordRecommendedStyleAction,
   type CustomerIntelResult,
 } from '@/lib/actions/customer-intel-actions';
+import { sendMerchantStyleRecommendationAction } from '@/lib/actions/conversation-actions';
+import type { Conversation } from '@/domain/nail';
 import { isGenericTag } from '@/domain/catalog-tags';
+import { useLanguage } from '@/i18n/context';
+import type { AppLanguage } from '@/i18n/types';
 
-const STATUS_ZH: Record<string, string> = {
-  confirmed: '已确认',
-  pending_review: '待确认',
-  in_progress: '进行中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
+const intelCopy = {
+  'zh-CN': {
+    loading: '正在加载顾客画像…',
+    panelAria: (name: string) => `顾客画像 ${name}`,
+    title: '顾客画像',
+    stylePrefs: '风格偏好',
+    budget: '预算',
+    engagement: '互动',
+    engagementCount: (n: number) => `${n} 次`,
+    recommend: '推荐发送',
+    match: (tags: string) => `匹配 ${tags}`,
+    sent: '已发送 ✓',
+  },
+  en: {
+    loading: 'Loading customer profile…',
+    panelAria: (name: string) => `Customer profile for ${name}`,
+    title: 'Customer profile',
+    stylePrefs: 'Style preferences',
+    budget: 'Budget',
+    engagement: 'Engagement',
+    engagementCount: (n: number) => `${n} events`,
+    recommend: 'Recommended to send',
+    match: (tags: string) => `Matches ${tags}`,
+    sent: 'Sent ✓',
+  },
+} satisfies Record<AppLanguage, Record<string, unknown>>;
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
-}
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-}
-
-export function CustomerIntelPanel({ customerName }: { customerName: string }) {
+export function CustomerIntelPanel({
+  customerName,
+  conversationId,
+  onRecommendSent,
+}: {
+  customerName: string;
+  conversationId: string;
+  /** Called with the updated thread after a recommendation is posted, so the chat re-renders. */
+  onRecommendSent?: (conversation: Conversation) => void;
+}) {
+  const { language, t } = useLanguage();
+  const copy = intelCopy[language];
   const [intel, setIntel] = useState<CustomerIntelResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [sent, setSent] = useState<Set<string>>(new Set());
@@ -41,24 +65,34 @@ export function CustomerIntelPanel({ customerName }: { customerName: string }) {
     };
   }, [customerName]);
 
-  if (loading) return <p className="helper-copy">加载顾客画像…</p>;
+  if (loading) return <p className="helper-copy">{copy.loading}</p>;
   // No panel for an unknown customer or one with no behavioural history — never fake a profile.
   if (!intel || intel.profile.eventCount === 0) return null;
 
   const profile = intel.profile;
-  const appt = intel.appointmentContext;
+  // The linked appointment now lives in the chat thread's inline card, not here (avoids a duplicate).
   // Show distinctive taste tags, not generic descriptors (亮面 / 日常通勤 / 果冻感).
   const prefTags = profile.topTags.filter((t) => !isGenericTag(t)).slice(0, 6);
 
-  async function send(styleId: string) {
-    setSent((prev) => new Set(prev).add(styleId));
-    await recordRecommendedStyleAction({ customerId: profile.customerId, styleId });
+  async function send(
+    style: { id: string; title: string; imageUrl: string },
+    matchTags: string[],
+  ) {
+    setSent((prev) => new Set(prev).add(style.id));
+    const updated = await sendMerchantStyleRecommendationAction(conversationId, {
+      customerId: profile.customerId,
+      styleId: style.id,
+      title: style.title,
+      imageUrl: style.imageUrl,
+      reason: matchTags.length > 0 ? matchTags.join(' · ') : undefined,
+    });
+    if (updated) onRecommendSent?.(updated);
   }
 
   return (
-    <section className="detail-surface intel-panel" aria-label={`顾客画像 ${customerName}`}>
+    <section className="detail-surface intel-panel" aria-label={copy.panelAria(customerName)}>
       <div className="detail-surface-header">
-        <h2>顾客画像</h2>
+        <h2>{copy.title}</h2>
         <span className="insights-badge">Nailed AI</span>
       </div>
 
@@ -66,7 +100,7 @@ export function CustomerIntelPanel({ customerName }: { customerName: string }) {
 
       {prefTags.length > 0 ? (
         <>
-          <p className="intel-section-label">风格偏好</p>
+          <p className="intel-section-label">{copy.stylePrefs}</p>
           <div className="intel-chip-row">
             {prefTags.map((tag) => (
               <span key={tag} className="intel-chip">{tag}</span>
@@ -77,39 +111,22 @@ export function CustomerIntelPanel({ customerName }: { customerName: string }) {
 
       <div className="intel-stat-row">
         <div className="intel-stat">
-          <span>预算</span>
+          <span>{copy.budget}</span>
           <strong>{profile.averageBudget != null ? `SGD ${profile.averageBudget}` : '—'}</strong>
         </div>
         <div className="intel-stat">
-          <span>互动</span>
-          <strong>{profile.eventCount} 次</strong>
+          <span>{copy.engagement}</span>
+          <strong>{copy.engagementCount(profile.eventCount)}</strong>
         </div>
       </div>
 
-      {appt ? (
-        <div className="intel-appointment">
-          <div className="intel-appointment-head">
-            <span aria-hidden>📅</span>
-            <strong>预约详情</strong>
-            <span className={`intel-appt-status intel-appt-status-${appt.status}`}>
-              {STATUS_ZH[appt.status] ?? appt.status}
-            </span>
-          </div>
-          <p className="intel-appointment-style">{appt.styleTitle}</p>
-          <div className="intel-appointment-grid">
-            <div><span>日期</span><strong>{fmtDate(appt.startAt)}</strong></div>
-            <div><span>时间</span><strong>{fmtTime(appt.startAt)}</strong></div>
-          </div>
-        </div>
-      ) : null}
-
       {intel.recommendations.length > 0 ? (
         <>
-          <p className="intel-section-label">推荐发送</p>
+          <p className="intel-section-label">{copy.recommend}</p>
           <div className="intel-reco-list">
             {intel.recommendations.map(({ style, reasonCodes, reasonText }) => {
               const tags = reasonCodes.filter((c) => c.startsWith('tag:')).map((c) => c.slice(4));
-              const reason = tags.length > 0 ? `匹配 ${tags.join(' · ')}` : reasonText;
+              const reason = tags.length > 0 ? copy.match(tags.join(' · ')) : reasonText;
               return (
               <div key={style.id} className="intel-reco-row">
                 <img className="intel-reco-thumb" src={style.imageUrl} alt={style.title} loading="lazy" />
@@ -121,9 +138,9 @@ export function CustomerIntelPanel({ customerName }: { customerName: string }) {
                   type="button"
                   className="button button-secondary button-compact"
                   disabled={sent.has(style.id)}
-                  onClick={() => void send(style.id)}
+                  onClick={() => void send(style, tags)}
                 >
-                  {sent.has(style.id) ? '已发送 ✓' : '发送'}
+                  {sent.has(style.id) ? copy.sent : t('common.send')}
                 </button>
               </div>
               );

@@ -1,5 +1,11 @@
 import { getServiceClient } from '@/lib/db/client';
-import type { BookingConversationThread, BookingMessage, MessageAuthorRole } from '@/domain/nail';
+import type {
+  BookingConversationThread,
+  BookingMessage,
+  MessageAttachment,
+  MessageAuthorRole,
+} from '@/domain/nail';
+import type { AppLanguage } from '@/i18n/types';
 import type { ConversationRepository } from '../types';
 
 interface ThreadRow {
@@ -8,6 +14,7 @@ interface ThreadRow {
   customer_name: string;
   merchant_name: string;
   related_booking_time: string;
+  customer_language: string;
   created_at: string;
 }
 
@@ -17,6 +24,7 @@ interface MessageRow {
   author_role: string;
   body: string;
   sent_at: string;
+  attachment: MessageAttachment | null;
   created_at: string;
 }
 
@@ -30,6 +38,7 @@ function rowToMessage(row: MessageRow): BookingMessage {
     authorRole: row.author_role as MessageAuthorRole,
     body: row.body,
     sentAt: row.sent_at,
+    ...(row.attachment ? { attachment: row.attachment } : {}),
   };
 }
 
@@ -40,6 +49,7 @@ function rowToThread(row: ThreadRow, messages: MessageRow[]): BookingConversatio
     customerName: row.customer_name,
     merchantName: row.merchant_name,
     relatedBookingTime: row.related_booking_time,
+    customerLanguage: (row.customer_language === 'en' ? 'en' : 'zh-CN') as AppLanguage,
     messages: messages
       .slice()
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -54,6 +64,7 @@ function threadToRow(thread: BookingConversationThread): Omit<ThreadRow, 'create
     customer_name: thread.customerName,
     merchant_name: thread.merchantName,
     related_booking_time: thread.relatedBookingTime,
+    customer_language: thread.customerLanguage,
   };
 }
 
@@ -61,13 +72,21 @@ function messageToRow(
   threadId: string,
   message: BookingMessage,
   createdAt?: string,
-): Omit<MessageRow, 'created_at'> & { created_at?: string } {
-  const row: Omit<MessageRow, 'created_at'> & { created_at?: string } = {
+): Omit<MessageRow, 'created_at' | 'attachment'> & {
+  created_at?: string;
+  attachment?: MessageAttachment;
+} {
+  // Only write `attachment` when present, so plain text messages don't depend on migration 0019.
+  const row: Omit<MessageRow, 'created_at' | 'attachment'> & {
+    created_at?: string;
+    attachment?: MessageAttachment;
+  } = {
     id: message.id,
     thread_id: threadId,
     author_role: message.authorRole,
     body: message.body,
     sent_at: message.sentAt,
+    ...(message.attachment ? { attachment: message.attachment } : {}),
   };
   if (createdAt !== undefined) {
     row.created_at = createdAt;

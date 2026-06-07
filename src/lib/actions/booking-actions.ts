@@ -19,6 +19,12 @@ import { createBookingService } from '@/lib/services/booking-service';
 import { createQuoteService, type Quote } from '@/lib/services/quote-service';
 import { instantToZonedParts, resolveSlot } from '@/lib/services/timezone';
 import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-actions';
+import type { AppLanguage } from '@/i18n/types';
+import {
+  bookingCompletedThankYouMessage,
+  bookingPendingReviewMessage,
+} from '@/i18n/messages/server/booking-thread';
+
 import { demoMerchantId } from '@/mock/merchants';
 import { demoCustomerName, demoCustomerId } from '@/mock/customers';
 
@@ -46,6 +52,24 @@ async function recordBookingConfirmed(
     });
   } catch (err) {
     console.error('booking_confirmed capture failed', { bookingId: args.bookingId, err });
+  }
+}
+
+/** Notify the customer in the booking thread when the merchant marks the appointment complete. */
+async function notifyBookingCompleted(repos: RepositoryBundle, bookingId: string): Promise<void> {
+  try {
+    const threads = await repos.conversations.list();
+    const thread = threads.find((candidate) => candidate.bookingId === bookingId);
+    if (!thread) return;
+    const language = thread.customerLanguage ?? 'zh-CN';
+    await repos.conversations.appendMessage(thread.id, {
+      id: `msg-${randomUUID()}`,
+      authorRole: 'merchant',
+      body: bookingCompletedThankYouMessage(language),
+      sentAt: 'Now',
+    });
+  } catch (err) {
+    console.error('booking_completed message failed', { bookingId, err });
   }
 }
 
@@ -123,9 +147,13 @@ export async function setBookingStatusAction(
   id: string,
   status: Booking['status'],
 ): Promise<Booking | null> {
-  const updated = await createBookingService(getRepositories()).setStatus(id, status);
+  const repos = getRepositories();
+  const updated = await createBookingService(repos).setStatus(id, status);
   if (!updated) return null;
-  const all = await adaptMerchantBookings(getRepositories());
+  if (status === 'completed') {
+    await notifyBookingCompleted(repos, id);
+  }
+  const all = await adaptMerchantBookings(repos);
   return all.find((b) => b.id === id) ?? null;
 }
 
@@ -344,6 +372,7 @@ export type CreateBookingActionInput = {
   date: string;
   time: string;
   notes: string;
+  language?: AppLanguage;
 };
 
 /**
@@ -385,7 +414,8 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
 
   // Look the technician up before the write so the thread greeting can name them.
   const technician = (await repos.technicians.list()).find((t) => t.id === input.technicianId);
-  const technicianName = technician?.name ?? 'your technician';
+  const technicianName = technician?.name ?? '';
+  const threadLanguage = input.language ?? 'zh-CN';
 
   // Booking + thread + greeting commit in one transaction (create_booking_with_thread RPC), so
   // there is no orphan booking and no empty thread — no compensating cancel needed.
@@ -408,11 +438,12 @@ export async function createBookingAction(input: CreateBookingActionInput): Prom
       customerName,
       merchantName,
       relatedBookingTime: `${input.date} ${input.time}`,
+      customerLanguage: threadLanguage,
       messages: [
         {
           id: `msg-${randomUUID()}`,
           authorRole: 'system',
-          body: `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
+          body: bookingPendingReviewMessage(threadLanguage, technicianName, input.time),
           sentAt: 'Now',
         },
       ],
@@ -447,6 +478,7 @@ export type CreateBookingFromSelectionsActionInput = {
   date: string;
   time: string;
   notes: string;
+  language?: AppLanguage;
 };
 
 export type CreateBookingFromStyleActionInput = {
@@ -455,6 +487,7 @@ export type CreateBookingFromStyleActionInput = {
   date: string;
   time: string;
   notes: string;
+  language?: AppLanguage;
 };
 
 type CreateCatalogBookingInput = CreateBookingFromSelectionsActionInput & {
@@ -489,7 +522,8 @@ async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<B
   }
 
   const technician = (await repos.technicians.list()).find((candidate) => candidate.id === input.technicianId);
-  const technicianName = technician?.name ?? 'your technician';
+  const technicianName = technician?.name ?? '';
+  const threadLanguage = input.language ?? 'zh-CN';
   const booking = await createBookingService(repos).createBookingWithThreadFromSelections(
     {
       merchantId: demoMerchantId,
@@ -509,11 +543,12 @@ async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<B
       customerName,
       merchantName,
       relatedBookingTime: `${input.date} ${input.time}`,
+      customerLanguage: threadLanguage,
       messages: [
         {
           id: `msg-${randomUUID()}`,
           authorRole: 'system',
-          body: `Your appointment is pending merchant review with ${technicianName} at ${input.time}.`,
+          body: bookingPendingReviewMessage(threadLanguage, technicianName, input.time),
           sentAt: 'Now',
         },
       ],
@@ -564,5 +599,6 @@ export async function createBookingFromStyleAction(
     time: input.time,
     notes: input.notes,
     styleId: input.styleId,
+    language: input.language,
   });
 }

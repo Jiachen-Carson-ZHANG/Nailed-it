@@ -185,15 +185,29 @@ export type ChatMessage = {
   author: 'me' | 'them' | 'system';
   body: string;
   sentAt: string;
+  attachment?: MessageAttachment;
 };
 
 export type MessageAuthorRole = UserRole | 'system';
+
+import type { AppLanguage } from '@/i18n/types';
+
+/** A structured payload riding on a chat message — currently only a recommended style card. */
+export type MessageAttachment = {
+  type: 'style';
+  styleId: string;
+  title: string;
+  imageUrl: string;
+  /** Why it was recommended, e.g. "法式风 · 裸色" (the customer's matched taste tags). */
+  reason?: string;
+};
 
 export type BookingMessage = {
   id: string;
   authorRole: MessageAuthorRole;
   body: string;
   sentAt: string;
+  attachment?: MessageAttachment;
 };
 
 export type BookingConversationThread = {
@@ -202,6 +216,8 @@ export type BookingConversationThread = {
   customerName: string;
   merchantName: string;
   relatedBookingTime: string;
+  /** Customer UI language at booking time — used for later server-generated thread messages. */
+  customerLanguage: AppLanguage;
   messages: BookingMessage[];
 };
 
@@ -252,6 +268,11 @@ export type BreakdownResult = {
   totalPrice: number;
   totalDuration: number;
   mode: 'glossary';
+  /** Optional merchant upload helper generated from the same image analysis request. */
+  suggestedStyleName?: {
+    name: string;
+    description: string;
+  };
 };
 
 // ─── Virtual Try-On ───────────────────────────────────────────────────────────

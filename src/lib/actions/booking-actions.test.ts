@@ -6,6 +6,7 @@ import {
   listAvailableSlotsForSelectionsAction,
   listAvailableSlotsForStyleAction,
   quoteCatalogSelectionsAction,
+  setBookingStatusAction,
 } from './booking-actions';
 
 const selections = [{ catalogItemId: 'basic_manicure_service', quantity: 1 }];
@@ -64,5 +65,35 @@ describe('catalog-backed booking actions', () => {
     });
     expect(created.styleTitle).toBe('Rose cat-eye');
     expect(created.quote).toMatchObject({ price: 28, duration: 45 });
+  });
+
+  it('appends a merchant thank-you message when a booking is marked completed', async () => {
+    await setBookingStatusAction('booking-002', 'completed');
+    const thread = await getRepositories().conversations.getById('conv-amy');
+    expect(thread?.messages.at(-1)).toMatchObject({
+      authorRole: 'merchant',
+      body: expect.stringMatching(/complete|完成/),
+    });
+  });
+
+  it('uses customer language persisted on the thread for the completion thank-you', async () => {
+    const days = await listAvailableSlotsForSelectionsAction(selections);
+    const slot = days.flatMap((day) => day.slots).find((candidate) => candidate.technician.id === 'tech-mei');
+    expect(slot).toBeDefined();
+
+    const created = await createBookingFromSelectionsAction({
+      selections,
+      technicianId: slot!.technician.id,
+      date: slot!.date,
+      time: slot!.time,
+      styleImageUrl: 'https://example.com/custom.png',
+      notes: '',
+      language: 'en',
+    });
+
+    await setBookingStatusAction(created.id, 'completed');
+    const thread = await getRepositories().conversations.getById(`conv-${created.id}`);
+    expect(thread?.customerLanguage).toBe('en');
+    expect(thread?.messages.at(-1)?.body).toContain('complete');
   });
 });

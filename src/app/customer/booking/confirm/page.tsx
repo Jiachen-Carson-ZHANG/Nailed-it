@@ -16,6 +16,11 @@ import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { useLanguage } from '@/i18n/context';
+import {
+  bookingConfirmFailedToast,
+  bookingConfirmOverlapToast,
+  bookingConfirmSuccessToast,
+} from '@/i18n/messages/ui/booking-confirm-toast';
 import { formatCurrency, formatDuration, formatStatusLabel } from '@/i18n/format';
 import {
   createBookingAction,
@@ -118,6 +123,7 @@ export default function CustomerBookingConfirmPage() {
             date: selectedSlot.date,
             time: selectedSlot.time,
             notes,
+            language,
           })
         : draft.catalogSelections?.length
           ? await createBookingFromSelectionsAction({
@@ -127,6 +133,7 @@ export default function CustomerBookingConfirmPage() {
               date: selectedSlot.date,
               time: selectedSlot.time,
               notes,
+              language,
             })
           : await createBookingAction({
               technicianId: selectedSlot.technician.id,
@@ -136,27 +143,22 @@ export default function CustomerBookingConfirmPage() {
               date: selectedSlot.date,
               time: selectedSlot.time,
               notes,
+              language,
             });
       setCreatedBooking(booking);
       setToastMessage(
-        booking.status === 'confirmed'
-          ? language === 'zh-CN'
-            ? `已为你预约 ${booking.technician.name}，时间是 ${selectedSlot.time}。`
-            : `Confirmed with ${booking.technician.name} at ${selectedSlot.time}.`
-          : language === 'zh-CN'
-            ? `${booking.technician.name} 的预约待确认，时间是 ${selectedSlot.time}。`
-            : `Pending review with ${booking.technician.name} at ${selectedSlot.time}.`
+        bookingConfirmSuccessToast(language, {
+          status: booking.status === 'confirmed' ? 'confirmed' : 'pending_review',
+          technicianName: booking.technician.name,
+          time: selectedSlot.time,
+        }),
       );
       setTimeout(() => router.push(homePathForRole('customer')), 1500);
     } catch (error) {
       setToastMessage(
         error instanceof Error && error.message === 'booking_overlap'
-          ? language === 'zh-CN'
-            ? '该技师刚刚被其他预约占用，请重新选择时间。'
-            : 'That technician was just booked for an overlapping time. Please pick another slot.'
-          : language === 'zh-CN'
-            ? '暂时无法确认预约，请稍后再试。'
-            : 'Could not confirm the appointment. Please try again.'
+          ? bookingConfirmOverlapToast(language)
+          : bookingConfirmFailedToast(language),
       );
     } finally {
       setIsConfirming(false);

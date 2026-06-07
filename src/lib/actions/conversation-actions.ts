@@ -2,9 +2,10 @@
 
 import { randomUUID } from 'node:crypto';
 import { toConversationForRole } from '@/domain/messaging';
-import type { BookingConversationThread, Conversation, UserRole } from '@/domain/nail';
+import type { BookingConversationThread, Conversation, MessageAttachment, UserRole } from '@/domain/nail';
 import { getRepositories } from '@/lib/repositories';
 import { demoCustomerName } from '@/mock/customers';
+import { demoMerchantId } from '@/mock/merchants';
 
 // No auth yet: the customer-scoped actions hard-fix the actor to the demo customer (server-side),
 // so a customer surface can only ever see/append its own threads and always speaks as 'customer'.
@@ -19,6 +20,7 @@ async function appendAs(
   body: string,
   role: UserRole,
   canView: (thread: BookingConversationThread) => boolean,
+  attachment?: MessageAttachment,
 ): Promise<Conversation | null> {
   const trimmed = body.trim();
   if (!trimmed) return null;
@@ -30,6 +32,7 @@ async function appendAs(
     authorRole: role,
     body: trimmed,
     sentAt: 'Now',
+    ...(attachment ? { attachment } : {}),
   });
   return updated ? toConversationForRole(updated, role) : null;
 }
@@ -70,4 +73,37 @@ export async function sendMerchantMessageAction(
   body: string,
 ): Promise<Conversation | null> {
   return appendAs(conversationId, body, 'merchant', () => true);
+}
+
+/**
+ * Merchant sends a recommended style from the customer-intelligence panel into the thread as a rich
+ * style card, and logs the `recommended_style_sent` event (closes the recommend→book loop). Returns
+ * the updated conversation so the chat re-renders with the card immediately.
+ */
+export async function sendMerchantStyleRecommendationAction(
+  conversationId: string,
+  input: { customerId: string; styleId: string; title: string; imageUrl: string; reason?: string },
+): Promise<Conversation | null> {
+  const body = input.reason ? `为你推荐：${input.title} · ${input.reason}` : `为你推荐：${input.title}`;
+  const updated = await appendAs(conversationId, body, 'merchant', () => true, {
+    type: 'style',
+    styleId: input.styleId,
+    title: input.title,
+    imageUrl: input.imageUrl,
+    ...(input.reason ? { reason: input.reason } : {}),
+  });
+  if (updated) {
+    try {
+      await getRepositories().analytics.record({
+        eventType: 'recommended_style_sent',
+        merchantId: demoMerchantId,
+        customerId: input.customerId,
+        styleId: input.styleId,
+        eventSource: 'merchant_intel_panel',
+      });
+    } catch (err) {
+      console.error('recommended_style_sent capture failed', { styleId: input.styleId, err });
+    }
+  }
+  return updated;
 }

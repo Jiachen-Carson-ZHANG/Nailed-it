@@ -7,6 +7,7 @@ export const seedConversationThreads: BookingConversationThread[] = [
     customerName: 'Melissa Tan',
     merchantName: 'Nailed-it Studio',
     relatedBookingTime: 'Today 14:00',
+    customerLanguage: 'en',
     messages: [
       {
         id: 'm1',
@@ -22,6 +23,7 @@ export const seedConversationThreads: BookingConversationThread[] = [
     customerName: 'Amy Lim',
     merchantName: 'Nailed-it Studio',
     relatedBookingTime: 'Today 16:00',
+    customerLanguage: 'en',
     messages: [
       {
         id: 'a1',
@@ -37,6 +39,7 @@ export const seedConversationThreads: BookingConversationThread[] = [
     customerName: 'Rachel Goh',
     merchantName: 'Nailed-it Studio',
     relatedBookingTime: 'Tomorrow 15:30',
+    customerLanguage: 'zh-CN',
     messages: [
       {
         id: 'r1',

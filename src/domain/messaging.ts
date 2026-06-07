@@ -15,7 +15,8 @@ export function toConversationForRole(
           ? 'me'
           : 'them',
     body: message.body,
-    sentAt: message.sentAt
+    sentAt: message.sentAt,
+    ...(message.attachment ? { attachment: message.attachment } : {})
   }));
   const lastMessage = messages.at(-1)?.body ?? '';
 

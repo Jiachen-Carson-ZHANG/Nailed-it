@@ -96,6 +96,7 @@ function threadToPayload(t: BookingConversationThread) {
     customer_name: t.customerName,
     merchant_name: t.merchantName,
     related_booking_time: t.relatedBookingTime,
+    customer_language: t.customerLanguage,
   };
 }
 

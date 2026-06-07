@@ -144,6 +144,7 @@ describe('bookingService.createBooking', () => {
         customerName: 'A',
         merchantName: 'Nailed-it Studio',
         relatedBookingTime: `${DATE} 15:00`,
+        customerLanguage: 'zh-CN',
         messages: [],
       }),
     );

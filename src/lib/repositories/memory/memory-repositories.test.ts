@@ -141,6 +141,7 @@ describe('createMemoryConversationRepository', () => {
       customerName: 'Test',
       merchantName: 'Studio',
       relatedBookingTime: 'Today 10:00',
+      customerLanguage: 'zh-CN',
       messages: [],
     };
     const inserted = await repo.insert(newThread);

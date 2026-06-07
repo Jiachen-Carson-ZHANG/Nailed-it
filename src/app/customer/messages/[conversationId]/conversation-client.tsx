@@ -54,7 +54,7 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
 
   return conversation ? (
     <>
-      <ChatRoom conversation={conversation} onSend={handleSend} />
+      <ChatRoom conversation={conversation} onSend={handleSend} viewerRole="customer" />
       <Link className="button button-secondary" href={getCustomerMessagesPath()}>
         {t('messages.thread.back')}
       </Link>

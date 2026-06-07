@@ -38,21 +38,6 @@ export async function getCustomerIntelligenceAction(customerName: string): Promi
   });
 }
 
-/** Log that the merchant sent a recommended style to a customer (closes the recommend→book loop). */
-export async function recordRecommendedStyleAction(input: { customerId: string; styleId: string }): Promise<void> {
-  try {
-    await getRepositories().analytics.record({
-      eventType: 'recommended_style_sent',
-      merchantId: demoMerchantId,
-      customerId: input.customerId,
-      styleId: input.styleId,
-      eventSource: 'merchant_intel_panel',
-    });
-  } catch (err) {
-    console.error('recommended_style_sent capture failed', { styleId: input.styleId, err });
-  }
-}
-
 export type RankedFeed = { styles: PublishedMerchantStyle[]; reasons: Record<string, string> };
 
 /** The customer feed re-ordered for the demo customer (Melissa) via the ranking function, with a

@@ -55,7 +55,8 @@ const merchantPaths = {
   opsBot: '/merchant/messages/ops',
   messages: '/merchant/messages',
   profile: '/merchant/profile',
-  messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`
+  messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`,
+  styleDetail: (id: string) => `/merchant/styles/${id}/review`
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
@@ -226,6 +227,11 @@ export function getMerchantMessagesPath(conversationId?: string): string {
 
 export function getMerchantProfilePath(): string {
   return merchantPaths.profile;
+}
+
+/** The merchant's own view of a published style (the library review/editor page for that style). */
+export function getMerchantStylePath(id: string): string {
+  return merchantPaths.styleDetail(id);
 }
 
 export function getCustomerTryOnPath(styleId?: string): string {

@@ -8,6 +8,7 @@ const thread: BookingConversationThread = {
   customerName: 'Carson Lee',
   merchantName: 'Nailed-it Studio',
   relatedBookingTime: 'Today 10:00',
+  customerLanguage: 'en',
   messages: [
     {
       id: 'msg-system',
@@ -54,5 +55,37 @@ describe('toConversationForRole', () => {
       'them',
       'me'
     ]);
+  });
+
+  it('carries a style attachment through to the view message (rich recommendation card)', () => {
+    const withCard: BookingConversationThread = {
+      ...thread,
+      messages: [
+        {
+          id: 'msg-reco',
+          authorRole: 'merchant',
+          body: '为你推荐：碎钻冰花法式 · 法式风 · 裸色',
+          sentAt: '10:03',
+          attachment: {
+            type: 'style',
+            styleId: 'style-melissa-img-8265',
+            title: '碎钻冰花法式',
+            imageUrl: 'https://example.test/8265.jpg',
+            reason: '法式风 · 裸色'
+          }
+        }
+      ]
+    };
+
+    const [message] = toConversationForRole(withCard, 'customer').messages;
+    expect(message.attachment).toEqual({
+      type: 'style',
+      styleId: 'style-melissa-img-8265',
+      title: '碎钻冰花法式',
+      imageUrl: 'https://example.test/8265.jpg',
+      reason: '法式风 · 裸色'
+    });
+    // The customer is the recipient → the merchant's card shows as 'them'.
+    expect(message.author).toBe('them');
   });
 });
