@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
-import { LanguageSwitcher } from '@/features/shared/LanguageSwitcher';
 import type { Booking } from '@/domain/nail';
 import { homePathForRole } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
@@ -17,7 +16,6 @@ const customerProfileCopy = {
     customerIdentity: '顾客资料',
     profileStats: '顾客统计',
     joinedIn: '2026 加入',
-    privacyPolicy: '隐私政策',
     savedNotes: '保存的备注',
     switchToMerchantView: '切换到商家视图 ↗',
     upcomingBookings: '即将到来的预约',
@@ -27,7 +25,6 @@ const customerProfileCopy = {
     customerIdentity: 'Customer identity',
     profileStats: 'Customer profile stats',
     joinedIn: 'joined 2026',
-    privacyPolicy: 'Privacy Policy',
     savedNotes: 'Saved notes',
     switchToMerchantView: 'Switch to merchant view ↗',
     upcomingBookings: 'Upcoming bookings',
@@ -37,7 +34,7 @@ const customerProfileCopy = {
 export default function CustomerProfilePage() {
   // Already filtered to the demo customer on the server (private bookings never reach the browser).
   const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const copy = customerProfileCopy[language];
 
   const refresh = useCallback(async () => {
@@ -86,8 +83,6 @@ export default function CustomerProfilePage() {
         </article>
       </section>
 
-      <LanguageSwitcher />
-
       <section className="profile-section">
         <h2>{copy.bookingHistory}</h2>
         <div className="history-list">
@@ -98,7 +93,7 @@ export default function CustomerProfilePage() {
       </section>
 
       <Link className="button button-secondary button-block" href="/privacy">
-        {copy.privacyPolicy}
+        {t('common.privacyPolicy')}
       </Link>
 
       <Link className="button button-secondary button-block" href={homePathForRole('merchant')}>

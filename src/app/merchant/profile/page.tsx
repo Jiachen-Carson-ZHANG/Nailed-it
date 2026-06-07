@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { LanguageSwitcher } from '@/features/shared/LanguageSwitcher';
 import type { Booking, Conversation } from '@/domain/nail';
 import { getMerchantManagePath, homePathForRole } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
@@ -22,13 +21,12 @@ const merchantProfileCopy = {
     openBookings: '进行中的预约',
     openBookingsDetail: '当前排期里仍在推进的预约。',
     openPricingRules: '打开定价规则',
-    privacyPolicy: '隐私政策',
     studioProfile: '门店资料',
     switchToCustomerView: '切换到顾客视图 ↗',
     technicianWorkload: '技师工作负载',
     unreadConversations: '未读对话',
     unreadConversationsDetail: '仍在等待你回复的顾客消息。',
-    workspaceCopy: '先在这里快速查看经营脉搏，再切回日历或价格配置继续处理。',
+    workspaceCopy: '在此快速了解门店概况，再前往日历或定价设置继续处理。',
     workspaceEyebrow: '你的工作台',
   },
   en: {
@@ -38,13 +36,12 @@ const merchantProfileCopy = {
     openBookings: 'Open bookings',
     openBookingsDetail: 'Active appointments on your schedule.',
     openPricingRules: 'Open pricing rules',
-    privacyPolicy: 'Privacy Policy',
     studioProfile: 'Studio profile',
     switchToCustomerView: 'Switch to customer view ↗',
     technicianWorkload: 'Technician workload',
     unreadConversations: 'Unread conversations',
     unreadConversationsDetail: 'Conversations waiting for your reply.',
-    workspaceCopy: 'Use this view as a quick operating pulse before switching back into calendar or pricing work.',
+    workspaceCopy: 'Get a quick overview here, then head to your calendar or pricing settings.',
     workspaceEyebrow: 'Your workspace',
   },
 } as const;
@@ -52,7 +49,7 @@ const merchantProfileCopy = {
 function MerchantProfileContent() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const copy = merchantProfileCopy[language];
 
   useEffect(() => {
@@ -82,8 +79,6 @@ function MerchantProfileContent() {
       role="merchant"
       title="Nailed-it"
     >
-      <LanguageSwitcher />
-
       <section className="profile-hero">
         <p className="section-eyebrow">{copy.workspaceEyebrow}</p>
         <h1>{copy.studioProfile}</h1>
@@ -121,7 +116,7 @@ function MerchantProfileContent() {
       </Link>
 
       <Link className="button button-secondary button-block" href="/privacy">
-        {copy.privacyPolicy}
+        {t('common.privacyPolicy')}
       </Link>
 
       <Link className="button button-secondary button-block" href={homePathForRole('customer')}>

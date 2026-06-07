@@ -10,6 +10,7 @@ import {
   getMockSession
 } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
+import { LanguageSwitcher } from '@/features/shared/LanguageSwitcher';
 import { BottomTabBar } from './BottomTabBar';
 import { TopBar } from './TopBar';
 import { ResetLink } from '@/components/ui/ResetLink';
@@ -47,6 +48,7 @@ export function MobileLayout({
           {newNailDesignLabel}
         </ResetLink>
       ) : null}
+      <LanguageSwitcher />
       <Link aria-label={openProfileLabel} className="top-bar-avatar" href={profilePath}>
         {avatarInitial}
       </Link>

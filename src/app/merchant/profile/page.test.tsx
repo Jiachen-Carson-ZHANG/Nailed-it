@@ -51,14 +51,13 @@ describe('MerchantProfilePage', () => {
 
     expect(screen.getByRole('heading', { name: '门店资料' })).toBeInTheDocument();
     expect(screen.getByText('本周预约')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '中文' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: '英文' }));
+    await user.click(screen.getByRole('button', { name: '切换语言' }));
 
     expect(screen.getByRole('heading', { name: 'Studio profile' })).toBeInTheDocument();
     expect(screen.getByText('Appointments this week')).toBeInTheDocument();
     expect(await screen.findByText('2 active bookings')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /manage collection/i })).toHaveAttribute('href', '/merchant/styles');
-    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Switch language' })).toBeInTheDocument();
   });
 });

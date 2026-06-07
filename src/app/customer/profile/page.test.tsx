@@ -63,15 +63,12 @@ describe('CustomerProfilePage', () => {
 
     expect(screen.getByRole('heading', { name: '预约历史' })).toBeInTheDocument();
     expect(screen.getByText('即将到来的预约')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '中文' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: '英文' })).toHaveAttribute('aria-pressed', 'false');
 
-    await user.click(screen.getByRole('button', { name: '英文' }));
+    await user.click(screen.getByRole('button', { name: '切换语言' }));
 
     expect(screen.getByRole('heading', { name: 'Booking history' })).toBeInTheDocument();
     expect(screen.getByText('Upcoming bookings')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Chinese' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Switch language' })).toBeInTheDocument();
   });
 
   it('localizes booking history detail actions after switching to English', async () => {
@@ -85,7 +82,7 @@ describe('CustomerProfilePage', () => {
       '/customer/messages/conv-melissa'
     );
 
-    await user.click(screen.getByRole('button', { name: '英文' }));
+    await user.click(screen.getByRole('button', { name: '切换语言' }));
     expect(screen.getByRole('link', { name: 'Message studio' })).toHaveAttribute(
       'href',
       '/customer/messages/conv-melissa'
