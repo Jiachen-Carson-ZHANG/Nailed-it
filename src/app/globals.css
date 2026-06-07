@@ -3383,6 +3383,10 @@ select {
   margin-bottom: var(--space-2);
 }
 
+.chat-appt-grid-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .chat-appt-grid div {
   display: flex;
   flex-direction: column;
@@ -3396,6 +3400,11 @@ select {
 
 .chat-appt-grid strong {
   color: var(--color-text);
+}
+
+.chat-appt-staff-role {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
 }
 
 .chat-appt-viewfull {
