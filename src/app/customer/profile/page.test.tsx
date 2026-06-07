@@ -43,7 +43,7 @@ describe('CustomerProfilePage', () => {
       technicianId: 'tech-anna',
       recognition: mockAIResult,
       styleTitle: 'Custom AI reference',
-      styleImageUrl: '',
+      styleImageUrl: 'https://example.com/custom-ai-reference.png',
       date: '2026-05-23',
       // Anna opens 11:00 (Tue–Sat); create-time availability now enforces working hours.
       time: '11:00',
