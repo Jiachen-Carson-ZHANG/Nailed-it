@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
 import { CustomerBookingContent } from './booking-content';
@@ -16,26 +16,33 @@ describe('CustomerBookingPage', () => {
   });
 
   it('walks through the three-step booking flow and persists the draft', async () => {
-    vi.useFakeTimers();
+    // Recognition runs against the live endpoint now that the example shortcut is gone; the breakdown
+    // panel fetch in step 2 hits the same mock and is handled gracefully if the shape doesn't match.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          recognition: {
+            selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'Sample look.' },
+            meta: { confidence: 0.9, aiSuggestedQuote: { source: 'ai_suggestion', price: 0, duration: 0 } }
+          }
+        }),
+        { headers: { 'Content-Type': 'application/json' }, status: 200 }
+      )
+    );
 
     render(<CustomerBookingContent />);
 
-    // Step 1: Upload
-    const recognizeButton = screen.getByRole('button', { name: /analyze my photo/i });
-    expect(recognizeButton).toBeDisabled();
+    // Step 1: Upload — the Analyze CTA only appears once a reference image exists.
+    expect(screen.queryByRole('button', { name: /analyze my photo/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /try with example/i }));
-    expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled();
+    const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText(/choose nail reference photo/i), { target: { files: [file] } });
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
-    expect(screen.getByText(/ai is recognizing the style/i)).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(700);
-    });
 
     // Step 2: Result — style detected
-    expect(screen.getByRole('heading', { name: /style detected/i })).toBeInTheDocument();
+    await screen.findByRole('heading', { name: /style detected/i });
 
     fireEvent.click(screen.getByRole('button', { name: /see my quote/i }));
 

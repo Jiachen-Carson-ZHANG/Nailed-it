@@ -155,6 +155,34 @@ function isPricingUnit(value: string): value is PricingUnit {
  * Validate provider JSON again before it enters pricing. Provider-side schema enforcement reduces
  * failures; this runtime boundary remains authoritative if a provider ignores or repairs the shape.
  */
+const BASE_MANICURE_ID = 'basic_manicure_service';
+
+// Build the base-manicure breakdown row from merchant settings + glossary. Its booking time is the sum
+// of its non-billable prep steps (clean / cuticle / shape …), matching effectiveDurationMin / quoteService.
+function baseManicureItem(
+  settingsById: Map<string, MerchantPricingSetting>,
+): GlossaryBreakdownItem | null {
+  const entry = glossaryById.get(BASE_MANICURE_ID);
+  const setting = settingsById.get(BASE_MANICURE_ID);
+  if (!entry || !setting || setting.enabled === false) return null;
+  const prepDuration = Array.from(glossaryById.values())
+    .filter((e) => e.parent_id === BASE_MANICURE_ID && e.billable === false)
+    .reduce((sum, e) => sum + e.default_duration_min, 0);
+  return {
+    mode: 'glossary',
+    glossaryId: BASE_MANICURE_ID,
+    glossaryType: 'service_module',
+    nameZh: entry.name_zh,
+    typeZh: entry.type_zh,
+    parentId: entry.parent_id,
+    parentNameZh: entry.type_zh,
+    quantity: 1,
+    unit: 'set',
+    price: setting.price ?? 0,
+    duration: prepDuration > 0 ? prepDuration : (setting.duration ?? entry.default_duration_min),
+  };
+}
+
 export function parseBreakdownModelOutput(
   value: unknown,
   merchantSettings: MerchantPricingSetting[],
@@ -235,7 +263,12 @@ export function parseBreakdownModelOutput(
     });
   }
 
-  const items = rawSections.flatMap(parseSection);
+  const detected = rawSections.flatMap(parseSection);
+  // The base manicure is ai_detectable='no', so the model never returns it — but every manicure
+  // includes the base prep floor ($28/51-min). Inject it so the customer quote isn't $0 (it mirrors
+  // the merchant-side withBaseManicure enforcement).
+  const baseItem = seenIds.has(BASE_MANICURE_ID) ? null : baseManicureItem(settingsById);
+  const items = baseItem ? [baseItem, ...detected] : detected;
   const catalogSelections = items.flatMap((item) =>
     settingsById.get(item.glossaryId)?.enabled
       ? [{ catalogItemId: item.glossaryId, quantity: item.quantity }]

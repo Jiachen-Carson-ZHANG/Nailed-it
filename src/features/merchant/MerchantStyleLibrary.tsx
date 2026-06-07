@@ -170,7 +170,7 @@ export function MerchantStyleLibrary() {
                   </div>
                   <div className="merchant-style-card-actions">
                     <Link
-                      className={`button ${isPublished || isArchived ? 'button-secondary' : 'button-primary'} button-default`}
+                      className="button button-secondary button-default"
                       href={`/merchant/styles/${style.id}/review`}
                     >
                       {isPublished ? 'Edit' : isArchived ? 'View' : 'Review'}
@@ -185,7 +185,7 @@ export function MerchantStyleLibrary() {
                         Archive
                       </button>
                     ) : null}
-                    {!isPublished && !isArchived ? (
+                    {!isPublished ? (
                       <button
                         className="button button-ghost button-default merchant-style-delete"
                         disabled={isPending}

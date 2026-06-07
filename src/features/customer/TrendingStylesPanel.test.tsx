@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TrendingStylesPanel } from './TrendingStylesPanel';
+import { TrendingStylesPanel, resetTrendingCacheForTests } from './TrendingStylesPanel';
 
 const fetchMock = vi.fn();
 
 describe('TrendingStylesPanel', () => {
   beforeEach(() => {
+    resetTrendingCacheForTests();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
   });

@@ -1,4 +1,5 @@
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
+import Link from 'next/link';
 import { Button } from './Button';
 
 export type SelectedNailImage = {
@@ -11,10 +12,24 @@ type ImageUploaderProps = {
   imageUrl: string;
   onMockUpload: () => void;
   onImageSelected?: (image: SelectedNailImage) => void;
+  /** "Change photo" → clear the current image and return to a fresh upload state. */
+  onReset?: () => void;
   hideControls?: boolean;
+  /** Try-on entry, only shown once an image exists. */
+  tryOnHref?: string;
+  /** Full-width primary action below the row once an image exists — e.g. Analyze. */
+  analyzeAction?: ReactNode;
 };
 
-export function ImageUploader({ imageUrl, onImageSelected, onMockUpload, hideControls }: ImageUploaderProps) {
+export function ImageUploader({
+  imageUrl,
+  onImageSelected,
+  onMockUpload,
+  onReset,
+  hideControls,
+  tryOnHref,
+  analyzeAction,
+}: ImageUploaderProps) {
   const hasImage = Boolean(imageUrl);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -46,21 +61,25 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload, hideCon
   return (
     <section className="image-uploader">
       {hasImage ? (
-        <label style={{ cursor: 'pointer', display: 'block' }}>
+        <div className="image-uploader-dropzone image-uploader-static">
           <img alt="Uploaded nail reference" src={imageUrl} />
+        </div>
+      ) : (
+        // Empty state: the whole drop-zone (placeholder + plus) opens the picker.
+        <label className="image-uploader-dropzone">
+          <div className="image-uploader-placeholder">
+            <span className="image-uploader-mark">+</span>
+          </div>
           <input
-            aria-label="Choose nail reference photo"
+            aria-label="Upload nail reference photo"
             accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
             hidden
             type="file"
             onChange={handleFileChange}
           />
         </label>
-      ) : (
-        <div className="image-uploader-placeholder" aria-hidden="true">
-          <span className="image-uploader-mark">+</span>
-        </div>
       )}
+
       <div className="image-uploader-copy">
         <strong>{hasImage ? 'Reference ready' : 'Add a nail reference'}</strong>
         <p>
@@ -69,22 +88,39 @@ export function ImageUploader({ imageUrl, onImageSelected, onMockUpload, hideCon
             : 'Upload a nail photo to get your quote, or try with our example.'}
         </p>
       </div>
+
       {!hideControls && (
-        <>
-          <label className="button button-primary button-default button-block">
-            Upload or take photo
-            <input
-              aria-label="Choose nail reference photo"
-              accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-              hidden
-              type="file"
-              onChange={handleFileChange}
-            />
-          </label>
-          <Button block onClick={onMockUpload} variant="secondary">
-            Try with example
-          </Button>
-        </>
+        hasImage ? (
+          <>
+            <div className="uploader-actions">
+              <Button className="uploader-action" onClick={onReset} variant="secondary">
+                Change photo
+              </Button>
+              {tryOnHref ? (
+                <Link className="button button-secondary button-default uploader-action" href={tryOnHref}>
+                  Try on this look
+                </Link>
+              ) : null}
+            </div>
+            {analyzeAction}
+          </>
+        ) : (
+          <div className="uploader-actions">
+            <label className="button button-primary button-default uploader-action">
+              Upload or take photo
+              <input
+                aria-label="Choose nail reference photo"
+                accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+                hidden
+                type="file"
+                onChange={handleFileChange}
+              />
+            </label>
+            <Button className="uploader-action" onClick={onMockUpload} variant="secondary">
+              Try with example
+            </Button>
+          </div>
+        )
       )}
     </section>
   );

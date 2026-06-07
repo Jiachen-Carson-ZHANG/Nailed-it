@@ -144,6 +144,9 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
 
   return (
     <div className="try-on-panel">
+      <button type="button" className="detail-back-link detail-back-top" onClick={() => router.back()}>
+        ← Back
+      </button>
       <div className="try-on-slots">
         <ImageSlot
           label="Your hand"

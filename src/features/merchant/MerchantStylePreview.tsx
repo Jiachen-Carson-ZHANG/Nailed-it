@@ -23,7 +23,7 @@ export function MerchantStylePreview() {
           <p className="section-eyebrow">Showcase</p>
           <h2 id="merchant-style-preview-title">Your style collection</h2>
         </div>
-        <Link href="/merchant/styles">Manage collection</Link>
+        <Link className="merchant-style-manage-link" href="/merchant/styles">Manage collection →</Link>
       </div>
       {styles.length > 0 ? (
         <div className="merchant-style-preview-grid">

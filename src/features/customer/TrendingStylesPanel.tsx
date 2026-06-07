@@ -7,6 +7,15 @@ import { Button } from '@/components/ui/Button';
 const RANK_EMOJI = ['①', '②', '③'];
 const TOP_N = 3;
 
+// Module-level cache: the trending feed is a live web search, so it should run once per session, not
+// every time the customer returns to home. Refresh still forces a fresh fetch.
+let trendingCache: AITrendingResponse | null = null;
+
+/** Test-only: clear the session cache so each case starts from a clean fetch. */
+export function resetTrendingCacheForTests() {
+  trendingCache = null;
+}
+
 const PLATFORM_SHORT: Record<string, string> = {
   Pinterest: 'Pinterest',
   Xiaohongshu: '小红书',
@@ -49,7 +58,7 @@ function TrendingRowSkeleton() {
 }
 
 export function TrendingStylesPanel() {
-  const [data, setData] = useState<AITrendingResponse | null>(null);
+  const [data, setData] = useState<AITrendingResponse | null>(trendingCache);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const hasAutoLoadedRef = useRef(false);
@@ -66,6 +75,7 @@ export function TrendingStylesPanel() {
         throw new Error(body.error ?? 'Failed to load trending styles.');
       }
 
+      trendingCache = body;
       setData(body);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load trending styles.');
@@ -75,8 +85,9 @@ export function TrendingStylesPanel() {
   }
 
   useEffect(() => {
-    // 中文注释：开发环境下 React Strict Mode 会重复触发 effect，这里挡掉首次重复请求。
-    if (hasAutoLoadedRef.current) return;
+    // Run the live search at most once per session. Returning to home reuses the cached result;
+    // the Refresh button is the explicit way to fetch again.
+    if (hasAutoLoadedRef.current || trendingCache) return;
 
     hasAutoLoadedRef.current = true;
     void loadTrending();

@@ -11,7 +11,12 @@ import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-stor
 import { consumeTryOnImage } from '@/domain/tryon-image-store';
 import type { AIRecognitionResult, BreakdownResult, RuleBasedQuote, StylePreviewQuote } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
-import { getCustomerBookingConfirmPath } from '@/domain/session';
+import {
+  getCustomerBookingConfirmPath,
+  getCustomerBookingPath,
+  getCustomerStylePath,
+  getCustomerTryOnPath,
+} from '@/domain/session';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
@@ -121,6 +126,9 @@ export function CustomerBookingContent({
   }, [breakdowns.glossary, recognition, prefillPreviewQuote]);
 
   async function startRecognition() {
+    // Move to step 2 immediately and show the photo; the description and the breakdown then stream in
+    // there, instead of holding the user on step 1 behind a spinner.
+    setStep('result');
     setIsRecognizing(true);
     setRecognitionError('');
 
@@ -130,7 +138,6 @@ export function CustomerBookingContent({
         : await getSampleRecognition();
 
       setRecognition(nextRecognition);
-      setStep('result');
     } catch (error) {
       setRecognitionError(
         error instanceof Error
@@ -146,6 +153,15 @@ export function CustomerBookingContent({
     setImageUrl(sampleImageUrl);
     setSelectedImage(null);
     setRecognitionError('');
+    setBreakdowns({ glossary: null });
+  }
+
+  // "Change photo" returns to a clean upload state rather than opening the picker in place.
+  function resetUpload() {
+    setImageUrl('');
+    setSelectedImage(null);
+    setRecognitionError('');
+    setBreakdowns({ glossary: null });
   }
 
   function handleImageSelected(image: SelectedNailImage) {
@@ -211,35 +227,21 @@ export function CustomerBookingContent({
             )}
           </section>
 
-          {/* hideControls when image is already provided via prefill */}
+          {/* hideControls when image is already provided via prefill. The Analyze CTA only appears
+              once an image exists — before that the upload/example pair is the whole call to action. */}
           <ImageUploader
             imageUrl={imageUrl}
             onImageSelected={handleImageSelected}
             onMockUpload={selectSampleImage}
+            onReset={resetUpload}
             hideControls={hasPrefill}
+            tryOnHref={getCustomerTryOnPath()}
+            analyzeAction={
+              <Button block onClick={startRecognition}>
+                Analyze my photo
+              </Button>
+            }
           />
-
-          {isRecognizing ? (
-            <LoadingState
-              body="Breaking down services, shape, style details, and add-ons."
-              title="AI is recognizing the style"
-            />
-          ) : (
-            <Button block disabled={!imageUrl} onClick={startRecognition}>
-              Analyze my photo
-            </Button>
-          )}
-
-          {!imageUrl && !isRecognizing ? (
-            <p className="helper-copy">Add a photo above to get your quote.</p>
-          ) : null}
-
-          {recognitionError ? (
-            <section className="summary-card" role="alert">
-              <strong>Recognition needs attention</strong>
-              <p>{recognitionError}</p>
-            </section>
-          ) : null}
         </>
       )}
 
@@ -257,7 +259,16 @@ export function CustomerBookingContent({
             </div>
           )}
 
-          <RecognitionPreview imageUrl="" recognition={recognition} />
+          {recognitionError ? (
+            <section className="summary-card" role="alert">
+              <strong>Recognition needs attention</strong>
+              <p>{recognitionError}</p>
+            </section>
+          ) : isRecognizing ? (
+            <LoadingState title="Reading the style" body="Detecting shape, colors, and finish…" />
+          ) : (
+            <RecognitionPreview imageUrl="" recognition={recognition} />
+          )}
           <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
@@ -304,17 +315,21 @@ export function CustomerBookingContent({
             )
           )}
 
-          {!hasPrefill ? (
-            <div className="booking-step-actions">
+          <div className="booking-step-actions">
+            {hasPrefill ? (
+              <Link
+                className="button button-secondary button-block"
+                href={prefillStyleId ? getCustomerStylePath(prefillStyleId) : getCustomerBookingPath()}
+              >
+                ← Back
+              </Link>
+            ) : (
               <Button block variant="secondary" onClick={() => setStep('result')}>
-                ← Back to adjust details
+                ← Back
               </Button>
-            </div>
-          ) : null}
-
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            )}
             <Link
-              className="button button-primary button-compact"
+              className="button button-primary button-block"
               href={getCustomerBookingConfirmPath()}
               onClick={persistCurrentDraft}
             >

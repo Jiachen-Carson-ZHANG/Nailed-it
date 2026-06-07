@@ -7,9 +7,9 @@ export default function MerchantStylesPage() {
   return (
     <MobileLayout role="merchant" title="Style library">
       <section className="page-heading">
-        <Link className="merchant-review-back" href={getMerchantProfilePath()}>← Me</Link>
+        <Link className="merchant-review-back" href={getMerchantProfilePath()}>Back to profile</Link>
         <h1>Style library</h1>
-        <p>Upload, review, and publish your designs.</p>
+        <p>Upload, review, and publish designs for customers to discover.</p>
       </section>
       <MerchantStyleLibrary />
     </MobileLayout>

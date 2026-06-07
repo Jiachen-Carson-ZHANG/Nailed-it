@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -24,11 +24,31 @@ type MerchantStyleReviewWorkspaceProps = {
 
 const BASE_MANICURE_ID = 'basic_manicure_service';
 
+// Add-services list is grouped by catalog category so it scans like the Manage tab instead of one
+// long flat list. Categories map to a small set of merchant-facing sections; unknowns fall to 其他.
+const CATALOG_SECTIONS: { key: string; label: string; categories: string[] }[] = [
+  { key: 'base', label: '基础护理', categories: ['base_service'] },
+  { key: 'structure', label: '建构延长', categories: ['structure'] },
+  { key: 'color', label: '颜色与效果', categories: ['color_effect'] },
+  { key: 'art', label: '美术设计', categories: ['art'] },
+  { key: 'decoration', label: '装饰', categories: ['decoration'] },
+  { key: 'removal', label: '卸甲', categories: ['removal'] },
+  { key: 'other', label: '其他', categories: [] },
+];
+const SECTION_KEY_BY_CATEGORY = new Map(
+  CATALOG_SECTIONS.flatMap((section) => section.categories.map((category) => [category, section.key])),
+);
+
 function normalizeSelection(item: ConfigurableCatalogItem, quantity: number): CatalogSelection {
   return {
     catalogItemId: item.id,
     quantity: item.quantityLocked ? 1 : Math.max(1, Math.trunc(quantity) || 1),
   };
+}
+
+// Order-insensitive signature of a selection set, used to tell whether a published edit changed anything.
+function selectionsKey(selections: CatalogSelection[]): string {
+  return selections.map((s) => `${s.catalogItemId}:${s.quantity}`).sort().join('|');
 }
 
 export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWorkspaceProps) {
@@ -44,6 +64,12 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
   const [isLoading, setIsLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Snapshot of the loaded config so a published edit can tell whether anything actually changed.
+  const baselineRef = useRef<{ title: string; description: string; selKey: string }>({
+    title: '',
+    description: '',
+    selKey: '',
+  });
 
   function syncStyle(next: MerchantStyleView) {
     setStyle(next);
@@ -52,7 +78,15 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
     // Always show the mandatory base manicure (the $28/51-min floor) so the live total is right and
     // the merchant can see the prep that's included. The server injects it on save regardless.
     const hasBase = next.catalogBreakdown.some((s) => s.catalogItemId === BASE_MANICURE_ID);
-    setSelections(hasBase ? next.catalogBreakdown : [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...next.catalogBreakdown]);
+    const nextSelections = hasBase
+      ? next.catalogBreakdown
+      : [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...next.catalogBreakdown];
+    setSelections(nextSelections);
+    baselineRef.current = {
+      title: next.title,
+      description: next.description,
+      selKey: selectionsKey(nextSelections),
+    };
   }
 
   useEffect(() => {
@@ -170,6 +204,12 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
     return item.nameZh.toLocaleLowerCase().includes(searchTerm)
       || item.id.toLocaleLowerCase().includes(searchTerm);
   });
+  const groupedAvailable = CATALOG_SECTIONS.flatMap((section) => {
+    const items = availableItems.filter(
+      (item) => (SECTION_KEY_BY_CATEGORY.get(item.category) ?? 'other') === section.key,
+    );
+    return items.length > 0 ? [{ section, items }] : [];
+  });
 
   function addSelection(item: ConfigurableCatalogItem) {
     setSelections((current) => [...current, normalizeSelection(item, 1)]);
@@ -250,11 +290,15 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
   const showEditor = editable && !isAnalyzing;
   const hasValidQuote = Boolean(title.trim()) && Boolean(quote?.totalPriceCents && quote.totalDurationMin);
   const canPublish = canEdit && hasValidQuote;
+  const isDirty =
+    title.trim() !== baselineRef.current.title.trim() ||
+    description !== baselineRef.current.description ||
+    selectionsKey(selections) !== baselineRef.current.selKey;
 
   return (
     <div className="merchant-review-workspace">
       <header className="merchant-review-heading">
-        <Link className="merchant-review-back" href="/merchant/styles">← Collection</Link>
+        <Link className="merchant-review-back" href="/merchant/styles">Collection</Link>
         <h1>{isProcessing || isAnalyzing ? 'Analyze design' : isPublished ? 'Published design' : 'Review design'}</h1>
         {!isPublished ? (
           <p>
@@ -402,29 +446,38 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
                   onChange={(event) => setSearch(event.target.value)}
                 />
               </label>
-              <div className="merchant-review-catalog-list">
-                {availableItems.map((item) => (
-                  <div className="merchant-review-catalog-row" key={item.id}>
-                    <div>
-                      <strong>{item.nameZh}</strong>
-                      <small>
-                        {item.enabled ? `$${(item.priceCents / 100).toFixed(2)}` : 'Pricing unavailable'}
-                        {' · '}
-                        {item.affectsDuration ? `${item.durationMin} min` : 'No booking time'}
-                      </small>
+              {groupedAvailable.length === 0 ? (
+                <p className="merchant-review-empty">No more services match your search.</p>
+              ) : (
+                groupedAvailable.map(({ section, items }) => (
+                  <div className="merchant-review-catalog-group" key={section.key}>
+                    <p className="merchant-review-catalog-group-title">{section.label}</p>
+                    <div className="merchant-review-catalog-list">
+                      {items.map((item) => (
+                        <div className="merchant-review-catalog-row" key={item.id}>
+                          <div>
+                            <strong>{item.nameZh}</strong>
+                            <small>
+                              {item.enabled ? `$${(item.priceCents / 100).toFixed(2)}` : 'Pricing unavailable'}
+                              {' · '}
+                              {item.affectsDuration ? `${item.durationMin} min` : 'No booking time'}
+                            </small>
+                          </div>
+                          <button
+                            aria-label={`Add ${item.nameZh}`}
+                            className="merchant-review-add"
+                            disabled={isSaving || !item.enabled}
+                            type="button"
+                            onClick={() => addSelection(item)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <button
-                      aria-label={`Add ${item.nameZh}`}
-                      className="merchant-review-add"
-                      disabled={isSaving || !item.enabled}
-                      type="button"
-                      onClick={() => addSelection(item)}
-                    >
-                      +
-                    </button>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </section>
           ) : null}
         </>
@@ -434,14 +487,19 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
         <footer className="merchant-review-actions">
           {message ? <p role="status">{message}</p> : null}
           {isPublished ? (
-            <button
-              className="button button-primary button-block"
-              disabled={!hasValidQuote || isSaving}
-              type="button"
-              onClick={saveDraft}
-            >
-              Save changes
-            </button>
+            <div>
+              <Link className="button button-secondary button-default" href="/merchant/styles">
+                ← Back
+              </Link>
+              <button
+                className="button button-primary button-default"
+                disabled={!hasValidQuote || !isDirty || isSaving}
+                type="button"
+                onClick={saveDraft}
+              >
+                Save changes
+              </button>
+            </div>
           ) : (
             <div>
               <button

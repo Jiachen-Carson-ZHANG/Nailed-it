@@ -667,6 +667,9 @@ select {
 .detail-back-link {
   align-self: center;
   padding: 0.5rem 0.75rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
   color: var(--color-muted);
   font-size: var(--text-sm);
   font-weight: 500;
@@ -1077,6 +1080,20 @@ select {
 .attribute-editor h3,
 .time-selector h2 {
   margin: 0;
+}
+
+/* The page title was falling back to the UA 2em default, which wrapped and looked oversized on
+   mobile, and the eyebrow→title→content spacing was uneven. Tighten the heading block and give it
+   breathing room before the content below it. */
+.page-heading {
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.page-heading h1 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .attribute-editor section,
@@ -2235,27 +2252,149 @@ select {
   color: var(--color-success, #2e7d32);
 }
 
-.technician-booking-links {
+.workload-days {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.workload-day {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+  overflow: hidden;
+}
+
+.workload-day-summary,
+.workload-booking-summary {
+  cursor: pointer;
   list-style: none;
-  padding: 0;
-  margin: 0.25rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workload-day-summary::-webkit-details-marker,
+.workload-booking-summary::-webkit-details-marker {
+  display: none;
+}
+
+.workload-day-summary {
+  padding: 0.45rem 0.6rem;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.workload-day-summary::before {
+  content: '▸';
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.workload-day[open] > .workload-day-summary::before {
+  content: '▾';
+}
+
+.workload-day-date {
+  font-variant-numeric: tabular-nums;
+}
+
+.workload-day-count {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.workload-day-list {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  padding: 0 0.4rem 0.45rem;
 }
 
-.technician-booking-link {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--color-accent);
-  text-decoration: none;
-  padding: 0.2rem 0.5rem;
+.workload-booking {
   border-radius: var(--radius-sm);
-  background: var(--color-accent-soft, rgba(123, 97, 255, 0.08));
+  background: var(--color-surface);
 }
 
-.technician-booking-link:hover {
-  background: var(--color-accent-soft-hover, rgba(123, 97, 255, 0.16));
+.workload-booking-summary {
+  padding: 0.4rem 0.5rem;
+  font-size: var(--text-xs);
+}
+
+.workload-booking-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.workload-booking-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+.workload-status {
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.workload-status-confirmed {
+  background: rgba(76, 175, 80, 0.14);
+  color: var(--color-success, #2e7d32);
+}
+
+.workload-status-pending_review {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.workload-booking-facts {
+  margin: 0;
+  padding: 0 0.5rem 0.4rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.workload-booking-facts > div {
+  display: flex;
+  gap: 0.4rem;
+  font-size: var(--text-xs);
+}
+
+.workload-booking-facts dt {
+  min-width: 4.5rem;
+  color: var(--color-muted);
+}
+
+.workload-booking-facts dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.workload-booking-link {
+  display: inline-block;
+  margin: 0 0.5rem 0.45rem;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-accent-strong);
 }
 
 .empty-state-icon {
@@ -2291,10 +2430,29 @@ select {
   box-shadow: var(--shadow-soft);
 }
 
-.merchant-style-section-header,
 .merchant-style-card-heading {
   display: grid;
   gap: 0.2rem;
+}
+
+.merchant-style-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.merchant-style-manage-link {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
 .merchant-library-tabs {
@@ -2776,6 +2934,28 @@ select {
   opacity: 0.7;
 }
 
+.image-uploader-dropzone {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* Image present: the preview is just a display surface; swapping is done via the Change-photo button. */
+.image-uploader-static {
+  cursor: default;
+}
+
+.uploader-actions {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.uploader-action {
+  flex: 1;
+  min-width: 0;
+}
+
 .image-uploader-copy,
 .empty-state,
 .loading-state {
@@ -2894,7 +3074,7 @@ select {
 /* Compact placeholder — this is one entry above the grid, not a full upload step. */
 .merchant-style-upload-tile .image-uploader-placeholder {
   aspect-ratio: auto;
-  min-height: 7.5rem;
+  min-height: 9.5rem;
 }
 
 .merchant-style-upload-tile .image-uploader-mark {
@@ -2962,11 +3142,24 @@ select {
 }
 
 .merchant-review-back {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   margin-bottom: 1rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
   color: var(--color-accent-strong);
   font-size: var(--text-sm);
   font-weight: 700;
+  text-decoration: none;
+}
+
+.merchant-review-back::before {
+  content: '‹';
+  font-size: 1.15em;
+  line-height: 1;
 }
 
 .merchant-review-loading {
@@ -3019,6 +3212,23 @@ select {
 .merchant-review-catalog-list {
   display: grid;
   gap: 0.85rem;
+}
+
+.merchant-review-catalog-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.merchant-review-catalog-group + .merchant-review-catalog-group {
+  margin-top: 0.75rem;
+}
+
+.merchant-review-catalog-group-title {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .merchant-review-section {
@@ -3432,6 +3642,74 @@ select {
   overflow: hidden;
 }
 
+.xhs-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+  margin: 0 0 0.4rem;
+  max-height: 2.4rem;
+  overflow: hidden;
+}
+
+.xhs-card-shape {
+  display: inline-block;
+  margin: 0 0 0.4rem;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+button.xhs-card-shape {
+  cursor: pointer;
+}
+
+.xhs-card-shape-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.feed-filter-bar {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.6rem;
+  scrollbar-width: none;
+}
+
+.feed-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.feed-filter-chip,
+.feed-filter-clear {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.feed-filter-chip-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.feed-filter-clear {
+  color: var(--color-accent-strong);
+}
+
 .xhs-card-meta {
   display: flex;
   align-items: center;
@@ -3476,6 +3754,8 @@ select {
 
 .booking-step-actions {
   display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   gap: 0.5rem;
 }
 

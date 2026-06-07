@@ -87,6 +87,16 @@ describe('parseBreakdownModelOutput', () => {
     });
   });
 
+  it('injects the base manicure floor (ai_detectable=no) so the quote is never $0', () => {
+    const withBase: MerchantPricingSetting[] = [
+      ...settings,
+      { id: 'basic_manicure_service', nameZh: '基础护理服务', groupLabel: '基础', price: 28, duration: 51, enabled: true },
+    ];
+    const result = parseBreakdownModelOutput(validOutput(), withBase);
+    expect(result.catalogSelections).toContainEqual({ catalogItemId: 'basic_manicure_service', quantity: 1 });
+    expect(result.items.some((item) => item.glossaryId === 'basic_manicure_service')).toBe(true);
+  });
+
   it('declares a strict JSON-schema response contract', () => {
     expect(breakdownResponseFormat.type).toBe('json_schema');
     expect(breakdownResponseFormat.json_schema.strict).toBe(true);

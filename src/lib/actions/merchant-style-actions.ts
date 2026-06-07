@@ -48,6 +48,7 @@ export async function getMerchantStyleReviewAction(
 export type ConfigurableCatalogItem = {
   id: string;
   nameZh: string;
+  category: string;
   defaultPricingUnit: PricingUnit;
   pricingUnit: PricingUnit;
   priceCents: number;
@@ -68,13 +69,20 @@ export async function listConfigurableCatalogAction(): Promise<ConfigurableCatal
     resolveEffectivePricing(catalog, merchantPricing).map((row) => [row.catalogItemId, row]),
   );
   return catalog
-    .filter((item) => item.billable !== 'no')
+    // Drop container service modules (颜色与效果服务 / 美术设计服务 / 卸甲服务 …) — they are grouping
+    // parents, not addable line items. The base manicure stays (the selected list renders it by id);
+    // it is always pre-selected, so it never shows up in the "Add services" list anyway.
+    .filter(
+      (item) => item.billable !== 'no'
+        && (item.type !== 'service_module' || item.id === 'basic_manicure_service'),
+    )
     .map((item) => {
       const effective = effectiveById.get(item.id);
       const pricingUnit = effective?.pricingUnit ?? item.defaultPricingUnit;
       return {
         id: item.id,
         nameZh: item.nameZh,
+        category: item.category,
         defaultPricingUnit: item.defaultPricingUnit,
         pricingUnit,
         priceCents: effective?.priceCents ?? 0,

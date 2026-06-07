@@ -1,6 +1,53 @@
 # Implementation Log
 
-## 2026-06-06 — Immediate merchant upload → dedicated review workspace
+## 2026-06-07 — Customer quote $0 fix, container modules hidden, step-2 stream, status lifecycle
+
+What changed:
+- **$0 quote bug fixed.** The base manicure is `ai_detectable='no'`, so the breakdown model never returns it — the customer own-photo quote was missing the $28/51-min floor and read $0 (e.g. a single included color). `parseBreakdownModelOutput` now injects the base manicure (from merchant settings, prep-duration summed from glossary children) into both `items` and `catalogSelections`, mirroring the merchant-side `withBaseManicure`. Regression test added.
+- Container service modules (颜色与效果服务 / 美术设计服务 / 卸甲服务 …) are hidden everywhere they were leaking as line items: customer `StyleDetailPanel` + `ComponentBreakdownPanel` now drop `service_module` rows except the base manicure (type-based, not the old 0/0 heuristic, since some containers carry a duration), and `listConfigurableCatalogAction` drops them from the merchant "Add services" list (base kept so the selected list can render it).
+- Booking step 2 now opens immediately on "Analyze my photo": the photo shows at once and the description + breakdown stream in there (`LoadingState` for the description while recognition runs), instead of holding the user on step 1 behind a spinner.
+- Feed cards show the nail **shape** as a single pill (杏仁形 …) instead of multiple hashtags; the pill still toggles the facet filter.
+- Merchant booking status is now a **lifecycle**, not arbitrary: pending_review → Confirm / Cancel; confirmed → Mark completed / Cancel; completed & cancelled are terminal (no jumping straight to completed or back to pending).
+- Merchant "Manage collection" pill made smaller; library main action (Review/View/Edit) unified to the secondary style so Processing matches Archived.
+
+## 2026-06-07 — Feed hashtags + facet filter (discovery)
+
+What changed:
+- Customer feed cards drop the description line and instead show up to 3 hashtags built from the style's `discoveryFacets`, prioritized style → addon → shape → mood → lifestyle (`styleHashtags` in `StyleCard`). Same vocabulary as the detail page's 风格标签.
+- Home feed gained a facet filter bar (`StyleWaterfallGridClient`): a horizontal chip row of the distinct facet labels present in the loaded styles, OR-matched (a style stays if it carries any selected tag), client-side only — no backend change. Tapping a card hashtag toggles the same filter, so the hashtags and the filter share one vocabulary. Empty-result and clear states included.
+- `HASHTAG_KIND_ORDER` exported from `StyleCard` so the filter bar orders chips the same way the card hashtags do; `NailStyleCard.description` (added earlier for the card blurb) removed as now unused.
+
+Note: the customer style detail route only compiles on first navigation in dev; on WSL2/Node18 a concurrent-compile choke could leave it spinning ("can't click into the picture"). A clean `.next` restart resolves it — not a code issue (route returns 200 once compiled, and prod is prebuilt).
+
+## 2026-06-07 — Upload/try-on flow, trending cache, workload grouping, library + review polish
+
+What changed:
+- Customer upload step: no-image state shows [Upload or take photo] + [Try with example]; once an image exists it shows [Change photo] + [Try on this look] with a full-width [Analyze my photo] below. "Change photo" now resets to a clean upload state instead of opening the picker in place. The ＋ drop-zone is only a picker while empty (a static preview afterward). Page-heading spacing tightened (eyebrow→title→content).
+- "Try on this look" is the standalone entry into `/customer/try-on`; the try-on panel gained a top "← Back" (router.back) so there is a way out.
+- Trending (热门款式) is a live web search and now caches at module level: it runs once per session and reuses the result when the customer returns to home; Refresh still forces a new fetch (`resetTrendingCacheForTests` clears it in tests).
+- Technician workload (`TechnicianRosterCard`) regrouped: each technician's active bookings collapse by day (native `<details>`, soonest day open), and each booking expands to status + customer + quote + a link to the full booking — mirrors the customer Me-tab pattern and stays readable across a long horizon.
+- Merchant profile "Manage collection" is now a pink pill with an arrow on the Showcase line (was an unstyled link that wrapped under the title).
+- Merchant review (published edit): "Save changes" is disabled until something actually changes (title/description/selection baseline diff), with a "← Back" beside it. Per-set items (incl. the base manicure) keep their quantity locked by design.
+- Style library: back affordance restyled into a pill (no raw "←" glyph), upload tile enlarged, Delete added to the Archived tab (hard-delete any non-published style), subtitle now says designs are published "for customers to discover".
+
+## 2026-06-07 — Customer upload UX + merchant catalog grouping + breakdown noise cleanup
+
+What changed:
+- Merchant review "Add services" list is now grouped by catalog category (基础护理 / 建构延长 / 颜色与效果 / 美术设计 / 装饰 / 卸甲 / 其他) instead of one flat list. `ConfigurableCatalogItem` carries `category`; the workspace renders non-empty sections with a small heading. Search still filters before grouping.
+- Customer breakdown panels (`StyleDetailPanel` 款式构成, `ComponentBreakdownPanel`) now hide container service-module rows that carry neither price nor time (e.g. 颜色与效果服务 / 建构服务) so they stop showing "— —" noise. The priced base manicure and zero-price billable colors stay.
+- Feed cards (`StyleCard`) show a 2-line merchant description under the title (`NailStyleCard.description` optional; published styles already carry it).
+- Customer own-photo upload (`ImageUploader` + booking step 1) reworked: the drop-zone/＋ is itself a file picker; CTAs sit on one row; "Analyze my photo" only appears once a reference exists (paired on one row with "Change photo"); page title pinned to the design-system page-title scale (was UA 2em, oversized/wrapping).
+- "Try with example" replaced by "Try on this look", which is the standalone entry into the existing `/customer/try-on` flow (your own photo is just as valid a look to preview). The now-unreachable sample-recognition path (`getSampleRecognition`) was removed; the upload step always uses the live recognizer.
+- Booking step 3 (quote) now puts "← Back" and "Next: choose time" on one row (`.booking-step-actions` is a 2-col grid); previously the back action sat on its own row above and prefill had no back at all (prefill back now returns to the style detail).
+
+Why:
+- The flat catalog and the always-present disabled "Analyze" button were the two biggest mobile-fit/scannability complaints; grouping borrows the Manage tab's structure without porting the glossary chip UI (keeps the correct server-derived pricing untouched).
+- The "— —" parent rows were grouping containers leaking into a customer-facing table.
+
+Tradeoff:
+- Category→section mapping is a curated allowlist in the workspace (unknown categories fall to 其他), mirroring the existing `durationAggregatingPackageIds` allowlist pattern until the Dictionary carries a section column.
+
+
 
 What changed:
 - `/merchant/styles` no longer asks for a title or embeds the full catalog editor inside collection

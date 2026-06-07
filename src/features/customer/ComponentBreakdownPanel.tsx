@@ -77,6 +77,7 @@ function QuantityStepper({
 }
 
 const PRICED_TYPES = new Set(['service_module', 'billable_component']);
+const BASE_MANICURE_ID = 'basic_manicure_service';
 
 type PricedTableProps = {
   items: GlossaryBreakdownItem[];
@@ -87,7 +88,12 @@ type PricedTableProps = {
 };
 
 function PricedTable({ items, quantities, totalDuration, totalPrice, onQuantityChange }: PricedTableProps) {
-  const priced = items.filter((item) => PRICED_TYPES.has(item.glossaryType));
+  const priced = items.filter((item) => {
+    if (!PRICED_TYPES.has(item.glossaryType)) return false;
+    // Hide container service modules (颜色与效果服务 / 美术设计服务 …) — only the base manicure is a real row.
+    if (item.glossaryType === 'service_module' && item.glossaryId !== BASE_MANICURE_ID) return false;
+    return true;
+  });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   if (priced.length === 0) return null;
 

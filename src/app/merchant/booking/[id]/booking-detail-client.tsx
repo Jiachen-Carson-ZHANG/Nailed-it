@@ -12,18 +12,27 @@ type MerchantBookingDetailClientProps = {
   id: string;
 };
 
-const bookingStatuses: Booking['status'][] = [
-  'pending_review',
-  'confirmed',
-  'completed',
-  'cancelled'
-];
-
 const statusLabels: Record<Booking['status'], string> = {
   pending_review: 'Pending review',
   confirmed: 'Confirmed',
   completed: 'Completed',
   cancelled: 'Cancelled'
+};
+
+// A booking moves forward through its lifecycle; it can't jump arbitrarily (e.g. straight to completed,
+// or back to pending). Each state only offers its valid next steps; completed/cancelled are terminal.
+const nextActions: Record<Booking['status'], Booking['status'][]> = {
+  pending_review: ['confirmed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+const actionLabel: Record<Booking['status'], string> = {
+  pending_review: 'Reopen',
+  confirmed: 'Confirm',
+  completed: 'Mark completed',
+  cancelled: 'Cancel booking',
 };
 
 export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientProps) {
@@ -92,20 +101,22 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
       <p>{booking.notes}</p>
       <p>Technician: {booking.technician.name}</p>
       <p>Status: {statusLabels[currentStatus]}</p>
-      <div className="status-toggle" role="radiogroup" aria-label="Change booking status">
-        {bookingStatuses.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={currentStatus === option}
-            className={currentStatus === option ? 'status-toggle-option status-toggle-active' : 'status-toggle-option'}
-            onClick={() => changeStatus(option)}
-          >
-            {statusLabels[option]}
-          </button>
-        ))}
-      </div>
+      {nextActions[currentStatus].length > 0 ? (
+        <div className="booking-step-actions" aria-label="Update booking status">
+          {nextActions[currentStatus].map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`button button-default ${option === 'cancelled' ? 'button-ghost merchant-style-delete' : 'button-primary'}`}
+              onClick={() => changeStatus(option)}
+            >
+              {actionLabel[option]}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="helper-copy">This booking is {statusLabels[currentStatus].toLowerCase()} — no further changes.</p>
+      )}
       {conversationId ? (
         <Link className="button button-secondary button-block" href={getMerchantMessagesPath(conversationId)}>
           Open message thread

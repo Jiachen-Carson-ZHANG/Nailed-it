@@ -7,6 +7,7 @@ import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
 import { catalogItems } from '@/mock/catalog';
 
 const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
+const BASE_MANICURE_ID = 'basic_manicure_service';
 
 const TYPE_ZH: Record<CatalogItemType, string> = {
   service_module: '服务',
@@ -83,6 +84,11 @@ type StyleDetailPanelProps = {
 export function StyleDetailPanel({ backHref, recognition, style, quoteLines = [] }: StyleDetailPanelProps) {
   const layers = buildLayers(style.catalogBreakdown);
   const lineById = new Map(quoteLines.map((line) => [line.catalogItemId, line]));
+  // Drop container service modules (颜色与效果服务 / 美术设计服务 / 建构服务 …) — they are grouping parents,
+  // not real line items. Only the base manicure is a genuine service_module row.
+  const visibleLayers = layers.filter(
+    (layer) => layer.type !== 'service_module' || layer.id === BASE_MANICURE_ID,
+  );
   const facetGroups = groupFacets(style.discoveryFacets);
   const brief = style.description.trim()
     || recognition?.selection.otherNotes
@@ -115,14 +121,14 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
         </div>
       </div>
 
-      {layers.length > 0 ? (
+      {visibleLayers.length > 0 ? (
         <section className="detail-surface" aria-labelledby="style-detail-layers-title">
           <div className="detail-surface-header">
             <h2 id="style-detail-layers-title">款式构成</h2>
           </div>
           <table className="breakdown-table" aria-label="款式构成与参考明细">
             <tbody>
-              {layers.map((layer) => {
+              {visibleLayers.map((layer) => {
                 const line = lineById.get(layer.id);
                 const durationMin = line && line.affectsDuration ? line.durationMin : 0;
                 const priceCents = line ? line.linePriceCents : 0;
