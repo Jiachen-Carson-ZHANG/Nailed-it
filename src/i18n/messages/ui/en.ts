@@ -45,6 +45,15 @@ const enMessages = {
   'booking.confirm.confirming': 'Confirming…',
   'booking.confirm.confirmed': 'Appointment confirmed',
   'booking.confirm.openMessages': 'Open booking messages',
+  'style.detail.back': 'Back to discovery',
+  'style.detail.totalPrice': 'Reference price',
+  'style.detail.totalDuration': 'Reference duration',
+  'style.detail.breakdown': 'Style breakdown',
+  'style.detail.breakdownTable': 'Style breakdown and reference details',
+  'style.detail.total': 'Reference total',
+  'style.detail.tags': 'Style tags',
+  'style.detail.book': 'Book this style',
+  'style.detail.tryOn': 'Try it on first',
 } satisfies UiMessages;
 
 export default enMessages;

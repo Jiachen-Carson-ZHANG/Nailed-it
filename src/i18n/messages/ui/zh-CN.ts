@@ -45,6 +45,15 @@ export const uiMessageKeys = [
   'booking.confirm.confirming',
   'booking.confirm.confirmed',
   'booking.confirm.openMessages',
+  'style.detail.back',
+  'style.detail.totalPrice',
+  'style.detail.totalDuration',
+  'style.detail.breakdown',
+  'style.detail.breakdownTable',
+  'style.detail.total',
+  'style.detail.tags',
+  'style.detail.book',
+  'style.detail.tryOn',
 ] as const;
 
 export type UiMessageKey = (typeof uiMessageKeys)[number];
@@ -96,6 +105,15 @@ const zhCNMessages = {
   'booking.confirm.confirming': '确认中…',
   'booking.confirm.confirmed': '预约已确认',
   'booking.confirm.openMessages': '打开预约消息',
+  'style.detail.back': '返回发现页',
+  'style.detail.totalPrice': '参考总价',
+  'style.detail.totalDuration': '参考时长',
+  'style.detail.breakdown': '款式构成',
+  'style.detail.breakdownTable': '款式构成与参考明细',
+  'style.detail.total': '参考合计',
+  'style.detail.tags': '风格标签',
+  'style.detail.book': '按这个款式预约',
+  'style.detail.tryOn': '先试戴看看',
 } satisfies UiMessages;
 
 type UiMessageDictionary = Record<AppLanguage, UiMessages>;

@@ -1,5 +1,6 @@
 import type { CatalogSelection } from './catalog';
 import type { AIRecognitionResult, NailStyleCard, StyleDiscoveryFacet } from './nail';
+import type { LocalizedText } from '@/i18n/types';
 
 export const merchantStyleStatuses = [
   'processing',
@@ -33,7 +34,9 @@ export type MerchantStyle = {
   merchantId: string;
   primaryMediaAssetId: string;
   title: string;
+  titleLocalized?: LocalizedText;
   description: string;
+  descriptionLocalized?: LocalizedText;
   status: MerchantStyleStatus;
   discoveryFacets: StyleDiscoveryFacet[];
   recognition: AIRecognitionResult | null;
@@ -54,6 +57,8 @@ export type MerchantStyleRecord = MerchantStyle & {
 export type PublishedMerchantStyle = NailStyleCard & {
   merchantId: string;
   description: string;
+  titleLocalized?: LocalizedText;
+  descriptionLocalized?: LocalizedText;
   /** The published catalog selections, so the customer booking flow can re-quote them server-side. */
   catalogBreakdown: CatalogSelection[];
   recognition: AIRecognitionResult | null;
@@ -109,7 +114,9 @@ export function toPublishedMerchantStyle(
     id: record.id,
     merchantId: record.merchantId,
     title: record.title,
+    titleLocalized: record.titleLocalized,
     description: record.description,
+    descriptionLocalized: record.descriptionLocalized,
     catalogBreakdown: structuredClone(record.catalogBreakdown),
     imageUrl: publicImageUrl,
     discoveryFacets: structuredClone(record.discoveryFacets),

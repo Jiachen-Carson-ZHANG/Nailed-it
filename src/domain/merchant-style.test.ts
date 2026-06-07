@@ -10,7 +10,15 @@ const publishedRecord: MerchantStyleRecord = {
   merchantId: 'merchant-1',
   primaryMediaAssetId: 'media-1',
   title: 'Rose chrome',
+  titleLocalized: {
+    'zh-CN': '玫瑰镀铬',
+    en: 'Rose chrome',
+  },
   description: '圆形，玫瑰镀铬美甲',
+  descriptionLocalized: {
+    'zh-CN': '圆形，玫瑰镀铬美甲',
+    en: 'Round rose chrome nails',
+  },
   status: 'published',
   discoveryFacets: [{ kind: 'style', label: 'Chrome' }],
   recognition: null,
@@ -50,6 +58,14 @@ describe('merchant style lifecycle', () => {
     expect(toPublishedMerchantStyle(publishedRecord, 'https://cdn.example/style.webp')).toMatchObject({
       id: 'style-1',
       merchantId: 'merchant-1',
+      titleLocalized: {
+        'zh-CN': '玫瑰镀铬',
+        en: 'Rose chrome',
+      },
+      descriptionLocalized: {
+        'zh-CN': '圆形，玫瑰镀铬美甲',
+        en: 'Round rose chrome nails',
+      },
       imageUrl: 'https://cdn.example/style.webp',
       previewQuote: { source: 'style_preview', price: 65, duration: 90 },
     });
