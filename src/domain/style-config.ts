@@ -60,7 +60,12 @@ export function buildStyleConfig(
     if (item.billable !== 'no' && item.defaultPriceCents !== null) {
       catalogBreakdown.push(sel); // keeps the merged quantity
     } else {
+      // Non-billable visual attributes (shape, color, length, texture) go into discoveryFacets for
+      // filtering AND into catalogBreakdown so the customer chip UI can reconstruct the full look.
       discoveryFacets.push({ kind: toFacetKind(item), label: item.nameZh });
+      if (item.type === 'visual_attribute') {
+        catalogBreakdown.push(sel);
+      }
     }
   }
 

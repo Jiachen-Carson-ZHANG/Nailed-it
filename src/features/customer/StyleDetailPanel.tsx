@@ -1,10 +1,16 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { CatalogItemType, CatalogSelection, PricingUnit } from '@/domain/catalog';
 import type { PublishedMerchantStyle } from '@/domain/merchant-style';
-import type { AIRecognitionResult, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
+import type { AIRecognitionResult, BreakdownResult, GlossaryBreakdownItem, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
 import type { QuoteLine } from '@/lib/services/quote-service';
-import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
+import { saveCustomerBookingDraft } from '@/domain/booking-draft';
+import { getCustomerBookingConfirmPath, getCustomerTryOnPath } from '@/domain/session';
 import { catalogItems } from '@/mock/catalog';
+import { mockAIResult } from '@/mock/ai';
+import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 
 const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
 const BASE_MANICURE_ID = 'basic_manicure_service';
@@ -18,44 +24,11 @@ const TYPE_ZH: Record<CatalogItemType, string> = {
   style_tag: '风格',
 };
 
-const TYPE_BADGE_CLASS: Record<CatalogItemType, string> = {
-  service_module: 'breakdown-category-base',
-  billable_component: 'breakdown-category-color_style',
-  procedure: 'breakdown-category-other',
-  visual_attribute: 'breakdown-category-shape',
-  complexity_level: 'breakdown-category-addon',
-  style_tag: 'breakdown-category-addon',
-};
-
 const UNIT_ZH: Partial<Record<PricingUnit, string>> = {
   per_piece: '颗',
   per_finger: '指',
   per_set: '套',
 };
-
-type StyleLayer = {
-  id: string;
-  nameZh: string;
-  quantity: number;
-  type: CatalogItemType;
-  typeZh: string;
-  unitZh: string;
-};
-
-function buildLayers(breakdown: CatalogSelection[]): StyleLayer[] {
-  return breakdown.flatMap((selection) => {
-    const item = catalogById.get(selection.catalogItemId);
-    if (!item) return [];
-    return [{
-      id: selection.catalogItemId,
-      nameZh: item.nameZh,
-      quantity: selection.quantity,
-      type: item.type,
-      typeZh: TYPE_ZH[item.type],
-      unitZh: UNIT_ZH[item.defaultPricingUnit] ?? '',
-    }];
-  });
-}
 
 const FACET_KIND_ZH: Record<StyleDiscoveryFacetKind, string> = {
   shape: '甲形',
@@ -68,31 +41,69 @@ const FACET_KIND_ORDER: StyleDiscoveryFacetKind[] = ['shape', 'style', 'addon', 
 
 function groupFacets(facets: StyleDiscoveryFacet[]) {
   return FACET_KIND_ORDER.flatMap((kind) => {
-    const values = Array.from(new Set(facets.filter((facet) => facet.kind === kind).map((facet) => facet.label)));
+    const values = Array.from(new Set(facets.filter((f) => f.kind === kind).map((f) => f.label)));
     return values.length > 0 ? [{ kind, label: FACET_KIND_ZH[kind], values }] : [];
   });
+}
+
+function buildCachedBreakdown(breakdown: CatalogSelection[], quoteLines: QuoteLine[]): BreakdownResult {
+  const lineById = new Map(quoteLines.map((l) => [l.catalogItemId, l]));
+
+  const items: GlossaryBreakdownItem[] = breakdown.flatMap((sel) => {
+    const item = catalogById.get(sel.catalogItemId);
+    if (!item) return [];
+    // Filter out container service modules (grouping parents) — keep only the base manicure
+    if (item.type === 'service_module' && sel.catalogItemId !== BASE_MANICURE_ID) return [];
+    const line = lineById.get(sel.catalogItemId);
+    return [{
+      mode: 'glossary' as const,
+      glossaryId: sel.catalogItemId,
+      glossaryType: item.type as GlossaryBreakdownItem['glossaryType'],
+      nameZh: item.nameZh,
+      typeZh: TYPE_ZH[item.type],
+      parentId: item.parentId ?? 'na',
+      parentNameZh: '',
+      quantity: sel.quantity,
+      unit: item.defaultPricingUnit,
+      // unit price (not line total) so ComponentBreakdownPanel can multiply by qty itself
+      price: line ? line.linePriceCents / 100 / sel.quantity : 0,
+      duration: line?.affectsDuration
+        ? line.durationMin / (item.type === 'billable_component' ? sel.quantity : 1)
+        : (item.defaultDurationMin ?? 0),
+    }];
+  });
+
+  const PRICED = new Set(['service_module', 'billable_component']);
+  const totalPrice    = items.filter((i) => PRICED.has(i.glossaryType)).reduce((s, i) => s + i.price * i.quantity, 0);
+  const totalDuration = items.filter((i) => PRICED.has(i.glossaryType)).reduce((s, i) =>
+    s + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration), 0);
+
+  return { items, catalogSelections: breakdown, totalPrice, totalDuration, mode: 'glossary' };
 }
 
 type StyleDetailPanelProps = {
   backHref: string;
   recognition: AIRecognitionResult | null;
   style: PublishedMerchantStyle;
-  /** Reference per-line price/duration for the breakdown, derived server-side (see page.tsx). */
   quoteLines?: QuoteLine[];
 };
 
-export function StyleDetailPanel({ backHref, recognition, style, quoteLines = [] }: StyleDetailPanelProps) {
-  const layers = buildLayers(style.catalogBreakdown);
-  const lineById = new Map(quoteLines.map((line) => [line.catalogItemId, line]));
-  // Drop container service modules (颜色与效果服务 / 美术设计服务 / 建构服务 …) — they are grouping parents,
-  // not real line items. Only the base manicure is a genuine service_module row.
-  const visibleLayers = layers.filter(
-    (layer) => layer.type !== 'service_module' || layer.id === BASE_MANICURE_ID,
-  );
+export function StyleDetailPanel({ backHref, recognition: _, style, quoteLines = [] }: StyleDetailPanelProps) {
+  const router = useRouter();
   const facetGroups = groupFacets(style.discoveryFacets);
-  const brief = style.description.trim()
-    || recognition?.selection.otherNotes
-    || 'Published by the merchant and ready to use as your booking reference.';
+  const cachedBreakdown = buildCachedBreakdown(style.catalogBreakdown, quoteLines);
+
+  function bookStyle() {
+    saveCustomerBookingDraft({
+      estimate: { source: 'pricing_rules', price: style.previewQuote.price, duration: style.previewQuote.duration },
+      imageUrl: style.imageUrl,
+      recognition: (style.recognition ?? mockAIResult) as AIRecognitionResult,
+      catalogSelections: style.catalogBreakdown,
+      styleId: style.id,
+      styleTitle: style.title,
+    });
+    router.push(getCustomerBookingConfirmPath());
+  }
 
   return (
     <article className="style-detail-panel">
@@ -101,62 +112,10 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
         <img alt={style.title} className="style-detail-image" src={style.imageUrl} />
         <div className="style-detail-summary">
           <h1>{style.title}</h1>
-          <p>{brief}</p>
         </div>
       </div>
 
-      <div className="analyze-summary-bar">
-        <div className="analyze-summary-item">
-          <span className="analyze-summary-label">参考总价</span>
-          <span className="analyze-summary-value">
-            {style.previewQuote.price > 0 ? `$${style.previewQuote.price.toFixed(2)}` : '—'}
-          </span>
-        </div>
-        <div className="analyze-summary-divider" />
-        <div className="analyze-summary-item">
-          <span className="analyze-summary-label">参考时长</span>
-          <span className="analyze-summary-value">
-            {style.previewQuote.duration > 0 ? `${style.previewQuote.duration} 分钟` : '—'}
-          </span>
-        </div>
-      </div>
-
-      {visibleLayers.length > 0 ? (
-        <section className="detail-surface" aria-labelledby="style-detail-layers-title">
-          <div className="detail-surface-header">
-            <h2 id="style-detail-layers-title">款式构成</h2>
-          </div>
-          <table className="breakdown-table" aria-label="款式构成与参考明细">
-            <tbody>
-              {visibleLayers.map((layer) => {
-                const line = lineById.get(layer.id);
-                const durationMin = line && line.affectsDuration ? line.durationMin : 0;
-                const priceCents = line ? line.linePriceCents : 0;
-                return (
-                  <tr key={layer.id}>
-                    <td>
-                      <span className={`breakdown-category-badge ${TYPE_BADGE_CLASS[layer.type]}`}>{layer.typeZh}</span>
-                      <span className="breakdown-label">{layer.nameZh}</span>
-                      {layer.quantity > 1 ? (
-                        <span className="breakdown-qty"> ×{layer.quantity}{layer.unitZh}</span>
-                      ) : null}
-                    </td>
-                    <td className="breakdown-duration">{durationMin > 0 ? `${durationMin} 分钟` : '—'}</td>
-                    <td className="breakdown-price">{priceCents > 0 ? `$${(priceCents / 100).toFixed(2)}` : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="breakdown-total">
-                <td>参考合计</td>
-                <td className="breakdown-duration">{style.previewQuote.duration} 分钟</td>
-                <td className="breakdown-price">${style.previewQuote.price.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </section>
-      ) : null}
+      <ComponentBreakdownPanel image={null} cachedResult={cachedBreakdown} />
 
       {facetGroups.length > 0 ? (
         <section className="detail-surface" aria-labelledby="style-detail-tags-title">
@@ -179,9 +138,9 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
       ) : null}
 
       <div className="detail-actions">
-        <Link className="button button-primary button-block" href={`${getCustomerBookingPath()}?styleId=${style.id}`}>
+        <button className="button button-primary button-block" type="button" onClick={bookStyle}>
           Book this look
-        </Link>
+        </button>
         <Link className="button button-secondary button-block" href={getCustomerTryOnPath(style.id)}>
           Try it on first
         </Link>

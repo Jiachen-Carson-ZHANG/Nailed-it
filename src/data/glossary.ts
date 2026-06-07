@@ -32,6 +32,8 @@ export type GlossaryEntry = {
   merchant_duration_required: BillableValue;
   default_duration_min: number;
   default_pricing_unit: string;
+  /** Platform default price in dollars (null = no platform default). */
+  default_price_cents: number | null;
   quantity_supported: boolean | 'optional';
   complexity_supported: boolean | 'optional';
 };
@@ -67,6 +69,7 @@ function toGlossaryEntry(item: CatalogItem): GlossaryEntry {
     merchant_duration_required: triToBillable(item.merchantDurationRequired),
     default_duration_min: item.defaultDurationMin ?? 0,
     default_pricing_unit: item.defaultPricingUnit,
+    default_price_cents: item.defaultPriceCents,
     quantity_supported: triToBillable(item.quantitySupported),
     complexity_supported: item.complexitySupported === 'yes',
   };

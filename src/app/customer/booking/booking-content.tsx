@@ -1,16 +1,14 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
-import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
 import { consumeTryOnImage } from '@/domain/tryon-image-store';
 import type { AIRecognitionResult, BreakdownResult, RuleBasedQuote, StylePreviewQuote } from '@/domain/nail';
-import { calculateEstimate } from '@/domain/pricing';
 import {
   getCustomerBookingConfirmPath,
   getCustomerBookingPath,
@@ -19,34 +17,17 @@ import {
 } from '@/domain/session';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { mockAIResult } from '@/mock/ai';
-import { defaultPricingRules } from '@/mock/pricing';
 import { getStyleDefinitionById } from '@/mock/styles';
 
 const sampleImageUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ?? '';
 
-function RecognitionPreview({ imageUrl, recognition }: { imageUrl: string; recognition: AIRecognitionResult }) {
-  return (
-    <>
-      {imageUrl && (
-        <div className="booking-result-preview">
-          <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
-        </div>
-      )}
-      <section className="summary-card">
-        <strong>{recognition.selection.otherNotes}</strong>
-      </section>
-    </>
-  );
-}
-
-type BookingStep = 'upload' | 'result' | 'quote';
+type BookingStep = 'upload' | 'result';
 
 type CustomerBookingContentProps = {
   prefillStyleId?: string;
   prefillImageUrl?: string;
   prefillTitle?: string;
   prefillDescription?: string;
-  prefillRecognition?: AIRecognitionResult;
   prefillPreviewQuote?: StylePreviewQuote;
   skipToResult?: boolean;
 };
@@ -56,14 +37,11 @@ export function CustomerBookingContent({
   prefillImageUrl,
   prefillTitle,
   prefillDescription,
-  prefillRecognition,
   prefillPreviewQuote,
   skipToResult,
 }: CustomerBookingContentProps) {
-  // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
-  // Consume once; both state initializers below read the same ref
   const tryOnImageOnce = useRef<SelectedNailImage | null | undefined>(undefined);
   const tryOnImage = (() => {
     if (tryOnImageOnce.current === undefined) tryOnImageOnce.current = consumeTryOnImage();
@@ -72,45 +50,16 @@ export function CustomerBookingContent({
 
   const [selectedImage, setSelectedImage] = useState<SelectedNailImage | null>(() => tryOnImage);
   const [step, setStep] = useState<BookingStep>(() => {
-    if (hasPrefill) return 'quote';
+    if (hasPrefill) return 'result';
     if (skipToResult && getBreakdownResult()) return 'result';
     if (tryOnImage) return 'result';
     return 'upload';
   });
   const [imageUrl, setImageUrl] = useState(prefillImageUrl ?? tryOnImage?.previewUrl ?? '');
-  const [isRecognizing, setIsRecognizing] = useState(false);
-  const [recognition, setRecognition] = useState<AIRecognitionResult>(prefillRecognition ?? mockAIResult);
-  const [recognitionError, setRecognitionError] = useState('');
   const [breakdowns, setBreakdowns] = useState<{ glossary: BreakdownResult | null }>(
     () => ({ glossary: getBreakdownResult() })
   );
 
-  // When the page mounts with a prefill image, convert the remote URL to a
-  // SelectedNailImage so it can be sent to the recognition API without an upload.
-  useEffect(() => {
-    // Published styles use their frozen merchant-reviewed catalog configuration. They must not be
-    // re-analysed at booking time.
-    if (!prefillImageUrl || hasPrefill) return;
-    fetch(prefillImageUrl)
-      .then((r) => r.blob())
-      .then((blob) => {
-        const reader = new FileReader();
-        reader.addEventListener('load', () => {
-          const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-          const imageBase64 = dataUrl.split(',')[1] ?? '';
-          if (imageBase64) {
-            setSelectedImage({ imageBase64, mimeType: blob.type || 'image/jpeg', previewUrl: prefillImageUrl });
-          }
-        });
-        reader.readAsDataURL(blob);
-      })
-      .catch(() => {
-        // If CORS/network blocks the fetch, recognition will fall back to the URL approach
-      });
-  }, [hasPrefill, prefillImageUrl]);
-
-  // For a published style the merchant's curated, server-derived quote is authoritative; fall back
-  // to the rule-based estimate only for free-form photo uploads.
   const estimate = useMemo<RuleBasedQuote>(() => {
     if (prefillPreviewQuote) {
       return { source: 'pricing_rules', price: prefillPreviewQuote.price, duration: prefillPreviewQuote.duration };
@@ -122,63 +71,33 @@ export function CustomerBookingContent({
         duration: breakdowns.glossary.totalDuration,
       };
     }
-    return calculateEstimate(recognition, defaultPricingRules);
-  }, [breakdowns.glossary, recognition, prefillPreviewQuote]);
-
-  async function startRecognition() {
-    // Move to step 2 immediately and show the photo; the description and the breakdown then stream in
-    // there, instead of holding the user on step 1 behind a spinner.
-    setStep('result');
-    setIsRecognizing(true);
-    setRecognitionError('');
-
-    try {
-      const nextRecognition = selectedImage
-        ? await requestLiveRecognition(selectedImage)
-        : await getSampleRecognition();
-
-      setRecognition(nextRecognition);
-    } catch (error) {
-      setRecognitionError(
-        error instanceof Error
-          ? error.message
-          : 'Recognition failed. Check the image and Gemini API key, then try again.'
-      );
-    } finally {
-      setIsRecognizing(false);
-    }
-  }
+    return { source: 'pricing_rules', price: 0, duration: 0 };
+  }, [breakdowns.glossary, prefillPreviewQuote]);
 
   function selectSampleImage() {
     setImageUrl(sampleImageUrl);
     setSelectedImage(null);
-    setRecognitionError('');
     setBreakdowns({ glossary: null });
   }
 
-  // "Change photo" returns to a clean upload state rather than opening the picker in place.
   function resetUpload() {
     setImageUrl('');
     setSelectedImage(null);
-    setRecognitionError('');
     setBreakdowns({ glossary: null });
   }
 
   function handleImageSelected(image: SelectedNailImage) {
     setImageUrl(image.previewUrl);
     setSelectedImage(image);
-    setRecognitionError('');
-    setBreakdowns({ glossary: null }); // clear stale cache so panel re-analyses the new image
+    setBreakdowns({ glossary: null });
     if (step !== 'upload') setStep('upload');
   }
 
   function persistCurrentDraft() {
-    // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
-    // price) rather than a flat recognition estimate.
     saveCustomerBookingDraft({
       estimate,
       imageUrl,
-      recognition,
+      recognition: mockAIResult as AIRecognitionResult,
       breakdowns,
       catalogSelections: breakdowns.glossary?.catalogSelections,
       styleId: hasPrefill ? prefillStyleId : undefined,
@@ -191,14 +110,13 @@ export function CustomerBookingContent({
     setBreakdowns({ glossary: getBreakdownResult() });
   }
 
-  const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
+  const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1 };
 
   return (
     <MobileLayout role="customer" title="Nailed-it">
-      {/* Step indicator — hidden when arriving from a style card */}
       {!hasPrefill && (
         <div className="booking-steps" aria-label="Booking progress">
-          {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
+          {(['Upload', 'Style result'] as const).map((label, index) => (
             <span
               key={label}
               className={index <= stepIndex[step] ? 'booking-step booking-step-active' : 'booking-step'}
@@ -227,8 +145,6 @@ export function CustomerBookingContent({
             )}
           </section>
 
-          {/* hideControls when image is already provided via prefill. The Analyze CTA only appears
-              once an image exists — before that the upload/example pair is the whole call to action. */}
           <ImageUploader
             imageUrl={imageUrl}
             onImageSelected={handleImageSelected}
@@ -237,7 +153,7 @@ export function CustomerBookingContent({
             hideControls={hasPrefill}
             tryOnHref={getCustomerTryOnPath()}
             analyzeAction={
-              <Button block onClick={startRecognition}>
+              <Button block onClick={() => setStep('result')}>
                 Analyze my photo
               </Button>
             }
@@ -245,75 +161,36 @@ export function CustomerBookingContent({
         </>
       )}
 
-      {/* ─── Step 2: AI Result ─── */}
+      {/* ─── Step 2: Result + Book ─── */}
       {step === 'result' && (
         <>
           <section className="page-heading">
-            <p className="section-eyebrow">Step 2</p>
-            <h1>Style detected</h1>
+            {hasPrefill ? (
+              <>
+                <p className="section-eyebrow">Style breakdown</p>
+                <h1>{prefillTitle}</h1>
+              </>
+            ) : (
+              <>
+                <p className="section-eyebrow">Step 2</p>
+                <h1>Style detected</h1>
+              </>
+            )}
           </section>
 
           {imageUrl && (
             <div className="booking-result-preview">
-              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+              <img alt={prefillTitle ?? 'Your nail reference'} src={imageUrl} className="booking-result-image" />
             </div>
           )}
 
-          {recognitionError ? (
-            <section className="summary-card" role="alert">
-              <strong>Recognition needs attention</strong>
-              <p>{recognitionError}</p>
-            </section>
-          ) : isRecognizing ? (
-            <LoadingState title="Reading the style" body="Detecting shape, colors, and finish…" />
-          ) : (
-            <RecognitionPreview imageUrl="" recognition={recognition} />
-          )}
-          <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
-
-          <div className="booking-step-actions">
-            <Button block variant="secondary" onClick={() => setStep('upload')}>
-              ← Change photo
-            </Button>
-            <Button block onClick={() => setStep('quote')}>
-              See my quote →
-            </Button>
-          </div>
-        </>
-      )}
-
-      {/* ─── Step 3: Quote ─── */}
-      {step === 'quote' && (
-        <>
-          <section className="page-heading">
-            <p className="section-eyebrow">Step 3</p>
-            <h1>Your quote</h1>
-          </section>
-
-          {hasPrefill ? (
-            imageUrl ? (
-              <div className="booking-result-preview">
-                <img alt={prefillTitle ?? 'Published nail style'} src={imageUrl} className="booking-result-image" />
-              </div>
-            ) : null
-          ) : (
-            <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
-          )}
-
-          {prefillPreviewQuote ? (
+          {hasPrefill && prefillDescription && (
             <section className="summary-card">
-              {prefillDescription ? <p>{prefillDescription}</p> : null}
-              <p>
-                Studio price: <strong>{estimate.duration} min · ${estimate.price.toFixed(2)}</strong>
-              </p>
+              <p>{prefillDescription}</p>
             </section>
-          ) : (
-            breakdowns.glossary && (
-              <section className="summary-card">
-                <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
-              </section>
-            )
           )}
+
+          <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
             {hasPrefill ? (
@@ -324,8 +201,8 @@ export function CustomerBookingContent({
                 ← Back
               </Link>
             ) : (
-              <Button block variant="secondary" onClick={() => setStep('result')}>
-                ← Back
+              <Button block variant="secondary" onClick={() => setStep('upload')}>
+                ← Change photo
               </Button>
             )}
             <Link
@@ -333,38 +210,11 @@ export function CustomerBookingContent({
               href={getCustomerBookingConfirmPath()}
               onClick={persistCurrentDraft}
             >
-              Next: choose time
+              Book time →
             </Link>
           </div>
         </>
       )}
     </MobileLayout>
   );
-}
-
-async function getSampleRecognition(): Promise<AIRecognitionResult> {
-  await new Promise((resolve) => window.setTimeout(resolve, 700));
-  return mockAIResult;
-}
-
-async function requestLiveRecognition(image: SelectedNailImage): Promise<AIRecognitionResult> {
-  const response = await fetch('/api/ai/recognize-nail-style', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imageBase64: image.imageBase64,
-      mimeType: image.mimeType,
-    }),
-  });
-
-  const responseBody = (await response.json()) as {
-    error?: string;
-    recognition?: AIRecognitionResult;
-  };
-
-  if (!response.ok || !responseBody.recognition) {
-    throw new Error(responseBody.error ?? 'Recognition failed. Try another image.');
-  }
-
-  return responseBody.recognition;
 }

@@ -36,11 +36,11 @@ const PANELS: { id: PanelId; label: string }[] = [
 ];
 
 // ── Static item lists ──────────────────────────────────────────────────────────
-const REMOVAL_IDS = ['removal_basic_gel', 'removal_short_extension', 'removal_extension', 'removal_with_rhinestone'];
+const REMOVAL_IDS = ['removal_basic_gel', 'removal_short_origin', 'removal_extension', 'removal_with_rhinestone'];
 const EXTENSION_IDS = ['nail_tip_full_cover', 'nail_tip_half_cover', 'nail_tip_shallow_cover'];
 const BUILDER_IDS = ['builder_gel'];
 
-const COLOR_IDS = ['color_split', 'solid_color', 'gradient', 'aura_blush', 'ink_wash', 'jelly_translucent', 'cat_eye', 'glitter', 'matte_top', 'magnetic_special_effect'];
+const COLOR_IDS = ['color_split', 'solid_color', 'dual_color', 'gradient', 'aura_blush', 'ink_wash', 'jelly_translucent', 'cat_eye', 'glitter', 'matte_top'];
 
 const ART_GROUPS: { label: string; ids: string[] }[] = [
   { label: '法式', ids: ['french_tip_basic', 'french_tip_special'] },

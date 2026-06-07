@@ -87,9 +87,9 @@ function seedStateFromBreakdown(result: BreakdownResult) {
       texture = item.glossaryId;
     } else if (cat === 'color') {
       colorIds.add(item.glossaryId);
-    } else if (cat === 'color_effect') {
+    } else if (cat === 'color_effect' && item.glossaryType === 'billable_component') {
       colorEffectIds.add(item.glossaryId);
-    } else if (cat === 'art') {
+    } else if (cat === 'art' && item.glossaryType === 'billable_component') {
       artIds.add(item.glossaryId);
     } else if (cat === 'decoration') {
       decoIds.add(item.glossaryId);
@@ -112,11 +112,14 @@ function buildBreakdownResult(
   artIds: Set<string>,
   decoIds: Set<string>,
   quantities: Map<string, number>,
+  // Server-resolved prices from cachedResult take precedence over localStorage
+  priceOverrides: Map<string, number> = new Map(),
 ): BreakdownResult {
   const merchantSettings = loadGlossarySettings();
   const settingsById = new Map(merchantSettings.map((s) => [s.id, s]));
 
   const allIds = [
+    BASE_MANICURE_ID,
     ...(removalId ? [removalId] : []),
     ...structureIds,
     ...(nailShape ? [nailShape] : []),
@@ -146,7 +149,7 @@ function buildBreakdownResult(
       parentNameZh: parentEntry?.name_zh ?? '',
       quantity: qty,
       unit,
-      price: s?.price ?? 0,
+      price: priceOverrides.has(id) ? (priceOverrides.get(id) as number) : (s?.price ?? 0),
       duration: s?.duration ?? entry.default_duration_min,
     });
   }
@@ -159,7 +162,12 @@ function buildBreakdownResult(
     .filter((i) => PRICED.has(i.glossaryType))
     .reduce((sum, i) => sum + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration), 0);
 
-  const catalogSelections = items.map((i) => ({ catalogItemId: i.glossaryId, quantity: i.quantity }));
+  // Exclude container service modules (颜色与效果服务, 美术设计服务, …) — they are grouping parents
+  // with no merchant price, so quoteService throws 'unresolved_pricing' if they reach booking.
+  // Only the base manicure (a genuine priced service_module) and billable_component leaves go through.
+  const catalogSelections = items
+    .filter((i) => i.glossaryType !== 'service_module' || i.glossaryId === BASE_MANICURE_ID)
+    .map((i) => ({ catalogItemId: i.glossaryId, quantity: i.quantity }));
 
   return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }
@@ -446,6 +454,13 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
     cachedResult && image ? image.imageBase64.slice(0, 64) : null
   );
 
+  // Unit prices from the server-computed quote (cachedResult). These take priority over localStorage
+  // so the customer sees the merchant's DB prices, not the browser's cached defaults.
+  const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(() => {
+    if (!cachedResult) return new Map();
+    return new Map(cachedResult.items.map((i) => [i.glossaryId, i.price]));
+  });
+
   useEffect(() => {
     if (cachedResult) applyBreakdown(cachedResult);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -472,6 +487,8 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
     setArtIds(s.artIds);
     setDecoIds(s.decoIds);
     setQuantities(s.quantities);
+    // Carry over server-resolved prices from the result (may be empty for AI results)
+    setPriceOverrides(new Map(result.items.map((i) => [i.glossaryId, i.price])));
   }
 
   async function runAnalysis() {
@@ -498,11 +515,11 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult }: Compo
   const breakdown = useMemo(
     () => buildBreakdownResult(
       removalId, structureIds, nailShape, nailLength, texture,
-      colorIds, colorEffectIds, artIds, decoIds, quantities
+      colorIds, colorEffectIds, artIds, decoIds, quantities, priceOverrides
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [removalId, structureIds, nailShape, nailLength, texture,
-     colorIds, colorEffectIds, artIds, decoIds, quantities]
+     colorIds, colorEffectIds, artIds, decoIds, quantities, priceOverrides]
   );
 
   useEffect(() => { onResult?.(breakdown); }, [breakdown]); // eslint-disable-line react-hooks/exhaustive-deps

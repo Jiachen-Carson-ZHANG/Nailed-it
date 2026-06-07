@@ -274,11 +274,17 @@ export function parseBreakdownModelOutput(
   // the merchant-side withBaseManicure enforcement).
   const baseItem = seenIds.has(BASE_MANICURE_ID) ? null : baseManicureItem(settingsById);
   const items = baseItem ? [baseItem, ...detected] : detected;
-  const catalogSelections = items.flatMap((item) =>
-    settingsById.get(item.glossaryId)?.enabled
-      ? [{ catalogItemId: item.glossaryId, quantity: item.quantity }]
-      : [],
-  );
+  const catalogSelections = items.flatMap((item) => {
+    // Billable items: only include if merchant has them enabled
+    if (item.glossaryType !== 'visual_attribute') {
+      return settingsById.get(item.glossaryId)?.enabled
+        ? [{ catalogItemId: item.glossaryId, quantity: item.quantity }]
+        : [];
+    }
+    // Non-billable visual_attributes (shape, color, length, texture): always include so the
+    // customer breakdown panel can light up the right chips without re-calling AI.
+    return [{ catalogItemId: item.glossaryId, quantity: item.quantity }];
+  });
 
   return {
     items,

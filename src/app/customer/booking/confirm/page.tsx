@@ -6,13 +6,15 @@ import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { Toast } from '@/components/ui/Toast';
 import {
   consumeCustomerBookingDraft,
-  readCustomerBookingDraftSnapshot
+  readCustomerBookingDraftSnapshot,
+  saveCustomerBookingDraft,
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
-import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from '@/domain/session';
+import { getCustomerBookingPath, getCustomerMessagesPath, getCustomerStylePath, homePathForRole } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import {
@@ -32,6 +34,8 @@ export default function CustomerBookingConfirmPage() {
   const draft = draftSnapshot?.draft ?? null;
   const [notes, setNotes] = useState('');
   const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(Boolean(draft));
+  const [slotsError, setSlotsError] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -54,12 +58,13 @@ export default function CustomerBookingConfirmPage() {
     };
   }, [draftSnapshot]);
 
-  // Availability now comes from the booking service (DB occupancy), not localStorage.
   useEffect(() => {
     if (!draft) {
       return undefined;
     }
     let active = true;
+    setSlotsLoading(true);
+    setSlotsError('');
     const request = draft.styleId
       ? listAvailableSlotsForStyleAction(draft.styleId)
       : draft.catalogSelections?.length
@@ -67,10 +72,18 @@ export default function CustomerBookingConfirmPage() {
         : listAvailableSlotsAction(draft.estimate.duration);
     request
       .then((days) => {
-        if (active) setAvailableDays(days);
+        if (active) {
+          setAvailableDays(days);
+          setSlotsLoading(false);
+        }
       })
-      .catch(() => {
-        /* leave empty */
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[confirm] slots failed:', msg, { styleId: draft.styleId, hasSelections: Boolean(draft.catalogSelections?.length), estimateDuration: draft.estimate.duration });
+        if (active) {
+          setSlotsError(msg);
+          setSlotsLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -154,6 +167,15 @@ export default function CustomerBookingConfirmPage() {
     }
   }
 
+  const backHref = draft.styleId
+    ? getCustomerStylePath(draft.styleId)
+    : `${getCustomerBookingPath()}?skipToResult=1`;
+
+  function goBack() {
+    saveCustomerBookingDraft(draft);
+    router.push(backHref);
+  }
+
   const displayEstimate = selectedSlot?.quote
     ? selectedSlot.quote
     : draft.breakdowns?.glossary
@@ -189,6 +211,23 @@ export default function CustomerBookingConfirmPage() {
         value={selectedSlot}
         onChange={setSelectedSlot}
       />
+      {slotsLoading && (
+        <LoadingState title="Finding available slots" body="Checking technician availability…" />
+      )}
+      {!slotsLoading && slotsError && (
+        <EmptyState
+          icon="⚠"
+          title="Couldn't load availability"
+          body="We couldn't fetch available time slots right now. Please go back and try again."
+        />
+      )}
+      {!slotsLoading && !slotsError && availableDays.length === 0 && (
+        <EmptyState
+          icon="📅"
+          title="No slots available"
+          body="There are no open appointment slots in the next 7 days. Please contact the salon directly."
+        />
+      )}
 
       <label className="field">
         <span>备注</span>
@@ -210,6 +249,11 @@ export default function CustomerBookingConfirmPage() {
               ? 'Appointment confirmed'
               : 'Confirm appointment'}
       </Button>
+      {!bookingLocked && (
+        <Button block variant="secondary" onClick={goBack}>
+          ← Back
+        </Button>
+      )}
       {createdBooking?.conversationId ? (
         <Link
           className="button button-secondary button-block"

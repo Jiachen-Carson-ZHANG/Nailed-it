@@ -15,21 +15,7 @@ describe('CustomerBookingPage', () => {
     vi.useRealTimers();
   });
 
-  it('walks through the three-step booking flow and persists the draft', async () => {
-    // Recognition runs against the live endpoint now that the example shortcut is gone; the breakdown
-    // panel fetch in step 2 hits the same mock and is handled gracefully if the shape doesn't match.
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          recognition: {
-            selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'Sample look.' },
-            meta: { confidence: 0.9, aiSuggestedQuote: { source: 'ai_suggestion', price: 0, duration: 0 } }
-          }
-        }),
-        { headers: { 'Content-Type': 'application/json' }, status: 200 }
-      )
-    );
-
+  it('walks through the two-step booking flow and persists the draft', async () => {
     render(<CustomerBookingContent />);
 
     // Step 1: Upload — the Analyze CTA only appears once a reference image exists.
@@ -41,18 +27,13 @@ describe('CustomerBookingPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
 
-    // Step 2: Result — style detected
+    // Step 2: Result — style detected, Book time link present
     await screen.findByRole('heading', { name: /style detected/i });
 
-    fireEvent.click(screen.getByRole('button', { name: /see my quote/i }));
+    const bookLink = screen.getByRole('link', { name: /book time/i });
+    expect(bookLink).toHaveAttribute('href', '/customer/booking/confirm');
 
-    // Step 3: Quote
-    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
-
-    const nextLink = screen.getByRole('link', { name: /next: choose time/i });
-    expect(nextLink).toHaveAttribute('href', '/customer/booking/confirm');
-
-    fireEvent.click(nextLink);
+    fireEvent.click(bookLink);
 
     expect(getCustomerBookingDraft()).toMatchObject({
       recognition: {
@@ -63,34 +44,8 @@ describe('CustomerBookingPage', () => {
     });
   });
 
-  it('sends a selected image to the live recognition API', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          recognition: {
-            selection: {
-              baseServices: ['extension'],
-              nailShape: 'oval',
-              styles: ['french'],
-              addons: [],
-              otherNotes: 'Thin white French tips from Gemini.'
-            },
-            meta: {
-              confidence: 0.91,
-              aiSuggestedQuote: {
-                source: 'ai_suggestion',
-                price: 0,
-                duration: 0
-              }
-            }
-          }
-        }),
-        {
-          headers: { 'Content-Type': 'application/json' },
-          status: 200
-        }
-      )
-    );
+  it('advances to step 2 without calling the recognition API', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     render(<CustomerBookingContent />);
 
@@ -105,22 +60,14 @@ describe('CustomerBookingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
 
-    // Should advance to step 2 with API result
     await screen.findByRole('heading', { name: /style detected/i });
-    expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
-
-    expect(fetch).toHaveBeenCalledWith(
+    expect(fetchSpy).not.toHaveBeenCalledWith(
       '/api/ai/recognize-nail-style',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      expect.anything()
     );
   });
 
-  it('opens a published style on its frozen quote without rerunning image analysis', () => {
+  it('opens a published style directly on the breakdown without rerunning image analysis', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(
       <CustomerBookingContent
@@ -132,11 +79,11 @@ describe('CustomerBookingPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /published style/i })).toBeInTheDocument();
     expect(screen.getByText(/merchant-reviewed configuration/i)).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('link', { name: /next: choose time/i }));
+    fireEvent.click(screen.getByRole('link', { name: /book time/i }));
     expect(getCustomerBookingDraft()).toMatchObject({ styleId: 'published-style' });
   });
 });

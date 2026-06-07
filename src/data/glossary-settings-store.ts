@@ -14,7 +14,7 @@ export type GlossaryEntrySettings = {
 export function getDefaultSettings(): GlossaryEntrySettings[] {
   const basicModule = glossaryById.get('basic_manicure_service');
   const moduleEntry: GlossaryEntrySettings[] = basicModule
-    ? [{ id: basicModule.id, price: 0, duration: basicModule.default_duration_min, enabled: true, unit: 'per_set' }]
+    ? [{ id: basicModule.id, price: (basicModule.default_price_cents ?? 0) / 100, duration: basicModule.default_duration_min, enabled: true, unit: 'per_set' }]
     : [];
   const procedureEntries: GlossaryEntrySettings[] = basicServiceProcedures.map((e) => ({
     id: e.id,
@@ -24,9 +24,9 @@ export function getDefaultSettings(): GlossaryEntrySettings[] {
   }));
   const componentEntries = configurableComponents.map((entry) => ({
     id: entry.id,
-    price: 0,
+    price: (entry.default_price_cents ?? 0) / 100,
     duration: entry.default_duration_min,
-    enabled: true,
+    enabled: entry.default_price_cents !== null,
   }));
   return [...moduleEntry, ...procedureEntries, ...componentEntries];
 }

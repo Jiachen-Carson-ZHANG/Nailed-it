@@ -72,8 +72,11 @@ export async function listConfigurableCatalogAction(): Promise<ConfigurableCatal
     // Drop container service modules (颜色与效果服务 / 美术设计服务 / 卸甲服务 …) — they are grouping
     // parents, not addable line items. The base manicure stays (the selected list renders it by id);
     // it is always pre-selected, so it never shows up in the "Add services" list anyway.
+    // Also include visual_attributes (nail shape, color, length, texture) so the merchant workspace
+    // chip UI can show and edit them; they have priceCents=0 / enabled=false since they don't bill.
     .filter(
-      (item) => item.billable !== 'no'
+      (item) =>
+        (item.billable !== 'no' || item.type === 'visual_attribute')
         && (item.type !== 'service_module' || item.id === 'basic_manicure_service'),
     )
     .map((item) => {
