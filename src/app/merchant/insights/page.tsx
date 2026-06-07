@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
+import { FunnelChart, type FunnelStage } from '@/features/merchant/insights/FunnelChart';
+import { TrendBars } from '@/features/merchant/insights/TrendBars';
+import { GapBar } from '@/features/merchant/insights/GapBar';
+import { StyleConversionBars } from '@/features/merchant/insights/StyleConversionBars';
+import { ActionCard } from '@/features/merchant/insights/ActionCard';
 import { getMerchantInsightsAction, summarizeInsightsAction } from '@/lib/actions/insights-actions';
 import { isGenericTag } from '@/domain/catalog-tags';
 import { useLanguage } from '@/i18n/context';
@@ -15,42 +19,28 @@ const insightsCopy = {
   'zh-CN': {
     eyebrow: 'Nailed AI · 需求洞察',
     title: '门店数据洞察',
-    body: '基于真实顾客行为，实时呈现需求趋势、品类缺口与转化表现。',
+    body: '基于真实顾客行为，完整呈现从曝光到预约的转化故事。',
     rangeAria: '时间范围',
     today: '今日',
     week: '本周',
     loading: '正在加载数据…',
     emptyTitle: '暂无足够数据',
-    emptyBody: '顾客开始浏览、试戴和预约后，这里会显示需求趋势、品类缺口与转化表现。',
+    emptyBody: '顾客开始浏览、试戴和预约后，这里会显示完整的转化故事。',
     aiSummary: 'AI 摘要',
     aiGenerated: 'AI 生成',
     ruleGenerated: '规则生成',
     aiLoading: 'AI 摘要生成中…',
-    snapshot: '数据快照',
-    searches: '搜索',
-    searchesDetail: '搜索与筛选次数',
-    tryOns: '试戴',
-    tryOnsDetail: '虚拟试戴次数',
-    bookings: '预约',
-    bookingsDetail: '确认预约数',
-    activeCustomers: '活跃顾客',
-    activeCustomersDetail: '有互动行为的顾客',
+    funnelTitle: '客户旅程',
+    stageImpressions: '曝光',
+    stageClicks: '点击',
+    stageDetails: '详情',
+    stageTryOns: '试戴',
+    stageBookings: '预约',
+    context: (searches: number, customers: number) => `搜索 ${searches} · 活跃顾客 ${customers}`,
     demandTrends: '需求趋势',
-    vsPrevious: '本期 vs 上期',
-    previous: (n: number) => `上期 ${n}`,
+    vsPrevious: '本期 vs 上期 · 触达次数',
     catalogGaps: '品类缺口',
-    customerWants: (label: string) => `顾客想要「${label}」`,
-    demand: '需求',
-    supply: '在售',
-    searchCount: (n: number) => `${n} 次搜索`,
-    styleCount: (n: number) => `${n} 款`,
-    gapHint: '需求远超供给，建议上架更多相关款式。',
     designPerformance: '款式表现',
-    highInterestLowConversion: '高意向 · 低转化',
-    topConverter: '转化最高',
-    topConverterMeta: (rate: string, bookings: number) => `转化率 ${rate} · 预约 ${bookings}`,
-    tryOnBook: (tryOns: number, bookings: number) => `试戴 ${tryOns} · 预约 ${bookings}`,
-    conversionRate: (rate: string) => `转化率 ${rate}`,
     allStyles: (n: number) => `全部款式表现（${n}）`,
     sort: '排序',
     sortConversion: '转化率',
@@ -61,46 +51,37 @@ const insightsCopy = {
     colBook: '预约',
     colConversion: '转化率',
     insufficientSample: '样本不足',
+    actionsTitle: '建议行动',
+    actionFixPricing: (title: string) => `复查「${title}」定价或展示，提升转化`,
+    actionAddStyles: (label: string) => `上架更多「${label}」风格，补足缺口`,
+    ctaEdit: '去编辑',
+    ctaUpload: '去上架',
   },
   en: {
     eyebrow: 'Nailed AI · Demand insights',
     title: 'Studio insights',
-    body: 'Live demand trends, catalog gaps, and conversion — all from real customer behaviour.',
+    body: 'The full conversion story, from impression to booking, all from real behaviour.',
     rangeAria: 'Time range',
     today: 'Today',
     week: 'This week',
     loading: 'Loading insights…',
     emptyTitle: 'Not enough data yet',
-    emptyBody: 'Once customers browse, try on styles, and book, demand trends, gaps, and conversion will appear here.',
+    emptyBody: 'Once customers browse, try on styles, and book, the full conversion story shows here.',
     aiSummary: 'AI summary',
     aiGenerated: 'AI generated',
     ruleGenerated: 'Rule based',
     aiLoading: 'Generating AI summary…',
-    snapshot: 'Snapshot',
-    searches: 'Searches',
-    searchesDetail: 'Search and filter events',
-    tryOns: 'Try-ons',
-    tryOnsDetail: 'Virtual try-on sessions',
-    bookings: 'Bookings',
-    bookingsDetail: 'Confirmed bookings',
-    activeCustomers: 'Active customers',
-    activeCustomersDetail: 'Customers with recent activity',
+    funnelTitle: 'Customer journey',
+    stageImpressions: 'Impressions',
+    stageClicks: 'Clicks',
+    stageDetails: 'Detail views',
+    stageTryOns: 'Try-ons',
+    stageBookings: 'Bookings',
+    context: (searches: number, customers: number) => `${searches} searches · ${customers} active customers`,
     demandTrends: 'Demand trends',
-    vsPrevious: 'Current vs previous period',
-    previous: (n: number) => `Prev ${n}`,
+    vsPrevious: 'Current vs previous · touches',
     catalogGaps: 'Catalog gaps',
-    customerWants: (label: string) => `Customers want "${label}"`,
-    demand: 'Demand',
-    supply: 'Live styles',
-    searchCount: (n: number) => `${n} searches`,
-    styleCount: (n: number) => `${n} styles`,
-    gapHint: 'Demand outpaces supply — consider adding more styles in this category.',
     designPerformance: 'Style performance',
-    highInterestLowConversion: 'High interest · low conversion',
-    topConverter: 'Top converter',
-    topConverterMeta: (rate: string, bookings: number) => `${rate} conversion · ${bookings} bookings`,
-    tryOnBook: (tryOns: number, bookings: number) => `${tryOns} try-ons · ${bookings} bookings`,
-    conversionRate: (rate: string) => `${rate} conversion`,
     allStyles: (n: number) => `All styles (${n})`,
     sort: 'Sort by',
     sortConversion: 'Conversion',
@@ -111,15 +92,17 @@ const insightsCopy = {
     colBook: 'Bookings',
     colConversion: 'Conversion',
     insufficientSample: 'Low sample',
+    actionsTitle: 'Recommended actions',
+    actionFixPricing: (title: string) => `Review “${title}” pricing or display to lift conversion`,
+    actionAddStyles: (label: string) => `Add more “${label}” styles to close the gap`,
+    ctaEdit: 'Edit',
+    ctaUpload: 'Add styles',
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
 
 // Min try-on sample before a conversion rate is trustworthy (a 1-try/1-book style is not "100%").
 const MIN_CONVERSION_SAMPLE = 3;
 
-function arrow(direction: 'up' | 'down' | 'flat'): string {
-  return direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→';
-}
 function pct(rate: number | null): string {
   return rate == null ? '—' : `${Math.round(rate * 100)}%`;
 }
@@ -167,7 +150,19 @@ export default function MerchantInsightsPage() {
     }
     return b.tryOns - a.tryOns || b.bookings - a.bookings;
   });
-  const maxSearch = Math.max(1, ...(insights?.catalogGaps.map((g) => g.searchCount) ?? [1]));
+
+  const funnelStages: FunnelStage[] = s
+    ? [
+        { label: copy.stageImpressions, count: s.impressions },
+        { label: copy.stageClicks, count: s.clicks },
+        { label: copy.stageDetails, count: s.detailViews },
+        { label: copy.stageTryOns, count: s.tryOns },
+        { label: copy.stageBookings, count: s.bookings },
+      ]
+    : [];
+
+  const trendRows = (insights?.demandTrends ?? []).filter((t) => !isGenericTag(t.label));
+  const topGap = insights?.catalogGaps[0];
 
   const rangeLabels = [
     { days: 1 as const, label: copy.today },
@@ -203,77 +198,45 @@ export default function MerchantInsightsPage() {
         <EmptyState title={copy.emptyTitle} body={copy.emptyBody} />
       ) : (
         <>
-          <article className="detail-surface insights-ai-card" aria-label={copy.aiSummary}>
-            <div className="detail-surface-header">
-              <h2>{copy.aiSummary}</h2>
-              {summary ? (
+          {summary ? (
+            <article className="detail-surface insights-ai-card" aria-label={copy.aiSummary}>
+              <div className="detail-surface-header">
+                <h2>{copy.aiSummary}</h2>
                 <span className="insights-badge">
                   {summary.source === 'ai' ? copy.aiGenerated : copy.ruleGenerated}
                 </span>
-              ) : null}
-            </div>
-            {summary ? (
-              <>
-                <p className="insights-ai-headline">{summary.headline}</p>
-                {summary.insights.length > 0 ? (
-                  <ul className="insights-ai-list">{summary.insights.map((line) => <li key={line}>{line}</li>)}</ul>
-                ) : null}
-                {summary.actions.length > 0 ? (
-                  <div className="insights-ai-actions">
-                    {summary.actions.map((line) => <span key={line} className="insights-action-chip">→ {line}</span>)}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p className="helper-copy">{copy.aiLoading}</p>
-            )}
-          </article>
+              </div>
+              <p className="insights-ai-headline">{summary.headline}</p>
+            </article>
+          ) : (
+            <p className="helper-copy">{copy.aiLoading}</p>
+          )}
 
-          <section className="analytics-grid" aria-label={copy.snapshot}>
-            <MerchantAnalyticsCard title={copy.searches} value={String(s!.searches)} detail={copy.searchesDetail} />
-            <MerchantAnalyticsCard title={copy.tryOns} value={String(s!.tryOns)} detail={copy.tryOnsDetail} />
-            <MerchantAnalyticsCard title={copy.bookings} value={String(s!.bookings)} detail={copy.bookingsDetail} />
-            <MerchantAnalyticsCard title={copy.activeCustomers} value={String(s!.activeCustomers)} detail={copy.activeCustomersDetail} />
+          <section className="detail-surface" aria-labelledby="insights-funnel-title">
+            <div className="detail-surface-header">
+              <h2 id="insights-funnel-title">{copy.funnelTitle}</h2>
+              <span className="helper-copy">{copy.context(s!.searches, s!.activeCustomers)}</span>
+            </div>
+            <FunnelChart stages={funnelStages} />
           </section>
 
-          {insights.demandTrends.length > 0 ? (
+          {trendRows.length > 0 ? (
             <section className="detail-surface" aria-labelledby="insights-trends-title">
               <div className="detail-surface-header">
                 <h2 id="insights-trends-title">{copy.demandTrends}</h2>
                 <span className="helper-copy">{copy.vsPrevious}</span>
               </div>
-              <div className="insights-trend-list">
-                {insights.demandTrends.filter((t) => !isGenericTag(t.label)).slice(0, 6).map((t) => (
-                  <div key={t.label} className="insights-trend-row">
-                    <span className="insights-trend-label">{t.label}</span>
-                    <span className={`insights-trend-delta insights-trend-${t.direction}`}>{arrow(t.direction)} {t.current}</span>
-                    <span className="insights-trend-prev">{copy.previous(t.previous)}</span>
-                  </div>
-                ))}
-              </div>
+              <TrendBars rows={trendRows} limit={5} />
             </section>
           ) : null}
 
-          {insights.catalogGaps.length > 0 ? (
+          {topGap ? (
             <section className="detail-surface" aria-labelledby="insights-gap-title">
               <div className="detail-surface-header">
                 <h2 id="insights-gap-title">{copy.catalogGaps}</h2>
               </div>
-              {insights.catalogGaps.map((gap) => (
-                <div key={gap.label} className="insights-gap-card">
-                  <p className="insights-gap-head">{copy.customerWants(gap.label)}</p>
-                  <div className="insights-bar-row">
-                    <span className="insights-bar-label">{copy.demand}</span>
-                    <span className="insights-bar"><span className="insights-bar-fill insights-bar-demand" style={{ width: `${(gap.searchCount / maxSearch) * 100}%` }} /></span>
-                    <span className="insights-bar-num">{copy.searchCount(gap.searchCount)}</span>
-                  </div>
-                  <div className="insights-bar-row">
-                    <span className="insights-bar-label">{copy.supply}</span>
-                    <span className="insights-bar"><span className="insights-bar-fill insights-bar-supply" style={{ width: `${Math.max(2, (gap.matchingActiveStyles / Math.max(gap.searchCount, 1)) * 100)}%` }} /></span>
-                    <span className="insights-bar-num">{copy.styleCount(gap.matchingActiveStyles)}</span>
-                  </div>
-                  <p className="helper-copy">{copy.gapHint}</p>
-                </div>
+              {insights.catalogGaps.slice(0, 2).map((gap) => (
+                <GapBar key={gap.label} gap={gap} />
               ))}
             </section>
           ) : null}
@@ -282,18 +245,12 @@ export default function MerchantInsightsPage() {
             <div className="detail-surface-header">
               <h2 id="insights-perf-title">{copy.designPerformance}</h2>
             </div>
-            {lowConversion ? (
-              <div className="insights-perf-row">
-                <div><span className="insights-badge insights-badge-warn">{copy.highInterestLowConversion}</span><p className="insights-perf-title">{lowConversion.title}</p></div>
-                <p className="insights-perf-meta">{copy.tryOnBook(lowConversion.tryOns, lowConversion.bookings)}</p>
-              </div>
-            ) : null}
-            {topConverter ? (
-              <div className="insights-perf-row">
-                <div><span className="insights-badge insights-badge-good">{copy.topConverter}</span><p className="insights-perf-title">{topConverter.title}</p></div>
-                <p className="insights-perf-meta">{copy.topConverterMeta(pct(topConverter.conversionRate), topConverter.bookings)}</p>
-              </div>
-            ) : null}
+            <StyleConversionBars
+              styles={perf}
+              minTryOns={MIN_CONVERSION_SAMPLE}
+              winnerId={topConverter?.styleId}
+              leakIds={lowConversion ? [lowConversion.styleId] : []}
+            />
 
             <button type="button" className="insights-collapse-toggle" aria-expanded={perfOpen} onClick={() => setPerfOpen((v) => !v)}>
               <span>{copy.allStyles(perf.length)}</span>
@@ -331,6 +288,32 @@ export default function MerchantInsightsPage() {
               </>
             ) : null}
           </section>
+
+          {(lowConversion || topGap) ? (
+            <section className="detail-surface" aria-labelledby="insights-actions-title">
+              <div className="detail-surface-header">
+                <h2 id="insights-actions-title">{copy.actionsTitle}</h2>
+              </div>
+              <div className="insights-action-queue">
+                {lowConversion ? (
+                  <ActionCard
+                    text={copy.actionFixPricing(lowConversion.title)}
+                    evidence={`${copy.stageTryOns} ${lowConversion.tryOns} · ${copy.stageBookings} ${lowConversion.bookings}`}
+                    href={`/merchant/styles/${lowConversion.styleId}/review`}
+                    cta={copy.ctaEdit}
+                  />
+                ) : null}
+                {topGap ? (
+                  <ActionCard
+                    text={copy.actionAddStyles(topGap.label)}
+                    evidence={language === 'zh-CN' ? `${topGap.searchCount} 次搜索 · 在售 ${topGap.matchingActiveStyles} 款` : `${topGap.searchCount} searches · ${topGap.matchingActiveStyles} in stock`}
+                    href="/merchant/styles"
+                    cta={copy.ctaUpload}
+                  />
+                ) : null}
+              </div>
+            </section>
+          ) : null}
         </>
       )}
     </MobileLayout>

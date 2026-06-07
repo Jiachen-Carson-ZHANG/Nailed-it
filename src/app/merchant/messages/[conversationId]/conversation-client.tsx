@@ -10,17 +10,35 @@ import { CustomerIntelPanel } from '@/features/merchant/CustomerIntelPanel';
 import { useLanguage } from '@/i18n/context';
 import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
 import { getCustomerIntelligenceAction } from '@/lib/actions/customer-intel-actions';
+import type { AppLanguage } from '@/i18n/types';
 import Link from 'next/link';
 
 type MerchantConversationClientProps = {
   conversationId: string;
 };
 
+/** The appointment as the intel read returns it (ISO startAt) — formatted to labels in render. */
+type RawAppointment = { bookingId: string; styleTitle: string; startAt: string; status: string };
+
+function fmtDate(iso: string, language: AppLanguage): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(language === 'zh-CN' ? 'zh-CN' : 'en-GB', { month: 'long', day: 'numeric' });
+}
+
+function fmtTime(iso: string, language: AppLanguage): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString(language === 'zh-CN' ? 'zh-CN' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function MerchantConversationClient({ conversationId }: MerchantConversationClientProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [appointment, setAppointment] = useState<ChatAppointment | null>(null);
+  const [apptCtx, setApptCtx] = useState<RawAppointment | null>(null);
   const [loading, setLoading] = useState(true);
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
 
   useEffect(() => {
     let active = true;
@@ -32,7 +50,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
         // intel panel uses (kept as a separate read so the shared panel stays self-contained).
         if (c) {
           getCustomerIntelligenceAction(c.participantName)
-            .then((intel) => active && setAppointment(intel?.appointmentContext ?? null))
+            .then((intel) => active && setApptCtx(intel?.appointmentContext ?? null))
             .catch(() => {/* no appointment card */});
         }
       })
@@ -62,6 +80,16 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
       </section>
     );
   }
+
+  const appointment: ChatAppointment | null = apptCtx
+    ? {
+        bookingId: apptCtx.bookingId,
+        styleTitle: apptCtx.styleTitle,
+        dateLabel: fmtDate(apptCtx.startAt, language),
+        timeLabel: fmtTime(apptCtx.startAt, language),
+        status: apptCtx.status,
+      }
+    : null;
 
   return conversation ? (
     <>
