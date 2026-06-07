@@ -7,12 +7,9 @@ import {
 } from '@/i18n/format';
 
 describe('formatCurrency', () => {
-  it('formats zh-CN currency', () => {
-    expect(formatCurrency({ cents: 12345, language: 'zh-CN' })).toBe('¥123.45');
-  });
-
-  it('formats English currency', () => {
-    expect(formatCurrency({ cents: 12345, language: 'en' })).toBe('$123.45');
+  it('always formats as SGD regardless of UI language', () => {
+    expect(formatCurrency({ cents: 12345, language: 'zh-CN' })).toBe('SGD 123.45');
+    expect(formatCurrency({ cents: 12345, language: 'en' })).toBe('SGD 123.45');
   });
 });
 

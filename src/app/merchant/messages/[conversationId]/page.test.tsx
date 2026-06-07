@@ -32,7 +32,6 @@ describe('MerchantConversationPage', () => {
     await renderPage('conv-rachel');
 
     expect(await screen.findByRole('heading', { name: /rachel goh/i })).toBeInTheDocument();
-    expect(screen.getByText('对话')).toBeInTheDocument();
     expect(screen.getByText(/appointment pending review for tomorrow 15:30 with mei chen/i)).toBeInTheDocument();
   });
 

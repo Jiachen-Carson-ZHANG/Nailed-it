@@ -9,11 +9,12 @@
 // set_merchant_style_config. Same catalog ids as pricing — no glossary drift.
 
 import type { CatalogSelection } from '@/domain/catalog';
-import { catalogItems } from '@/mock/catalog';
+import { withBaseManicure } from '@/domain/style-selections';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type { MerchantPricingSetting } from '@/domain/merchant';
 import type { AppLanguage } from '@/i18n/types';
 import { buildStyleConfig } from '@/domain/style-config';
+import { catalogItems } from '@/mock/catalog';
 import { runGlossaryBreakdown } from './breakdown';
 import {
   postOpenRouterChat,
@@ -165,14 +166,4 @@ export async function recognizeStyleConfig(
     name,
     description: description || config.description,
   };
-}
-
-// The base manicure (cleaning / prep / shaping) is the time-and-price floor every design includes,
-// but it is ai_detectable='no' so the model never names it. Ensure it's always present so a style's
-// derived duration/price is never zero (and the preview_* > 0 DB checks hold).
-const BASE_MANICURE_ID = 'basic_manicure_service';
-
-function withBaseManicure(selections: CatalogSelection[]): CatalogSelection[] {
-  if (selections.some((s) => s.catalogItemId === BASE_MANICURE_ID)) return selections;
-  return [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...selections];
 }

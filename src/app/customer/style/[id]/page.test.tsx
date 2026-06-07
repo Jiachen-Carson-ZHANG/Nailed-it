@@ -27,7 +27,7 @@ describe('StyleDetailPage', () => {
       })
     ).toBeInTheDocument();
     expect(screen.getByText(style?.descriptionLocalized['zh-CN'] ?? '')).toBeInTheDocument();
-    expect(screen.getAllByText('¥28.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SGD 28.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText(`${style?.previewDurationMin} 分钟`).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /返回发现页/i })).toHaveAttribute(
       'href',
@@ -63,7 +63,7 @@ describe('StyleDetailPage', () => {
 
     expect(screen.getByRole('heading', { name: style?.titleLocalized.en ?? '' })).toBeInTheDocument();
     expect(screen.getByText(style?.descriptionLocalized.en ?? '')).toBeInTheDocument();
-    expect(screen.getAllByText('$28.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SGD 28.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText(`${style?.previewDurationMin} min`).length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Style breakdown' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Style tags' })).toBeInTheDocument();

@@ -97,7 +97,6 @@ export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appoin
         <div className="chat-room-peer">
           <span className="chat-room-avatar" aria-hidden>{conversation.avatarInitials}</span>
           <div>
-            <p className="section-eyebrow">{t('messages.chat.eyebrow')}</p>
             <h1 id={`chat-room-${conversation.id}`}>{conversation.participantName}</h1>
             <p className="chat-room-peer-role">{copy.role[conversation.participantRole]}</p>
           </div>

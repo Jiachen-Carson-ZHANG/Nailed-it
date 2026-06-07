@@ -9,7 +9,8 @@ import { defaultPricingRules } from '../src/mock/pricing';
 import { mockTechnicians } from '../src/mock/technicians';
 import { styleDefinitions } from '../src/mock/styles';
 import { catalogItems } from '../src/mock/catalog';
-import { mockMerchants } from '../src/mock/merchants';
+import { mockMerchants, demoMerchantId } from '../src/mock/merchants';
+import { resolveEffectivePricing } from '../src/domain/pricing-resolver';
 import { mockBlockedTimes, mockWorkingPlans } from '../src/mock/scheduling';
 import {
   mockBookingItems,
@@ -157,6 +158,29 @@ async function seedMerchants(): Promise<number> {
     .from('merchant')
     .upsert(rows, { onConflict: 'id' });
   if (error) throw new Error(`seed merchant failed: ${error.message}`);
+  return rows.length;
+}
+
+/** Persist catalog-default prices/durations into merchant_pricing so client + server agree without localStorage. */
+async function seedMerchantPricing(): Promise<number> {
+  const effective = resolveEffectivePricing(catalogItems, []);
+  const rows = effective
+    .filter((row) => row.source !== 'unresolved')
+    .map((row) => ({
+      merchant_id: demoMerchantId,
+      catalog_item_id: row.catalogItemId,
+      price_cents: row.priceCents,
+      duration_min: row.durationMin,
+      pricing_unit: row.pricingUnit,
+      enabled: row.enabled,
+    }));
+
+  if (rows.length === 0) return 0;
+
+  const { error } = await getServiceClient()
+    .from('merchant_pricing')
+    .upsert(rows, { onConflict: 'merchant_id,catalog_item_id' });
+  if (error) throw new Error(`seed merchant_pricing failed: ${error.message}`);
   return rows.length;
 }
 
@@ -365,6 +389,7 @@ async function main(): Promise<void> {
   const intervalResult = await seedIntervalBookings();
   const staffDurationCount = await seedStaffItemDurations();
   const merchantStyleResult = await seedMerchantStyles();
+  const merchantPricingCount = await seedMerchantPricing();
 
   console.log(`technicians:          ${techCount}`);
   console.log(`styles:               ${styleCount}`);
@@ -381,6 +406,7 @@ async function main(): Promise<void> {
   console.log(`staff_item_duration:  ${staffDurationCount}`);
   console.log(`media_asset:          ${merchantStyleResult.media}`);
   console.log(`merchant_style:       ${merchantStyleResult.styles}`);
+  console.log(`merchant_pricing:     ${merchantPricingCount}`);
   console.log('Done.');
 }
 

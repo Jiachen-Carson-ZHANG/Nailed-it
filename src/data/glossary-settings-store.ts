@@ -1,5 +1,20 @@
 import { configurableComponents, basicServiceProcedures, glossaryById } from './glossary';
+import { effectiveDurationMin } from '@/domain/catalog';
+import { catalogItems } from '@/mock/catalog';
 import { getBrowserStorage } from '@/lib/browser-storage';
+
+const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
+
+function catalogDefaultPrice(id: string): number {
+  const cents = catalogById.get(id)?.defaultPriceCents;
+  return cents != null ? cents / 100 : 0;
+}
+
+function catalogDefaultDuration(id: string, glossaryFallback: number): number {
+  const item = catalogById.get(id);
+  if (!item) return glossaryFallback;
+  return effectiveDurationMin(item, catalogItems);
+}
 
 const STORAGE_KEY = 'nailed-it.glossary-settings.v1';
 
@@ -14,18 +29,24 @@ export type GlossaryEntrySettings = {
 export function getDefaultSettings(): GlossaryEntrySettings[] {
   const basicModule = glossaryById.get('basic_manicure_service');
   const moduleEntry: GlossaryEntrySettings[] = basicModule
-    ? [{ id: basicModule.id, price: 0, duration: basicModule.default_duration_min, enabled: true, unit: 'per_set' }]
+    ? [{
+        id: basicModule.id,
+        price: catalogDefaultPrice(basicModule.id),
+        duration: catalogDefaultDuration(basicModule.id, basicModule.default_duration_min),
+        enabled: true,
+        unit: catalogById.get(basicModule.id)?.defaultPricingUnit ?? 'per_set',
+      }]
     : [];
   const procedureEntries: GlossaryEntrySettings[] = basicServiceProcedures.map((e) => ({
     id: e.id,
-    price: 0,
-    duration: e.default_duration_min,
+    price: catalogDefaultPrice(e.id),
+    duration: catalogDefaultDuration(e.id, e.default_duration_min),
     enabled: true,
   }));
   const componentEntries = configurableComponents.map((entry) => ({
     id: entry.id,
-    price: 0,
-    duration: entry.default_duration_min,
+    price: catalogDefaultPrice(entry.id),
+    duration: catalogDefaultDuration(entry.id, entry.default_duration_min),
     enabled: true,
   }));
   return [...moduleEntry, ...procedureEntries, ...componentEntries];

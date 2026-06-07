@@ -12,6 +12,7 @@ import {
   type PricingUnit
 } from '@/domain/catalog';
 import type { PublishedMerchantStyle } from '@/domain/merchant-style';
+import { BASE_MANICURE_CATALOG_ID } from '@/domain/style-selections';
 import type { AIRecognitionResult, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
 import type { QuoteLine } from '@/lib/services/quote-service';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
@@ -20,7 +21,6 @@ import { demoCustomerId } from '@/mock/customers';
 import { TrackOnMount } from '@/features/analytics/TrackOnMount';
 
 const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
-const BASE_MANICURE_ID = 'basic_manicure_service';
 
 const TYPE_BADGE_CLASS: Record<CatalogItemType, string> = {
   service_module: 'breakdown-category-base',
@@ -114,7 +114,7 @@ export function StyleDetailPanel({ backHref, recognition, style, quoteLines = []
   // Drop container service modules (颜色与效果服务 / 美术设计服务 / 建构服务 …) — they are grouping parents,
   // not real line items. Only the base manicure is a genuine service_module row.
   const visibleLayers = layers.filter(
-    (layer) => layer.type !== 'service_module' || layer.id === BASE_MANICURE_ID,
+    (layer) => layer.type !== 'service_module' || layer.id === BASE_MANICURE_CATALOG_ID,
   );
   const facetGroups = groupFacets(style.discoveryFacets, language);
   const title = style.titleLocalized ? pickLocalizedText(style.titleLocalized, language) : style.title;

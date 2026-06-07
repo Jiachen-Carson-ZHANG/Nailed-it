@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { catalogItems } from '@/mock/catalog';
-import { buildBreakdownFromConfig } from './ComponentBreakdownPanel';
+import {
+  buildBreakdownFromConfig,
+  buildBreakdownResult,
+  seedStateFromBreakdown,
+} from './ComponentBreakdownPanel';
+import { getDefaultSettings } from '@/data/glossary-settings-store';
 
 // Regression for the merchant editor showing "no colour configured": the merchant pipeline stores
 // colour / shape / length / finish as discovery facets, NOT as priced catalogBreakdown selections.
@@ -27,5 +32,51 @@ describe('buildBreakdownFromConfig', () => {
       [],
     );
     expect(result.catalogSelections).toEqual([{ catalogItemId: 'basic_manicure_service', quantity: 1 }]);
+  });
+
+  it('injects base manicure so editor totals match library preview snapshots', () => {
+    const result = buildBreakdownFromConfig(
+      [{ catalogItemId: 'builder_gel', quantity: 1 }],
+      ['纯色'],
+    );
+
+    expect(result.items.some((item) => item.glossaryId === 'basic_manicure_service')).toBe(true);
+    expect(result.items.some((item) => item.glossaryId === 'builder_gel')).toBe(true);
+    // Catalog defaults: basic $28 + builder $15 = $43 (solid color is included / $0).
+    expect(result.totalPrice).toBe(43);
+    expect(result.catalogSelections[0]).toEqual({ catalogItemId: 'basic_manicure_service', quantity: 1 });
+  });
+
+  it('re-seeding chip state preserves preview totals (no phantom builder_gel, per-finger qty)', () => {
+    const stored = [
+      { catalogItemId: 'basic_manicure_service', quantity: 1 },
+      { catalogItemId: 'glitter', quantity: 1 },
+      { catalogItemId: 'french_tip_special', quantity: 1 },
+      { catalogItemId: 'hand_paint_simple', quantity: 3 },
+      { catalogItemId: 'removal_basic_gel', quantity: 1 },
+    ];
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const cached = buildBreakdownFromConfig(stored, ['透色', '杏仁形']);
+    expect(cached.totalPrice).toBe(88);
+
+    const chip = seedStateFromBreakdown(cached);
+    expect(chip.structureIds.has('builder_gel')).toBe(false);
+    expect(chip.quantities.get('hand_paint_simple')).toBe(3);
+
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+    expect(rebuilt.totalPrice).toBe(88);
+    expect(rebuilt.totalDuration).toBe(cached.totalDuration);
   });
 });

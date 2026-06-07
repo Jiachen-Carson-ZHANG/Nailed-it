@@ -3,15 +3,20 @@
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { CatalogSelection } from '@/domain/catalog';
+import { BASE_MANICURE_CATALOG_ID, withBaseManicure } from '@/domain/style-selections';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { glossaryById, glossaryEntries } from '@/data/glossary';
-import { loadGlossarySettings } from '@/data/glossary-settings-store';
-import { loadCurrency } from '@/data/currency-store';
+import {
+  getDefaultSettings,
+  type GlossaryEntrySettings,
+} from '@/data/glossary-settings-store';
+import { useMerchantPricingSettings } from '@/features/merchant/useMerchantPricingSettings';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { AnalyzeChip, AddChip } from '@/features/merchant/AnalyzeChip';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
+import { formatCurrency } from '@/i18n/format';
 import {
   breakdownPanelCopy,
   COLOR_EFFECT_IDS,
@@ -31,8 +36,9 @@ const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const TEXTURE_IDS   = byCategory('texture').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
 
-function seedStateFromBreakdown(result: BreakdownResult) {
-  const structureIds = new Set<string>(['builder_gel']);
+/** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
+export function seedStateFromBreakdown(result: BreakdownResult) {
+  const structureIds = new Set<string>();
   let removalId: string | null = null;
   let nailShape: string | null = null;
   let nailLength: string | null = null;
@@ -63,6 +69,7 @@ function seedStateFromBreakdown(result: BreakdownResult) {
       colorEffectIds.add(item.glossaryId);
     } else if (cat === 'art') {
       artIds.add(item.glossaryId);
+      if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     } else if (cat === 'decoration') {
       decoIds.add(item.glossaryId);
       if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
@@ -73,7 +80,7 @@ function seedStateFromBreakdown(result: BreakdownResult) {
 }
 
 // ── Shared item builder (glossary id → priced breakdown row) ──────────────────
-type GlossarySettingMap = Map<string, ReturnType<typeof loadGlossarySettings>[number]>;
+type GlossarySettingMap = Map<string, GlossaryEntrySettings>;
 
 function itemFromId(id: string, qty: number, settingsById: GlossarySettingMap): GlossaryBreakdownItem | null {
   const entry = glossaryById.get(id);
@@ -109,7 +116,7 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
 }
 
 // ── Rebuild BreakdownResult from current selections ───────────────────────────
-function buildBreakdownResult(
+function catalogSelectionsFromChipState(
   removalId: string | null,
   structureIds: Set<string>,
   nailShape: string | null,
@@ -120,41 +127,72 @@ function buildBreakdownResult(
   artIds: Set<string>,
   decoIds: Set<string>,
   quantities: Map<string, number>,
+): CatalogSelection[] {
+  const selections: CatalogSelection[] = [];
+  if (removalId) selections.push({ catalogItemId: removalId, quantity: 1 });
+  for (const id of structureIds) selections.push({ catalogItemId: id, quantity: 1 });
+  if (nailShape) selections.push({ catalogItemId: nailShape, quantity: 1 });
+  if (nailLength) selections.push({ catalogItemId: nailLength, quantity: 1 });
+  if (texture) selections.push({ catalogItemId: texture, quantity: 1 });
+  for (const id of colorIds) selections.push({ catalogItemId: id, quantity: 1 });
+  for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: 1 });
+  for (const id of artIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
+  for (const id of decoIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
+  return withBaseManicure(selections);
+}
+
+/** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
+export function buildBreakdownResult(
+  removalId: string | null,
+  structureIds: Set<string>,
+  nailShape: string | null,
+  nailLength: string | null,
+  texture: string | null,
+  colorIds: Set<string>,
+  colorEffectIds: Set<string>,
+  artIds: Set<string>,
+  decoIds: Set<string>,
+  quantities: Map<string, number>,
+  settingsById: GlossarySettingMap,
 ): BreakdownResult {
-  const settingsById: GlossarySettingMap = new Map(loadGlossarySettings().map((s) => [s.id, s]));
+  const catalogSelections = catalogSelectionsFromChipState(
+    removalId,
+    structureIds,
+    nailShape,
+    nailLength,
+    texture,
+    colorIds,
+    colorEffectIds,
+    artIds,
+    decoIds,
+    quantities,
+  );
 
-  const allIds = [
-    ...(removalId ? [removalId] : []),
-    ...structureIds,
-    ...(nailShape ? [nailShape] : []),
-    ...(nailLength ? [nailLength] : []),
-    ...(texture ? [texture] : []),
-    ...colorIds,
-    ...colorEffectIds,
-    ...artIds,
-    ...decoIds,
-  ];
-
-  const items = allIds.flatMap((id) => {
-    const item = itemFromId(id, quantities.get(id) ?? 1, settingsById);
+  const items = catalogSelections.flatMap((sel) => {
+    const item = itemFromId(sel.catalogItemId, sel.quantity, settingsById);
     return item ? [item] : [];
   });
 
   const { totalPrice, totalDuration } = pricedTotals(items);
-  const catalogSelections = items.map((i) => ({ catalogItemId: i.glossaryId, quantity: i.quantity }));
   return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }
 
 // Seed the panel from already-stored catalog selections (merchant re-edit). glossary ids === catalog
 // ids in this codebase, so each selection resolves through glossaryById.
-export function buildBreakdownFromSelections(selections: CatalogSelection[]): BreakdownResult {
-  const settingsById: GlossarySettingMap = new Map(loadGlossarySettings().map((s) => [s.id, s]));
-  const items = selections.flatMap((sel) => {
+export function buildBreakdownFromSelections(
+  selections: CatalogSelection[],
+  settings?: GlossaryEntrySettings[],
+): BreakdownResult {
+  const catalogSelections = withBaseManicure(selections);
+  const settingsById: GlossarySettingMap = new Map(
+    (settings ?? getDefaultSettings()).map((s) => [s.id, s]),
+  );
+  const items = catalogSelections.flatMap((sel) => {
     const item = itemFromId(sel.catalogItemId, sel.quantity, settingsById);
     return item ? [item] : [];
   });
   const { totalPrice, totalDuration } = pricedTotals(items);
-  return { items, catalogSelections: selections, totalPrice, totalDuration, mode: 'glossary' };
+  return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }
 
 const glossaryByName = new Map(glossaryEntries.map((entry) => [entry.name_zh, entry.id]));
@@ -166,6 +204,7 @@ const glossaryByName = new Map(glossaryEntries.map((entry) => [entry.name_zh, en
 export function buildBreakdownFromConfig(
   selections: CatalogSelection[],
   facetLabels: string[],
+  settings?: GlossaryEntrySettings[],
 ): BreakdownResult {
   const ids = new Set(selections.map((s) => s.catalogItemId));
   const merged = [...selections];
@@ -176,21 +215,19 @@ export function buildBreakdownFromConfig(
       ids.add(id);
     }
   }
-  return buildBreakdownFromSelections(merged);
+  return buildBreakdownFromSelections(merged, settings);
 }
 
 // ── Summary bar ───────────────────────────────────────────────────────────────
 function BreakdownSummary({
   breakdown,
-  currency,
   copy,
 }: {
   breakdown: BreakdownResult;
-  currency: string;
   copy: BreakdownPanelCopy;
 }) {
   const priceStr = breakdown.totalPrice > 0
-    ? `${breakdown.totalPrice.toFixed(2)} ${currency}`
+    ? formatCurrency({ cents: Math.round(breakdown.totalPrice * 100) })
     : copy.noValue;
   const durationStr = breakdown.totalDuration > 0
     ? copy.minutes(breakdown.totalDuration)
@@ -321,7 +358,16 @@ function EffectsSection({
             {copy.artGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
                 <div className="analyze-accordion-subgroup-label">{group.label}</div>
-                <ChipGroup ids={group.ids} activeIds={artIds} onToggle={onArtToggle} showAdd language={language} copy={copy} />
+                <ChipGroup
+                  ids={group.ids}
+                  activeIds={artIds}
+                  onToggle={onArtToggle}
+                  quantities={quantities}
+                  onQuantityChange={onQuantityChange}
+                  showAdd
+                  language={language}
+                  copy={copy}
+                />
               </div>
             ))}
           </div>
@@ -359,7 +405,7 @@ function EffectsSection({
 
 // ── Price table (shown below the chip sections) ───────────────────────────────
 const PRICED_SET = new Set(['service_module', 'billable_component']);
-const BASE_MANICURE_ID = 'basic_manicure_service';
+const BASE_MANICURE_ID = BASE_MANICURE_CATALOG_ID;
 
 // Container service modules (颜色与效果服务 / 美术设计服务 …) are grouping parents, not real rows; only the
 // base manicure is a genuine service_module line.
@@ -370,12 +416,10 @@ function isPricedRow(glossaryType: string, glossaryId: string): boolean {
 
 function PriceTable({
   breakdown,
-  currency,
   language,
   copy,
 }: {
   breakdown: BreakdownResult;
-  currency: string;
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
@@ -408,7 +452,7 @@ function PriceTable({
                   {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitLabel}</span>}
                 </td>
                 <td className="analyze-total-duration">{dur > 0 ? copy.minutes(dur) : copy.noValue}</td>
-                <td className="analyze-total-price">{price > 0 ? `${price.toFixed(2)} ${currency}` : copy.noValue}</td>
+                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100) }) : copy.noValue}</td>
               </tr>
             );
           })}
@@ -463,7 +507,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
                   {item.duration > 0 ? copy.minutes(isBillable ? item.duration * qty : item.duration) : copy.noValue}
                 </td>
                 <td className="breakdown-price">
-                  {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : copy.noValue}
+                  {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100) }) : copy.noValue}
                 </td>
               </tr>
             );
@@ -473,7 +517,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
           <tr className="breakdown-total">
             <td>{copy.total}</td>
             <td className="breakdown-duration">{copy.minutes(totalDuration)}</td>
-            <td className="breakdown-price">${totalPrice.toFixed(2)}</td>
+            <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100) })}</td>
           </tr>
         </tfoot>
       </table>
@@ -494,9 +538,9 @@ export function ComponentBreakdownPanel({
 }: ComponentBreakdownPanelProps) {
   const { language, t } = useLanguage();
   const copy = breakdownPanelCopy[language];
+  const { settings, settingsById } = useMerchantPricingSettings();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
-  const currency = loadCurrency();
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
@@ -553,7 +597,7 @@ export function ComponentBreakdownPanel({
     setIsLoading(true);
     setError('');
     try {
-      const merchantSettings = loadGlossarySettings();
+      const merchantSettings = settings;
       const response = await fetch('/api/ai/breakdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -582,11 +626,12 @@ export function ComponentBreakdownPanel({
   const breakdown = useMemo(
     () => buildBreakdownResult(
       removalId, structureIds, nailShape, nailLength, texture,
-      colorIds, colorEffectIds, artIds, decoIds, quantities
+      colorIds, colorEffectIds, artIds, decoIds, quantities,
+      settingsById,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [removalId, structureIds, nailShape, nailLength, texture,
-     colorIds, colorEffectIds, artIds, decoIds, quantities]
+     colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 
   useEffect(() => { onResult?.(breakdown); }, [breakdown]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -639,7 +684,7 @@ export function ComponentBreakdownPanel({
       ) : null}
 
       {/* ── Summary bar ── */}
-      <BreakdownSummary breakdown={breakdown} currency={currency} copy={copy} />
+      <BreakdownSummary breakdown={breakdown} copy={copy} />
 
       {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
       {showRemoval && (
@@ -717,7 +762,7 @@ export function ComponentBreakdownPanel({
       />
 
       {/* ── Price table ── */}
-      <PriceTable breakdown={breakdown} currency={currency} language={language} copy={copy} />
+      <PriceTable breakdown={breakdown} language={language} copy={copy} />
 
       {/* ── Re-analyse ── */}
       <div style={{ padding: '0.75rem 0' }}>

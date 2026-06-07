@@ -3431,7 +3431,7 @@ select {
 .chat-bubble {
   display: grid;
   gap: 0.35rem;
-  max-width: 85%;
+  max-width: 74%;
   padding: 0.8rem 0.85rem;
   border-radius: var(--radius-md);
 }
@@ -3451,7 +3451,7 @@ select {
    top-left tail. Sent bubbles are pink with a squared top-right tail. */
 .chat-bubble-them,
 .chat-bubble-system {
-  background: rgba(108, 90, 101, 0.08);
+  background: #f8f8fa;
   border-top-left-radius: 4px;
 }
 

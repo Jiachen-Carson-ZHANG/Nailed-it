@@ -1,5 +1,4 @@
 import { glossaryById } from '@/data/glossary';
-import { loadGlossarySettings } from '@/data/glossary-settings-store';
 import type { AppLanguage } from '@/i18n/types';
 
 export const COLOR_EFFECT_IDS = [
@@ -122,10 +121,8 @@ export type BreakdownPanelCopy = (typeof breakdownPanelCopy)[AppLanguage];
 
 export function resolveUnitLabel(id: string, language: AppLanguage): string {
   const copy = breakdownPanelCopy[language];
-  const settings = loadGlossarySettings();
-  const s = settings.find((x) => x.id === id);
   const entry = glossaryById.get(id);
-  const unit = s?.unit ?? entry?.default_pricing_unit ?? '';
+  const unit = entry?.default_pricing_unit ?? '';
   return copy.units[unit as keyof typeof copy.units] ?? unit;
 }
 

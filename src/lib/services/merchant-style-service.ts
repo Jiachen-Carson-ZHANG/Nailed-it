@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CatalogSelection } from '@/domain/catalog';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
+import { quoteableStyleSelections, withBaseManicure } from '@/domain/style-selections';
 import type {
   MediaAssetSource,
   MerchantStyleRecord,
@@ -22,29 +23,6 @@ const imageExtensions: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 };
-
-// Every nail set includes the base manicure (clean / cuticle / prep) — the $28/51-min floor. It is
-// ai_detectable='no', so it is never recognised and must be injected on every write, regardless of
-// whether the config came from AI or manual editing. Without it a style can derive $0 / no prep steps.
-const BASE_MANICURE_ID = 'basic_manicure_service';
-function withBaseManicure(selections: CatalogSelection[]): CatalogSelection[] {
-  if (selections.some((selection) => selection.catalogItemId === BASE_MANICURE_ID)) return selections;
-  return [{ catalogItemId: BASE_MANICURE_ID, quantity: 1 }, ...selections];
-}
-
-const NON_QUOTE_SERVICE_MODULE_IDS = new Set([
-  'removal_service',
-  'extension_service',
-  'builder_service',
-  'color_effect_service',
-  'art_service',
-  'decoration_service',
-  'finish_service',
-]);
-
-function quoteableStyleSelections(selections: CatalogSelection[]): CatalogSelection[] {
-  return selections.filter((selection) => !NON_QUOTE_SERVICE_MODULE_IDS.has(selection.catalogItemId));
-}
 
 export type UploadMerchantStyleInput = {
   merchantId: string;

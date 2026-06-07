@@ -18,13 +18,9 @@ import {
   listMerchantPricingSettingsAction,
   saveMerchantPricingSettingsAction,
 } from '@/lib/actions/merchant-pricing-actions';
+import { mergeMerchantPricingIntoDefaults } from '@/features/merchant/merge-merchant-pricing-settings';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
-import {
-  loadCurrency,
-  saveCurrency,
-  CURRENCY_OPTIONS,
-  type Currency,
-} from '@/data/currency-store';
+import { DISPLAY_CURRENCY, type Currency } from '@/data/currency-store';
 
 const manageCopy = {
   'zh-CN': {
@@ -517,7 +513,7 @@ export default function MerchantManagePage() {
   const [activePanel, setActivePanel] = useState<PanelId>('basic');
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
+  const currency = DISPLAY_CURRENCY;
 
   // Pricing is authoritative in the DB (merchant_pricing), not localStorage. Load the full UI entry
   // set (incl. the time-only base procedures the panels show) from defaults, then overlay the
@@ -525,17 +521,11 @@ export default function MerchantManagePage() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const base = getDefaultSettings();
       try {
         const db = await listMerchantPricingSettingsAction();
-        const dbById = new Map(db.map((r) => [r.id, r]));
-        const merged = base.map((s) => {
-          const row = dbById.get(s.id);
-          return row ? { ...s, price: row.price, duration: row.duration, enabled: row.enabled } : s;
-        });
-        if (active) setSettings(merged);
+        if (active) setSettings(mergeMerchantPricingIntoDefaults(db));
       } catch {
-        if (active) setSettings(base);
+        if (active) setSettings(getDefaultSettings());
       }
     })();
     return () => {
@@ -582,11 +572,6 @@ export default function MerchantManagePage() {
     }
   }
 
-  function handleCurrencyChange(c: Currency) {
-    saveCurrency(c);
-    setCurrency(c);
-  }
-
   const panelProps = { settingsById, onChange: updateSetting, currency, language };
 
   return (
@@ -604,14 +589,6 @@ export default function MerchantManagePage() {
               {copy.panels[panelId]}
             </button>
           ))}
-          <select
-            className="manage-currency-select"
-            value={currency}
-            onChange={(e) => handleCurrencyChange(e.target.value as Currency)}
-            aria-label={copy.currency}
-          >
-            {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
         </nav>
 
         {/* ── Main panel ── */}

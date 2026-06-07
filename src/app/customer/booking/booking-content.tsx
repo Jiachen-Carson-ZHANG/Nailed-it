@@ -19,6 +19,7 @@ import {
 } from '@/domain/session';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { useLanguage } from '@/i18n/context';
+import { formatCurrency, formatDuration } from '@/i18n/format';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
 import { getStyleDefinitionById } from '@/mock/styles';
@@ -310,9 +311,7 @@ export function CustomerBookingContent({
               <p>
                 {t('booking.quote.studioPrice')}:{' '}
                 <strong>
-                  {language === 'zh-CN'
-                    ? `${estimate.duration} 分钟 · ¥${estimate.price.toFixed(2)}`
-                    : `${estimate.duration} min · $${estimate.price.toFixed(2)}`}
+                  {formatDuration({ minutes: estimate.duration, language })} · {formatCurrency({ cents: Math.round(estimate.price * 100) })}
                 </strong>
               </p>
             </section>
@@ -322,9 +321,7 @@ export function CustomerBookingContent({
                 <p>
                   {t('booking.quote.aiEstimate')}:{' '}
                   <strong>
-                    {language === 'zh-CN'
-                      ? `${breakdowns.glossary.totalDuration} 分钟 · ¥${breakdowns.glossary.totalPrice.toFixed(2)}`
-                      : `${breakdowns.glossary.totalDuration} min · $${breakdowns.glossary.totalPrice.toFixed(2)}`}
+                    {formatDuration({ minutes: breakdowns.glossary.totalDuration, language })} · {formatCurrency({ cents: Math.round(breakdowns.glossary.totalPrice * 100) })}
                   </strong>
                 </p>
               </section>

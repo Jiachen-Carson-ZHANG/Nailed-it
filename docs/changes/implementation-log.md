@@ -1,5 +1,70 @@
 # Implementation Log
 
+## 2026-06-08 — Fix editor preview drift (card $88 vs detail $93)
+
+What changed:
+- **`seedStateFromBreakdown`** no longer injects phantom `builder_gel` when re-opening a published style; structure chips come only from stored selections.
+- **Art line quantities** (e.g. `hand_paint_simple` per-finger ×3) are preserved when seeding chip state and when rebuilding `catalogSelections`.
+- **Art effect chips** show quantity controls like decorations.
+- Regression test for 碎钻冰花法式 item mix (stored total **SGD 88** round-trips through chip state).
+- **`scripts/audit-style-preview-drift.ts`** compares all **35** published styles: stored preview vs server re-quote vs client breakdown — **0 mismatches** in DB.
+
+Root cause:
+- Library card uses server snapshot (correct: hand paint ×3 fingers = SGD 15 inside SGD 88 total).
+- Editor re-seed was adding **建构 +SGD 15** by default and collapsing hand paint **×3 → ×1 (−SGD 10)** → displayed **SGD 93**.
+
+Aligned assumptions:
+- Opening Edit must not mutate priced selections until the merchant changes chips.
+
+## 2026-06-08 — Client breakdown injects base manicure (preview parity)
+
+What changed:
+- **`withBaseManicure()`** extracted to `src/domain/style-selections.ts` — shared by server publish, AI config, and client breakdown panel.
+- **`ComponentBreakdownPanel`** rebuilds now prepend `basic_manicure_service` so 单价明细 + summary totals match `previewPriceCents` on the style library card.
+
+Aligned assumptions:
+- Every bookable style includes the base prep floor in both stored snapshots and live editor breakdowns.
+
+## 2026-06-08 — Lock display currency to SGD (never translated)
+
+What changed:
+- **`formatCurrency()`** always renders `SGD 12.34` — removed locale-specific `¥` / `$` prefixes.
+- **`currency-store`** fixed to `DISPLAY_CURRENCY = 'SGD'`; removed multi-currency selector from merchant manage page.
+- **Booking / breakdown panels** route all price strings through `formatCurrency()` instead of hand-built `¥` / `$` strings.
+
+Aligned assumptions:
+- UI language switches copy and duration labels only; money is always Singapore dollars.
+
+## 2026-06-08 — Wire client breakdown pricing to DB (merchant_pricing)
+
+What changed:
+- **`ComponentBreakdownPanel`** loads price/duration via `useMerchantPricingSettings()` (DB authoritative) instead of `localStorage` glossary settings; AI breakdown POST sends the same DB-backed settings.
+- **`getDefaultSettings()`** now seeds catalog `defaultPriceCents` / `effectiveDurationMin` as offline fallbacks (was hardcoded `price: 0`).
+- **Shared merge helper** `mergeMerchantPricingIntoDefaults()` — used by manage page and the hook.
+- **`seed-supabase.ts`** upserts catalog-default rows into `merchant_pricing` for the demo merchant so defaults live in DB, not only in the resolver fallback.
+
+Aligned assumptions:
+- Manage page, server quotes, style library snapshots, and client breakdown/editor all read the same effective pricing chain: `merchant_pricing` → catalog defaults.
+- `loadGlossarySettings()` / localStorage remain for legacy but are no longer used on pricing surfaces.
+
+## 2026-06-08 — Customer chat reaches att3 parity (appointment card + staff)
+
+What changed:
+- **`ChatAppointment` is now presentation-ready** (`dateLabel`/`timeLabel`/`status`/optional
+  `staffName`) and the header "View appointment" button + inline appointment card render for **both**
+  roles (was merchant-only). The card link is role-aware: merchant → booking detail, customer →
+  profile/booking history.
+- **Customer thread fetches its booking** via `listCustomerBookingViewsAction` (matched by
+  `conversationId`) to fill the att3 card — date · time · **Staff** (technician name + 美甲师/Beautician)
+  · status badge. Merchant side keeps formatting `appointmentContext.startAt` → labels (no staff field
+  there). Customer chat now matches att3 (header avatar/name/role, 今天 divider, ✓✓ receipts, pill
+  composer, appointment card) instead of the bare legacy view.
+- **Restored `export type MessageAuthorRole`** in `nail.ts` (a concurrent edit had dropped it, breaking
+  the build).
+
+Verification: typecheck clean; full suite green (370). Verified live on the customer thread
+(`/customer/messages/conv-melissa`): appointment card with 员工 Mei Chen / 美甲师 + ✓✓ receipts.
+
 ## 2026-06-08 — Persist customer language on conversation threads
 
 What changed:

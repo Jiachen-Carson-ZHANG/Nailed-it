@@ -1,18 +1,14 @@
 import type { AppLanguage, BookingStatusLabel, PricingUnitLabel } from './types';
+import { DISPLAY_CURRENCY } from '@/data/currency-store';
 
 type WithLanguage = { language: AppLanguage };
 
-type CurrencyInput = WithLanguage & { cents: number };
+type CurrencyInput = { cents: number; language?: AppLanguage };
 type DurationInput = WithLanguage & { minutes: number };
 type UnitLabelInput = WithLanguage & { unit: PricingUnitLabel };
 type StatusLabelInput = WithLanguage & { status: BookingStatusLabel };
 
 type LanguageTextMap = Record<AppLanguage, string>;
-
-const currencyPrefixes: LanguageTextMap = {
-  'zh-CN': '¥',
-  en: '$',
-};
 
 const durationSuffixes: LanguageTextMap = {
   'zh-CN': ' 分钟',
@@ -31,9 +27,10 @@ const statusLabels: Record<BookingStatusLabel, LanguageTextMap> = {
   cancelled: { 'zh-CN': '已取消', en: 'Cancelled' },
 };
 
-export function formatCurrency({ cents, language }: CurrencyInput) {
+/** Format money as `SGD 12.34` — language does not change the currency code or symbol. */
+export function formatCurrency({ cents }: CurrencyInput) {
   const amount = (cents / 100).toFixed(2);
-  return `${currencyPrefixes[language]}${amount}`;
+  return `${DISPLAY_CURRENCY} ${amount}`;
 }
 
 export function formatDuration({ minutes, language }: DurationInput) {
