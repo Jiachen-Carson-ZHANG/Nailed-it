@@ -1,5 +1,106 @@
 # Implementation Log
 
+## 2026-06-08 — Persist customer language on conversation threads
+
+What changed:
+- **`conversation_threads.customer_language`** — migration `0021_conversation_thread_customer_language.sql`; default `zh-CN` for existing rows; `create_booking_with_thread` RPC updated.
+- **`BookingConversationThread.customerLanguage`** — domain type + memory/Supabase repos.
+- **Booking create** — thread builders set `customerLanguage` from the customer's UI language at confirm time.
+- **Completion thank-you** — reads `thread.customerLanguage` from the repo (removed in-memory `Map`).
+
+Aligned assumptions:
+- Seed threads carry explicit `customerLanguage` for demo consistency.
+- Supabase deploys must apply migration `0021` before creates include the new column.
+
+Verification: `booking-actions.test.ts` includes persisted-language regression.
+
+## 2026-06-08 — Messages chat-pane polish + role-aware style-card link
+
+What changed:
+- **Role-aware style card.** The recommendation card in a thread now links by viewer: merchant →
+  `/merchant/styles/${id}/review` (their own library view), customer → `/customer/style/${id}`. Was
+  always linking to the customer page. Added `getMerchantStylePath` + a `viewerRole` prop on
+  `ChatRoom`, passed `"merchant"`/`"customer"` from each thread client.
+- **Chat-pane polish (phone, from the att3 mock):** header now has an avatar + name + role subtitle +
+  a "View appointment" button; a "Today" day divider; ✓✓ read receipts on sent bubbles; a pill
+  composer with a circular send button; and an inline appointment-details card (date · time · status
+  badge + "View full appointment ›"). Header button + inline card are merchant-only (customers have
+  no per-booking detail route) and omit staff (no staff field in the appointment data). The merchant
+  thread client fetches the appointment via the same `getCustomerIntelligenceAction` read.
+- **Localizer fix.** `formatStatusLabel` was missing `in_progress` (a valid `IntervalBooking` status)
+  and had no fallback → it would crash the panel/cards on an in-progress booking. Added
+  `in_progress`→进行中/In progress to `BookingStatusLabel` + the status map.
+
+Verification: typecheck clean for all touched files; thread + message + i18n tests green (28/28).
+
+## 2026-06-08 — Customer i18n pass: try-on, home feed, thread messages, insights language
+
+What changed:
+- **Try-on flow** — `try-on/page.tsx` + `TryOnPanel.tsx` wired to central `tryOn.*` UI keys; bilingual labels, errors, loading, CTAs, and back buttons.
+- **Home feed** — `StyleWaterfallGridClient` tabs/empty states/filter clear aria; `style-facets.ts` section headers via `getFacetSections(language)`; `StyleCard` save/link aria + localized price.
+- **Server thread messages** — `src/i18n/messages/server/booking-thread.ts` templates for pending-review system message and completion thank-you; `createBooking*` actions accept optional `language` (from confirm page). *(Completion language persistence added in the follow-up entry above.)*
+- **Insights AI summary** — `summarizeInsights` / `summarizeInsightsAction` accept `language`; bilingual brief, fallback, and system prompts; insights page passes merchant UI language.
+
+Aligned assumptions:
+- Catalog tag labels (法式, 裸色, etc.) remain Chinese source data, not UI chrome.
+- Landing page and `/dev` playground remain single-language by design.
+
+Verification: `messages.test.ts`, `booking-thread.test.ts`, `insights-summary.test.ts`, `booking-actions.test.ts` green.
+
+## 2026-06-08 — Messages: real recommend→thread send (rich style card) + clickable appointment
+
+What changed:
+- **`发送` on the customer-intel panel now posts a real message** into the thread (was log-only).
+  `sendMerchantStyleRecommendationAction(conversationId, …)` appends a merchant message carrying a
+  structured `attachment` (style card: id/title/image/reason) **and** logs `recommended_style_sent`.
+  State is lifted into `conversation-client` (`onRecommendSent={setConversation}`) so the `ChatRoom`
+  re-renders with the card immediately; the customer sees it in their thread too.
+- **Chat messages can carry a style card.** Added `MessageAttachment` (`type:'style'`) to
+  `BookingMessage`/`ChatMessage`; `toConversationForRole` passes it through; `ChatRoom` renders a
+  thumbnail + title + 匹配 reason + 查看款式 link (→ `getCustomerStylePath`) when present, else plain text.
+- **Appointment card in the intel panel is now a link** → `/merchant/booking/${bookingId}` (data was
+  already in the payload; it was a static `<div>`).
+- **Chat thread spacing** + style-card CSS; removed the now-orphaned `recordRecommendedStyleAction`
+  (the real send supersedes it and logs the same event).
+- **Migration `0019_message_style_attachment.sql`** adds nullable `messages.attachment jsonb`
+  (**manual Supabase apply**, no CLI). `messageToRow` only writes the column when an attachment is
+  present, so plain-text sends keep working pre-migration; only the card send needs `0019`.
+
+Verification: typecheck clean; full suite green (355 tests). New regression in `messaging.test.ts`
+(attachment passthrough). Recommendations are **profile-based** (the customer's behavioural taste
+tags via `rankStyles`), not derived from their booked design.
+
+## 2026-06-08 — Booking completion photo → style library + container item cleanup
+
+What changed:
+- **Mark completed → camera → AI breakdown.** On a confirmed booking, "Mark completed" now opens the device camera/file picker (`capture="environment"`), uploads the photo as a `completed_booking` style, marks the booking completed, and routes to `/merchant/styles/[id]/review` for the same client-side AI breakdown + merchant Save/Publish flow used by library uploads. Pre-fills the design title from the booked style when available.
+- **`uploadMerchantStyleAction`** accepts optional `title` and `source` form fields; service upload honors `MediaAssetSource`.
+- **Migration 0020** deletes non-quoteable service-module container rows from `merchant_style_item` (does not delete styles or media).
+
+Why:
+- Completing an appointment should capture the finished nail art into the merchant library in one motion, not as a separate manual upload.
+- Old persisted container parent ids blocked publish; strip them in place rather than deleting whole style rows.
+
+Aligned assumptions:
+- Publish still requires merchant review/approval in the editor — completion does not auto-publish.
+- Cancelling the camera picker leaves the booking confirmed.
+- Marking a booking completed appends a merchant thank-you message to the linked conversation thread (if one exists).
+
+Verified:
+- `npm test -- src/lib/services/merchant-style-service.test.ts src/lib/actions/merchant-style-actions.test.ts src/lib/actions/booking-actions.test.ts`
+
+
+What changed:
+- Fresh merchant uploads now receive an optional `suggestedStyleName` from the client-side AI breakdown route. The editor fills the blank design-name field from that suggestion only if the merchant has not typed a title, and keeps the suggested description internally for save/publish.
+- Merchant style configuration now filters service-module container ids (`color_effect_service`, `art_service`, `decoration_service`, etc.) out before quote/persist on AI-complete, Save, Publish, and Republish. Those ids can still appear as UI grouping/facet context, but only real quote rows (plus `basic_manicure_service`) enter deterministic pricing.
+- Synced the downloaded `Dictionary - Sheet1 (1).csv` delta that exists in the file: `basic_manicure_service.default_duration_min` is now 50 in the generated catalog overlay. The CSV still leaves `color_effect_service`, `art_service`, and `decoration_service` default prices blank, so no invented defaults were added.
+
+Why:
+- The screenshot failure was not a missing price for a leaf service; stale container parent ids were leaking into the saved selections and `quoteService` correctly failed closed with `unresolved_pricing`.
+
+Verified:
+- `npm test -- src/lib/services/merchant-style-service.test.ts src/lib/actions/merchant-style-actions.test.ts src/app/merchant/styles/[id]/review/page.test.tsx`
+
 ## 2026-06-07 — Merchant upload fix + cloned style-result editor (instant draft, no processing detour)
 
 What changed:
@@ -590,8 +691,9 @@ Pending (handed to the next agent):
 What changed:
 - Merchant style review now has status-aware actions: draft = `发布` / `Publish`, published = `保存` /
   `Save`, archived = `重新发布` / `Republish`.
-- Published edits stay in the editor and show a success toast after the server write completes; publish
-  and republish show a success toast before returning to the style library.
+- Save, publish, and republish return to the style library after the server write completes and show a
+  success toast there via a one-shot `sessionStorage` flash. Failures stay in the editor and show a
+  failure toast.
 - Archived republish is now a real lifecycle transition (`archived -> published`) with a fresh public image
   copy and refreshed config/items. Migration `0018_republish_archived_merchant_styles.sql` updates the
   Supabase RPCs to allow that explicit path and clear `archived_at`.
@@ -601,7 +703,7 @@ What changed:
   removed from style cards.
 
 Verification:
-- `npm test -- src/domain/merchant-style.test.ts src/lib/services/merchant-style-service.test.ts src/app/merchant/styles/[id]/review/page.test.tsx`
+- `npm test -- src/app/merchant/styles/[id]/review/page.test.tsx src/app/merchant/styles/page.test.tsx src/domain/merchant-style.test.ts src/lib/services/merchant-style-service.test.ts`
 - Lints clean for edited files.
 - Local routes checked: `/`, `/merchant/styles`, `/merchant/styles/rose-cat-eye/review` return `200` and
   no Next fallback; customer home HTML no longer contains `匹配你的`.
@@ -615,3 +717,73 @@ Verification:
 - **G5 (desktop two-pane) dropped** — demo is phone-only; mobile flow complete. Two-pane scaffolding
   reverted (`MerchantConversationList` removed, `ConversationListItem` active prop reverted).
 - Typecheck clean; full suite green.
+
+## 2026-06-08 — Merchant i18n batch 2 (insights, ops, intel, chat)
+
+What changed:
+- Added bilingual copy (`zh-CN` + `en`) to merchant insights, ops bot thread/page, style review subtitle,
+  customer intel panel, chat style cards, and messages inbox ops entry.
+- Replaced awkward calques (经营脉搏 → 门店概况/数据洞察; 经营快报 → 门店简报) with warmer, professional
+  studio-facing Chinese.
+- Locale-aware date/time formatting in `CustomerIntelPanel`.
+
+Aligned assumptions:
+- Default language remains `zh-CN`; every new zh string has a matching en pair.
+- Tag labels from catalog/AI stay as-is (not translated).
+
+Verification:
+- `npm test -- src/app/merchant/styles/[id]/review/page.test.tsx` — 5 passed.
+- Lints clean on edited files.
+
+## 2026-06-08 — Merchant i18n batch 3 (breakdown panel + editor)
+
+What changed:
+- Extracted `breakdown-panel-copy.ts` with bilingual section labels, unit labels, art/deco groups, loading/error
+  strings, and table headers for `ComponentBreakdownPanel` / `BreakdownTable`.
+- Glossary chip labels now use `name_zh` / `name_en` based on active language (customer book flow + merchant editor).
+- Consolidated `MerchantStyleEditor` strings into `editorCopy`; library archive/delete toasts and confirm dialog bilingual.
+- `AnalyzeChip` quantity aria-labels and `ManageServiceRow` field labels bilingual.
+
+Aligned assumptions:
+- Catalog/glossary item names remain the source of truth for chip labels; only UI chrome is translated.
+- Default language remains `zh-CN`.
+
+Verification:
+- `npm test -- src/app/merchant/styles/[id]/review/page.test.tsx` — 5 passed.
+
+## 2026-06-08 — Merchant i18n batch 4 (central ui keys)
+
+What changed:
+- Added 43 shared keys to `src/i18n/messages/ui/` under `common.*`, `nav.*`, and
+  `messages.merchant.ops*` / `messages.chat.viewStyle`.
+- Wired shared actions and labels through `t()` in style editor/library, intel panel, chat style cards,
+  ops bot inbox/page, bottom tab bar, manage rows, analyze chips, and breakdown retry.
+- `GlossaryEntryCard` now uses bilingual catalog names, `formatDuration`, and central field labels.
+- Customer/merchant profile privacy links use `common.privacyPolicy`.
+- Added `src/i18n/messages/ui/messages.test.ts` to guard zh/en key parity.
+
+Aligned assumptions:
+- Page-specific copy objects remain for longer prose; repeated chrome uses central `t()` keys.
+- `UiMessages` type enforces matching en/zh-CN dictionaries at compile time.
+
+Verification:
+- `npm test -- src/i18n/messages/ui/messages.test.ts src/app/merchant/messages/page.test.tsx src/app/merchant/styles/[id]/review/page.test.tsx src/app/customer/profile/page.test.tsx` — all passed.
+
+## 2026-06-08 — Merchant i18n batch 4 (central ui keys)
+
+What changed:
+- Added 43 shared keys to `src/i18n/messages/ui/` under `common.*`, `nav.*`, and
+  `messages.merchant.ops*` / `messages.chat.viewStyle`.
+- Wired shared actions and labels through `t()` in style editor/library, intel panel, chat style cards,
+  ops bot inbox/page, bottom tab bar, manage rows, analyze chips, and breakdown retry.
+- `GlossaryEntryCard` now uses bilingual catalog names, `formatDuration`, and central field labels.
+- Customer/merchant profile privacy links use `common.privacyPolicy`.
+- Added `src/i18n/messages/ui/messages.test.ts` to guard zh/en key parity.
+
+Aligned assumptions:
+- Page-specific copy objects remain for longer prose; repeated chrome uses central `t()` keys.
+- `UiMessages` type enforces matching en/zh-CN dictionaries at compile time.
+
+Verification:
+- `npm test -- src/i18n/messages/ui/messages.test.ts src/app/merchant/messages/page.test.tsx src/app/merchant/styles/[id]/review/page.test.tsx src/app/customer/profile/page.test.tsx` — all passed.
+
