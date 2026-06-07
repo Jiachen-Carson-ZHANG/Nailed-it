@@ -1,5 +1,15 @@
 # Implementation Log
 
+## 2026-06-07 — Discovery facets re-bucketed by catalog category (grouped filter + multi-tag cards)
+
+What changed:
+- The AI stores discovery facets with an unreliable `kind` (almost everything lands in `style`, including colors, lengths, and even the container service-module names). New `src/features/customer/style-facets.ts` re-buckets each facet **by its catalog category** (the labels are catalog item names): service modules (颜色与效果服务 / 美术设计服务 …) and uncategorizable labels are dropped; the rest map to filter sections 甲形 / 颜色 / 效果 / 美术 / 装饰 / 建构 / 风格.
+- Home feed filter is now **grouped by section** (one labelled, horizontally-scrollable row per category) instead of a single mixed row, and no longer offers service-module containers as filters.
+- Feed cards show **several category tags** (shape + color + effect …, up to 3) as pills instead of just the shape; each still toggles the matching filter.
+
+Why:
+- The filter was surfacing 颜色与效果服务 / 美术设计服务 (containers) and mixing all tags into one row; the card only showed the shape. Re-bucketing by catalog category gives a clean, sorted filter and informative cards without trusting the AI's `kind`.
+
 ## 2026-06-07 — Customer quote $0 fix, container modules hidden, step-2 stream, status lifecycle
 
 What changed:

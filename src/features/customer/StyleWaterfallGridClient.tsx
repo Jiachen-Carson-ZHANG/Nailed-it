@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { NailStyleCard, StyleDiscoveryFacetKind } from '@/domain/nail';
+import type { NailStyleCard } from '@/domain/nail';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { HASHTAG_KIND_ORDER, StyleCard } from './StyleCard';
+import { StyleCard } from './StyleCard';
+import { cleanFacetLabels, groupLabelsBySection } from './style-facets';
 import { useSavedStyles } from './SavedStylesContext';
 
 type StyleWaterfallGridClientProps = {
@@ -13,26 +14,23 @@ type StyleWaterfallGridClientProps = {
 const tabs = ['Trending', 'Saved'] as const;
 type TabLabel = typeof tabs[number];
 
-// Distinct facet labels across the loaded feed, ordered the same way the card hashtags are, so the
-// filter chips only ever offer tags that actually exist in the current styles (no dead filters).
-function collectFacetLabels(styles: NailStyleCard[]): string[] {
-  const labelKind = new Map<string, StyleDiscoveryFacetKind>();
-  for (const style of styles) {
-    for (const facet of style.discoveryFacets) {
-      if (!labelKind.has(facet.label)) labelKind.set(facet.label, facet.kind);
-    }
-  }
-  return Array.from(labelKind.entries())
-    .sort((a, b) => HASHTAG_KIND_ORDER.indexOf(a[1]) - HASHTAG_KIND_ORDER.indexOf(b[1]))
-    .map(([label]) => label);
-}
-
 export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
   const [activeTab, setActiveTab] = useState<TabLabel>('Trending');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const { savedIds } = useSavedStyles();
 
-  const availableTags = useMemo(() => collectFacetLabels(styles), [styles]);
+  // Distinct, categorized labels across the loaded feed, grouped into filter sections (甲形 / 颜色 /
+  // 效果 / …). Service-module containers and uncategorizable labels are dropped.
+  const filterGroups = useMemo(() => {
+    const all: string[] = [];
+    for (const style of styles) {
+      for (const label of cleanFacetLabels(style.discoveryFacets)) {
+        if (!all.includes(label)) all.push(label);
+      }
+    }
+    return groupLabelsBySection(all);
+  }, [styles]);
 
   function toggleTag(label: string) {
     setSelectedTags((current) => {
@@ -70,24 +68,56 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
         ))}
       </div>
 
-      {availableTags.length > 0 ? (
-        <div className="feed-filter-bar" role="group" aria-label="Filter by tag">
-          {selectedTags.size > 0 ? (
-            <button className="feed-filter-clear" type="button" onClick={() => setSelectedTags(new Set())}>
-              清除
-            </button>
+      {filterGroups.length > 0 ? (
+        <div className="feed-filter">
+          <div className="feed-filter-bar" role="group" aria-label="Filter by tag">
+            {filterGroups.map(({ section, labels }) => {
+              const activeCount = labels.filter((label) => selectedTags.has(label)).length;
+              const open = openSection === section.key;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  aria-expanded={open}
+                  className={`feed-filter-summary${activeCount > 0 || open ? ' feed-filter-summary-on' : ''}`}
+                  onClick={() => setOpenSection(open ? null : section.key)}
+                >
+                  <span>
+                    {section.label}
+                    {activeCount > 0 ? ` · ${activeCount}` : ''}
+                  </span>
+                  <span
+                    className={`feed-filter-summary-caret${open ? ' feed-filter-summary-caret-open' : ''}`}
+                    aria-hidden
+                  >
+                    ▾
+                  </span>
+                </button>
+              );
+            })}
+            {selectedTags.size > 0 ? (
+              <button className="feed-filter-clear" type="button" onClick={() => setSelectedTags(new Set())}>
+                清除 ✕
+              </button>
+            ) : null}
+          </div>
+          {openSection ? (
+            <div className="feed-filter-tray">
+              {filterGroups
+                .find((group) => group.section.key === openSection)
+                ?.labels.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={selectedTags.has(tag)}
+                    className={`feed-filter-chip${selectedTags.has(tag) ? ' feed-filter-chip-active' : ''}`}
+                    onClick={() => toggleTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+            </div>
           ) : null}
-          {availableTags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              aria-pressed={selectedTags.has(tag)}
-              className={`feed-filter-chip${selectedTags.has(tag) ? ' feed-filter-chip-active' : ''}`}
-              onClick={() => toggleTag(tag)}
-            >
-              #{tag}
-            </button>
-          ))}
         </div>
       ) : null}
 
