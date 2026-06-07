@@ -1,31 +1,32 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { BookingHistoryCard } from '@/features/customer/BookingHistoryCard';
 import type { Booking } from '@/domain/nail';
 import { homePathForRole } from '@/domain/session';
-import { listCustomerBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listCustomerBookingViewsAction, setBookingStatusAction } from '@/lib/actions/booking-actions';
 import { demoCustomerName } from '@/mock/customers';
 
 export default function CustomerProfilePage() {
   // Already filtered to the demo customer on the server (private bookings never reach the browser).
   const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
 
-  useEffect(() => {
-    let active = true;
-    listCustomerBookingViewsAction()
-      .then((rows) => {
-        if (active) setCustomerBookings(rows);
-      })
-      .catch(() => {
-        /* leave empty */
-      });
-    return () => {
-      active = false;
-    };
+  const refresh = useCallback(async () => {
+    setCustomerBookings(await listCustomerBookingViewsAction());
   }, []);
+
+  useEffect(() => {
+    refresh().catch(() => {
+      /* leave empty */
+    });
+  }, [refresh]);
+
+  const withdrawBooking = useCallback(async (id: string) => {
+    await setBookingStatusAction(id, 'cancelled');
+    await refresh();
+  }, [refresh]);
   // 中文注释：这里按"仍会占用用户心智"的状态聚合 upcoming，后续接真实后端也能复用同一口径。
   const upcomingBookings = customerBookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)
@@ -61,7 +62,7 @@ export default function CustomerProfilePage() {
         <h2>Booking history</h2>
         <div className="history-list">
           {customerBookings.map((booking) => (
-            <BookingHistoryCard key={booking.id} booking={booking} />
+            <BookingHistoryCard key={booking.id} booking={booking} onWithdraw={withdrawBooking} />
           ))}
         </div>
       </section>

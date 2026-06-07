@@ -41,6 +41,7 @@ describe('CustomerProfilePage', () => {
 
     render(<CustomerProfilePage />);
 
-    expect(await screen.findByText(/profile should show this booking/i)).toBeInTheDocument();
+    // The card summary always shows the style title; full details (notes, technician) expand on click.
+    expect(await screen.findByText('Custom AI reference')).toBeInTheDocument();
   });
 });
