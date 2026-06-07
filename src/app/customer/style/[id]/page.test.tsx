@@ -1,10 +1,19 @@
 import { render, screen } from '@testing-library/react';
+import { LanguageProvider } from '@/i18n/context';
 import StyleDetailPage from './page';
 import { getStyleDefinitionById } from '@/mock/styles';
 import { mockMerchantStyles } from '@/mock/merchant-styles';
 import { getCustomerBookingPath, getMockSession } from '@/domain/session';
 
 describe('StyleDetailPage', () => {
+  async function renderStyleDetailPage() {
+    return render(
+      <LanguageProvider initialLanguage="zh-CN" role="customer">
+        {await StyleDetailPage({ params: Promise.resolve({ id: 'rose-cat-eye' }) })}
+      </LanguageProvider>
+    );
+  }
+
   it('renders a published merchant style from the DB-backed source', async () => {
     const style = mockMerchantStyles.find((candidate) => candidate.id === 'rose-cat-eye');
     const definition = getStyleDefinitionById('rose-cat-eye');
@@ -12,14 +21,14 @@ describe('StyleDetailPage', () => {
     expect(style).toBeDefined();
     expect(definition).toBeDefined();
 
-    render(await StyleDetailPage({ params: Promise.resolve({ id: 'rose-cat-eye' }) }));
+    await renderStyleDetailPage();
 
     expect(
       screen.getByRole('heading', {
         name: new RegExp(style?.title ?? '', 'i')
       })
     ).toBeInTheDocument();
-    expect(screen.getByText(definition?.recognition.selection.otherNotes ?? '')).toBeInTheDocument();
+    expect(screen.getByText(style?.descriptionLocalized.en ?? '')).toBeInTheDocument();
     expect(
       screen.getAllByText(new RegExp(String((style?.previewPriceCents ?? 0) / 100), 'i')).length
     ).toBeGreaterThan(0);
@@ -35,7 +44,7 @@ describe('StyleDetailPage', () => {
   });
 
   it('wires the published catalog breakdown + discovery facets into the detail box', async () => {
-    render(await StyleDetailPage({ params: Promise.resolve({ id: 'rose-cat-eye' }) }));
+    await renderStyleDetailPage();
 
     // Composition (款式构成) comes from the catalog breakdown — the seeded base manicure layer.
     expect(screen.getByRole('heading', { name: '款式构成' })).toBeInTheDocument();

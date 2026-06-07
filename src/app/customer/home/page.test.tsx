@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import CustomerHomePage from './page';
 import { mockMerchantStyles } from '@/mock/merchant-styles';
 import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
+import { LanguageProvider } from '@/i18n/context';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -12,16 +13,18 @@ vi.mock('next/navigation', () => ({
 describe('CustomerHomePage', () => {
   function renderPage() {
     return render(
-      <SavedStylesProvider>
-        <CustomerHomePage />
-      </SavedStylesProvider>
+      <LanguageProvider initialLanguage="zh-CN" role="customer">
+        <SavedStylesProvider>
+          <CustomerHomePage />
+        </SavedStylesProvider>
+      </LanguageProvider>
     );
   }
 
   it('renders the discovery feed with published merchant styles and the upload CTA', async () => {
     renderPage();
 
-    expect(screen.getByRole('link', { name: /new nail design/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '新的美甲设计' })).toHaveAttribute(
       'href',
       '/customer/booking'
     );
@@ -39,6 +42,6 @@ describe('CustomerHomePage', () => {
     renderPage();
 
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
-    await screen.findByRole('link', { name: /Rose Cat Eye Shine/i });
+    await screen.findByRole('link', { name: /Rose cat-eye/i });
   });
 });

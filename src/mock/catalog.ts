@@ -2525,6 +2525,21 @@ const englishNoteOverrides: Partial<Record<string, string>> = {
   basic_manicure_service: 'Bundled cleaning, cuticle care, nail surface prep, base gel, and basic shaping.',
   removal_service: 'Removal depends on the customer\'s current nail condition and cannot rely on the photo alone.',
   removal_basic_gel: 'Usually determined by whether the customer requests removal.',
+  cat_eye: 'Cat-eye designs usually require a magnetic shaping step.',
+  french_tip: 'A classic French edge that is often priced as a detailed finish component.',
+  chrome_powder: 'Mirror-like chrome powder layered over the nail surface for a reflective finish.',
+};
+
+const englishNameOverrides: Partial<Record<string, string>> = {
+  basic_manicure_service: 'Basic manicure service',
+  removal_service: 'Removal service',
+  removal_basic_gel: 'Removal basic gel',
+  builder_service: 'Builder gel service',
+  extension_service: 'Nail extension service',
+  cat_eye: 'Cat-eye color',
+  french_tip: 'French tip',
+  chrome_powder: 'Chrome powder',
+  glitter: 'Glitter finish',
 };
 
 function toEnglishToken(token: string, index: number): string {
@@ -2536,6 +2551,8 @@ function toEnglishToken(token: string, index: number): string {
 }
 
 function deriveEnglishName(itemId: string): string {
+  const override = englishNameOverrides[itemId];
+  if (override) return override;
   return itemId
     .split('_')
     .filter(Boolean)
