@@ -5,9 +5,29 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { CalendarSchedule } from '@/features/merchant/CalendarSchedule';
 import type { Booking } from '@/domain/nail';
+import { useLanguage } from '@/i18n/context';
 import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
 
+const calendarPageCopy = {
+  'zh-CN': {
+    subtitle: '每日排期一览',
+    eyebrow: '日历',
+    title: '预约日历',
+    loadingTitle: '正在加载预约',
+    loadingBody: '正在获取最新排期。',
+  },
+  en: {
+    subtitle: 'Your daily schedule.',
+    eyebrow: 'Calendar',
+    title: 'Appointment calendar',
+    loadingTitle: 'Loading appointments',
+    loadingBody: 'Fetching the latest schedule from the booking service.',
+  },
+} as const;
+
 export default function MerchantCalendarPage() {
+  const { language } = useLanguage();
+  const copy = calendarPageCopy[language];
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,17 +49,13 @@ export default function MerchantCalendarPage() {
   }, []);
 
   return (
-    <MobileLayout
-      role="merchant"
-      subtitle="Your daily schedule."
-      title="Nailed-it"
-    >
+    <MobileLayout role="merchant" subtitle={copy.subtitle} title="Nailed-it">
       <section className="page-heading">
-        <p className="section-eyebrow">Calendar</p>
-        <h1>Appointment calendar</h1>
+        <p className="section-eyebrow">{copy.eyebrow}</p>
+        <h1>{copy.title}</h1>
       </section>
       {loading ? (
-        <LoadingState title="Loading appointments" body="Fetching the latest schedule from the booking service." />
+        <LoadingState title={copy.loadingTitle} body={copy.loadingBody} />
       ) : (
         <CalendarSchedule bookings={bookings} />
       )}

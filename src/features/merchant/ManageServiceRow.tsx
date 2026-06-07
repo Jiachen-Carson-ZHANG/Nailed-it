@@ -36,14 +36,10 @@ export function ManageServiceRow({
   showUnit = true,
   currency = 'CNY',
 }: ManageServiceRowProps) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const baseId = `manage-row-${entry.id}`;
   const currentUnit = settings.unit ?? entry.default_pricing_unit;
   const entryName = language === 'zh-CN' ? entry.name_zh : entry.name_en;
-  const durationLabel = language === 'zh-CN' ? '时长' : 'duration';
-  const priceLabel = language === 'zh-CN' ? '单价' : 'price';
-  const unitLabel = language === 'zh-CN' ? '单位' : 'unit';
-  const minuteLabel = language === 'zh-CN' ? '分钟' : 'min';
 
   return (
     <div className="manage-row">
@@ -56,9 +52,9 @@ export function ManageServiceRow({
           max={240}
           value={settings.duration}
           onChange={(e) => onChange({ ...settings, duration: Math.max(0, Number(e.target.value) || 0) })}
-          aria-label={`${entryName} ${durationLabel}`}
+          aria-label={`${entryName} ${t('common.duration')}`}
         />
-        <span>{minuteLabel}</span>
+        <span>{t('common.minutes')}</span>
       </label>
       {showPrice && (
         <label className="manage-row-field" htmlFor={`${baseId}-price`}>
@@ -69,14 +65,14 @@ export function ManageServiceRow({
             step={0.5}
             value={settings.price}
             onChange={(e) => onChange({ ...settings, price: Math.max(0, Number(e.target.value) || 0) })}
-            aria-label={`${entryName} ${priceLabel}`}
+            aria-label={`${entryName} ${t('common.price')}`}
           />
           <span>{currency}</span>
         </label>
       )}
       {showUnit && (
         <select
-          aria-label={`${entryName} ${unitLabel}`}
+          aria-label={`${entryName} ${t('common.unit')}`}
           value={currentUnit}
           onChange={(e) => onChange({ ...settings, unit: e.target.value })}
           className="manage-row-unit"

@@ -48,8 +48,8 @@ export default function MerchantMessagesPage() {
       <Link className="opsbot-entry" href={getMerchantOpsBotPath()}>
         <span className="opsbot-entry-avatar" aria-hidden>AI</span>
         <span className="opsbot-entry-body">
-          <strong>Nailed AI 运营助手</strong>
-          <span className="opsbot-entry-preview">今日经营快报已就绪 · 需求、缺口、转化</span>
+          <strong>{t('messages.merchant.opsTitle')}</strong>
+          <span className="opsbot-entry-preview">{t('messages.merchant.opsPreview')}</span>
         </span>
         <span className="opsbot-entry-badge" aria-hidden>📊</span>
       </Link>

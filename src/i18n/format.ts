@@ -26,6 +26,7 @@ const pricingUnitLabels: Record<PricingUnitLabel, LanguageTextMap> = {
 const statusLabels: Record<BookingStatusLabel, LanguageTextMap> = {
   pending_review: { 'zh-CN': '待确认', en: 'Pending review' },
   confirmed: { 'zh-CN': '已确认', en: 'Confirmed' },
+  in_progress: { 'zh-CN': '进行中', en: 'In progress' },
   completed: { 'zh-CN': '已完成', en: 'Completed' },
   cancelled: { 'zh-CN': '已取消', en: 'Cancelled' },
 };

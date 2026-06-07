@@ -1,6 +1,8 @@
 'use client';
 
 import type { MerchantPricingSetting } from '@/domain/merchant';
+import { useLanguage } from '@/i18n/context';
+import { formatDuration } from '@/i18n/format';
 
 type GlossaryEntryCardProps = {
   settings: MerchantPricingSetting;
@@ -8,12 +10,14 @@ type GlossaryEntryCardProps = {
 };
 
 export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps) {
+  const { language, t } = useLanguage();
   const baseId = `catalog-entry-${settings.id}`;
+  const displayName = language === 'zh-CN' ? settings.name.zh : settings.name.en;
 
   return (
     <article className="pricing-card">
       <label className="pricing-card-toggle" htmlFor={`${baseId}-enabled`}>
-        <span>{settings.nameZh}</span>
+        <span>{displayName}</span>
         <input
           checked={settings.enabled}
           id={`${baseId}-enabled`}
@@ -25,7 +29,7 @@ export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps
         <label htmlFor={`${baseId}-price`}>
           <span>SGD</span>
           <input
-            aria-label={`${settings.nameZh} 单价 (SGD)`}
+            aria-label={`${displayName} ${t('common.price')} (SGD)`}
             id={`${baseId}-price`}
             min="0"
             step="0.5"
@@ -35,9 +39,9 @@ export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps
           />
         </label>
         <label htmlFor={`${baseId}-duration`}>
-          <span>分钟</span>
+          <span>{t('common.minutes')}</span>
           <input
-            aria-label={`${settings.nameZh} 时长 (分钟)`}
+            aria-label={`${displayName} ${t('common.duration')} (${t('common.minutes')})`}
             id={`${baseId}-duration`}
             max="180"
             min="0"
@@ -45,7 +49,7 @@ export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps
             value={settings.duration}
             onChange={(event) => onChange({ ...settings, duration: Number(event.target.value) })}
           />
-          <strong>{settings.duration} min</strong>
+          <strong>{formatDuration({ minutes: settings.duration, language })}</strong>
         </label>
       </div>
     </article>

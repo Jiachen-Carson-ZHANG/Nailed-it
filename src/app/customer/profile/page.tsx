@@ -55,7 +55,7 @@ export default function CustomerProfilePage() {
   const upcomingBookings = customerBookings.filter((booking) =>
     ['pending_review', 'confirmed'].includes(booking.status)
   );
-  const bookingSummary = `${customerBookings.length} ${language === 'zh-CN' ? '次预约' : 'bookings'} · ${copy.joinedIn}`;
+  const bookingSummary = `${customerBookings.length} ${t('profile.bookingCountSuffix')} · ${copy.joinedIn}`;
 
   return (
     <MobileLayout

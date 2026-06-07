@@ -4,6 +4,8 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from '
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MerchantStyleStatus, MerchantStyleView } from '@/domain/merchant-style';
+import { Toast } from '@/components/ui/Toast';
+import { useLanguage } from '@/i18n/context';
 import {
   archiveMerchantStyleAction,
   deleteMerchantStyleAction,
@@ -11,9 +13,40 @@ import {
   uploadMerchantStyleAction,
 } from '@/lib/actions/merchant-style-actions';
 
-function formatPreview(style: MerchantStyleView): string {
+const libraryFlashKey = 'merchant-style-library-flash';
+
+const libraryCopy = {
+  'zh-CN': {
+    uploadAria: '上传新款式',
+    uploading: '正在上传…',
+    addDesign: '添加新款式',
+    tabList: '款式状态',
+    published: '已发布',
+    archived: '已归档',
+    empty: '这里还没有款式',
+    collection: '商家款式库',
+    notPriced: '尚未定价',
+    loadError: '无法加载款式库。',
+    uploadError: '上传失败。',
+  },
+  en: {
+    uploadAria: 'Upload a new design',
+    uploading: 'Uploading design…',
+    addDesign: 'Add a new design',
+    tabList: 'Design status',
+    published: 'Published',
+    archived: 'Archived',
+    empty: 'No designs here yet.',
+    collection: 'Merchant style collection',
+    notPriced: 'Not priced yet',
+    loadError: 'Unable to load the style library.',
+    uploadError: 'Upload failed.',
+  },
+} as const;
+
+function formatPreview(style: MerchantStyleView, notPriced: string): string {
   if (style.previewPriceCents === null || style.previewDurationMin === null) {
-    return 'Not priced yet';
+    return notPriced;
   }
   return `$${(style.previewPriceCents / 100).toFixed(2)} · ${style.previewDurationMin} min`;
 }
@@ -27,16 +60,19 @@ const TAB_STATUSES: Record<LibraryTab, MerchantStyleStatus[]> = {
   published: ['published'],
   archived: ['archived'],
 };
-const TAB_ORDER: { key: LibraryTab; label: string }[] = [
-  { key: 'published', label: 'Published' },
-  { key: 'archived', label: 'Archived' },
-];
 
 export function MerchantStyleLibrary() {
   const router = useRouter();
+  const { language, t } = useLanguage();
+  const copy = libraryCopy[language];
+  const tabOrder: { key: LibraryTab; label: string }[] = [
+    { key: 'published', label: copy.published },
+    { key: 'archived', label: copy.archived },
+  ];
   const [styles, setStyles] = useState<MerchantStyleView[]>([]);
   const [tab, setTab] = useState<LibraryTab>('published');
   const [message, setMessage] = useState('');
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -44,15 +80,22 @@ export function MerchantStyleLibrary() {
   }, []);
 
   useEffect(() => {
-    refresh().catch(() => setMessage('Unable to load the style library.'));
+    refresh().catch(() => setMessage(copy.loadError));
   }, [refresh]);
+
+  useEffect(() => {
+    const flash = window.sessionStorage.getItem(libraryFlashKey);
+    if (!flash) return;
+    window.sessionStorage.removeItem(libraryFlashKey);
+    setToast({ id: Date.now(), message: flash });
+  }, []);
 
   // Land on the first non-empty tab once (action items first), without overriding a later choice.
   const autoTabbed = useRef(false);
   useEffect(() => {
     if (autoTabbed.current || styles.length === 0) return;
     autoTabbed.current = true;
-    const firstWithItems = TAB_ORDER.find((t) => styles.some((s) => TAB_STATUSES[t.key].includes(s.status)));
+    const firstWithItems = tabOrder.find((t) => styles.some((s) => TAB_STATUSES[t.key].includes(s.status)));
     if (firstWithItems) setTab(firstWithItems.key);
   }, [styles]);
 
@@ -69,7 +112,7 @@ export function MerchantStyleLibrary() {
       const draft = await uploadMerchantStyleAction(formData);
       router.push(`/merchant/styles/${draft.id}/review`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Upload failed.');
+      setMessage(error instanceof Error ? error.message : copy.uploadError);
       input.value = '';
       setIsPending(false);
     }
@@ -81,24 +124,30 @@ export function MerchantStyleLibrary() {
     try {
       await archiveMerchantStyleAction(styleId);
       await refresh();
-      setMessage('Style archived.');
+      setToast({ id: Date.now(), message: t('common.archived') });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Archive failed.');
+      const fallback = t('common.archiveFailed');
+      const errorMessage = error instanceof Error ? error.message : fallback;
+      setMessage(errorMessage);
+      setToast({ id: Date.now(), message: error instanceof Error ? `${fallback}: ${errorMessage}` : fallback });
     } finally {
       setIsPending(false);
     }
   }
 
   async function remove(styleId: string) {
-    if (!window.confirm('Delete this design? This cannot be undone.')) return;
+    if (!window.confirm(t('common.deleteConfirm'))) return;
     setIsPending(true);
     setMessage('');
     try {
       await deleteMerchantStyleAction(styleId);
       await refresh();
-      setMessage('Design deleted.');
+      setToast({ id: Date.now(), message: t('common.deleted') });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Delete failed.');
+      const fallback = t('common.deleteFailed');
+      const errorMessage = error instanceof Error ? error.message : fallback;
+      setMessage(errorMessage);
+      setToast({ id: Date.now(), message: error instanceof Error ? `${fallback}: ${errorMessage}` : fallback });
     } finally {
       setIsPending(false);
     }
@@ -107,7 +156,7 @@ export function MerchantStyleLibrary() {
   const countByTab = useMemo(() => {
     const counts: Record<LibraryTab, number> = { published: 0, archived: 0 };
     for (const style of styles) {
-      for (const key of TAB_ORDER) {
+      for (const key of tabOrder) {
         if (TAB_STATUSES[key.key].includes(style.status)) counts[key.key] += 1;
       }
     }
@@ -121,7 +170,7 @@ export function MerchantStyleLibrary() {
       <label className={`image-uploader merchant-style-upload-tile${isPending ? ' is-pending' : ''}`}>
         <input
           accept="image/jpeg,image/png,image/webp"
-          aria-label="Upload a new design"
+          aria-label={copy.uploadAria}
           disabled={isPending}
           hidden
           type="file"
@@ -131,12 +180,12 @@ export function MerchantStyleLibrary() {
           <span className="image-uploader-mark">＋</span>
         </div>
         <div className="image-uploader-copy">
-          <strong>{isPending ? 'Uploading design…' : 'Add a new design'}</strong>
+          <strong>{isPending ? copy.uploading : copy.addDesign}</strong>
         </div>
       </label>
 
-      <div className="merchant-library-tabs" role="tablist" aria-label="Design status">
-        {TAB_ORDER.map(({ key, label }) => (
+      <div className="merchant-library-tabs" role="tablist" aria-label={copy.tabList}>
+        {tabOrder.map(({ key, label }) => (
           <button
             key={key}
             type="button"
@@ -154,9 +203,9 @@ export function MerchantStyleLibrary() {
       {message ? <p className="helper-copy" role="status">{message}</p> : null}
 
       {visible.length === 0 ? (
-        <p className="merchant-review-empty">No designs here yet.</p>
+        <p className="merchant-review-empty">{copy.empty}</p>
       ) : (
-        <section aria-label="Merchant style collection" className="merchant-style-management-grid">
+        <section aria-label={copy.collection} className="merchant-style-management-grid">
           {visible.map((style) => {
             const isPublished = style.status === 'published';
             const isArchived = style.status === 'archived';
@@ -166,14 +215,14 @@ export function MerchantStyleLibrary() {
                 <div className="merchant-style-card-body">
                   <div className="merchant-style-card-heading">
                     <strong>{style.title}</strong>
-                    <p className="merchant-style-card-preview">{formatPreview(style)}</p>
+                    <p className="merchant-style-card-preview">{formatPreview(style, copy.notPriced)}</p>
                   </div>
                   <div className="merchant-style-card-actions">
                     <Link
                       className="button button-secondary button-default"
                       href={`/merchant/styles/${style.id}/review`}
                     >
-                      {isPublished ? 'Edit' : isArchived ? 'View' : 'Edit'}
+                      {isPublished ? t('common.edit') : isArchived ? t('common.view') : t('common.edit')}
                     </Link>
                     {isPublished ? (
                       <button
@@ -182,7 +231,7 @@ export function MerchantStyleLibrary() {
                         type="button"
                         onClick={() => archive(style.id)}
                       >
-                        Archive
+                        {t('common.archive')}
                       </button>
                     ) : null}
                     {!isPublished ? (
@@ -192,7 +241,7 @@ export function MerchantStyleLibrary() {
                         type="button"
                         onClick={() => remove(style.id)}
                       >
-                        Delete
+                        {t('common.delete')}
                       </button>
                     ) : null}
                   </div>
@@ -202,6 +251,8 @@ export function MerchantStyleLibrary() {
           })}
         </section>
       )}
+
+      <Toast key={toast?.id} message={toast?.message ?? ''} />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from '@/i18n/context';
+
 type AnalyzeChipProps = {
   label: string;
   active: boolean;
@@ -17,6 +19,7 @@ export function AnalyzeChip({
   unitLabel,
   onQuantityChange,
 }: AnalyzeChipProps) {
+  const { t } = useLanguage();
   const showQty = active && quantity !== undefined && onQuantityChange;
 
   return (
@@ -33,7 +36,7 @@ export function AnalyzeChip({
             type="button"
             className="analyze-qty-btn"
             onClick={() => onQuantityChange(Math.max(1, (quantity ?? 1) - 1))}
-            aria-label="减少数量"
+            aria-label={t('common.decreaseQty')}
           >−</button>
           <input
             type="number"
@@ -45,13 +48,13 @@ export function AnalyzeChip({
               const n = Math.max(1, Math.round(Number(e.target.value) || 1));
               onQuantityChange(n);
             }}
-            aria-label="数量"
+            aria-label={t('common.quantity')}
           />
           <button
             type="button"
             className="analyze-qty-btn"
             onClick={() => onQuantityChange((quantity ?? 1) + 1)}
-            aria-label="增加数量"
+            aria-label={t('common.increaseQty')}
           >+</button>
           {unitLabel && <span className="analyze-qty-unit">{unitLabel}</span>}
         </span>
@@ -66,8 +69,10 @@ type AddChipProps = {
 };
 
 export function AddChip({ onClick, label = '+' }: AddChipProps) {
+  const { t } = useLanguage();
+
   return (
-    <button type="button" className="analyze-chip analyze-chip-add" onClick={onClick} aria-label="添加选项">
+    <button type="button" className="analyze-chip analyze-chip-add" onClick={onClick} aria-label={t('common.addOption')}>
       {label}
     </button>
   );

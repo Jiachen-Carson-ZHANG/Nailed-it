@@ -1,5 +1,6 @@
 'use server';
 
+import type { AppLanguage } from '@/i18n/types';
 import { getRepositories } from '@/lib/repositories';
 import { getMerchantInsights, type MerchantInsights } from '@/domain/intelligence';
 import { summarizeInsights, type AISummary } from '@/nail-ai/insights-summary';
@@ -19,7 +20,10 @@ export async function getMerchantInsightsAction(rangeDays = 7): Promise<Merchant
 
 /** Grounded AI narration of the same computed metrics. Recomputes server-side (does not trust a
  *  client-passed payload); falls back to a deterministic summary when the model is unavailable. */
-export async function summarizeInsightsAction(rangeDays = 7): Promise<AISummary> {
+export async function summarizeInsightsAction(
+  rangeDays = 7,
+  language: AppLanguage = 'zh-CN',
+): Promise<AISummary> {
   const insights = await getMerchantInsightsAction(rangeDays);
-  return summarizeInsights(insights);
+  return summarizeInsights(insights, { language });
 }

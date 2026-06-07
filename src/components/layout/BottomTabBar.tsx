@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/domain/nail';
 import { getMockSession } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
+import type { UiMessageKey } from '@/i18n/messages/ui/zh-CN';
 import calendarIcon from '@/landing_assets/calendar.png';
 import homeIcon from '@/landing_assets/home.png';
 import messageIcon from '@/landing_assets/message.png';
@@ -28,44 +29,44 @@ const tabIconsByRole = {
   }
 } as const;
 
-const localizedTabLabels = {
+const tabLabelKeys: Record<UserRole, Record<string, UiMessageKey>> = {
   customer: {
-    '/customer/home': { 'zh-CN': '首页', en: 'Home' },
-    '/customer/booking': { 'zh-CN': '预约', en: 'Book' },
-    '/customer/messages': { 'zh-CN': '消息', en: 'Messages' },
-    '/customer/profile': { 'zh-CN': '我的', en: 'Me' },
+    '/customer/home': 'nav.customer.home',
+    '/customer/booking': 'nav.customer.booking',
+    '/customer/messages': 'nav.customer.messages',
+    '/customer/profile': 'nav.customer.profile',
   },
   merchant: {
-    '/merchant/calendar': { 'zh-CN': '日历', en: 'Calendar' },
-    '/merchant/manage': { 'zh-CN': '管理', en: 'Manage' },
-    '/merchant/messages': { 'zh-CN': '消息', en: 'Messages' },
-    '/merchant/profile': { 'zh-CN': '我的', en: 'Me' },
+    '/merchant/calendar': 'nav.merchant.calendar',
+    '/merchant/manage': 'nav.merchant.manage',
+    '/merchant/messages': 'nav.merchant.messages',
+    '/merchant/profile': 'nav.merchant.profile',
   },
-} as const;
+};
 
-const navigationLabels = {
-  customer: { 'zh-CN': '顾客导航', en: 'Customer navigation' },
-  merchant: { 'zh-CN': '商家导航', en: 'Merchant navigation' },
-} as const;
+const navigationAriaKeys: Record<UserRole, UiMessageKey> = {
+  customer: 'nav.customer.aria',
+  merchant: 'nav.merchant.aria',
+};
 
 export function BottomTabBar({ role }: { role: UserRole }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const tabs = getMockSession(role).tabs;
 
   return (
     <nav
-      aria-label={navigationLabels[role][language]}
+      aria-label={t(navigationAriaKeys[role])}
       className="bottom-tab-bar"
       style={{ ['--tab-count' as string]: String(Math.max(tabs.length, 1)) }}
     >
       {tabs.map((tab) => {
         const active = pathname.startsWith(tab.matchPrefix ?? tab.href);
-        // 中文注释：用稳定路由 key 做映射，避免未来调整英文 label 时把 icon/文案联动搞断。
         const tabKey = tab.href as keyof (typeof tabIconsByRole)[typeof role];
         const iconSrc = tabIconsByRole[role][tabKey];
-        const localizedLabel = localizedTabLabels[role][tabKey][language];
+        const labelKey = tabLabelKeys[role][tab.href];
+        const localizedLabel = labelKey ? t(labelKey) : tab.label;
 
         return (
           <Link

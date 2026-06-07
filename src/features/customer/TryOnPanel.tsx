@@ -10,16 +10,18 @@ import { getCustomerBookingPath } from '@/domain/session';
 import { saveTryOnImage } from '@/domain/tryon-image-store';
 import { demoCustomerId } from '@/mock/customers';
 import { track } from '@/features/analytics/track';
+import { useLanguage } from '@/i18n/context';
 
 type ImageSlotProps = {
   label: string;
   description: string;
+  uploadAria: string;
   image: SelectedNailImage | null;
   prefillImageUrl?: string;
   onImageSelected: (image: SelectedNailImage) => void;
 };
 
-function ImageSlot({ label, description, image, prefillImageUrl, onImageSelected }: ImageSlotProps) {
+function ImageSlot({ label, description, uploadAria, image, prefillImageUrl, onImageSelected }: ImageSlotProps) {
   const previewSrc = image?.previewUrl ?? prefillImageUrl ?? '';
   const hasImage = Boolean(previewSrc);
 
@@ -49,7 +51,7 @@ function ImageSlot({ label, description, image, prefillImageUrl, onImageSelected
           </div>
         )}
         <input
-          aria-label={`Upload ${label}`}
+          aria-label={uploadAria}
           accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
           hidden
           type="file"
@@ -68,6 +70,7 @@ type TryOnPanelProps = {
 
 export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
   const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(null);
   const [result, setResult] = useState<TryOnResult | null>(null);
@@ -96,13 +99,13 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
         });
         finalStyleMime = blob.type || 'image/jpeg';
       } catch {
-        setError('Could not load the prefill style image. Please upload one manually.');
+        setError(t('tryOn.prefillLoadError'));
         return;
       }
     }
 
     if (!finalStyleBase64 || !finalStyleMime) {
-      setError('Please upload a nail style reference image.');
+      setError(t('tryOn.styleRequiredError'));
       return;
     }
 
@@ -125,7 +128,7 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
       const body = (await response.json()) as TryOnResult & { error?: string };
 
       if (!response.ok) {
-        throw new Error(body.error ?? 'Try-on failed.');
+        throw new Error(body.error ?? t('tryOn.tryOnFailed'));
       }
 
       setResult(body);
@@ -135,7 +138,7 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
         eventSource: 'try_on',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Try-on failed.');
+      setError(err instanceof Error ? err.message : t('tryOn.tryOnFailed'));
     } finally {
       setIsGenerating(false);
     }
@@ -149,21 +152,26 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
     router.push(`${base}${sep}t=${Date.now()}`);
   }
 
+  const handLabel = t('tryOn.handLabel');
+  const styleLabel = t('tryOn.styleLabel');
+
   return (
     <div className="try-on-panel">
       <button type="button" className="detail-back-link detail-back-top" onClick={() => router.back()}>
-        ← Back
+        {t('tryOn.back')}
       </button>
       <div className="try-on-slots">
         <ImageSlot
-          label="Your hand"
-          description="Upload a clear photo of your bare nails."
+          label={handLabel}
+          description={t('tryOn.handDesc')}
+          uploadAria={`${handLabel}`}
           image={handImage}
           onImageSelected={setHandImage}
         />
         <ImageSlot
-          label="Nail style"
-          description="Upload or use a style from the gallery."
+          label={styleLabel}
+          description={t('tryOn.styleDesc')}
+          uploadAria={`${styleLabel}`}
           image={styleImage}
           prefillImageUrl={prefillStyleImageUrl}
           onImageSelected={setStyleImage}
@@ -172,28 +180,28 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
 
       {error && (
         <section className="summary-card" role="alert">
-          <strong>Error</strong>
+          <strong>{t('tryOn.errorTitle')}</strong>
           <p>{error}</p>
         </section>
       )}
 
       {isGenerating ? (
         <LoadingState
-          title="Generating your try-on"
-          body="Applying the style to your nails — this may take a moment."
+          title={t('tryOn.loadingTitle')}
+          body={t('tryOn.loadingBody')}
         />
       ) : (
         <Button block disabled={!canGenerate} onClick={generate}>
-          Generate try-on
+          {t('tryOn.generate')}
         </Button>
       )}
 
       {result && (
-        <section className="try-on-result" aria-label="Try-on result">
-          <p className="section-eyebrow">Your try-on</p>
+        <section className="try-on-result" aria-label={t('tryOn.resultEyebrow')}>
+          <p className="section-eyebrow">{t('tryOn.resultEyebrow')}</p>
           <img
             src={`data:${result.mimeType};base64,${result.imageBase64}`}
-            alt="Virtual nail try-on result"
+            alt={t('tryOn.resultAlt')}
             className="try-on-result-image"
           />
           <p className="helper-copy">
@@ -201,15 +209,15 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
               href={`data:${result.mimeType};base64,${result.imageBase64}`}
               download="nail-try-on.png"
             >
-              Download image
+              {t('tryOn.download')}
             </a>
           </p>
           <div className="try-on-result-actions">
             <Button block onClick={analyzeAndBook}>
-              Analyze style + get quote
+              {t('tryOn.analyzeBook')}
             </Button>
             <Button block variant="secondary" onClick={() => router.back()}>
-              ← 返回上一页
+              {t('tryOn.back')}
             </Button>
           </div>
         </section>

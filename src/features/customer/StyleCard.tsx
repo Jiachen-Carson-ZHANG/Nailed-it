@@ -7,6 +7,8 @@ import { demoCustomerId } from '@/mock/customers';
 import { track } from '@/features/analytics/track';
 import { cardFacetLabels } from './style-facets';
 import { useSavedStyles } from './SavedStylesContext';
+import { useLanguage } from '@/i18n/context';
+import { formatCurrency } from '@/i18n/format';
 
 type StyleCardProps = {
   style: NailStyleCard;
@@ -17,13 +19,19 @@ type StyleCardProps = {
 
 export function StyleCard({ style, onTagClick, activeTags }: StyleCardProps) {
   const { isSaved, toggle } = useSavedStyles();
+  const { t, language } = useLanguage();
   const saved = isSaved(style.id);
   const tags = cardFacetLabels(style.discoveryFacets);
+  const priceLabel = formatCurrency({ cents: Math.round(style.previewQuote.price * 100), language });
+  const linkAria =
+    language === 'zh-CN'
+      ? `${style.title}，参考价 ${priceLabel}`
+      : `${style.title} — from ${priceLabel}`;
 
   return (
     <div className="xhs-card">
       <Link
-        aria-label={`${style.title} — from $${style.previewQuote.price}`}
+        aria-label={linkAria}
         className="xhs-card-link"
         href={getCustomerStylePath(style.id)}
         onClick={() =>
@@ -45,12 +53,11 @@ export function StyleCard({ style, onTagClick, activeTags }: StyleCardProps) {
       </Link>
 
       <button
-        aria-label={saved ? 'Remove from saved' : 'Save this style'}
+        aria-label={saved ? t('feed.card.unsave') : t('feed.card.save')}
         aria-pressed={saved}
         className={`xhs-save-btn${saved ? ' xhs-save-btn-saved' : ''}`}
         type="button"
         onClick={() => {
-          // Log only the save (heart on), not un-save, so the profile reflects positive intent.
           if (!saved) {
             track('style_save', {
               styleId: style.id,
@@ -85,7 +92,7 @@ export function StyleCard({ style, onTagClick, activeTags }: StyleCardProps) {
           </div>
         ) : null}
         <div className="xhs-card-meta">
-          <span className="xhs-card-price">${style.previewQuote.price}</span>
+          <span className="xhs-card-price">{priceLabel}</span>
         </div>
       </div>
     </div>

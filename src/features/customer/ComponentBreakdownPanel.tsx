@@ -11,6 +11,14 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { AnalyzeChip, AddChip } from '@/features/merchant/AnalyzeChip';
 import { useLanguage } from '@/i18n/context';
+import type { AppLanguage } from '@/i18n/types';
+import {
+  breakdownPanelCopy,
+  COLOR_EFFECT_IDS,
+  entryDisplayName,
+  resolveUnitLabel,
+  type BreakdownPanelCopy,
+} from '@/features/customer/breakdown-panel-copy';
 
 // ── Glossary lookup helpers ───────────────────────────────────────────────────
 const byCategory = (cat: string) =>
@@ -23,44 +31,6 @@ const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const TEXTURE_IDS   = byCategory('texture').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
 
-const COLOR_EFFECT_IDS = ['color_split', 'solid_color', 'gradient', 'aura_blush', 'ink_wash', 'jelly_translucent', 'cat_eye', 'glitter', 'matte_top', 'magnetic_special_effect'];
-
-const ART_GROUPS: { label: string; ids: string[] }[] = [
-  { label: '法式',         ids: ['french_tip_basic', 'french_tip_special'] },
-  { label: '手绘',         ids: ['hand_paint_simple', 'hand_paint_medium', 'hand_paint_complex'] },
-  { label: '线条/图案/立体', ids: ['line_art', 'pattern_art', '3d_art'] },
-];
-
-const DECO_GROUPS: { label: string; ids: string[] }[] = [
-  { label: '贴纸', ids: ['sticker'] },
-  { label: '贴钻', ids: ['rhinestone_small', 'rhinestone_large', 'rhinestone_heavy'] },
-  { label: '饰品', ids: ['pearl', 'metal_charm', 'bow_charm', 'chain_charm', 'shell_piece'] },
-  { label: '箔片', ids: ['foil_piece'] },
-  { label: '蹭粉', ids: ['chrome_powder', 'aurora_powder', 'pearl_powder'] },
-];
-
-const UNIT_ZH: Record<string, string> = {
-  per_set:    '每套',
-  per_finger: '每指',
-  per_piece:  '每颗',
-  fixed:      '每次',
-  per_level:  '级',
-  included:   '含',
-  tag_only:   '每套',
-  set:        '套',
-  finger:     '指',
-  piece:      '颗',
-};
-
-function resolveUnitLabel(id: string): string {
-  const settings = loadGlossarySettings();
-  const s = settings.find((x) => x.id === id);
-  const entry = glossaryById.get(id);
-  const unit = s?.unit ?? entry?.default_pricing_unit ?? '';
-  return UNIT_ZH[unit] ?? unit;
-}
-
-// ── Map AI BreakdownResult → state ────────────────────────────────────────────
 function seedStateFromBreakdown(result: BreakdownResult) {
   const structureIds = new Set<string>(['builder_gel']);
   let removalId: string | null = null;
@@ -210,23 +180,31 @@ export function buildBreakdownFromConfig(
 }
 
 // ── Summary bar ───────────────────────────────────────────────────────────────
-function BreakdownSummary({ breakdown, currency }: { breakdown: BreakdownResult; currency: string }) {
+function BreakdownSummary({
+  breakdown,
+  currency,
+  copy,
+}: {
+  breakdown: BreakdownResult;
+  currency: string;
+  copy: BreakdownPanelCopy;
+}) {
   const priceStr = breakdown.totalPrice > 0
     ? `${breakdown.totalPrice.toFixed(2)} ${currency}`
-    : '—';
+    : copy.noValue;
   const durationStr = breakdown.totalDuration > 0
-    ? `${breakdown.totalDuration} 分钟`
-    : '—';
+    ? copy.minutes(breakdown.totalDuration)
+    : copy.noValue;
 
   return (
     <div className="analyze-summary-bar">
       <div className="analyze-summary-item">
-        <span className="analyze-summary-label">总价</span>
+        <span className="analyze-summary-label">{copy.summaryTotalPrice}</span>
         <span className="analyze-summary-value" key={priceStr}>{priceStr}</span>
       </div>
       <div className="analyze-summary-divider" />
       <div className="analyze-summary-item">
-        <span className="analyze-summary-label">总时长</span>
+        <span className="analyze-summary-label">{copy.summaryTotalDuration}</span>
         <span className="analyze-summary-value" key={durationStr}>{durationStr}</span>
       </div>
     </div>
@@ -242,6 +220,8 @@ function ChipGroup({
   quantities,
   onQuantityChange,
   showAdd = false,
+  language,
+  copy,
 }: {
   ids: string[];
   activeIds: Set<string> | string | null;
@@ -250,6 +230,8 @@ function ChipGroup({
   quantities?: Map<string, number>;
   onQuantityChange?: (id: string, n: number) => void;
   showAdd?: boolean;
+  language: AppLanguage;
+  copy: BreakdownPanelCopy;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -269,11 +251,11 @@ function ChipGroup({
         if (!entry) return null;
         const active = isActive(id);
         const qty = quantities?.get(id) ?? 1;
-        const unitLabel = active && quantities ? resolveUnitLabel(id) : undefined;
+        const unitLabel = active && quantities ? resolveUnitLabel(id, language) : undefined;
         return (
           <AnalyzeChip
             key={id}
-            label={entry.name_zh}
+            label={entryDisplayName(id, language)}
             active={active}
             onToggle={() => onToggle(id)}
             quantity={quantities && active ? qty : undefined}
@@ -286,7 +268,7 @@ function ChipGroup({
         <AddChip onClick={() => setExpanded(true)} label={`+ ${dimIds.length}`} />
       )}
       {expanded && showAdd && (
-        <AddChip onClick={() => setExpanded(false)} label="收起" />
+        <AddChip onClick={() => setExpanded(false)} label={copy.collapse} />
       )}
     </div>
   );
@@ -296,6 +278,8 @@ function ChipGroup({
 function EffectsSection({
   colorEffectIds, artIds, decoIds, quantities,
   onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  language,
+  copy,
 }: {
   colorEffectIds: Set<string>;
   artIds: Set<string>;
@@ -305,37 +289,39 @@ function EffectsSection({
   onArtToggle: (id: string) => void;
   onDecoToggle: (id: string) => void;
   onQuantityChange: (id: string, n: number) => void;
+  language: AppLanguage;
+  copy: BreakdownPanelCopy;
 }) {
   const [openSection, setOpenSection] = useState<'color' | 'art' | 'deco' | null>('color');
   const toggle = (s: 'color' | 'art' | 'deco') => setOpenSection((prev) => (prev === s ? null : s));
 
   return (
     <div className="analyze-section">
-      <h3 className="analyze-section-title">款式效果</h3>
+      <h3 className="analyze-section-title">{copy.effectsTitle}</h3>
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('color')}>
-          <span>颜色效果</span>
+          <span>{copy.colorEffects}</span>
           <span className="manage-accordion-chevron">{openSection === 'color' ? '▲' : '▼'}</span>
         </button>
         {openSection === 'color' && (
           <div className="manage-accordion-body">
-            <ChipGroup ids={COLOR_EFFECT_IDS} activeIds={colorEffectIds} onToggle={onColorEffectToggle} showAdd />
+            <ChipGroup ids={[...COLOR_EFFECT_IDS]} activeIds={colorEffectIds} onToggle={onColorEffectToggle} showAdd language={language} copy={copy} />
           </div>
         )}
       </div>
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('art')}>
-          <span>艺术效果</span>
+          <span>{copy.artEffects}</span>
           <span className="manage-accordion-chevron">{openSection === 'art' ? '▲' : '▼'}</span>
         </button>
         {openSection === 'art' && (
           <div className="manage-accordion-body">
-            {ART_GROUPS.map((group) => (
+            {copy.artGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
                 <div className="analyze-accordion-subgroup-label">{group.label}</div>
-                <ChipGroup ids={group.ids} activeIds={artIds} onToggle={onArtToggle} showAdd />
+                <ChipGroup ids={group.ids} activeIds={artIds} onToggle={onArtToggle} showAdd language={language} copy={copy} />
               </div>
             ))}
           </div>
@@ -344,12 +330,12 @@ function EffectsSection({
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('deco')}>
-          <span>装饰效果</span>
+          <span>{copy.decoEffects}</span>
           <span className="manage-accordion-chevron">{openSection === 'deco' ? '▲' : '▼'}</span>
         </button>
         {openSection === 'deco' && (
           <div className="manage-accordion-body">
-            {DECO_GROUPS.map((group) => (
+            {copy.decoGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
                 <div className="analyze-accordion-subgroup-label">{group.label}</div>
                 <ChipGroup
@@ -359,6 +345,8 @@ function EffectsSection({
                   quantities={quantities}
                   onQuantityChange={onQuantityChange}
                   showAdd
+                  language={language}
+                  copy={copy}
                 />
               </div>
             ))}
@@ -380,19 +368,29 @@ function isPricedRow(glossaryType: string, glossaryId: string): boolean {
   return glossaryType !== 'service_module' || glossaryId === BASE_MANICURE_ID;
 }
 
-function PriceTable({ breakdown, currency }: { breakdown: BreakdownResult; currency: string }) {
+function PriceTable({
+  breakdown,
+  currency,
+  language,
+  copy,
+}: {
+  breakdown: BreakdownResult;
+  currency: string;
+  language: AppLanguage;
+  copy: BreakdownPanelCopy;
+}) {
   const priced = breakdown.items.filter((i) => isPricedRow(i.glossaryType, i.glossaryId));
   if (priced.length === 0) return null;
 
   return (
     <div className="analyze-section">
-      <h3 className="analyze-section-title">单价明细</h3>
+      <h3 className="analyze-section-title">{copy.priceDetail}</h3>
       <table className="analyze-total-table">
         <thead>
           <tr>
-            <th>项目</th>
-            <th className="analyze-total-duration">时长</th>
-            <th className="analyze-total-price">金额</th>
+            <th>{copy.colItem}</th>
+            <th className="analyze-total-duration">{copy.colDuration}</th>
+            <th className="analyze-total-price">{copy.colAmount}</th>
           </tr>
         </thead>
         <tbody>
@@ -401,15 +399,16 @@ function PriceTable({ breakdown, currency }: { breakdown: BreakdownResult; curre
             const isBillable = item.glossaryType === 'billable_component';
             const dur = isBillable ? item.duration * qty : item.duration;
             const price = item.price * qty;
-            const unitZh = UNIT_ZH[item.unit] ?? item.unit;
+            const unitLabel = copy.units[item.unit as keyof typeof copy.units] ?? item.unit;
+            const displayName = entryDisplayName(item.glossaryId, language);
             return (
               <tr key={item.glossaryId}>
                 <td>
-                  {item.nameZh}
-                  {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitZh}</span>}
+                  {displayName}
+                  {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitLabel}</span>}
                 </td>
-                <td className="analyze-total-duration">{dur > 0 ? `${dur} 分钟` : '—'}</td>
-                <td className="analyze-total-price">{price > 0 ? `${price.toFixed(2)} ${currency}` : '—'}</td>
+                <td className="analyze-total-duration">{dur > 0 ? copy.minutes(dur) : copy.noValue}</td>
+                <td className="analyze-total-price">{price > 0 ? `${price.toFixed(2)} ${currency}` : copy.noValue}</td>
               </tr>
             );
           })}
@@ -426,6 +425,7 @@ type ComponentBreakdownPanelProps = {
   previewUrl?: string;
   cachedResult?: BreakdownResult | null;
   onResult?: (result: BreakdownResult) => void;
+  onSuggestedStyleName?: (suggestion: NonNullable<BreakdownResult['suggestedStyleName']>) => void;
   // Merchant editing reuses this panel but never picks 卸甲 (removal is a customer-booking concern).
   showRemoval?: boolean;
   // Extra actions rendered under 重新分析 (merchant: Save / Publish). Customer leaves it empty.
@@ -437,6 +437,8 @@ type ComponentBreakdownPanelProps = {
 
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
+  const { language } = useLanguage();
+  const copy = breakdownPanelCopy[language];
   const priced = result.items.filter((i) => isPricedRow(i.glossaryType, i.glossaryId));
   const totalPrice = priced.reduce((s, i) => s + i.price * i.quantity, 0);
   const totalDuration = priced.reduce((s, i) => {
@@ -445,22 +447,23 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 
   return (
     <div className="breakdown-inline">
-      <table className="breakdown-table" aria-label="收费项目明细">
+      <table className="breakdown-table" aria-label={copy.tableAria}>
         <tbody>
           {priced.map((item) => {
             const qty = item.quantity;
             const isBillable = item.glossaryType === 'billable_component';
+            const displayName = entryDisplayName(item.glossaryId, language);
             return (
               <tr key={item.glossaryId}>
                 <td>
-                  <span className="breakdown-label">{item.nameZh}</span>
+                  <span className="breakdown-label">{displayName}</span>
                   {qty > 1 && <span className="breakdown-qty"> ×{qty}</span>}
                 </td>
                 <td className="breakdown-duration">
-                  {item.duration > 0 ? `${isBillable ? item.duration * qty : item.duration} min` : '—'}
+                  {item.duration > 0 ? copy.minutes(isBillable ? item.duration * qty : item.duration) : copy.noValue}
                 </td>
                 <td className="breakdown-price">
-                  {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : '—'}
+                  {item.price > 0 ? `$${(item.price * qty).toFixed(2)}` : copy.noValue}
                 </td>
               </tr>
             );
@@ -468,8 +471,8 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
         </tbody>
         <tfoot>
           <tr className="breakdown-total">
-            <td>总计</td>
-            <td className="breakdown-duration">{totalDuration} min</td>
+            <td>{copy.total}</td>
+            <td className="breakdown-duration">{copy.minutes(totalDuration)}</td>
             <td className="breakdown-price">${totalPrice.toFixed(2)}</td>
           </tr>
         </tfoot>
@@ -484,11 +487,13 @@ export function ComponentBreakdownPanel({
   previewUrl,
   cachedResult,
   onResult,
+  onSuggestedStyleName,
   showRemoval = true,
   footer,
   autoAnalyze = true,
 }: ComponentBreakdownPanelProps) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
+  const copy = breakdownPanelCopy[language];
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
   const currency = loadCurrency();
@@ -561,11 +566,14 @@ export function ComponentBreakdownPanel({
       });
       const body = (await response.json()) as BreakdownResult & { error?: string };
       if (!response.ok) {
-        throw new Error(body.error ?? (language === 'zh-CN' ? '分析失败。' : 'Breakdown failed.'));
+        throw new Error(body.error ?? copy.breakdownFailed);
+      }
+      if (body.suggestedStyleName) {
+        onSuggestedStyleName?.(body.suggestedStyleName);
       }
       applyBreakdown(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : language === 'zh-CN' ? '分析失败。' : 'Breakdown failed.');
+      setError(err instanceof Error ? err.message : copy.breakdownFailed);
     } finally {
       setIsLoading(false);
     }
@@ -604,8 +612,8 @@ export function ComponentBreakdownPanel({
   if (isLoading) {
     return (
       <LoadingState
-        title={language === 'zh-CN' ? 'AI 识别中' : 'AI analysis in progress'}
-        body={language === 'zh-CN' ? '正在从图片识别甲型与款式…' : 'Detecting nail shape and style from the image…'}
+        title={copy.loadingTitle}
+        body={copy.loadingBody}
       />
     );
   }
@@ -613,10 +621,10 @@ export function ComponentBreakdownPanel({
   if (error) {
     return (
       <section className="summary-card" role="alert">
-        <strong>{language === 'zh-CN' ? '分析失败' : 'Analysis failed'}</strong>
+        <strong>{copy.errorTitle}</strong>
         <p>{error}</p>
         <Button size="compact" variant="secondary" onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>
-          {language === 'zh-CN' ? '重试' : 'Retry'}
+          {t('common.retry')}
         </Button>
       </section>
     );
@@ -626,17 +634,17 @@ export function ComponentBreakdownPanel({
     <div className="analyze-flat-layout">
       {displayPreviewUrl ? (
         <div className="analyze-image-preview">
-          <img alt={language === 'zh-CN' ? '当前款式图片' : 'Current style'} src={displayPreviewUrl} />
+          <img alt={copy.imageAlt} src={displayPreviewUrl} />
         </div>
       ) : null}
 
       {/* ── Summary bar ── */}
-      <BreakdownSummary breakdown={breakdown} currency={currency} />
+      <BreakdownSummary breakdown={breakdown} currency={currency} copy={copy} />
 
       {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
       {showRemoval && (
         <div className="analyze-section">
-          <h3 className="analyze-section-title">卸甲</h3>
+          <h3 className="analyze-section-title">{copy.removal}</h3>
           <div className="analyze-chip-group">
             {REMOVAL_IDS.map((id) => {
               const entry = glossaryById.get(id);
@@ -644,7 +652,7 @@ export function ComponentBreakdownPanel({
               return (
                 <AnalyzeChip
                   key={id}
-                  label={entry.name_zh}
+                  label={entryDisplayName(id, language)}
                   active={removalId === id}
                   onToggle={() => toggleSingle(removalId, setRemovalId, id)}
                 />
@@ -656,7 +664,7 @@ export function ComponentBreakdownPanel({
 
       {/* ── 建构/延长 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">建构 / 延长</h3>
+        <h3 className="analyze-section-title">{copy.structure}</h3>
         <div className="analyze-chip-group">
           {STRUCTURE_IDS.map((id) => {
             const entry = glossaryById.get(id);
@@ -664,7 +672,7 @@ export function ComponentBreakdownPanel({
             return (
               <AnalyzeChip
                 key={id}
-                label={entry.name_zh}
+                label={entryDisplayName(id, language)}
                 active={structureIds.has(id)}
                 onToggle={() => toggleSet(setStructureIds, id)}
               />
@@ -675,22 +683,22 @@ export function ComponentBreakdownPanel({
 
       {/* ── 甲型/颜色 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">甲型 / 颜色</h3>
+        <h3 className="analyze-section-title">{copy.shapeColor}</h3>
         <div className="analyze-subrow">
-          <div className="analyze-subrow-label">甲型</div>
-          <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd />
+          <div className="analyze-subrow-label">{copy.nailShape}</div>
+          <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd language={language} copy={copy} />
         </div>
         <div className="analyze-subrow">
-          <div className="analyze-subrow-label">甲长</div>
-          <ChipGroup ids={LENGTH_IDS} activeIds={nailLength} mode="single" onToggle={(id) => toggleSingle(nailLength, setNailLength, id)} showAdd />
+          <div className="analyze-subrow-label">{copy.nailLength}</div>
+          <ChipGroup ids={LENGTH_IDS} activeIds={nailLength} mode="single" onToggle={(id) => toggleSingle(nailLength, setNailLength, id)} showAdd language={language} copy={copy} />
         </div>
         <div className="analyze-subrow">
-          <div className="analyze-subrow-label">质感</div>
-          <ChipGroup ids={TEXTURE_IDS} activeIds={texture} mode="single" onToggle={(id) => toggleSingle(texture, setTexture, id)} showAdd />
+          <div className="analyze-subrow-label">{copy.texture}</div>
+          <ChipGroup ids={TEXTURE_IDS} activeIds={texture} mode="single" onToggle={(id) => toggleSingle(texture, setTexture, id)} showAdd language={language} copy={copy} />
         </div>
         <div className="analyze-subrow">
-          <div className="analyze-subrow-label">底色（可多选）</div>
-          <ChipGroup ids={COLOR_IDS} activeIds={colorIds} onToggle={(id) => toggleSet(setColorIds, id)} showAdd />
+          <div className="analyze-subrow-label">{copy.baseColor}</div>
+          <ChipGroup ids={COLOR_IDS} activeIds={colorIds} onToggle={(id) => toggleSet(setColorIds, id)} showAdd language={language} copy={copy} />
         </div>
       </div>
 
@@ -704,15 +712,17 @@ export function ComponentBreakdownPanel({
         onArtToggle={(id) => toggleSet(setArtIds, id)}
         onDecoToggle={(id) => toggleSet(setDecoIds, id)}
         onQuantityChange={handleQuantityChange}
+        language={language}
+        copy={copy}
       />
 
       {/* ── Price table ── */}
-      <PriceTable breakdown={breakdown} currency={currency} />
+      <PriceTable breakdown={breakdown} currency={currency} language={language} copy={copy} />
 
       {/* ── Re-analyse ── */}
       <div style={{ padding: '0.75rem 0' }}>
         <Button block size="compact" variant="secondary" disabled={isLoading} onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>
-          重新分析
+          {copy.reanalyze}
         </Button>
       </div>
 
