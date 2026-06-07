@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, vi } from 'vitest';
+import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
 import { mockAIResult } from '@/mock/ai';
@@ -13,17 +15,26 @@ vi.mock('next/navigation', () => ({
 describe('CustomerProfilePage', () => {
   beforeEach(() => {
     resetRepositoriesForTests();
+    window.localStorage.clear();
   });
 
+  function renderCustomerProfilePage() {
+    return render(
+      <LanguageProvider role="customer">
+        <CustomerProfilePage />
+      </LanguageProvider>
+    );
+  }
+
   it('renders the customer profile and booking history read from the booking service', async () => {
-    render(<CustomerProfilePage />);
+    renderCustomerProfilePage();
 
     // identity is static; the history loads from the booking service.
     expect(screen.getByRole('heading', { name: /melissa tan/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /booking history/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '预约历史' })).toBeInTheDocument();
     expect(await screen.findByText(/rose cat eye shine/i)).toBeInTheDocument();
     expect(screen.getByText(/awaiting confirmation/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/privacy');
+    expect(screen.getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/privacy');
   });
 
   it('includes a booking created for the demo customer through the booking service', async () => {
@@ -39,9 +50,27 @@ describe('CustomerProfilePage', () => {
       notes: 'Profile should show this booking.'
     });
 
-    render(<CustomerProfilePage />);
+    renderCustomerProfilePage();
 
     // The card summary always shows the style title; full details (notes, technician) expand on click.
     expect(await screen.findByText('Custom AI reference')).toBeInTheDocument();
+  });
+
+  it('renders a language switcher and updates visible labels after switching to English', async () => {
+    const user = userEvent.setup();
+
+    renderCustomerProfilePage();
+
+    expect(screen.getByRole('heading', { name: '预约历史' })).toBeInTheDocument();
+    expect(screen.getByText('即将到来的预约')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '中文' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '英文' })).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(screen.getByRole('button', { name: '英文' }));
+
+    expect(screen.getByRole('heading', { name: 'Booking history' })).toBeInTheDocument();
+    expect(screen.getByText('Upcoming bookings')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Chinese' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
