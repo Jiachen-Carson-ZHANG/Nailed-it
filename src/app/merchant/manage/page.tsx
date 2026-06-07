@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
+import { useLanguage } from '@/i18n/context';
+import { formatDuration } from '@/i18n/format';
 import {
   glossaryById,
   basicServiceProcedures,
@@ -24,16 +26,93 @@ import {
   type Currency,
 } from '@/data/currency-store';
 
+const manageCopy = {
+  'zh-CN': {
+    panels: {
+      basic: '基础服务',
+      removal: '卸甲',
+      extension: '建构/延长',
+      effects: '款式效果',
+      preview: '确认预览',
+    },
+    artGroups: ['法式', '手绘', '线条 / 图案 / 立体'],
+    decoGroups: ['贴纸', '贴钻', '饰品', '箔片', '蹭粉'],
+    effectsSections: {
+      color: '颜色效果',
+      art: '艺术效果',
+      deco: '装饰效果',
+    },
+    previewExtra: '视觉效果附加费（可选）',
+    basicTitle: '基础服务',
+    basicHelper: '设置基础护理各工序的价格及所需时间。',
+    modulePrice: '基础护理服务',
+    processDuration: '工序时长',
+    totalDuration: '总时长',
+    removalTitle: '卸甲服务',
+    extensionTitle: '建构 / 延长',
+    extensionService: '延长服务',
+    builderService: '建构服务',
+    effectsTitle: '款式效果',
+    previewTitle: '确认预览',
+    previewHelper: '确认各项目定价后点击保存。',
+    tableColumns: { item: '项目', duration: '时长', price: '单价' },
+    save: '保存价格表',
+    saved: '已保存',
+    saveSuccess: '价格表已更新，将用于用户端 AI 报价。',
+    saveError: '保存失败，请重试。',
+    subtitle: '价格与团队',
+    nav: '设置导航',
+    currency: '货币单位',
+    unitBasicPrice: '基础护理服务 单价',
+    unitBasicPricing: '基础护理服务 单位',
+    zhName: (entry: { name_zh: string; name_en: string }) => entry.name_zh,
+    noValue: '—',
+  },
+  en: {
+    panels: {
+      basic: 'Basic services',
+      removal: 'Removal',
+      extension: 'Builder and extension',
+      effects: 'Styles and effects',
+      preview: 'Preview and confirm',
+    },
+    artGroups: ['French', 'Hand-painted', 'Lines / patterns / 3D'],
+    decoGroups: ['Stickers', 'Rhinestones', 'Charms', 'Foil', 'Powders'],
+    effectsSections: {
+      color: 'Color effects',
+      art: 'Art details',
+      deco: 'Decorations',
+    },
+    previewExtra: 'Optional visual surcharges',
+    basicTitle: 'Basic services',
+    basicHelper: 'Set pricing and timing for each basic manicure step.',
+    modulePrice: 'Basic manicure service',
+    processDuration: 'Procedure timing',
+    totalDuration: 'Total duration',
+    removalTitle: 'Removal services',
+    extensionTitle: 'Builder and extension',
+    extensionService: 'Extension services',
+    builderService: 'Builder services',
+    effectsTitle: 'Styles and effects',
+    previewTitle: 'Preview and confirm',
+    previewHelper: 'Review the pricing summary before saving.',
+    tableColumns: { item: 'Item', duration: 'Duration', price: 'Price' },
+    save: 'Save pricing',
+    saved: 'Saved',
+    saveSuccess: 'Pricing updated and ready for customer-facing AI quotes.',
+    saveError: 'Save failed. Please try again.',
+    subtitle: 'Pricing and team',
+    nav: 'Settings navigation',
+    currency: 'Currency unit',
+    unitBasicPrice: 'Basic manicure service price',
+    unitBasicPricing: 'Basic manicure service unit',
+    zhName: (entry: { name_zh: string; name_en: string }) => entry.name_en,
+    noValue: '—',
+  },
+} as const;
+
 // ── Panel IDs ──────────────────────────────────────────────────────────────────
 type PanelId = 'basic' | 'removal' | 'extension' | 'effects' | 'preview';
-
-const PANELS: { id: PanelId; label: string }[] = [
-  { id: 'basic',     label: '基础服务' },
-  { id: 'removal',   label: '卸甲' },
-  { id: 'extension', label: '建构/延长' },
-  { id: 'effects',   label: '款式效果' },
-  { id: 'preview',   label: '确认预览' },
-];
 
 // ── Static item lists ──────────────────────────────────────────────────────────
 const REMOVAL_IDS = ['removal_basic_gel', 'removal_short_extension', 'removal_extension', 'removal_with_rhinestone'];
@@ -42,19 +121,19 @@ const BUILDER_IDS = ['builder_gel'];
 
 const COLOR_IDS = ['color_split', 'solid_color', 'gradient', 'aura_blush', 'ink_wash', 'jelly_translucent', 'cat_eye', 'glitter', 'matte_top', 'magnetic_special_effect'];
 
-const ART_GROUPS: { label: string; ids: string[] }[] = [
-  { label: '法式', ids: ['french_tip_basic', 'french_tip_special'] },
-  { label: '手绘', ids: ['hand_paint_simple', 'hand_paint_medium', 'hand_paint_complex'] },
-  { label: '线条 / 图案 / 立体', ids: ['line_art', 'pattern_art', '3d_art'] },
-];
+const ART_GROUP_IDS = [
+  ['french_tip_basic', 'french_tip_special'],
+  ['hand_paint_simple', 'hand_paint_medium', 'hand_paint_complex'],
+  ['line_art', 'pattern_art', '3d_art'],
+] as const;
 
-const DECO_GROUPS: { label: string; ids: string[] }[] = [
-  { label: '贴纸', ids: ['sticker'] },
-  { label: '贴钻', ids: ['rhinestone_small', 'rhinestone_large', 'rhinestone_heavy'] },
-  { label: '饰品', ids: ['pearl', 'metal_charm', 'bow_charm', 'chain_charm', 'shell_piece'] },
-  { label: '箔片', ids: ['foil_piece'] },
-  { label: '蹭粉', ids: ['chrome_powder', 'aurora_powder', 'pearl_powder'] },
-];
+const DECO_GROUP_IDS = [
+  ['sticker'],
+  ['rhinestone_small', 'rhinestone_large', 'rhinestone_heavy'],
+  ['pearl', 'metal_charm', 'bow_charm', 'chain_charm', 'shell_piece'],
+  ['foil_piece'],
+  ['chrome_powder', 'aurora_powder', 'pearl_powder'],
+] as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function useSetting(
@@ -102,11 +181,14 @@ function BasicPanel({
   settingsById,
   onChange,
   currency,
+  language,
 }: {
   settingsById: Map<string, GlossaryEntrySettings>;
   onChange: (s: GlossaryEntrySettings) => void;
   currency: Currency;
+  language: 'zh-CN' | 'en';
 }) {
+  const copy = manageCopy[language];
   const moduleEntry = glossaryById.get('basic_manicure_service');
   const moduleSetting = useSetting(settingsById, 'basic_manicure_service');
 
@@ -120,12 +202,12 @@ function BasicPanel({
 
   return (
     <div className="manage-panel-content">
-      <h2 className="manage-panel-title">基础服务</h2>
-      <p className="helper-copy">设置基础护理各工序的价格及所需时间。</p>
+      <h2 className="manage-panel-title">{copy.basicTitle}</h2>
+      <p className="helper-copy">{copy.basicHelper}</p>
 
       {moduleEntry && moduleSetting && (
         <div className="manage-module-price">
-          <span className="manage-module-label">{moduleEntry.name_zh}</span>
+          <span className="manage-module-label">{copy.zhName(moduleEntry)}</span>
           <label className="manage-row-field">
             <span>{currency}</span>
             <input
@@ -134,22 +216,22 @@ function BasicPanel({
               step={0.5}
               value={moduleSetting.price}
               onChange={(e) => onChange({ ...moduleSetting, price: Math.max(0, Number(e.target.value) || 0) })}
-              aria-label="基础护理服务 单价"
+              aria-label={copy.unitBasicPrice}
             />
           </label>
           <select
             className="manage-row-unit"
             value={moduleSetting.unit ?? 'per_set'}
             onChange={(e) => onChange({ ...moduleSetting, unit: e.target.value })}
-            aria-label="基础护理服务 单位"
+            aria-label={copy.unitBasicPricing}
           >
-            <option value="per_set">套</option>
-            <option value="per_finger">每指</option>
+            <option value="per_set">{language === 'zh-CN' ? '套' : 'set'}</option>
+            <option value="per_finger">{language === 'zh-CN' ? '每指' : 'per finger'}</option>
           </select>
         </div>
       )}
 
-      <div className="manage-section-heading">工序时长</div>
+      <div className="manage-section-heading">{copy.processDuration}</div>
       {basicServiceProcedures.map((proc) => {
         const s = settingsById.get(proc.id);
         if (!s) return null;
@@ -167,7 +249,7 @@ function BasicPanel({
       })}
 
       <div className="manage-total-duration">
-        总时长：<strong>{totalDuration} 分钟</strong>
+        {copy.totalDuration}：<strong>{formatDuration({ minutes: totalDuration, language })}</strong>
       </div>
     </div>
   );
@@ -178,14 +260,17 @@ function RemovalPanel({
   settingsById,
   onChange,
   currency,
+  language,
 }: {
   settingsById: Map<string, GlossaryEntrySettings>;
   onChange: (s: GlossaryEntrySettings) => void;
   currency: Currency;
+  language: 'zh-CN' | 'en';
 }) {
+  const copy = manageCopy[language];
   return (
     <div className="manage-panel-content">
-      <h2 className="manage-panel-title">卸甲服务</h2>
+      <h2 className="manage-panel-title">{copy.removalTitle}</h2>
       {REMOVAL_IDS.map((id) => {
         const entry = glossaryById.get(id);
         const s = settingsById.get(id);
@@ -201,22 +286,25 @@ function ExtensionPanel({
   settingsById,
   onChange,
   currency,
+  language,
 }: {
   settingsById: Map<string, GlossaryEntrySettings>;
   onChange: (s: GlossaryEntrySettings) => void;
   currency: Currency;
+  language: 'zh-CN' | 'en';
 }) {
+  const copy = manageCopy[language];
   return (
     <div className="manage-panel-content">
-      <h2 className="manage-panel-title">建构 / 延长</h2>
-      <div className="manage-section-heading">延长服务</div>
+      <h2 className="manage-panel-title">{copy.extensionTitle}</h2>
+      <div className="manage-section-heading">{copy.extensionService}</div>
       {EXTENSION_IDS.map((id) => {
         const entry = glossaryById.get(id);
         const s = settingsById.get(id);
         if (!entry || !s) return null;
         return <ManageServiceRow key={id} entry={entry} settings={s} onChange={onChange} currency={currency} />;
       })}
-      <div className="manage-section-heading">建构服务</div>
+      <div className="manage-section-heading">{copy.builderService}</div>
       {BUILDER_IDS.map((id) => {
         const entry = glossaryById.get(id);
         const s = settingsById.get(id);
@@ -232,11 +320,14 @@ function EffectsPanel({
   settingsById,
   onChange,
   currency,
+  language,
 }: {
   settingsById: Map<string, GlossaryEntrySettings>;
   onChange: (s: GlossaryEntrySettings) => void;
   currency: Currency;
+  language: 'zh-CN' | 'en';
 }) {
+  const copy = manageCopy[language];
   const [openSection, setOpenSection] = useState<'color' | 'art' | 'deco' | null>('color');
 
   function toggle(section: 'color' | 'art' | 'deco') {
@@ -245,9 +336,9 @@ function EffectsPanel({
 
   return (
     <div className="manage-panel-content">
-      <h2 className="manage-panel-title">款式效果</h2>
+      <h2 className="manage-panel-title">{copy.effectsTitle}</h2>
 
-      <AccordionSection label="颜色效果" open={openSection === 'color'} onToggle={() => toggle('color')}>
+      <AccordionSection label={copy.effectsSections.color} open={openSection === 'color'} onToggle={() => toggle('color')}>
         {COLOR_IDS.map((id) => {
           const entry = glossaryById.get(id);
           const s = settingsById.get(id);
@@ -256,10 +347,10 @@ function EffectsPanel({
         })}
       </AccordionSection>
 
-      <AccordionSection label="艺术效果" open={openSection === 'art'} onToggle={() => toggle('art')}>
-        {ART_GROUPS.map((group) => (
-          <SubGroup key={group.label} label={group.label}>
-            {group.ids.map((id) => {
+      <AccordionSection label={copy.effectsSections.art} open={openSection === 'art'} onToggle={() => toggle('art')}>
+        {ART_GROUP_IDS.map((ids, index) => (
+          <SubGroup key={copy.artGroups[index]} label={copy.artGroups[index]}>
+            {ids.map((id) => {
               const entry = glossaryById.get(id);
               const s = settingsById.get(id);
               if (!entry || !s) return null;
@@ -269,10 +360,10 @@ function EffectsPanel({
         ))}
       </AccordionSection>
 
-      <AccordionSection label="装饰效果" open={openSection === 'deco'} onToggle={() => toggle('deco')}>
-        {DECO_GROUPS.map((group) => (
-          <SubGroup key={group.label} label={group.label}>
-            {group.ids.map((id) => {
+      <AccordionSection label={copy.effectsSections.deco} open={openSection === 'deco'} onToggle={() => toggle('deco')}>
+        {DECO_GROUP_IDS.map((ids, index) => (
+          <SubGroup key={copy.decoGroups[index]} label={copy.decoGroups[index]}>
+            {ids.map((id) => {
               const entry = glossaryById.get(id);
               const s = settingsById.get(id);
               if (!entry || !s) return null;
@@ -290,7 +381,7 @@ const PREVIEW_SECTIONS: { label: string; ids: string[] }[] = [
   { label: '基础服务', ids: ['basic_manicure_service'] },
   { label: '卸甲服务', ids: REMOVAL_IDS },
   { label: '建构 / 延长', ids: [...EXTENSION_IDS, ...BUILDER_IDS] },
-  { label: '款式效果', ids: [...COLOR_IDS, ...ART_GROUPS.flatMap((g) => g.ids), ...DECO_GROUPS.flatMap((g) => g.ids)] },
+  { label: '款式效果', ids: [...COLOR_IDS, ...ART_GROUP_IDS.flatMap((g) => g), ...DECO_GROUP_IDS.flatMap((g) => g)] },
 ];
 
 const UNIT_ZH: Record<string, string> = {
@@ -312,12 +403,15 @@ function PreviewPanel({
   dirty,
   onSave,
   currency,
+  language,
 }: {
   settingsById: Map<string, GlossaryEntrySettings>;
   dirty: boolean;
   onSave: () => void;
   currency: string;
+  language: 'zh-CN' | 'en';
 }) {
+  const copy = manageCopy[language];
   const [openSection, setOpenSection] = useState<string | null>(null);
   const optionalAttrs = billableVisualAttributes;
 
@@ -335,31 +429,36 @@ function PreviewPanel({
     const duration = id === 'basic_manicure_service' ? basicTotalDuration : s.duration;
     return (
       <tr key={id}>
-        <td>{entry.name_zh}</td>
-        <td>{duration > 0 ? `${duration} 分钟` : '—'}</td>
-        <td>{s.price > 0 ? `${s.price.toFixed(2)} ${currency} / ${unit}` : '—'}</td>
+        <td>{copy.zhName(entry)}</td>
+        <td>{duration > 0 ? formatDuration({ minutes: duration, language }) : copy.noValue}</td>
+        <td>{s.price > 0 ? `${s.price.toFixed(2)} ${currency} / ${unit}` : copy.noValue}</td>
       </tr>
     );
   }
 
   return (
     <div className="manage-panel-content">
-      <h2 className="manage-panel-title">确认预览</h2>
-      <p className="helper-copy">确认各项目定价后点击保存。</p>
+      <h2 className="manage-panel-title">{copy.previewTitle}</h2>
+      <p className="helper-copy">{copy.previewHelper}</p>
 
       {PREVIEW_SECTIONS.map((section) => (
         <AccordionSection
           key={section.label}
-          label={section.label}
+          label={
+            section.label === '基础服务' ? copy.panels.basic
+              : section.label === '卸甲服务' ? copy.removalTitle
+              : section.label === '建构 / 延长' ? copy.extensionTitle
+              : copy.effectsTitle
+          }
           open={openSection === section.label}
           onToggle={() => setOpenSection((prev) => (prev === section.label ? null : section.label))}
         >
           <table className="manage-preview-table">
             <thead>
               <tr>
-                <th>项目</th>
-                <th>时长</th>
-                <th>单价</th>
+                <th>{copy.tableColumns.item}</th>
+                <th>{copy.tableColumns.duration}</th>
+                <th>{copy.tableColumns.price}</th>
               </tr>
             </thead>
             <tbody>
@@ -371,16 +470,16 @@ function PreviewPanel({
 
       {optionalAttrs.length > 0 && (
         <AccordionSection
-          label="视觉效果附加费（可选）"
+          label={copy.previewExtra}
           open={openSection === 'optional'}
           onToggle={() => setOpenSection((prev) => (prev === 'optional' ? null : 'optional'))}
         >
           <table className="manage-preview-table">
             <thead>
               <tr>
-                <th>项目</th>
-                <th>时长</th>
-                <th>单价</th>
+                <th>{copy.tableColumns.item}</th>
+                <th>{copy.tableColumns.duration}</th>
+                <th>{copy.tableColumns.price}</th>
               </tr>
             </thead>
             <tbody>
@@ -390,9 +489,9 @@ function PreviewPanel({
                 const unit = unitZh(s.unit ?? entry.default_pricing_unit);
                 return (
                   <tr key={entry.id}>
-                    <td>{entry.name_zh}</td>
-                    <td>{s.duration > 0 ? `${s.duration} 分钟` : '—'}</td>
-                    <td>{s.price > 0 ? `${s.price.toFixed(2)} ${currency} / ${unit}` : '—'}</td>
+                    <td>{copy.zhName(entry)}</td>
+                    <td>{s.duration > 0 ? formatDuration({ minutes: s.duration, language }) : copy.noValue}</td>
+                    <td>{s.price > 0 ? `${s.price.toFixed(2)} ${currency} / ${unit}` : copy.noValue}</td>
                   </tr>
                 );
               })}
@@ -403,7 +502,7 @@ function PreviewPanel({
 
       <div style={{ marginTop: '1.5rem' }}>
         <Button block onClick={onSave} disabled={!dirty}>
-          {dirty ? '保存价格表' : '已保存'}
+          {dirty ? copy.save : copy.saved}
         </Button>
       </div>
     </div>
@@ -412,6 +511,8 @@ function PreviewPanel({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function MerchantManagePage() {
+  const { language } = useLanguage();
+  const copy = manageCopy[language];
   const [settings, setSettings] = useState<GlossaryEntrySettings[]>([]);
   const [activePanel, setActivePanel] = useState<PanelId>('basic');
   const [toastMessage, setToastMessage] = useState('');
@@ -457,20 +558,27 @@ export default function MerchantManagePage() {
     // platform defaults and are not persisted per-merchant.
     const rows: MerchantPricingSetting[] = settings
       .filter((s) => glossaryById.get(s.id)?.billable !== false)
-      .map((s) => ({
-        id: s.id,
-        nameZh: glossaryById.get(s.id)?.name_zh ?? '',
-        groupLabel: '',
-        price: s.price,
-        duration: s.duration,
-        enabled: s.enabled,
-      }));
+      .flatMap((s) => {
+        const entry = glossaryById.get(s.id);
+        if (!entry) return [];
+        const parentEntry = entry.parent_id !== 'na' ? glossaryById.get(entry.parent_id) : undefined;
+        return [{
+          id: s.id,
+          name: entry.name,
+          nameZh: entry.name_zh,
+          groupLabel: parentEntry?.name_zh ?? entry.name_zh,
+          groupLabelLocalized: parentEntry?.name ?? entry.name,
+          price: s.price,
+          duration: s.duration,
+          enabled: s.enabled,
+        }];
+      });
     try {
       await saveMerchantPricingSettingsAction(rows);
-      setToastMessage('价格表已更新，将用于用户端 AI 报价。');
+      setToastMessage(copy.saveSuccess);
       setDirty(false);
     } catch {
-      setToastMessage('保存失败，请重试。');
+      setToastMessage(copy.saveError);
     }
   }
 
@@ -479,28 +587,28 @@ export default function MerchantManagePage() {
     setCurrency(c);
   }
 
-  const panelProps = { settingsById, onChange: updateSetting, currency };
+  const panelProps = { settingsById, onChange: updateSetting, currency, language };
 
   return (
-    <MobileLayout role="merchant" title="Nailed-it" subtitle="Pricing and team.">
+    <MobileLayout role="merchant" title="Nailed-it" subtitle={copy.subtitle}>
       <div className="manage-layout">
         {/* ── Sidebar ── */}
-        <nav className="manage-sidebar" aria-label="设置导航">
-          {PANELS.map((panel) => (
+        <nav className="manage-sidebar" aria-label={copy.nav}>
+          {(['basic', 'removal', 'extension', 'effects', 'preview'] as const).map((panelId) => (
             <button
-              key={panel.id}
+              key={panelId}
               type="button"
-              className={`manage-sidebar-btn${activePanel === panel.id ? ' manage-sidebar-btn-active' : ''}`}
-              onClick={() => setActivePanel(panel.id)}
+              className={`manage-sidebar-btn${activePanel === panelId ? ' manage-sidebar-btn-active' : ''}`}
+              onClick={() => setActivePanel(panelId)}
             >
-              {panel.label}
+              {copy.panels[panelId]}
             </button>
           ))}
           <select
             className="manage-currency-select"
             value={currency}
             onChange={(e) => handleCurrencyChange(e.target.value as Currency)}
-            aria-label="货币单位"
+            aria-label={copy.currency}
           >
             {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -513,7 +621,7 @@ export default function MerchantManagePage() {
           {activePanel === 'extension' && <ExtensionPanel {...panelProps} />}
           {activePanel === 'effects'   && <EffectsPanel {...panelProps} />}
           {activePanel === 'preview'   && (
-            <PreviewPanel settingsById={settingsById} dirty={dirty} onSave={handleSave} currency={currency} />
+            <PreviewPanel settingsById={settingsById} dirty={dirty} onSave={handleSave} currency={currency} language={language} />
           )}
         </div>
       </div>

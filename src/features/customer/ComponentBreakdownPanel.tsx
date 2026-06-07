@@ -10,6 +10,7 @@ import { loadCurrency } from '@/data/currency-store';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { AnalyzeChip, AddChip } from '@/features/merchant/AnalyzeChip';
+import { useLanguage } from '@/i18n/context';
 
 // ── Glossary lookup helpers ───────────────────────────────────────────────────
 const byCategory = (cat: string) =>
@@ -474,6 +475,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRemoval = true, footer }: ComponentBreakdownPanelProps) {
+  const { language } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
   const currency = loadCurrency();
@@ -531,13 +533,20 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRem
       const response = await fetch('/api/ai/breakdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: image.imageBase64, mimeType: image.mimeType, merchantSettings }),
+        body: JSON.stringify({
+          imageBase64: image.imageBase64,
+          language,
+          mimeType: image.mimeType,
+          merchantSettings,
+        }),
       });
       const body = (await response.json()) as BreakdownResult & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? 'Breakdown failed.');
+      if (!response.ok) {
+        throw new Error(body.error ?? (language === 'zh-CN' ? '分析失败。' : 'Breakdown failed.'));
+      }
       applyBreakdown(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Breakdown failed.');
+      setError(err instanceof Error ? err.message : language === 'zh-CN' ? '分析失败。' : 'Breakdown failed.');
     } finally {
       setIsLoading(false);
     }
@@ -572,15 +581,22 @@ export function ComponentBreakdownPanel({ image, cachedResult, onResult, showRem
   }
 
   if (isLoading) {
-    return <LoadingState title="AI 识别中" body="正在从图片识别甲型与款式…" />;
+    return (
+      <LoadingState
+        title={language === 'zh-CN' ? 'AI 识别中' : 'AI analysis in progress'}
+        body={language === 'zh-CN' ? '正在从图片识别甲型与款式…' : 'Detecting nail shape and style from the image…'}
+      />
+    );
   }
 
   if (error) {
     return (
       <section className="summary-card" role="alert">
-        <strong>分析失败</strong>
+        <strong>{language === 'zh-CN' ? '分析失败' : 'Analysis failed'}</strong>
         <p>{error}</p>
-        <Button size="compact" variant="secondary" onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>重试</Button>
+        <Button size="compact" variant="secondary" onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>
+          {language === 'zh-CN' ? '重试' : 'Retry'}
+        </Button>
       </section>
     );
   }

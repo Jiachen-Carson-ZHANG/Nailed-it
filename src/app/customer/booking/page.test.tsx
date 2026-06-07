@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
+import { LanguageProvider } from '@/i18n/context';
 import { CustomerBookingContent } from './booking-content';
 
 vi.mock('next/navigation', () => ({
@@ -14,6 +15,17 @@ describe('CustomerBookingPage', () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
+
+  function renderBookingContent(
+    ui: React.ReactNode,
+    language: 'zh-CN' | 'en' = 'zh-CN',
+  ) {
+    return render(
+      <LanguageProvider initialLanguage={language} role="customer">
+        {ui}
+      </LanguageProvider>
+    );
+  }
 
   it('walks through the three-step booking flow and persists the draft', async () => {
     // Recognition runs against the live endpoint now that the example shortcut is gone; the breakdown
@@ -30,28 +42,33 @@ describe('CustomerBookingPage', () => {
       )
     );
 
-    render(<CustomerBookingContent />);
+    renderBookingContent(<CustomerBookingContent />);
 
     // Step 1: Upload — the Analyze CTA only appears once a reference image exists.
-    expect(screen.queryByRole('button', { name: /analyze my photo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '分析我的照片' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '上传你的美甲参考图' })).toBeInTheDocument();
+    expect(screen.getByText('上传')).toBeInTheDocument();
+    expect(screen.getByText('识别结果')).toBeInTheDocument();
+    expect(screen.getByText('报价')).toBeInTheDocument();
 
     const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
-    fireEvent.change(screen.getByLabelText(/choose nail reference photo/i), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText('选择美甲参考图'), { target: { files: [file] } });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled());
-    fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '分析我的照片' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '分析我的照片' }));
 
     // Step 2: Result — style detected
-    await screen.findByRole('heading', { name: /style detected/i });
+    await screen.findByRole('heading', { name: '款式识别结果' });
 
-    fireEvent.click(screen.getByRole('button', { name: /see my quote/i }));
+    fireEvent.click(screen.getByRole('button', { name: /查看我的报价/i }));
 
     // Step 3: Quote
-    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '你的报价' })).toBeInTheDocument();
 
-    const nextLink = screen.getByRole('link', { name: /next: choose time/i });
+    const nextLink = screen.getByRole('link', { name: '下一步：选择时间' });
     expect(nextLink).toHaveAttribute('href', '/customer/booking/confirm');
 
+    nextLink.addEventListener('click', (event) => event.preventDefault(), { once: true });
     fireEvent.click(nextLink);
 
     expect(getCustomerBookingDraft()).toMatchObject({
@@ -92,21 +109,21 @@ describe('CustomerBookingPage', () => {
       )
     );
 
-    render(<CustomerBookingContent />);
+    renderBookingContent(<CustomerBookingContent />);
 
     const file = new File(['fake image bytes'], 'french.png', { type: 'image/png' });
-    fireEvent.change(screen.getByLabelText(/choose nail reference photo/i), {
+    fireEvent.change(screen.getByLabelText('选择美甲参考图'), {
       target: { files: [file] }
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /analyze my photo/i })).toBeEnabled();
+      expect(screen.getByRole('button', { name: '分析我的照片' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /analyze my photo/i }));
+    fireEvent.click(screen.getByRole('button', { name: '分析我的照片' }));
 
     // Should advance to step 2 with API result
-    await screen.findByRole('heading', { name: /style detected/i });
+    await screen.findByRole('heading', { name: '款式识别结果' });
     expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
 
     expect(fetch).toHaveBeenCalledWith(
@@ -118,11 +135,18 @@ describe('CustomerBookingPage', () => {
         }
       })
     );
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      imageBase64: expect.any(String),
+      language: 'zh-CN',
+      mimeType: 'image/png',
+    });
   });
 
   it('opens a published style on its frozen quote without rerunning image analysis', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    render(
+    renderBookingContent(
       <CustomerBookingContent
         prefillStyleId="published-style"
         prefillImageUrl="https://example.com/published.jpg"
@@ -132,11 +156,57 @@ describe('CustomerBookingPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: /your quote/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '你的报价' })).toBeInTheDocument();
     expect(screen.getByText(/merchant-reviewed configuration/i)).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('link', { name: /next: choose time/i }));
+    const nextLink = screen.getByRole('link', { name: '下一步：选择时间' });
+    nextLink.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    fireEvent.click(nextLink);
     expect(getCustomerBookingDraft()).toMatchObject({ styleId: 'published-style' });
+  });
+
+  it('renders booking copy in English after switching language', async () => {
+    renderBookingContent(<CustomerBookingContent />, 'en');
+
+    expect(screen.getByRole('heading', { name: 'Upload your nail reference' })).toBeInTheDocument();
+    expect(screen.getByText('Upload')).toBeInTheDocument();
+    expect(screen.getByText('Style result')).toBeInTheDocument();
+    expect(screen.getByText('Quote')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New nail design' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open profile' })).toBeInTheDocument();
+  });
+
+  it('sends the current language with the live recognition request', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          recognition: {
+            selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'English note.' },
+            meta: { confidence: 0.9, aiSuggestedQuote: { source: 'ai_suggestion', price: 0, duration: 0 } }
+          }
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    );
+
+    renderBookingContent(<CustomerBookingContent />, 'en');
+    const file = new File(['fake image bytes'], 'french.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Choose nail reference photo'), {
+      target: { files: [file] }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Analyze my photo' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze my photo' }));
+    await screen.findByText(/english note/i);
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    expect(JSON.parse(String(request?.body))).toMatchObject({ language: 'en' });
   });
 });

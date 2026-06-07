@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildStyleNamePrompt,
   parseStyleNameOutput,
   styleNameResponseFormat,
 } from './style-config-recognition';
@@ -27,5 +28,10 @@ describe('parseStyleNameOutput', () => {
   it('declares a strict JSON-schema response contract', () => {
     expect(styleNameResponseFormat.type).toBe('json_schema');
     expect(styleNameResponseFormat.json_schema.strict).toBe(true);
+  });
+
+  it('builds language-aware naming prompts', () => {
+    expect(buildStyleNamePrompt('zh-CN')).toContain('Return the result in Simplified Chinese.');
+    expect(buildStyleNamePrompt('en')).toContain('Return the result in English.');
   });
 });

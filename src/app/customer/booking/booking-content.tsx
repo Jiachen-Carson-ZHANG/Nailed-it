@@ -18,6 +18,7 @@ import {
   getCustomerTryOnPath,
 } from '@/domain/session';
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
+import { useLanguage } from '@/i18n/context';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
 import { getStyleDefinitionById } from '@/mock/styles';
@@ -60,6 +61,7 @@ export function CustomerBookingContent({
   prefillPreviewQuote,
   skipToResult,
 }: CustomerBookingContentProps) {
+  const { t, language } = useLanguage();
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
@@ -134,7 +136,7 @@ export function CustomerBookingContent({
 
     try {
       const nextRecognition = selectedImage
-        ? await requestLiveRecognition(selectedImage)
+        ? await requestLiveRecognition(selectedImage, language)
         : await getSampleRecognition();
 
       setRecognition(nextRecognition);
@@ -142,7 +144,9 @@ export function CustomerBookingContent({
       setRecognitionError(
         error instanceof Error
           ? error.message
-          : 'Recognition failed. Check the image and Gemini API key, then try again.'
+          : language === 'zh-CN'
+            ? '识别失败了，请检查图片后再试一次。'
+            : 'Recognition failed. Check the image and try again.'
       );
     } finally {
       setIsRecognizing(false);
@@ -197,8 +201,8 @@ export function CustomerBookingContent({
     <MobileLayout role="customer" title="Nailed-it">
       {/* Step indicator — hidden when arriving from a style card */}
       {!hasPrefill && (
-        <div className="booking-steps" aria-label="Booking progress">
-          {(['Upload', 'Style result', 'Quote'] as const).map((label, index) => (
+        <div className="booking-steps" aria-label={t('booking.progress')}>
+          {([t('booking.steps.upload'), t('booking.steps.result'), t('booking.steps.quote')] as const).map((label, index) => (
             <span
               key={label}
               className={index <= stepIndex[step] ? 'booking-step booking-step-active' : 'booking-step'}
@@ -216,13 +220,13 @@ export function CustomerBookingContent({
           <section className="page-heading">
             {hasPrefill ? (
               <>
-                <p className="section-eyebrow">Analyze style</p>
+                <p className="section-eyebrow">{t('booking.upload.prefill')}</p>
                 <h1>{prefillTitle}</h1>
               </>
             ) : (
               <>
-                <p className="section-eyebrow">Step 1</p>
-                <h1>Upload your nail reference</h1>
+                <p className="section-eyebrow">{t('booking.step1')}</p>
+                <h1>{t('booking.upload.title')}</h1>
               </>
             )}
           </section>
@@ -238,7 +242,7 @@ export function CustomerBookingContent({
             tryOnHref={getCustomerTryOnPath()}
             analyzeAction={
               <Button block onClick={startRecognition}>
-                Analyze my photo
+                {t('booking.upload.analyze')}
               </Button>
             }
           />
@@ -249,23 +253,23 @@ export function CustomerBookingContent({
       {step === 'result' && (
         <>
           <section className="page-heading">
-            <p className="section-eyebrow">Step 2</p>
-            <h1>Style detected</h1>
+            <p className="section-eyebrow">{t('booking.step2')}</p>
+            <h1>{t('booking.result.title')}</h1>
           </section>
 
           {imageUrl && (
             <div className="booking-result-preview">
-              <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+              <img alt={t('booking.upload.title')} src={imageUrl} className="booking-result-image" />
             </div>
           )}
 
           {recognitionError ? (
             <section className="summary-card" role="alert">
-              <strong>Recognition needs attention</strong>
+              <strong>{t('booking.result.errorTitle')}</strong>
               <p>{recognitionError}</p>
             </section>
           ) : isRecognizing ? (
-            <LoadingState title="Reading the style" body="Detecting shape, colors, and finish…" />
+            <LoadingState title={t('booking.result.loadingTitle')} body={t('booking.result.loadingBody')} />
           ) : (
             <RecognitionPreview imageUrl="" recognition={recognition} />
           )}
@@ -273,10 +277,10 @@ export function CustomerBookingContent({
 
           <div className="booking-step-actions">
             <Button block variant="secondary" onClick={() => setStep('upload')}>
-              ← Change photo
+              ← {t('booking.upload.changePhoto')}
             </Button>
             <Button block onClick={() => setStep('quote')}>
-              See my quote →
+              {t('booking.result.quoteCta')} →
             </Button>
           </div>
         </>
@@ -286,14 +290,14 @@ export function CustomerBookingContent({
       {step === 'quote' && (
         <>
           <section className="page-heading">
-            <p className="section-eyebrow">Step 3</p>
-            <h1>Your quote</h1>
+            <p className="section-eyebrow">{t('booking.step3')}</p>
+            <h1>{t('booking.quote.title')}</h1>
           </section>
 
           {hasPrefill ? (
             imageUrl ? (
               <div className="booking-result-preview">
-                <img alt={prefillTitle ?? 'Published nail style'} src={imageUrl} className="booking-result-image" />
+                <img alt={prefillTitle ?? t('booking.result.title')} src={imageUrl} className="booking-result-image" />
               </div>
             ) : null
           ) : (
@@ -304,13 +308,25 @@ export function CustomerBookingContent({
             <section className="summary-card">
               {prefillDescription ? <p>{prefillDescription}</p> : null}
               <p>
-                Studio price: <strong>{estimate.duration} min · ${estimate.price.toFixed(2)}</strong>
+                {t('booking.quote.studioPrice')}:{' '}
+                <strong>
+                  {language === 'zh-CN'
+                    ? `${estimate.duration} 分钟 · ¥${estimate.price.toFixed(2)}`
+                    : `${estimate.duration} min · $${estimate.price.toFixed(2)}`}
+                </strong>
               </p>
             </section>
           ) : (
             breakdowns.glossary && (
               <section className="summary-card">
-                <p>AI estimate: <strong>{breakdowns.glossary.totalDuration} min · ${breakdowns.glossary.totalPrice.toFixed(2)}</strong></p>
+                <p>
+                  {t('booking.quote.aiEstimate')}:{' '}
+                  <strong>
+                    {language === 'zh-CN'
+                      ? `${breakdowns.glossary.totalDuration} 分钟 · ¥${breakdowns.glossary.totalPrice.toFixed(2)}`
+                      : `${breakdowns.glossary.totalDuration} min · $${breakdowns.glossary.totalPrice.toFixed(2)}`}
+                  </strong>
+                </p>
               </section>
             )
           )}
@@ -321,11 +337,11 @@ export function CustomerBookingContent({
                 className="button button-secondary button-block"
                 href={prefillStyleId ? getCustomerStylePath(prefillStyleId) : getCustomerBookingPath()}
               >
-                ← Back
+                ← {t('booking.quote.back')}
               </Link>
             ) : (
               <Button block variant="secondary" onClick={() => setStep('result')}>
-                ← Back
+                ← {t('booking.quote.back')}
               </Button>
             )}
             <Link
@@ -333,7 +349,7 @@ export function CustomerBookingContent({
               href={getCustomerBookingConfirmPath()}
               onClick={persistCurrentDraft}
             >
-              Next: choose time
+              {t('booking.quote.next')}
             </Link>
           </div>
         </>
@@ -347,12 +363,16 @@ async function getSampleRecognition(): Promise<AIRecognitionResult> {
   return mockAIResult;
 }
 
-async function requestLiveRecognition(image: SelectedNailImage): Promise<AIRecognitionResult> {
+async function requestLiveRecognition(
+  image: SelectedNailImage,
+  language: 'zh-CN' | 'en'
+): Promise<AIRecognitionResult> {
   const response = await fetch('/api/ai/recognize-nail-style', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       imageBase64: image.imageBase64,
+      language,
       mimeType: image.mimeType,
     }),
   });

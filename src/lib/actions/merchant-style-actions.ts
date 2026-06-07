@@ -1,6 +1,7 @@
 'use server';
 
 import type { CatalogSelection, PricingUnit } from '@/domain/catalog';
+import type { AppLanguage } from '@/i18n/types';
 import { resolveEffectivePricing } from '@/domain/pricing-resolver';
 import type { MerchantStyleView, PublishedMerchantStyle } from '@/domain/merchant-style';
 import { getRepositories } from '@/lib/repositories';
@@ -125,7 +126,10 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
   });
 }
 
-export async function analyzeMerchantStyleAction(styleId: string): Promise<MerchantStyleView> {
+export async function analyzeMerchantStyleAction(
+  styleId: string,
+  language: AppLanguage = 'zh-CN'
+): Promise<MerchantStyleView> {
   const repos = getRepositories();
   const service = getService();
   const record = await repos.merchantStyles.getByIdForMerchant(styleId, demoMerchantId);
@@ -152,6 +156,7 @@ export async function analyzeMerchantStyleAction(styleId: string): Promise<Merch
       Buffer.from(bytes).toString('base64'),
       record.media.mimeType,
       settings,
+      language,
     );
     const configured = await service.completeAnalysis({
       merchantId: demoMerchantId,

@@ -15,6 +15,8 @@ import type { Booking } from '@/domain/nail';
 import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
+import { useLanguage } from '@/i18n/context';
+import { formatCurrency, formatDuration, formatStatusLabel } from '@/i18n/format';
 import {
   createBookingAction,
   createBookingFromSelectionsAction,
@@ -24,9 +26,8 @@ import {
   listAvailableSlotsForStyleAction,
 } from '@/lib/actions/booking-actions';
 
-const DEFAULT_NOTES_PLACEHOLDER = '如有特殊要求请在此注明，例如：对某些材料过敏、希望避免某些颜色、甲型偏好等。';
-
 export default function CustomerBookingConfirmPage() {
+  const { language, t } = useLanguage();
   const router = useRouter();
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
   const draft = draftSnapshot?.draft ?? null;
@@ -84,16 +85,16 @@ export default function CustomerBookingConfirmPage() {
         title="Nailed-it"
       >
         <section className="page-heading">
-          <p className="section-eyebrow">Confirm booking</p>
-          <h1>Pick a style first</h1>
+          <p className="section-eyebrow">{t('booking.confirm.eyebrow')}</p>
+          <h1>{t('booking.confirm.emptyHeading')}</h1>
         </section>
         <EmptyState
           icon="◔"
-          body="Choose a look from the home page or upload your own photo to see your quote, then come back here to lock in the time."
-          title="No style selected yet"
+          body={t('booking.confirm.emptyBody')}
+          title={t('booking.confirm.emptyTitle')}
         />
         <Link className="button button-primary button-block" href={getCustomerBookingPath()}>
-          Start booking
+          {t('booking.confirm.start')}
         </Link>
       </MobileLayout>
     );
@@ -139,15 +140,23 @@ export default function CustomerBookingConfirmPage() {
       setCreatedBooking(booking);
       setToastMessage(
         booking.status === 'confirmed'
-          ? `Confirmed with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
-          : `Pending review with ${booking.technician.name} for ${selectedSlot.label.toLowerCase()} at ${selectedSlot.time}.`
+          ? language === 'zh-CN'
+            ? `已为你预约 ${booking.technician.name}，时间是 ${selectedSlot.time}。`
+            : `Confirmed with ${booking.technician.name} at ${selectedSlot.time}.`
+          : language === 'zh-CN'
+            ? `${booking.technician.name} 的预约待确认，时间是 ${selectedSlot.time}。`
+            : `Pending review with ${booking.technician.name} at ${selectedSlot.time}.`
       );
       setTimeout(() => router.push(homePathForRole('customer')), 1500);
     } catch (error) {
       setToastMessage(
         error instanceof Error && error.message === 'booking_overlap'
-          ? 'That technician was just booked for an overlapping time. Please pick another slot.'
-          : 'Could not confirm the appointment. Please try again.'
+          ? language === 'zh-CN'
+            ? '该技师刚刚被其他预约占用，请重新选择时间。'
+            : 'That technician was just booked for an overlapping time. Please pick another slot.'
+          : language === 'zh-CN'
+            ? '暂时无法确认预约，请稍后再试。'
+            : 'Could not confirm the appointment. Please try again.'
       );
     } finally {
       setIsConfirming(false);
@@ -166,21 +175,27 @@ export default function CustomerBookingConfirmPage() {
       title="Nailed-it"
     >
       <section className="page-heading">
-        <p className="section-eyebrow">Confirm booking</p>
-        <h2>Choose your appointment time</h2>
+        <p className="section-eyebrow">{t('booking.confirm.eyebrow')}</p>
+        <h2>{t('booking.confirm.heading')}</h2>
         <p className="section-copy">
-          Select your preferred time slot below.
+          {t('booking.confirm.helper')}
         </p>
       </section>
 
       {draft.imageUrl && (
         <div className="booking-result-preview">
-          <img alt="Booking reference" className="booking-result-image" src={draft.imageUrl} />
+          <img alt={t('booking.confirm.referenceAlt')} className="booking-result-image" src={draft.imageUrl} />
         </div>
       )}
 
       <section className="summary-card">
-        <p>Estimated: <strong>{displayEstimate.duration} min · SGD {displayEstimate.price}</strong></p>
+        <p>
+          {t('booking.confirm.estimated')}:{' '}
+          <strong>
+            {formatDuration({ minutes: displayEstimate.duration, language })} ·{' '}
+            {formatCurrency({ cents: Math.round(displayEstimate.price * 100), language })}
+          </strong>
+        </p>
       </section>
 
       <BookingTimeSelector
@@ -191,11 +206,11 @@ export default function CustomerBookingConfirmPage() {
       />
 
       <label className="field">
-        <span>备注</span>
+        <span>{t('booking.confirm.notes')}</span>
         <textarea
           disabled={bookingLocked}
           value={notes}
-          placeholder={DEFAULT_NOTES_PLACEHOLDER}
+          placeholder={t('booking.confirm.notesPlaceholder')}
           onChange={(event) => setNotes(event.target.value)}
           style={{ marginBottom: '0.75rem' }}
         />
@@ -203,19 +218,19 @@ export default function CustomerBookingConfirmPage() {
 
       <Button block disabled={!selectedSlot || bookingLocked || isConfirming} onClick={confirmAppointment}>
         {isConfirming
-          ? 'Confirming…'
+          ? t('booking.confirm.confirming')
           : createdBooking?.status === 'pending_review'
-            ? 'Pending review'
+            ? formatStatusLabel({ status: 'pending_review', language })
             : createdBooking
-              ? 'Appointment confirmed'
-              : 'Confirm appointment'}
+              ? t('booking.confirm.confirmed')
+              : t('booking.confirm.confirm')}
       </Button>
       {createdBooking?.conversationId ? (
         <Link
           className="button button-secondary button-block"
           href={getCustomerMessagesPath(createdBooking.conversationId)}
         >
-          Open booking messages
+          {t('booking.confirm.openMessages')}
         </Link>
       ) : null}
       <Toast message={toastMessage} />

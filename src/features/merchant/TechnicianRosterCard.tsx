@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { Booking, Technician } from '@/domain/nail';
 import { getMerchantBookingPath } from '@/domain/session';
+import { useLanguage } from '@/i18n/context';
+import { formatCurrency, formatDuration, formatStatusLabel } from '@/i18n/format';
 
 type TechnicianRosterCardProps = {
   bookings: Booking[];
@@ -10,13 +12,6 @@ type TechnicianRosterCardProps = {
 };
 
 const activeBookingStatuses = new Set<Booking['status']>(['confirmed', 'pending_review']);
-
-const statusLabels: Record<Booking['status'], string> = {
-  pending_review: 'Awaiting confirmation',
-  confirmed: 'Confirmed',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
 
 // Group a technician's bookings by date so a long horizon collapses into one row per day instead of
 // a flat wall of chips. Days and the bookings inside them are sorted chronologically.
@@ -38,6 +33,30 @@ export function TechnicianRosterCard({
   technicians,
   title
 }: TechnicianRosterCardProps) {
+  const { language } = useLanguage();
+  const copy = {
+    'zh-CN': {
+      active: '在岗',
+      inactive: '离岗',
+      activeBookingSingular: '1 个进行中预约',
+      activeBookingPlural: (count: number) => `${count} 个进行中预约`,
+      customer: '顾客',
+      quote: '报价',
+      notes: '备注',
+      openBooking: '打开预约',
+    },
+    en: {
+      active: 'Active',
+      inactive: 'Inactive',
+      activeBookingSingular: '1 active booking',
+      activeBookingPlural: (count: number) => `${count} active bookings`,
+      customer: 'Customer',
+      quote: 'Quote',
+      notes: 'Notes',
+      openBooking: 'Open booking',
+    },
+  } as const;
+  const labels = copy[language];
   const bookingsByTechnician = bookings.reduce<Record<string, Booking[]>>((acc, booking) => {
     if (!activeBookingStatuses.has(booking.status)) return acc;
     const id = booking.technician.id;
@@ -54,7 +73,9 @@ export function TechnicianRosterCard({
           const activeBookings = bookingsByTechnician[technician.id] ?? [];
           const days = groupByDay(activeBookings);
           const activeBookingLabel =
-            activeBookings.length === 1 ? '1 active booking' : `${activeBookings.length} active bookings`;
+            activeBookings.length === 1
+              ? labels.activeBookingSingular
+              : labels.activeBookingPlural(activeBookings.length);
 
           return (
             <li key={technician.id} className="technician-roster-row">
@@ -70,7 +91,7 @@ export function TechnicianRosterCard({
                       : 'technician-status-badge'
                   }
                 >
-                  {technician.active ? 'Active' : 'Inactive'}
+                  {technician.active ? labels.active : labels.inactive}
                 </span>
                 <span className="technician-roster-bookings">{activeBookingLabel}</span>
               </div>
@@ -90,16 +111,24 @@ export function TechnicianRosterCard({
                               <span className="workload-booking-time">{booking.time}</span>
                               <span className="workload-booking-title">{booking.styleTitle}</span>
                               <span className={`workload-status workload-status-${booking.status}`}>
-                                {statusLabels[booking.status]}
+                                {formatStatusLabel({ status: booking.status, language })}
                               </span>
                             </summary>
                             <dl className="workload-booking-facts">
-                              <div><dt>Customer</dt><dd>{booking.customerName}</dd></div>
-                              <div><dt>Quote</dt><dd>SGD {booking.quote.price} · {booking.quote.duration} min</dd></div>
-                              {booking.notes ? <div><dt>Notes</dt><dd>{booking.notes}</dd></div> : null}
+                              <div><dt>{labels.customer}</dt><dd>{booking.customerName}</dd></div>
+                              <div>
+                                <dt>{labels.quote}</dt>
+                                <dd>
+                                  {formatCurrency({
+                                    cents: Math.round(booking.quote.price * 100),
+                                    language,
+                                  })} · {formatDuration({ minutes: booking.quote.duration, language })}
+                                </dd>
+                              </div>
+                              {booking.notes ? <div><dt>{labels.notes}</dt><dd>{booking.notes}</dd></div> : null}
                             </dl>
                             <Link className="workload-booking-link" href={getMerchantBookingPath(booking.id)}>
-                              Open booking →
+                              {labels.openBooking} →
                             </Link>
                           </details>
                         ))}

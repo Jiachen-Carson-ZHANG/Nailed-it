@@ -5,6 +5,7 @@ import type {
   StyleDiscoveryFacet,
   StylePreviewQuote
 } from '@/domain/nail';
+import type { LocalizedText } from '@/i18n/types';
 import {
   chromeMirrorAIResult,
   dailySolidAIResult,
@@ -15,6 +16,8 @@ import { defaultPricingRules } from './pricing';
 
 export type StyleDefinition = Omit<NailStyleCard, 'previewQuote'> & {
   recognition: AIRecognitionResult;
+  titleLocalized: LocalizedText;
+  descriptionLocalized: LocalizedText;
 };
 
 function createPreviewQuoteForRules(
@@ -49,7 +52,15 @@ export const styleDefinitions: StyleDefinition[] = [
     ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=80',
-    title: 'Rose Cat Eye Shine',
+    title: 'Rose cat-eye',
+    titleLocalized: {
+      'zh-CN': '玫瑰猫眼',
+      en: 'Rose cat-eye'
+    },
+    descriptionLocalized: {
+      'zh-CN': '玫瑰粉底色搭配柔和磁吸光带，整体像晚霞一样细闪。',
+      en: 'Rose-pink nails with a soft magnetic highlight and a delicate sunset shimmer.'
+    },
     popularityScore: 96,
     recognition: mockAIResult
   },
@@ -62,7 +73,15 @@ export const styleDefinitions: StyleDefinition[] = [
     ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1610992015732-2449b76344bc?auto=format&fit=crop&w=900&q=80',
-    title: 'Soft Studio French',
+    title: 'Creamy French',
+    titleLocalized: {
+      'zh-CN': '奶油法式',
+      en: 'Creamy French'
+    },
+    descriptionLocalized: {
+      'zh-CN': '奶白底配细法式边，整体温柔干净。',
+      en: 'Soft milky nails with a fine French edge and a clean, gentle finish.'
+    },
     popularityScore: 90,
     recognition: softFrenchAIResult
   },
@@ -75,7 +94,15 @@ export const styleDefinitions: StyleDefinition[] = [
     ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1519014816548-bf5fe059798b?auto=format&fit=crop&w=900&q=80',
-    title: 'Chrome Mirror Almond',
+    title: 'Mirror chrome almond',
+    titleLocalized: {
+      'zh-CN': '镜面银铬',
+      en: 'Mirror chrome almond'
+    },
+    descriptionLocalized: {
+      'zh-CN': '镜面银铬覆盖杏仁甲型，指尖有冷调反光和轻微闪粉过渡。',
+      en: 'Mirror chrome over an almond shape with cool-toned reflection and a fine glitter fade.'
+    },
     popularityScore: 88,
     recognition: chromeMirrorAIResult
   },
@@ -88,7 +115,15 @@ export const styleDefinitions: StyleDefinition[] = [
     ] satisfies StyleDiscoveryFacet[],
     imageUrl:
       'https://images.unsplash.com/photo-1599948128020-9a44505b0d1b?auto=format&fit=crop&w=900&q=80',
-    title: 'Clean Daily Solid',
+    title: 'Everyday sheer pink',
+    titleLocalized: {
+      'zh-CN': '通勤裸粉',
+      en: 'Everyday sheer pink'
+    },
+    descriptionLocalized: {
+      'zh-CN': '通透裸粉薄涂，整体干净低调，适合日常通勤。',
+      en: 'A sheer nude-pink overlay with a clean, understated finish for everyday wear.'
+    },
     popularityScore: 82,
     recognition: dailySolidAIResult
   }

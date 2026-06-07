@@ -4,6 +4,7 @@
 //
 // Enums are declared as const arrays so they are runtime-checkable (used by the catalog
 // integrity tests and mirrored by the DB CHECK constraints in migration 0002).
+import type { AppLanguage } from '@/i18n/types';
 
 export const catalogItemTypes = [
   'service_module',
@@ -44,6 +45,22 @@ export const pricingUnits = [
 ] as const;
 export type PricingUnit = (typeof pricingUnits)[number];
 
+export type BilingualText = {
+  zh: string;
+  en: string;
+};
+
+type CatalogLanguage = AppLanguage | keyof BilingualText;
+
+export const catalogTypeLabels: Record<CatalogItemType, BilingualText> = {
+  service_module: { zh: '服务模块', en: 'Service module' },
+  procedure: { zh: '工序', en: 'Procedure' },
+  billable_component: { zh: '收费组件', en: 'Billable component' },
+  visual_attribute: { zh: '视觉属性', en: 'Visual attribute' },
+  complexity_level: { zh: '复杂度等级', en: 'Complexity level' },
+  style_tag: { zh: '风格标签', en: 'Style tag' },
+};
+
 /** A chosen catalog item + quantity — the unit a quote is built from. */
 export type CatalogSelection = {
   catalogItemId: string;
@@ -52,6 +69,8 @@ export type CatalogSelection = {
 
 export type CatalogItem = {
   id: string;
+  // 双语字段是主 contract；旧中文字段仅用于渐进兼容。
+  name: BilingualText;
   nameZh: string;
   type: CatalogItemType;
   category: string;
@@ -71,7 +90,24 @@ export type CatalogItem = {
   quantitySupported: TriState;
   complexitySupported: YesNo;
   notes: string;
+  notesLocalized: BilingualText;
 };
+
+function normalizeCatalogLanguage(language: CatalogLanguage): keyof BilingualText {
+  return language === 'en' ? 'en' : 'zh';
+}
+
+export function getCatalogItemName(item: CatalogItem, language: CatalogLanguage): string {
+  return item.name[normalizeCatalogLanguage(language)] ?? item.nameZh;
+}
+
+export function getCatalogItemNotes(item: CatalogItem, language: CatalogLanguage): string {
+  return item.notesLocalized[normalizeCatalogLanguage(language)] ?? item.notes;
+}
+
+export function getCatalogTypeLabel(type: CatalogItemType, language: CatalogLanguage): string {
+  return catalogTypeLabels[type][normalizeCatalogLanguage(language)];
+}
 
 /**
  * Packages whose booking time is the SUM of their non-billable, time-only child steps rather than

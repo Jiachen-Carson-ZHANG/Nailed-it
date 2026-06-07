@@ -4,6 +4,7 @@ import {
   recognizeNailImageWithTelemetry,
   type NailImageRecognitionInput
 } from '@/nail-ai/nail-recognition';
+import { getDefaultLanguage, isAppLanguage } from '@/i18n/storage';
 
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 
@@ -33,10 +34,13 @@ export async function POST(request: Request) {
 function parseRequestBody(value: unknown): NailImageRecognitionInput {
   const body = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
+  const language = typeof body.language === 'string' && isAppLanguage(body.language)
+    ? body.language
+    : getDefaultLanguage();
   const mimeType = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
 
   if (!imageBase64) throw new Error('imageBase64 is required.');
   if (!supportedMimeTypes.has(mimeType)) throw new Error('Supported image types are PNG, JPEG, WEBP, HEIC, and HEIF.');
 
-  return { imageBase64, mimeType };
+  return { imageBase64, language, mimeType };
 }
