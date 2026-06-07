@@ -38,12 +38,15 @@ export function MobileLayout({
   const profilePath = role === 'customer' ? getCustomerProfilePath() : getMerchantProfilePath();
   const avatarInitial = role === 'customer' ? 'M' : 'N';
   const newNailDesignLabel = role === 'customer' ? t('layout.newNailDesign') : null;
+  const shouldRenderCtaPrefix = Boolean(
+    newNailDesignLabel && !newNailDesignLabel.trim().startsWith('+') && !newNailDesignLabel.trim().startsWith('＋')
+  );
   const openProfileLabel = t('layout.openProfile');
   const rightSlot = (
     <>
       {role === 'customer' && newNailDesignLabel ? (
         <ResetLink aria-label={newNailDesignLabel} className="top-bar-cta" href={getCustomerBookingPath()}>
-          <span aria-hidden="true">＋ </span>
+          {shouldRenderCtaPrefix ? <span aria-hidden="true">＋ </span> : null}
           {newNailDesignLabel}
         </ResetLink>
       ) : null}

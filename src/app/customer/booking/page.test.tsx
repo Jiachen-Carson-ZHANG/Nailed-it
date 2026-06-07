@@ -45,17 +45,18 @@ describe('CustomerBookingPage', () => {
     renderBookingContent(<CustomerBookingContent />);
 
     // Step 1: Upload — the Analyze CTA only appears once a reference image exists.
-    expect(screen.queryByRole('button', { name: '分析我的照片' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'AI识别' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '上传你的美甲参考图' })).toBeInTheDocument();
     expect(screen.getByText('上传')).toBeInTheDocument();
     expect(screen.getByText('识别结果')).toBeInTheDocument();
     expect(screen.getByText('报价')).toBeInTheDocument();
+    expect(screen.getByText('上传或拍照')).toBeInTheDocument();
 
     const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
     fireEvent.change(screen.getByLabelText('选择美甲参考图'), { target: { files: [file] } });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: '分析我的照片' })).toBeEnabled());
-    fireEvent.click(screen.getByRole('button', { name: '分析我的照片' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'AI识别' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'AI识别' }));
 
     // Step 2: Result — style detected
     await screen.findByRole('heading', { name: '款式识别结果' });
@@ -117,10 +118,10 @@ describe('CustomerBookingPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: '分析我的照片' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'AI识别' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '分析我的照片' }));
+    fireEvent.click(screen.getByRole('button', { name: 'AI识别' }));
 
     // Should advance to step 2 with API result
     await screen.findByRole('heading', { name: '款式识别结果' });
@@ -170,7 +171,7 @@ describe('CustomerBookingPage', () => {
     renderBookingContent(<CustomerBookingContent />, 'en');
 
     expect(screen.getByRole('heading', { name: 'Upload your nail reference' })).toBeInTheDocument();
-    expect(screen.getByText('Upload')).toBeInTheDocument();
+    expect(screen.getByText('Upload or take photo')).toBeInTheDocument();
     expect(screen.getByText('Style result')).toBeInTheDocument();
     expect(screen.getByText('Quote')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New nail design' })).toBeInTheDocument();
@@ -208,5 +209,21 @@ describe('CustomerBookingPage', () => {
 
     const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
     expect(JSON.parse(String(request?.body))).toMatchObject({ language: 'en' });
+  });
+
+  it('shows localized upload actions in Chinese mode', async () => {
+    renderBookingContent(<CustomerBookingContent />);
+
+    expect(screen.getByText('上传或拍照')).toBeInTheDocument();
+
+    const file = new File(['fake image bytes'], 'look.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('选择美甲参考图'), {
+      target: { files: [file] }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: '试戴款式' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'AI识别' })).toBeInTheDocument();
   });
 });

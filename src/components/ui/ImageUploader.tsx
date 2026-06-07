@@ -100,7 +100,7 @@ export function ImageUploader({
               </Button>
               {tryOnHref ? (
                 <Link className="button button-secondary button-default uploader-action" href={tryOnHref}>
-                  Try on this look
+                  {t('booking.upload.tryOnAction')}
                 </Link>
               ) : null}
             </div>
@@ -109,7 +109,7 @@ export function ImageUploader({
         ) : (
           <div className="uploader-actions">
             <label className="button button-primary button-default uploader-action">
-              Upload or take photo
+              {t('booking.upload.chooseAction')}
               <input
                 aria-label={t('booking.upload.choosePhoto')}
                 accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
