@@ -4,12 +4,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LanguageProvider, useLanguage } from '@/i18n/context';
 
 function LanguageProbe() {
-  const { language, role, setLanguage } = useLanguage();
+  const { language, role, setLanguage, t } = useLanguage();
 
   return (
     <div>
       <span data-testid="language">{language}</span>
       <span data-testid="role">{role}</span>
+      <span data-testid="switch-label">{t('profile.language.switch')}</span>
+      <span data-testid="language-zh">{t('profile.language.zh')}</span>
+      <span data-testid="language-en">{t('profile.language.en')}</span>
+      <span data-testid="open-profile">{t('layout.openProfile')}</span>
+      <span data-testid="new-nail-design">{t('layout.newNailDesign')}</span>
       <button type="button" onClick={() => setLanguage('en')}>
         switch
       </button>
@@ -30,6 +35,11 @@ describe('LanguageProvider', () => {
     );
 
     expect(screen.getByTestId('language').textContent).toBe('zh-CN');
+    expect(screen.getByTestId('switch-label').textContent).toBe('切换语言');
+    expect(screen.getByTestId('language-zh').textContent).toBe('中文');
+    expect(screen.getByTestId('language-en').textContent).toBe('英文');
+    expect(screen.getByTestId('open-profile').textContent).toBe('打开个人资料');
+    expect(screen.getByTestId('new-nail-design').textContent).toBe('新的美甲设计');
   });
 
   it('keeps an explicit initial language after effects settle when storage is empty', async () => {
@@ -44,7 +54,7 @@ describe('LanguageProvider', () => {
     });
   });
 
-  it('exposes language, role, and setLanguage, and updates immediately when switching', () => {
+  it('exposes language, role, setLanguage, and t, and updates translations immediately when switching', () => {
     render(
       <LanguageProvider role="customer">
         <LanguageProbe />
@@ -53,10 +63,17 @@ describe('LanguageProvider', () => {
 
     expect(screen.getByTestId('language').textContent).toBe('zh-CN');
     expect(screen.getByTestId('role').textContent).toBe('customer');
+    expect(screen.getByTestId('switch-label').textContent).toBe('切换语言');
+    expect(screen.getByTestId('new-nail-design').textContent).toBe('新的美甲设计');
 
     fireEvent.click(screen.getByRole('button', { name: 'switch' }));
 
     expect(screen.getByTestId('language').textContent).toBe('en');
+    expect(screen.getByTestId('switch-label').textContent).toBe('Switch language');
+    expect(screen.getByTestId('language-zh').textContent).toBe('Chinese');
+    expect(screen.getByTestId('language-en').textContent).toBe('English');
+    expect(screen.getByTestId('open-profile').textContent).toBe('Open profile');
+    expect(screen.getByTestId('new-nail-design').textContent).toBe('New nail design');
     expect(window.localStorage.getItem('customer-language')).toBe('en');
   });
 
