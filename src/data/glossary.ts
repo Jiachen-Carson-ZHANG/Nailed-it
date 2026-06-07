@@ -4,25 +4,32 @@
 // ids, with 7 dead ids the model could still emit). To change the glossary, edit the Lark
 // Dictionary and regenerate catalog.ts.
 
-import type { CatalogItem, TriState } from '@/domain/catalog';
+import type { BilingualText, CatalogItem, CatalogItemType, TriState } from '@/domain/catalog';
+import { catalogTypeLabels } from '@/domain/catalog';
 import { catalogItems } from '@/mock/catalog';
 
-export type GlossaryType =
+export type GlossaryType = Extract<
+  CatalogItemType,
   | 'service_module'
   | 'procedure'
   | 'billable_component'
   | 'visual_attribute'
   | 'style_tag'
-  | 'complexity_level';
+  | 'complexity_level'
+>;
 
 export type AiDetectable = 'yes' | 'no' | 'weak' | 'user_confirmed';
 export type BillableValue = boolean | 'optional';
 
 export type GlossaryEntry = {
   id: string;
+  name: BilingualText;
   name_zh: string;
+  name_en: string;
   type: GlossaryType;
+  typeLabel: BilingualText;
   type_zh: string;
+  type_en: string;
   category: string;
   parent_id: string;
   user_visible: boolean;
@@ -38,15 +45,6 @@ export type GlossaryEntry = {
   complexity_supported: boolean | 'optional';
 };
 
-const typeZhByType: Record<GlossaryType, string> = {
-  service_module: '服务模块',
-  procedure: '工序',
-  billable_component: '收费组件',
-  visual_attribute: '视觉属性',
-  complexity_level: '复杂度等级',
-  style_tag: '风格标签',
-};
-
 // CatalogItem tri-states ('yes' | 'no' | 'optional') → the glossary's boolean | 'optional'.
 function triToBillable(value: TriState): BillableValue {
   if (value === 'optional') return 'optional';
@@ -55,11 +53,17 @@ function triToBillable(value: TriState): BillableValue {
 
 function toGlossaryEntry(item: CatalogItem): GlossaryEntry {
   const type = item.type as GlossaryType;
+  const name = item.name;
+  const typeLabel = catalogTypeLabels[type];
   return {
     id: item.id,
-    name_zh: item.nameZh,
+    name,
+    name_zh: name.zh,
+    name_en: name.en,
     type,
-    type_zh: typeZhByType[type],
+    typeLabel,
+    type_zh: typeLabel.zh,
+    type_en: typeLabel.en,
     category: item.category,
     parent_id: item.parentId ?? 'na',
     user_visible: item.userVisible === 'yes',

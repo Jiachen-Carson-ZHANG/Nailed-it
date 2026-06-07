@@ -62,7 +62,7 @@ describe('catalog-backed booking actions', () => {
       time: slot!.time,
       notes: '',
     });
-    expect(created.styleTitle).toBe('Rose Cat Eye Shine');
+    expect(created.styleTitle).toBe('Rose cat-eye');
     expect(created.quote).toMatchObject({ price: 28, duration: 45 });
   });
 });

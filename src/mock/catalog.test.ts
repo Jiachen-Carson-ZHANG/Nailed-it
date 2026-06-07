@@ -7,6 +7,10 @@ import {
   triStates,
   yesNoValues
 } from '@/domain/catalog';
+import { createMemoryCatalogRepository } from '@/lib/repositories/memory/catalog-repository';
+import { createMemoryMerchantPricingRepository } from '@/lib/repositories/memory/merchant-pricing-repository';
+import type { RepositoryBundle } from '@/lib/repositories/types';
+import { createMerchantPricingService } from '@/lib/services/merchant-pricing-service';
 import { catalogItems } from './catalog';
 
 describe('catalog data integrity', () => {
@@ -62,5 +66,56 @@ describe('catalog data integrity', () => {
       (i) => i.affectsBookingDuration === 'yes' && (typeof i.defaultDurationMin !== 'number' || i.defaultDurationMin < 0)
     );
     expect(bad.map((i) => i.id)).toEqual([]);
+  });
+});
+
+describe('catalog bilingual content', () => {
+  it('uses required bilingual names as the canonical contract for every catalog item', () => {
+    for (const item of catalogItems) {
+      expect(item.name.zh).not.toBe('');
+      expect(item.name.en).not.toBe('');
+      expect(item.name.zh).toBe(item.nameZh);
+    }
+  });
+
+  it('uses required bilingual notes while keeping legacy notes stable', () => {
+    for (const item of catalogItems) {
+      expect(item.notesLocalized.zh).toBe(item.notes);
+      expect(item.notesLocalized.zh).not.toBe('');
+      expect(item.notesLocalized.en).not.toBe('');
+    }
+  });
+});
+
+describe('merchant pricing localized display records', () => {
+  it('returns localized names and group labels while keeping legacy Chinese labels stable', async () => {
+    const repos = {
+      catalog: createMemoryCatalogRepository(catalogItems),
+      merchantPricing: createMemoryMerchantPricingRepository(),
+    } as RepositoryBundle;
+
+    const settings = await createMerchantPricingService(repos).listSettings('merchant-1');
+    const removalBasicGel = settings.find((item) => item.id === 'removal_basic_gel');
+    const basicService = settings.find((item) => item.id === 'basic_manicure_service');
+
+    expect(removalBasicGel?.name).toEqual({
+      zh: '卸非光疗本甲',
+      en: 'Removal basic gel',
+    });
+    expect(removalBasicGel?.groupLabelLocalized).toEqual({
+      zh: '卸甲服务',
+      en: 'Removal service',
+    });
+    expect(removalBasicGel?.groupLabel).toBe('卸甲服务');
+
+    expect(basicService?.name).toEqual({
+      zh: '基础护理服务',
+      en: 'Basic manicure service',
+    });
+    expect(basicService?.groupLabelLocalized).toEqual({
+      zh: '基础护理服务',
+      en: 'Basic manicure service',
+    });
+    expect(basicService?.nameZh).toBe('基础护理服务');
   });
 });

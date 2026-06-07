@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { getCustomerMessagesPath } from '@/domain/session';
 import { CustomerConversationClient } from './conversation-client';
 
 export default async function CustomerConversationPage({
@@ -16,9 +14,6 @@ export default async function CustomerConversationPage({
       title="Nailed-it"
     >
       <CustomerConversationClient conversationId={conversationId} />
-      <Link className="button button-secondary" href={getCustomerMessagesPath()}>
-        Back to messages
-      </Link>
     </MobileLayout>
   );
 }

@@ -1,4 +1,4 @@
-import type { PricingUnit } from './catalog';
+import type { BilingualText, PricingUnit } from './catalog';
 
 export type Merchant = {
   id: string;
@@ -19,8 +19,10 @@ export type MerchantPricing = {
 /** Merchant-facing editable view. Money is expressed in major currency units for form controls. */
 export type MerchantPricingSetting = {
   id: string;
+  name: BilingualText;
   nameZh: string;
   groupLabel: string;
+  groupLabelLocalized: BilingualText;
   price: number;
   duration: number;
   enabled: boolean;

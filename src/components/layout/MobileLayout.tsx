@@ -1,3 +1,5 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { UserRole } from '@/domain/nail';
@@ -7,6 +9,7 @@ import {
   getMerchantProfilePath,
   getMockSession
 } from '@/domain/session';
+import { useLanguage } from '@/i18n/context';
 import { BottomTabBar } from './BottomTabBar';
 import { TopBar } from './TopBar';
 import { ResetLink } from '@/components/ui/ResetLink';
@@ -30,17 +33,24 @@ export function MobileLayout({
   title,
   wide = false,
 }: MobileLayoutProps) {
+  const { t } = useLanguage();
   const session = getMockSession(role);
   const profilePath = role === 'customer' ? getCustomerProfilePath() : getMerchantProfilePath();
   const avatarInitial = role === 'customer' ? 'M' : 'N';
+  const newNailDesignLabel = role === 'customer' ? t('layout.newNailDesign') : null;
+  const shouldRenderCtaPrefix = Boolean(
+    newNailDesignLabel && !newNailDesignLabel.trim().startsWith('+') && !newNailDesignLabel.trim().startsWith('＋')
+  );
+  const openProfileLabel = t('layout.openProfile');
   const rightSlot = (
     <>
-      {role === 'customer' ? (
-        <ResetLink className="top-bar-cta" href={getCustomerBookingPath()}>
-          ＋ New Nail Design
+      {role === 'customer' && newNailDesignLabel ? (
+        <ResetLink aria-label={newNailDesignLabel} className="top-bar-cta" href={getCustomerBookingPath()}>
+          {shouldRenderCtaPrefix ? <span aria-hidden="true">＋ </span> : null}
+          {newNailDesignLabel}
         </ResetLink>
       ) : null}
-      <Link aria-label="Open profile" className="top-bar-avatar" href={profilePath}>
+      <Link aria-label={openProfileLabel} className="top-bar-avatar" href={profilePath}>
         {avatarInitial}
       </Link>
     </>

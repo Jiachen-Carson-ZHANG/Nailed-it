@@ -5,6 +5,7 @@ import type {
   NailShape,
   NailStyleName
 } from '@/domain/nail';
+import type { AppLanguage } from '@/i18n/types';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
 export const baseServiceValues = ['removal', 'extension', 'builderGel'] as const;
@@ -16,6 +17,7 @@ export const defaultVisionModel = 'google/gemini-2.5-flash-lite';
 
 export type NailImageRecognitionInput = {
   imageBase64: string;
+  language?: AppLanguage;
   mimeType: string;
 };
 
@@ -53,6 +55,8 @@ export async function recognizeNailImageWithTelemetry(
 
   const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultVisionModel;
 
+  const language = input.language ?? 'zh-CN';
+
   let data: unknown;
   try {
     data = await postOpenRouterChat(
@@ -63,7 +67,7 @@ export async function recognizeNailImageWithTelemetry(
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: `data:${input.mimeType};base64,${input.imageBase64}` } },
-              { type: 'text', text: nailRecognitionPrompt }
+              { type: 'text', text: getNailRecognitionPrompt(language) }
             ]
           }
         ]
@@ -141,15 +145,22 @@ function clampConfidence(value: unknown): number {
   return Math.min(1, Math.max(0, value));
 }
 
-const nailRecognitionPrompt = [
-  'Extract only visible nail-service attributes from this customer reference image.',
-  'Do not estimate price, duration, discounts, appointment time, technician, or availability.',
-  'Return a JSON object with keys: baseServices (array of: removal|extension|builderGel),',
-  'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
-  'styles (array of: solid|catEye|french|chrome|rhinestone),',
-  'addons (array of: rhinestone|charms|glitter),',
-  'otherNotes (string, written in Simplified Chinese, describe the nail style directly without phrases like "图片展示的是" or "图中"), confidence (0-1 number).',
-  'Use only exact values listed. If an attribute is not visible, use an empty array.',
-  'For nailShape, choose the closest visible shape; use round if unclear.',
-  'Return ONLY valid JSON, no markdown.'
-].join(' ');
+export function getNailRecognitionPrompt(language: AppLanguage): string {
+  const notesInstruction =
+    language === 'zh-CN'
+      ? 'otherNotes (string, written in Simplified Chinese, describe the nail style directly without phrases like "图片展示的是" or "图中"), confidence (0-1 number).'
+      : 'otherNotes (string, written in English, describe the nail style directly without phrases like "the image shows" or "pictured here"), confidence (0-1 number).';
+
+  return [
+    'Extract only visible nail-service attributes from this customer reference image.',
+    'Do not estimate price, duration, discounts, appointment time, technician, or availability.',
+    'Return a JSON object with keys: baseServices (array of: removal|extension|builderGel),',
+    'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
+    'styles (array of: solid|catEye|french|chrome|rhinestone),',
+    'addons (array of: rhinestone|charms|glitter),',
+    notesInstruction,
+    'Use only exact values listed. If an attribute is not visible, use an empty array.',
+    'For nailShape, choose the closest visible shape; use round if unclear.',
+    'Return ONLY valid JSON, no markdown.'
+  ].join(' ');
+}

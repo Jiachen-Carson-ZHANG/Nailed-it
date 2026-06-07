@@ -12,6 +12,7 @@ import type { CatalogSelection } from '@/domain/catalog';
 import { catalogItems } from '@/mock/catalog';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
 import type { MerchantPricingSetting } from '@/domain/merchant';
+import type { AppLanguage } from '@/i18n/types';
 import { buildStyleConfig } from '@/domain/style-config';
 import { runGlossaryBreakdown } from './breakdown';
 import {
@@ -29,13 +30,20 @@ export type StyleAiConfig = {
   description: string;
 };
 
-const NAME_PROMPT = [
-  'You are naming a nail-salon design for a Chinese beauty app.',
-  'Look at the nail image and respond with ONLY a JSON object, no prose, no markdown fence:',
-  '{ "name": string, "description": string }',
-  '- name: a short, catchy Chinese style name, at most 8 Chinese characters (e.g. 奶油法式, 猫眼星河).',
-  '- description: one natural Chinese sentence describing the look (shape, colour, finish, vibe).',
-].join('\n');
+export function buildStyleNamePrompt(language: AppLanguage): string {
+  const instruction =
+    language === 'zh-CN'
+      ? '- name: a short, catchy Chinese style name, at most 8 Chinese characters (e.g. 奶油法式, 猫眼星河).\n- description: one natural Chinese sentence describing the look (shape, colour, finish, vibe).'
+      : '- name: a short, catchy English style name, ideally 2 to 4 words.\n- description: one natural English sentence describing the look (shape, color, finish, vibe).';
+
+  return [
+    'You are naming a nail-salon design for a beauty app.',
+    `Return the result in ${language === 'zh-CN' ? 'Simplified Chinese' : 'English'}.`,
+    'Look at the nail image and respond with ONLY a JSON object, no prose, no markdown fence:',
+    '{ "name": string, "description": string }',
+    instruction,
+  ].join('\n');
+}
 
 export const styleNameResponseFormat: OpenRouterJsonSchemaResponseFormat = {
   type: 'json_schema',
@@ -91,6 +99,7 @@ export function parseStyleNameOutput(value: unknown): { name: string; descriptio
 export async function recognizeStyleName(
   imageBase64: string,
   mimeType: string,
+  language: AppLanguage = 'zh-CN',
   env = process.env,
 ): Promise<{ name: string; description: string }> {
   const apiKey = env.OPENROUTER_API_KEY;
@@ -106,7 +115,7 @@ export async function recognizeStyleName(
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-              { type: 'text', text: NAME_PROMPT },
+              { type: 'text', text: buildStyleNamePrompt(language) },
             ],
           },
         ],
@@ -131,10 +140,11 @@ export async function recognizeStyleConfig(
   imageBase64: string,
   mimeType: string,
   merchantSettings: MerchantPricingSetting[],
+  language: AppLanguage = 'zh-CN',
   env = process.env,
 ): Promise<StyleAiConfig> {
   const breakdown = await withRetry(() =>
-    runGlossaryBreakdown(imageBase64, mimeType, merchantSettings, env),
+    runGlossaryBreakdown(imageBase64, mimeType, merchantSettings, language, env),
   );
 
   // Every item the model named is a high-confidence detection; buildStyleConfig validates the ids
@@ -147,7 +157,7 @@ export async function recognizeStyleConfig(
   }));
   const config = buildStyleConfig(recognized, catalogItems);
 
-  const { name, description } = await recognizeStyleName(imageBase64, mimeType, env);
+  const { name, description } = await recognizeStyleName(imageBase64, mimeType, language, env);
 
   return {
     catalogSelections: withBaseManicure(breakdown.catalogSelections),

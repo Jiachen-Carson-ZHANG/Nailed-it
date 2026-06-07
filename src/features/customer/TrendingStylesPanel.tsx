@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AITrendingResponse, AITrendingStyle } from '@/domain/nail';
 import { Button } from '@/components/ui/Button';
+import { useLanguage } from '@/i18n/context';
 
 const RANK_EMOJI = ['①', '②', '③'];
 const TOP_N = 3;
@@ -23,13 +24,21 @@ const PLATFORM_SHORT: Record<string, string> = {
   'Google Images': 'Google',
 };
 
-function TrendingRow({ style }: { style: AITrendingStyle }) {
+function TrendingRow({
+  language,
+  style,
+}: {
+  language: 'zh-CN' | 'en';
+  style: AITrendingStyle;
+}) {
   const rankGlyph = RANK_EMOJI[style.rank - 1] ?? String(style.rank);
   const links = style.searchLinks.filter((l) => l.platform !== 'Google Images');
+  const name = language === 'zh-CN' ? style.nameCn : style.name;
+
   return (
     <div className="trending-row">
       <span className="trending-rank" aria-label={`Rank ${style.rank}`}>{rankGlyph}</span>
-      <span className="trending-name">{style.nameCn}</span>
+      <span className="trending-name">{name}</span>
       {links.length > 0 && (
         <span className="trending-row-links">
           {links.map((link) => (
@@ -58,6 +67,7 @@ function TrendingRowSkeleton() {
 }
 
 export function TrendingStylesPanel() {
+  const { language, t } = useLanguage();
   const [data, setData] = useState<AITrendingResponse | null>(trendingCache);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -72,13 +82,13 @@ export function TrendingStylesPanel() {
       const body = (await response.json()) as AITrendingResponse & { error?: string };
 
       if (!response.ok) {
-        throw new Error(body.error ?? 'Failed to load trending styles.');
+        throw new Error(body.error ?? t('home.trending.errorTitle'));
       }
 
       trendingCache = body;
       setData(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load trending styles.');
+      setError(err instanceof Error ? err.message : t('home.trending.errorTitle'));
     } finally {
       setIsLoading(false);
     }
@@ -97,8 +107,8 @@ export function TrendingStylesPanel() {
     <section className="trending-panel" aria-labelledby="trending-panel-title">
       <div className="trending-panel-header">
         <div>
-          <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
-          <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
+          <h2 id="trending-panel-title" className="trending-panel-title">{t('home.trending.title')}</h2>
+          <p className="trending-panel-subtitle">{t('home.trending.subtitle')}</p>
         </div>
         <Button
           size="compact"
@@ -106,19 +116,19 @@ export function TrendingStylesPanel() {
           onClick={loadTrending}
           disabled={isLoading}
         >
-          {isLoading ? 'Loading…' : 'Refresh'}
+          {isLoading ? t('home.trending.loadingAction') : t('home.trending.refresh')}
         </Button>
       </div>
 
       {error && (
         <section className="summary-card" role="alert">
-          <strong>Could not load trends</strong>
+          <strong>{t('home.trending.errorTitle')}</strong>
           <p>{error}</p>
         </section>
       )}
 
       {isLoading && (
-        <div className="trending-list" aria-busy="true" aria-label="Loading trending styles">
+        <div className="trending-list" aria-busy="true" aria-label={t('home.trending.loadingAria')}>
           {Array.from({ length: TOP_N }, (_, i) => <TrendingRowSkeleton key={i} />)}
         </div>
       )}
@@ -126,7 +136,7 @@ export function TrendingStylesPanel() {
       {!isLoading && data && (
         <div className="trending-list">
           {data.styles.slice(0, TOP_N).map((style) => (
-            <TrendingRow key={style.rank} style={style} />
+            <TrendingRow key={style.rank} language={language} style={style} />
           ))}
         </div>
       )}

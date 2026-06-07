@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 import CustomerHomePage from './page';
 import { mockMerchantStyles } from '@/mock/merchant-styles';
 import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
+import { LanguageProvider } from '@/i18n/context';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -10,21 +11,48 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('CustomerHomePage', () => {
-  function renderPage() {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          generatedAt: '2026-06-07T00:00:00.000Z',
+          styles: [
+            {
+              rank: 1,
+              name: 'Mirror Chrome',
+              nameCn: '镜面银猫眼',
+              description: 'desc',
+              tags: [],
+              searchLinks: []
+            }
+          ]
+        })
+      })
+    );
+  });
+
+  function renderPage(language: 'zh-CN' | 'en' = 'zh-CN') {
     return render(
-      <SavedStylesProvider>
-        <CustomerHomePage />
-      </SavedStylesProvider>
+      <LanguageProvider initialLanguage={language} role="customer">
+        <SavedStylesProvider>
+          <CustomerHomePage />
+        </SavedStylesProvider>
+      </LanguageProvider>
     );
   }
 
-  it('renders the discovery feed with published merchant styles and the upload CTA', async () => {
+  it('renders the customer home in Chinese mode with the requested labels', async () => {
     renderPage();
 
-    expect(screen.getByRole('link', { name: /new nail design/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '+上传款式' })).toHaveAttribute(
       'href',
       '/customer/booking'
     );
+    expect(await screen.findByRole('heading', { name: '热门' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '收藏夹' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '刷新' })).toBeInTheDocument();
 
     for (const style of mockMerchantStyles) {
       expect(
@@ -35,10 +63,19 @@ describe('CustomerHomePage', () => {
     }
   });
 
+  it('renders the customer home in English mode with the matching labels', async () => {
+    renderPage('en');
+
+    expect(screen.getByRole('link', { name: 'New nail design' })).toHaveAttribute('href', '/customer/booking');
+    expect(await screen.findByRole('heading', { name: 'Trending' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Saved' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+  });
+
   it('renders without non-finite values while styles load', async () => {
     renderPage();
 
     expect(screen.queryByText(/Infinity|-Infinity/)).not.toBeInTheDocument();
-    await screen.findByRole('link', { name: /Rose Cat Eye Shine/i });
+    await screen.findByRole('link', { name: /Rose cat-eye/i });
   });
 });

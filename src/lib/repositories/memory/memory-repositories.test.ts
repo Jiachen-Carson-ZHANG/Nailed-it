@@ -254,7 +254,7 @@ describe('createMemoryStyleRepository', () => {
     const repo = createMemoryStyleRepository();
     const style = await repo.getById('rose-cat-eye');
     expect(style).not.toBeNull();
-    expect(style?.title).toBe('Rose Cat Eye Shine');
+    expect(style?.title).toBe('Rose cat-eye');
   });
 
   it('getById() returns null when not found', async () => {

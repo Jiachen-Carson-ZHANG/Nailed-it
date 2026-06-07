@@ -1,5 +1,6 @@
 import type { ChangeEvent, ReactNode } from 'react';
 import Link from 'next/link';
+import { useLanguage } from '@/i18n/context';
 import { Button } from './Button';
 
 export type SelectedNailImage = {
@@ -30,6 +31,7 @@ export function ImageUploader({
   tryOnHref,
   analyzeAction,
 }: ImageUploaderProps) {
+  const { t } = useLanguage();
   const hasImage = Boolean(imageUrl);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -71,7 +73,7 @@ export function ImageUploader({
             <span className="image-uploader-mark">+</span>
           </div>
           <input
-            aria-label="Upload nail reference photo"
+            aria-label={t('booking.upload.uploadPhoto')}
             accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
             hidden
             type="file"
@@ -81,11 +83,11 @@ export function ImageUploader({
       )}
 
       <div className="image-uploader-copy">
-        <strong>{hasImage ? 'Reference ready' : 'Add a nail reference'}</strong>
+        <strong>{hasImage ? t('booking.result.title') : t('booking.upload.title')}</strong>
         <p>
           {hasImage
-            ? 'Swap the current image to compare another finish or shape.'
-            : 'Upload a nail photo to get your quote, or try with our example.'}
+            ? t('booking.upload.changePhoto')
+            : t('booking.upload.example')}
         </p>
       </div>
 
@@ -94,11 +96,11 @@ export function ImageUploader({
           <>
             <div className="uploader-actions">
               <Button className="uploader-action" onClick={onReset} variant="secondary">
-                Change photo
+                {t('booking.upload.changePhoto')}
               </Button>
               {tryOnHref ? (
                 <Link className="button button-secondary button-default uploader-action" href={tryOnHref}>
-                  Try on this look
+                  {t('booking.upload.tryOnAction')}
                 </Link>
               ) : null}
             </div>
@@ -107,9 +109,9 @@ export function ImageUploader({
         ) : (
           <div className="uploader-actions">
             <label className="button button-primary button-default uploader-action">
-              Upload or take photo
+              {t('booking.upload.chooseAction')}
               <input
-                aria-label="Choose nail reference photo"
+                aria-label={t('booking.upload.choosePhoto')}
                 accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
                 hidden
                 type="file"
@@ -117,7 +119,7 @@ export function ImageUploader({
               />
             </label>
             <Button className="uploader-action" onClick={onMockUpload} variant="secondary">
-              Try with example
+              {t('booking.upload.example')}
             </Button>
           </div>
         )

@@ -5,9 +5,11 @@ import type { PublishedMerchantStyle } from '@/domain/merchant-style';
 import { listCustomerPublishedStylesAction } from '@/lib/actions/merchant-style-actions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { useLanguage } from '@/i18n/context';
 import { StyleWaterfallGridClient } from './StyleWaterfallGridClient';
 
 export function PublishedStyleFeed() {
+  const { t } = useLanguage();
   const [styles, setStyles] = useState<PublishedMerchantStyle[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -26,10 +28,10 @@ export function PublishedStyleFeed() {
   }, []);
 
   if (failed) {
-    return <EmptyState title="Styles unavailable" body="Please refresh to load the latest designs." />;
+    return <EmptyState title={t('home.feed.errorTitle')} body={t('home.feed.errorBody')} />;
   }
   if (styles === null) {
-    return <LoadingState title="Loading merchant styles" body="Fetching the latest published designs." />;
+    return <LoadingState title={t('home.feed.loadingTitle')} body={t('home.feed.loadingBody')} />;
   }
   return <StyleWaterfallGridClient styles={styles} />;
 }

@@ -2,30 +2,37 @@ import { describe, expect, it } from 'vitest';
 import type { MerchantPricingSetting } from '@/domain/merchant';
 import {
   breakdownResponseFormat,
+  getNailValidationPrompt,
   parseBreakdownModelOutput,
 } from './breakdown';
 
 const settings: MerchantPricingSetting[] = [
   {
     id: 'cat_eye',
+    name: { zh: '猫眼色', en: 'Cat-eye color' },
     nameZh: '猫眼色',
     groupLabel: '色彩效果',
+    groupLabelLocalized: { zh: '色彩效果', en: 'Color effects' },
     price: 10,
     duration: 20,
     enabled: true,
   },
   {
     id: 'gradient',
+    name: { zh: '渐变', en: 'Gradient' },
     nameZh: '渐变',
     groupLabel: '色彩效果',
+    groupLabelLocalized: { zh: '色彩效果', en: 'Color effects' },
     price: 5,
     duration: 20,
     enabled: true,
   },
   {
     id: 'jelly_translucent',
+    name: { zh: '透色', en: 'Jelly translucent' },
     nameZh: '透色',
     groupLabel: '色彩效果',
+    groupLabelLocalized: { zh: '色彩效果', en: 'Color effects' },
     price: 2,
     duration: 15,
     enabled: true,
@@ -90,7 +97,16 @@ describe('parseBreakdownModelOutput', () => {
   it('injects the base manicure floor (ai_detectable=no) so the quote is never $0', () => {
     const withBase: MerchantPricingSetting[] = [
       ...settings,
-      { id: 'basic_manicure_service', nameZh: '基础护理服务', groupLabel: '基础', price: 28, duration: 51, enabled: true },
+      {
+        id: 'basic_manicure_service',
+        name: { zh: '基础护理服务', en: 'Basic manicure service' },
+        nameZh: '基础护理服务',
+        groupLabel: '基础',
+        groupLabelLocalized: { zh: '基础', en: 'Base' },
+        price: 28,
+        duration: 51,
+        enabled: true,
+      },
     ];
     const result = parseBreakdownModelOutput(validOutput(), withBase);
     expect(result.catalogSelections).toContainEqual({ catalogItemId: 'basic_manicure_service', quantity: 1 });
@@ -100,5 +116,10 @@ describe('parseBreakdownModelOutput', () => {
   it('declares a strict JSON-schema response contract', () => {
     expect(breakdownResponseFormat.type).toBe('json_schema');
     expect(breakdownResponseFormat.json_schema.strict).toBe(true);
+  });
+
+  it('builds localized nail-photo validation prompts', () => {
+    expect(getNailValidationPrompt('zh-CN')).toContain('请上传一张美甲照片');
+    expect(getNailValidationPrompt('en')).toContain('Please upload a nail-style photo');
   });
 });

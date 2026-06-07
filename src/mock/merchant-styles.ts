@@ -1,5 +1,6 @@
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import type { CatalogSelection } from '@/domain/catalog';
+import type { LocalizedText } from '@/i18n/types';
 import { effectiveDurationMin } from '@/domain/catalog';
 import { catalogItems } from './catalog';
 import { demoMerchantId } from './merchants';
@@ -54,13 +55,20 @@ const defaultBreakdown: CatalogSelection[] = [
   { catalogItemId: 'basic_manicure_service', quantity: 1 },
 ];
 
-export const mockMerchantStyles: MerchantStyleRecord[] = styleDefinitions.map((style) => {
+type SeededMerchantStyleRecord = MerchantStyleRecord & {
+  titleLocalized: LocalizedText;
+  descriptionLocalized: LocalizedText;
+};
+
+export const mockMerchantStyles: SeededMerchantStyleRecord[] = styleDefinitions.map((style) => {
   return {
     id: style.id,
     merchantId: demoMerchantId,
     primaryMediaAssetId: `media-${style.id}`,
     title: style.title,
-    description: '',
+    description: style.descriptionLocalized.en,
+    titleLocalized: style.titleLocalized,
+    descriptionLocalized: style.descriptionLocalized,
     status: 'published',
     discoveryFacets: style.discoveryFacets,
     recognition: style.recognition,

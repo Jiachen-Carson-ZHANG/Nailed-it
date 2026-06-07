@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { glossaryById } from '@/data/glossary';
 import { catalogItems } from '@/mock/catalog';
 import {
   aiDetectableCatalogItems,
@@ -110,5 +111,15 @@ describe('toCatalogSelections', () => {
     const selections = toCatalogSelections(recognition, [WEAK]);
     expect(selections).toContainEqual({ catalogItemId: YES, quantity: 3 });
     expect(selections).toContainEqual({ catalogItemId: WEAK, quantity: 1 });
+  });
+});
+
+describe('glossary bilingual content', () => {
+  it('derives localized names and localized type labels from catalog data', () => {
+    const basic = glossaryById.get('basic_manicure_service');
+    expect(basic?.name.zh).toBe('基础护理服务');
+    expect(basic?.name.en).toBe('Basic manicure service');
+    expect(basic?.typeLabel.zh).toBe('服务模块');
+    expect(basic?.typeLabel.en).toBe('Service module');
   });
 });

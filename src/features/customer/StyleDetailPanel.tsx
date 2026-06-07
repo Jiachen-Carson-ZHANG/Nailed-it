@@ -2,102 +2,135 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { CatalogItemType, CatalogSelection, PricingUnit } from '@/domain/catalog';
+import { formatCurrency, formatDuration } from '@/i18n/format';
+import { pickLocalizedText } from '@/i18n/localized';
+import { useLanguage } from '@/i18n/context';
+import {
+  getCatalogItemName,
+  getCatalogTypeLabel,
+  type CatalogItemType,
+  type CatalogSelection,
+  type PricingUnit
+} from '@/domain/catalog';
 import type { PublishedMerchantStyle } from '@/domain/merchant-style';
-import type { AIRecognitionResult, BreakdownResult, GlossaryBreakdownItem, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
+import type { AIRecognitionResult, StyleDiscoveryFacet, StyleDiscoveryFacetKind } from '@/domain/nail';
 import type { QuoteLine } from '@/lib/services/quote-service';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { getCustomerBookingConfirmPath, getCustomerTryOnPath } from '@/domain/session';
 import { catalogItems } from '@/mock/catalog';
 import { mockAIResult } from '@/mock/ai';
-import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 
 const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
 const BASE_MANICURE_ID = 'basic_manicure_service';
 
-const TYPE_ZH: Record<CatalogItemType, string> = {
-  service_module: '服务',
-  procedure: '工序',
-  billable_component: '收费项',
-  visual_attribute: '视觉',
-  complexity_level: '复杂度',
-  style_tag: '风格',
+const TYPE_BADGE_CLASS: Record<CatalogItemType, string> = {
+  service_module: 'breakdown-category-base',
+  billable_component: 'breakdown-category-color_style',
+  procedure: 'breakdown-category-other',
+  visual_attribute: 'breakdown-category-shape',
+  complexity_level: 'breakdown-category-addon',
+  style_tag: 'breakdown-category-addon',
 };
 
-const UNIT_ZH: Partial<Record<PricingUnit, string>> = {
-  per_piece: '颗',
-  per_finger: '指',
-  per_set: '套',
+const unitLabels: Record<'zh-CN' | 'en', Partial<Record<PricingUnit, string>>> = {
+  'zh-CN': {
+    per_piece: '颗',
+    per_finger: '指',
+    per_set: '套',
+  },
+  en: {
+    per_piece: ' pcs',
+    per_finger: ' fingers',
+    per_set: ' sets',
+  },
 };
 
-const FACET_KIND_ZH: Record<StyleDiscoveryFacetKind, string> = {
-  shape: '甲形',
-  style: '风格',
-  addon: '加项',
-  mood: '氛围',
-  lifestyle: '场景',
+type StyleLayer = {
+  id: string;
+  name: string;
+  quantity: number;
+  type: CatalogItemType;
+  typeLabel: string;
+  unitLabel: string;
 };
-const FACET_KIND_ORDER: StyleDiscoveryFacetKind[] = ['shape', 'style', 'addon', 'mood', 'lifestyle'];
 
-function groupFacets(facets: StyleDiscoveryFacet[]) {
-  return FACET_KIND_ORDER.flatMap((kind) => {
-    const values = Array.from(new Set(facets.filter((f) => f.kind === kind).map((f) => f.label)));
-    return values.length > 0 ? [{ kind, label: FACET_KIND_ZH[kind], values }] : [];
+function buildLayers(
+  breakdown: CatalogSelection[],
+  language: 'zh-CN' | 'en',
+): StyleLayer[] {
+  return breakdown.flatMap((selection) => {
+    const item = catalogById.get(selection.catalogItemId);
+    if (!item) return [];
+    return [{
+      id: selection.catalogItemId,
+      name: getCatalogItemName(item, language),
+      quantity: selection.quantity,
+      type: item.type,
+      typeLabel: getCatalogTypeLabel(item.type, language),
+      unitLabel: unitLabels[language][item.defaultPricingUnit] ?? '',
+    }];
   });
 }
 
-function buildCachedBreakdown(breakdown: CatalogSelection[], quoteLines: QuoteLine[]): BreakdownResult {
-  const lineById = new Map(quoteLines.map((l) => [l.catalogItemId, l]));
+const facetKindLabels: Record<'zh-CN' | 'en', Record<StyleDiscoveryFacetKind, string>> = {
+  'zh-CN': {
+    shape: '甲形',
+    style: '风格',
+    addon: '加项',
+    mood: '氛围',
+    lifestyle: '场景',
+  },
+  en: {
+    shape: 'Shape',
+    style: 'Style',
+    addon: 'Add-on',
+    mood: 'Mood',
+    lifestyle: 'Lifestyle',
+  },
+};
+const FACET_KIND_ORDER: StyleDiscoveryFacetKind[] = ['shape', 'style', 'addon', 'mood', 'lifestyle'];
 
-  const items: GlossaryBreakdownItem[] = breakdown.flatMap((sel) => {
-    const item = catalogById.get(sel.catalogItemId);
-    if (!item) return [];
-    // Filter out container service modules (grouping parents) — keep only the base manicure
-    if (item.type === 'service_module' && sel.catalogItemId !== BASE_MANICURE_ID) return [];
-    const line = lineById.get(sel.catalogItemId);
-    return [{
-      mode: 'glossary' as const,
-      glossaryId: sel.catalogItemId,
-      glossaryType: item.type as GlossaryBreakdownItem['glossaryType'],
-      nameZh: item.nameZh,
-      typeZh: TYPE_ZH[item.type],
-      parentId: item.parentId ?? 'na',
-      parentNameZh: '',
-      quantity: sel.quantity,
-      unit: item.defaultPricingUnit,
-      // unit price (not line total) so ComponentBreakdownPanel can multiply by qty itself
-      price: line ? line.linePriceCents / 100 / sel.quantity : 0,
-      duration: line?.affectsDuration
-        ? line.durationMin / (item.type === 'billable_component' ? sel.quantity : 1)
-        : (item.defaultDurationMin ?? 0),
-    }];
+function groupFacets(
+  facets: StyleDiscoveryFacet[],
+  language: 'zh-CN' | 'en',
+) {
+  return FACET_KIND_ORDER.flatMap((kind) => {
+    const values = Array.from(new Set(facets.filter((facet) => facet.kind === kind).map((facet) => facet.label)));
+    return values.length > 0 ? [{ kind, label: facetKindLabels[language][kind], values }] : [];
   });
-
-  const PRICED = new Set(['service_module', 'billable_component']);
-  const totalPrice    = items.filter((i) => PRICED.has(i.glossaryType)).reduce((s, i) => s + i.price * i.quantity, 0);
-  const totalDuration = items.filter((i) => PRICED.has(i.glossaryType)).reduce((s, i) =>
-    s + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration), 0);
-
-  return { items, catalogSelections: breakdown, totalPrice, totalDuration, mode: 'glossary' };
 }
 
 type StyleDetailPanelProps = {
   backHref: string;
   recognition: AIRecognitionResult | null;
   style: PublishedMerchantStyle;
+  /** Reference per-line price/duration for the breakdown, derived server-side (see page.tsx). */
   quoteLines?: QuoteLine[];
 };
 
-export function StyleDetailPanel({ backHref, recognition: _, style, quoteLines = [] }: StyleDetailPanelProps) {
+export function StyleDetailPanel({ backHref, recognition, style, quoteLines = [] }: StyleDetailPanelProps) {
   const router = useRouter();
-  const facetGroups = groupFacets(style.discoveryFacets);
-  const cachedBreakdown = buildCachedBreakdown(style.catalogBreakdown, quoteLines);
+  const { language, t } = useLanguage();
+  const layers = buildLayers(style.catalogBreakdown, language);
+  const lineById = new Map(quoteLines.map((line) => [line.catalogItemId, line]));
+  // Drop container service modules (颜色与效果服务 / 美术设计服务 / 建构服务 …) — they are grouping parents,
+  // not real line items. Only the base manicure is a genuine service_module row.
+  const visibleLayers = layers.filter(
+    (layer) => layer.type !== 'service_module' || layer.id === BASE_MANICURE_ID,
+  );
+  const facetGroups = groupFacets(style.discoveryFacets, language);
+  const title = style.titleLocalized ? pickLocalizedText(style.titleLocalized, language) : style.title;
+  const brief = (style.descriptionLocalized ? pickLocalizedText(style.descriptionLocalized, language) : style.description).trim()
+    || recognition?.selection.otherNotes
+    || (language === 'zh-CN'
+      ? '这个款式已由商家整理完成，可以直接作为你的预约参考。'
+      : 'This style is merchant-reviewed and ready to use as your booking reference.');
 
   function bookStyle() {
     saveCustomerBookingDraft({
       estimate: { source: 'pricing_rules', price: style.previewQuote.price, duration: style.previewQuote.duration },
       imageUrl: style.imageUrl,
-      recognition: (style.recognition ?? mockAIResult) as AIRecognitionResult,
+      recognition: (recognition ?? mockAIResult) as AIRecognitionResult,
       catalogSelections: style.catalogBreakdown,
       styleId: style.id,
       styleTitle: style.title,
@@ -107,20 +140,74 @@ export function StyleDetailPanel({ backHref, recognition: _, style, quoteLines =
 
   return (
     <article className="style-detail-panel">
-      <Link className="detail-back-link detail-back-top" href={backHref}>← Back to discovery</Link>
+      <Link className="detail-back-link detail-back-top" href={backHref}>← {t('style.detail.back')}</Link>
       <div className="style-detail-hero">
-        <img alt={style.title} className="style-detail-image" src={style.imageUrl} />
+        <img alt={title} className="style-detail-image" src={style.imageUrl} />
         <div className="style-detail-summary">
-          <h1>{style.title}</h1>
+          <h1>{title}</h1>
+          <p>{brief}</p>
         </div>
       </div>
 
-      <ComponentBreakdownPanel image={null} cachedResult={cachedBreakdown} />
+      <div className="analyze-summary-bar">
+        <div className="analyze-summary-item">
+          <span className="analyze-summary-label">{t('style.detail.totalPrice')}</span>
+          <span className="analyze-summary-value">
+            {style.previewQuote.price > 0
+              ? formatCurrency({ cents: Math.round(style.previewQuote.price * 100), language })
+              : '—'}
+          </span>
+        </div>
+        <div className="analyze-summary-divider" />
+        <div className="analyze-summary-item">
+          <span className="analyze-summary-label">{t('style.detail.totalDuration')}</span>
+          <span className="analyze-summary-value">
+            {style.previewQuote.duration > 0 ? formatDuration({ minutes: style.previewQuote.duration, language }) : '—'}
+          </span>
+        </div>
+      </div>
+
+      {visibleLayers.length > 0 ? (
+        <section className="detail-surface" aria-labelledby="style-detail-layers-title">
+          <div className="detail-surface-header">
+            <h2 id="style-detail-layers-title">{t('style.detail.breakdown')}</h2>
+          </div>
+          <table className="breakdown-table" aria-label={t('style.detail.breakdownTable')}>
+            <tbody>
+              {visibleLayers.map((layer) => {
+                const line = lineById.get(layer.id);
+                const durationMin = line && line.affectsDuration ? line.durationMin : 0;
+                const priceCents = line ? line.linePriceCents : 0;
+                return (
+                  <tr key={layer.id}>
+                    <td>
+                      <span className={`breakdown-category-badge ${TYPE_BADGE_CLASS[layer.type]}`}>{layer.typeLabel}</span>
+                      <span className="breakdown-label">{layer.name}</span>
+                      {layer.quantity > 1 ? (
+                        <span className="breakdown-qty"> ×{layer.quantity}{layer.unitLabel}</span>
+                      ) : null}
+                    </td>
+                    <td className="breakdown-duration">{durationMin > 0 ? formatDuration({ minutes: durationMin, language }) : '—'}</td>
+                    <td className="breakdown-price">{priceCents > 0 ? formatCurrency({ cents: priceCents, language }) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="breakdown-total">
+                <td>{t('style.detail.total')}</td>
+                <td className="breakdown-duration">{formatDuration({ minutes: style.previewQuote.duration, language })}</td>
+                <td className="breakdown-price">{formatCurrency({ cents: Math.round(style.previewQuote.price * 100), language })}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+      ) : null}
 
       {facetGroups.length > 0 ? (
         <section className="detail-surface" aria-labelledby="style-detail-tags-title">
           <div className="detail-surface-header">
-            <h2 id="style-detail-tags-title">风格标签</h2>
+            <h2 id="style-detail-tags-title">{t('style.detail.tags')}</h2>
           </div>
           <div className="detail-selection-list">
             {facetGroups.map((group) => (
@@ -139,10 +226,10 @@ export function StyleDetailPanel({ backHref, recognition: _, style, quoteLines =
 
       <div className="detail-actions">
         <button className="button button-primary button-block" type="button" onClick={bookStyle}>
-          Book this look
+          {t('style.detail.book')}
         </button>
         <Link className="button button-secondary button-block" href={getCustomerTryOnPath(style.id)}>
-          Try it on first
+          {t('style.detail.tryOn')}
         </Link>
       </div>
     </article>

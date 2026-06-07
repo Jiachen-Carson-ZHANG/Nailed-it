@@ -1,5 +1,6 @@
 import type { BreakdownResult, GlossaryBreakdownItem } from '@/domain/nail';
 import type { MerchantPricingSetting } from '@/domain/merchant';
+import type { AppLanguage } from '@/i18n/types';
 import { pricingUnits, type PricingUnit } from '@/domain/catalog';
 import { normalizeQuantityForPricingUnit } from '@/domain/catalog-selection';
 import {
@@ -420,16 +421,25 @@ const breakdownPrompt = () => (_breakdownPrompt ??= buildPrompt());
 
 // ── Main function ─────────────────────────────────────────────────────────────
 
-const nailValidationPrompt =
-  'You are validating an image for a nail salon analysis app. ' +
-  'Determine whether the image shows a nail art or nail style photo (finished nails on hands, nail swatches, or nail design references). ' +
-  'Return ONLY valid JSON (no markdown fences): {"valid":true} or {"valid":false,"error":"原因（用中文）"}. ' +
-  'Output only the JSON object, nothing else.';
+export function getNailValidationPrompt(language: AppLanguage): string {
+  const invalidErrorExample =
+    language === 'zh-CN'
+      ? '{"valid":false,"error":"请上传一张美甲照片（指甲特写或美甲款式图）。"}'
+      : '{"valid":false,"error":"Please upload a nail-style photo (close-up nails or a nail design reference)."}';
+
+  return [
+    'You are validating an image for a nail salon analysis app.',
+    'Determine whether the image shows a nail art or nail style photo (finished nails on hands, nail swatches, or nail design references).',
+    `Return ONLY valid JSON (no markdown fences): {"valid":true} or ${invalidErrorExample}.`,
+    'Output only the JSON object, nothing else.',
+  ].join(' ');
+}
 
 export async function runGlossaryBreakdown(
   imageBase64: string,
   mimeType: string,
   merchantSettings: MerchantPricingSetting[],
+  language: AppLanguage = 'zh-CN',
   env = process.env
 ): Promise<BreakdownResult> {
   const apiKey = env.OPENROUTER_API_KEY;
@@ -439,10 +449,20 @@ export async function runGlossaryBreakdown(
 
   // ── Validate image is a nail photo before running the expensive prompt ────────
   try {
-    const valRaw = await callOpenRouterWithImage({ apiKey, model, imageBase64, mimeType, prompt: nailValidationPrompt });
+    const valRaw = await callOpenRouterWithImage({
+      apiKey,
+      model,
+      imageBase64,
+      mimeType,
+      prompt: getNailValidationPrompt(language),
+    });
     const val = isRecord(valRaw) ? valRaw : {};
     if (val.valid === false) {
-      const msg = typeof val.error === 'string' ? val.error : '请上传一张美甲照片（指甲特写或美甲款式图）。';
+      const msg = typeof val.error === 'string'
+        ? val.error
+        : language === 'zh-CN'
+          ? '请上传一张美甲照片（指甲特写或美甲款式图）。'
+          : 'Please upload a nail-style photo (close-up nails or a nail design reference).';
       throw new BreakdownError('invalid_input', msg);
     }
   } catch (err) {

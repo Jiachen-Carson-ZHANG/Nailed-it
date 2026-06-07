@@ -16,6 +16,7 @@ import {
   saveMerchantStyleDraftAction,
   type ConfigurableCatalogItem,
 } from '@/lib/actions/merchant-style-actions';
+import { useLanguage } from '@/i18n/context';
 import type { Quote } from '@/lib/services/quote-service';
 
 type MerchantStyleReviewWorkspaceProps = {
@@ -52,6 +53,7 @@ function selectionsKey(selections: CatalogSelection[]): string {
 }
 
 export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWorkspaceProps) {
+  const { language } = useLanguage();
   const router = useRouter();
   const [style, setStyle] = useState<MerchantStyleView | null>(null);
   const [catalog, setCatalog] = useState<ConfigurableCatalogItem[]>([]);
@@ -127,7 +129,7 @@ export function MerchantStyleReviewWorkspace({ styleId }: MerchantStyleReviewWor
     setIsAnalyzing(true);
     setMessage('');
     try {
-      let analyzed = await analyzeMerchantStyleAction(style.id);
+      let analyzed = await analyzeMerchantStyleAction(style.id, language);
       for (let attempt = 0; analyzed.status === 'processing' && attempt < 30; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const current = await getMerchantStyleReviewAction(style.id);

@@ -1,10 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LanguageProvider } from '@/i18n/context';
 import { TrendingStylesPanel, resetTrendingCacheForTests } from './TrendingStylesPanel';
 
 const fetchMock = vi.fn();
 
 describe('TrendingStylesPanel', () => {
+  function renderPanel(language: 'zh-CN' | 'en' = 'zh-CN') {
+    return render(
+      <LanguageProvider initialLanguage={language} role="customer">
+        <TrendingStylesPanel />
+      </LanguageProvider>
+    );
+  }
+
   beforeEach(() => {
     resetTrendingCacheForTests();
     fetchMock.mockReset();
@@ -29,20 +38,18 @@ describe('TrendingStylesPanel', () => {
       })
     });
 
-    render(<TrendingStylesPanel />);
+    renderPanel();
 
-    expect(screen.getByRole('heading', { name: '热门款式' })).toBeInTheDocument();
-    expect(screen.getByText('AI自动识别抓取近期热门款式')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Loading…' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '热门' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '加载中…' })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/ai/trending-styles');
     });
 
     expect(await screen.findByText('镜面银猫眼')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '刷新' })).toBeInTheDocument();
     expect(screen.queryByText('Mirror Chrome')).not.toBeInTheDocument();
-    expect(screen.queryByText('Trending Now')).not.toBeInTheDocument();
   });
 
   it('refreshes the list when the user clicks refresh', async () => {
@@ -63,9 +70,9 @@ describe('TrendingStylesPanel', () => {
       })
     });
 
-    render(<TrendingStylesPanel />);
+    renderPanel('en');
 
-    await screen.findByText('粉雾光疗');
+    await screen.findByText('Pink Aura');
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 

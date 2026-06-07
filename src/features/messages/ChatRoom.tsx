@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Conversation } from '@/domain/nail';
+import { useLanguage } from '@/i18n/context';
 
 type ChatRoomProps = {
   conversation: Conversation;
@@ -10,6 +11,7 @@ type ChatRoomProps = {
 
 export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
   const [draftMessage, setDraftMessage] = useState('');
+  const { language, t } = useLanguage();
 
   function sendDraftMessage() {
     if (!onSend) {
@@ -30,7 +32,7 @@ export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
     <section className="chat-room" aria-labelledby={`chat-room-${conversation.id}`}>
       <div className="chat-room-header">
         <div>
-          <p className="section-eyebrow">Conversation</p>
+          <p className="section-eyebrow">{t('messages.chat.eyebrow')}</p>
           <h1 id={`chat-room-${conversation.id}`}>{conversation.participantName}</h1>
         </div>
         {conversation.relatedBookingTime ? (
@@ -38,7 +40,14 @@ export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
         ) : null}
       </div>
 
-      <div className="chat-thread" aria-label={`${conversation.participantName} messages`}>
+      <div
+        className="chat-thread"
+        aria-label={
+          language === 'zh-CN'
+            ? `${conversation.participantName}${t('messages.chat.aria')}`
+            : `${conversation.participantName} ${t('messages.chat.aria')}`
+        }
+      >
         {conversation.messages.map((message) => {
           // 中文注释：消息展示只依赖 author 这个稳定字段，避免页面层重复维护左右气泡规则。
           const bubbleClassName =
@@ -61,7 +70,7 @@ export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
       {onSend ? (
         <div className="chat-composer">
           <label className="field">
-            <span>Message</span>
+            <span>{t('messages.chat.input')}</span>
             <textarea
               value={draftMessage}
               onChange={(event) => setDraftMessage(event.target.value)}
@@ -73,7 +82,7 @@ export function ChatRoom({ conversation, onSend }: ChatRoomProps) {
             type="button"
             onClick={sendDraftMessage}
           >
-            Send
+            {t('messages.chat.send')}
           </button>
         </div>
       ) : null}
