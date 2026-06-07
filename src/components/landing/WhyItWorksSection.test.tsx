@@ -56,6 +56,7 @@ describe('WhyItWorksSection', () => {
     observedElements.clear();
     latestObserverCallback = null;
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
   });
 
   it('keeps looping while visible and stops autoplay after leaving the viewport', () => {
@@ -87,6 +88,25 @@ describe('WhyItWorksSection', () => {
 
     triggerIntersection(section, false);
 
+    expect(section).toHaveAttribute('data-animated', 'false');
+  });
+
+  it('keeps the loop icon static when reduced motion is enabled', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+
+    render(<WhyItWorksSection />);
+
+    const section = screen.getByRole('region', { name: 'Why It Works' });
+
+    expect(section).toHaveAttribute('data-active-step', '0');
+    expect(section).toHaveAttribute('data-rotation-step', '0');
+
+    act(() => {
+      vi.advanceTimersByTime(1600 * 2);
+    });
+
+    expect(section).toHaveAttribute('data-active-step', '0');
+    expect(section).toHaveAttribute('data-rotation-step', '0');
     expect(section).toHaveAttribute('data-animated', 'false');
   });
 });

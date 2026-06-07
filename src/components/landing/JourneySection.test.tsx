@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { JourneySection } from './JourneySection';
@@ -103,5 +103,36 @@ describe('JourneySection', () => {
     });
 
     expect(merchantJourneySection).toHaveAttribute('data-visible', 'true');
+  });
+
+  it('updates the active mobile step when the journey track scrolls horizontally', () => {
+    render(<JourneySection />);
+
+    const merchantJourneySection = screen.getByRole('region', { name: '商家 旅程' });
+    const merchantTrack = within(merchantJourneySection).getByLabelText('商家旅程步骤');
+    const merchantStatus = within(merchantJourneySection).getByRole('status', {
+      name: '商家旅程当前步骤'
+    });
+
+    expect(merchantTrack.children[0]).toHaveAttribute('aria-current', 'true');
+    expect(merchantTrack.children[1]).not.toHaveAttribute('aria-current');
+    expect(merchantStatus.querySelectorAll('[data-active="true"]')).toHaveLength(1);
+
+    Object.defineProperty(merchantTrack, 'clientWidth', {
+      configurable: true,
+      value: 320
+    });
+
+    Object.defineProperty(merchantTrack, 'scrollLeft', {
+      configurable: true,
+      value: 320,
+      writable: true
+    });
+
+    fireEvent.scroll(merchantTrack);
+
+    expect(merchantTrack.children[0]).not.toHaveAttribute('aria-current');
+    expect(merchantTrack.children[1]).toHaveAttribute('aria-current', 'true');
+    expect(merchantStatus.querySelectorAll('[data-active="true"]')).toHaveLength(1);
   });
 });

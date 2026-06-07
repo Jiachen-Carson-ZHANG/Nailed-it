@@ -24,7 +24,9 @@ type JourneyRowSectionProps = {
 
 function JourneyRowSection({ row }: JourneyRowSectionProps) {
   const rowRef = useRef<HTMLElement | null>(null);
+  const mobileTrackRef = useRef<HTMLOListElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
     const rowElement = rowRef.current;
@@ -70,6 +72,23 @@ function JourneyRowSection({ row }: JourneyRowSectionProps) {
   const visibleItems = row.items.slice(0, JOURNEY_STEP_COUNT);
   const titleLines = splitJourneyTitle(row.title);
 
+  function syncActiveStepFromScroll() {
+    const trackElement = mobileTrackRef.current;
+
+    if (!trackElement) {
+      return;
+    }
+
+    const slideWidth = trackElement.clientWidth;
+
+    if (slideWidth <= 0) {
+      return;
+    }
+
+    const nextStep = Math.round(trackElement.scrollLeft / slideWidth);
+    setActiveStep(Math.max(0, Math.min(nextStep, visibleItems.length - 1)));
+  }
+
   return (
     <section
       ref={rowRef}
@@ -89,6 +108,47 @@ function JourneyRowSection({ row }: JourneyRowSectionProps) {
         </h3>
       </div>
       <div className={styles.journeyRail}>
+        <ol
+          ref={mobileTrackRef}
+          aria-label={`${row.title}步骤`}
+          className={styles.journeyMobileTrack}
+          onScroll={syncActiveStepFromScroll}
+        >
+          {visibleItems.map((item, index) => (
+            <li
+              key={`${item.title}-mobile`}
+              aria-current={index === activeStep ? 'true' : undefined}
+              className={styles.journeyMobileSlide}
+            >
+              <article className={styles.journeyMobileCard}>
+                <h4 className={styles.journeyCardTitle}>{item.title}</h4>
+                <p className={styles.journeyCardCopy}>{item.description}</p>
+              </article>
+              <div
+                aria-hidden="true"
+                className={styles.journeyMobileScreenshot}
+              >
+                <div className={styles.journeyScreenshotFrame}>
+                  <div className={styles.journeyScreenshotNotch} />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div
+          aria-label={`${row.title}当前步骤`}
+          className={styles.journeyPagination}
+          role="status"
+        >
+          {visibleItems.map((item, index) => (
+            <span
+              key={`${item.title}-dot`}
+              aria-hidden="true"
+              className={styles.journeyPaginationDot}
+              data-active={index === activeStep}
+            />
+          ))}
+        </div>
         <ol className={styles.journeyCards}>
           {visibleItems.map((item, index) => (
             <li
