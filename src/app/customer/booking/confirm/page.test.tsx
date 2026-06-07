@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { clearCustomerBookingDraft, saveCustomerBookingDraft } from '@/domain/booking-draft';
+import { LanguageProvider } from '@/i18n/context';
 import { mockAIResult } from '@/mock/ai';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerBookingConfirmPage from './page';
@@ -22,17 +23,31 @@ describe('CustomerBookingConfirmPage', () => {
     resetRepositoriesForTests();
   });
 
-  it('shows the empty state when no draft is available', () => {
-    render(<CustomerBookingConfirmPage />);
+  async function renderConfirmPage(language: 'zh-CN' | 'en' = 'zh-CN') {
+    const result = render(
+      <LanguageProvider initialLanguage={language} role="customer">
+        <CustomerBookingConfirmPage />
+      </LanguageProvider>
+    );
 
-    expect(screen.getByText(/no style selected yet/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /start booking/i })).toHaveAttribute(
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    return result;
+  }
+
+  it('shows the empty state when no draft is available', async () => {
+    await renderConfirmPage();
+
+    expect(screen.getByText('还没有选择款式')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '开始预约' })).toHaveAttribute(
       'href',
       '/customer/booking'
     );
   });
 
-  it('renders the current booking draft summary instead of reconstructing from mock ai defaults', () => {
+  it('renders the current booking draft summary instead of reconstructing from mock ai defaults', async () => {
     saveCustomerBookingDraft({
       estimate: {
         source: 'pricing_rules',
@@ -49,11 +64,11 @@ describe('CustomerBookingConfirmPage', () => {
       }
     });
 
-    render(<CustomerBookingConfirmPage />);
+    await renderConfirmPage();
 
     // The estimate reflects the draft (123 / 88), proving the page reads the draft rather than
     // reconstructing from mock AI defaults.
-    expect(screen.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
+    expect(screen.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
   });
 
   it('consumes the draft so a later fresh visit falls back to the empty state', async () => {
@@ -70,8 +85,8 @@ describe('CustomerBookingConfirmPage', () => {
       }
     });
 
-    const firstRender = render(<CustomerBookingConfirmPage />);
-    expect(firstRender.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
+    const firstRender = await renderConfirmPage();
+    expect(firstRender.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
 
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -79,11 +94,11 @@ describe('CustomerBookingConfirmPage', () => {
 
     firstRender.unmount();
 
-    render(<CustomerBookingConfirmPage />);
-    expect(screen.getByText(/no style selected yet/i)).toBeInTheDocument();
+    await renderConfirmPage();
+    expect(screen.getByText('还没有选择款式')).toBeInTheDocument();
   });
 
-  it('still shows the draft on the first valid visit inside StrictMode', () => {
+  it('still shows the draft on the first valid visit inside StrictMode', async () => {
     saveCustomerBookingDraft({
       estimate: {
         source: 'pricing_rules',
@@ -98,12 +113,18 @@ describe('CustomerBookingConfirmPage', () => {
     });
 
     render(
-      <StrictMode>
-        <CustomerBookingConfirmPage />
-      </StrictMode>
+      <LanguageProvider initialLanguage="zh-CN" role="customer">
+        <StrictMode>
+          <CustomerBookingConfirmPage />
+        </StrictMode>
+      </LanguageProvider>
     );
 
-    expect(screen.getByText(/88 min · sgd 123/i)).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
   });
 
   it('books a technician-backed slot into pending merchant review even at high confidence (client recognition is untrusted)', async () => {
@@ -123,9 +144,9 @@ describe('CustomerBookingConfirmPage', () => {
       }
     });
 
-    render(<CustomerBookingConfirmPage />);
+    await renderConfirmPage();
 
-    const confirmButton = screen.getByRole('button', { name: /confirm appointment/i });
+    const confirmButton = screen.getByRole('button', { name: '确认预约' });
     expect(confirmButton).toBeDisabled();
 
     // availability loads async from the booking service (10:00 with Mei is offered on several days)
@@ -134,10 +155,10 @@ describe('CustomerBookingConfirmPage', () => {
 
     await user.click(confirmButton);
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/pending review with mei chen/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/mei chen.*待确认/i);
     expect(confirmButton).toBeDisabled();
-    expect(confirmButton).toHaveTextContent(/pending review/i);
-    const messagesLink = screen.getByRole('link', { name: /open booking messages/i });
+    expect(confirmButton).toHaveTextContent('待确认');
+    const messagesLink = screen.getByRole('link', { name: '打开预约消息' });
     expect(messagesLink.getAttribute('href')).toMatch(/^\/customer\/messages\/conv-booking-/);
   });
 
@@ -150,10 +171,31 @@ describe('CustomerBookingConfirmPage', () => {
       catalogSelections: [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
     });
 
-    render(<CustomerBookingConfirmPage />);
+    await renderConfirmPage();
     await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
 
-    expect(screen.getByText(/45 min · sgd 28/i)).toBeInTheDocument();
+    expect(screen.getByText(/45 分钟 · ¥28\.00/i)).toBeInTheDocument();
+  });
+
+  it('renders confirm page copy and currency in English', async () => {
+    saveCustomerBookingDraft({
+      estimate: {
+        source: 'pricing_rules',
+        price: 123,
+        duration: 88
+      },
+      imageUrl: 'https://example.com/reference.png',
+      recognition: {
+        meta: mockMeta(),
+        selection: mockSelection()
+      }
+    });
+
+    await renderConfirmPage('en');
+
+    expect(screen.getByRole('heading', { name: 'Choose your appointment time' })).toBeInTheDocument();
+    expect(screen.getByText(/88 min · \$123\.00/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm appointment' })).toBeInTheDocument();
   });
 });
 
