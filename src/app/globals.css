@@ -3122,9 +3122,12 @@ select {
   text-align: right;
 }
 
-/* Long free-text (notes) reads poorly right-aligned and wrapped — left-align it under a fixed label. */
+/* Long free-text (notes): keep it in the narrow right column, smaller so long text still fits. */
 .history-card-facts dd.history-card-fact-long {
-  text-align: left;
+  text-align: right;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .history-card-actions {
@@ -3350,6 +3353,7 @@ select {
 
 .chat-appt-card-head strong {
   flex: 1;
+  min-width: 0;
   color: var(--color-text);
 }
 
@@ -3402,6 +3406,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .chat-appt-grid span {
@@ -3411,6 +3416,7 @@ select {
 
 .chat-appt-grid strong {
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .chat-appt-staff-role {

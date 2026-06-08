@@ -4,7 +4,6 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
-import { LoadingState } from '@/components/ui/LoadingState';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
@@ -75,7 +74,6 @@ export function CustomerBookingContent({
     return 'upload';
   });
   const [imageUrl, setImageUrl] = useState(prefillImageUrl ?? tryOnImage?.previewUrl ?? '');
-  const [isRecognizing, setIsRecognizing] = useState(false);
   const [recognition, setRecognition] = useState<AIRecognitionResult>(prefillRecognition ?? mockAIResult);
   const [recognitionError, setRecognitionError] = useState('');
   const [breakdowns, setBreakdowns] = useState<{ glossary: BreakdownResult | null }>(
@@ -126,7 +124,6 @@ export function CustomerBookingContent({
     // Move to step 2 immediately and show the photo; the description and the breakdown then stream in
     // there, instead of holding the user on step 1 behind a spinner.
     setStep('result');
-    setIsRecognizing(true);
     setRecognitionError('');
 
     try {
@@ -143,8 +140,6 @@ export function CustomerBookingContent({
             ? '识别失败了，请检查图片后再试一次。'
             : 'Recognition failed. Check the image and try again.'
       );
-    } finally {
-      setIsRecognizing(false);
     }
   }
 
@@ -252,22 +247,12 @@ export function CustomerBookingContent({
             <h1>{t('booking.result.title')}</h1>
           </section>
 
-          {imageUrl && (
-            <div className="booking-result-preview">
-              <img alt={t('booking.upload.title')} src={imageUrl} className="booking-result-image" />
-            </div>
-          )}
-
           {recognitionError ? (
             <section className="summary-card" role="alert">
               <strong>{t('booking.result.errorTitle')}</strong>
               <p>{recognitionError}</p>
             </section>
-          ) : isRecognizing ? (
-            <LoadingState title={t('booking.result.loadingTitle')} body={t('booking.result.loadingBody')} />
-          ) : (
-            <RecognitionPreview imageUrl="" />
-          )}
+          ) : null}
           <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
           <div className="booking-step-actions">
