@@ -18,7 +18,6 @@ import {
   stripJsonFence,
   type OpenRouterJsonSchemaResponseFormat,
 } from './openrouter';
-import { defaultTryOnModel } from './try-on';
 
 export class BreakdownError extends Error {
   constructor(
@@ -63,7 +62,7 @@ async function callOpenRouterWithImage(opts: {
     );
   } catch (error) {
     if (!opts.structured) return null;
-    throw new BreakdownError('provider_error', 'OpenRouter breakdown request failed.', { cause: error });
+    throw new BreakdownError('provider_error', 'Ark breakdown request failed.', { cause: error });
   }
 
   try {
@@ -71,7 +70,7 @@ async function callOpenRouterWithImage(opts: {
     return JSON.parse(stripJsonFence(text));
   } catch (error) {
     if (!opts.structured) return null;
-    throw new BreakdownError('invalid_model_output', 'OpenRouter breakdown response did not include valid JSON.', {
+    throw new BreakdownError('invalid_model_output', 'Ark breakdown response did not include valid JSON.', {
       cause: error
     });
   }
@@ -443,10 +442,10 @@ export async function runGlossaryBreakdown(
   language: AppLanguage = 'zh-CN',
   env = process.env
 ): Promise<BreakdownResult> {
-  const apiKey = env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new BreakdownError('missing_config', 'OPENROUTER_API_KEY is required for breakdown.');
+  const apiKey = env.ARK_API_KEY;
+  if (!apiKey) throw new BreakdownError('missing_config', 'ARK_API_KEY is required for breakdown.');
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
+  const model = env.ARK_VISION_MODEL ?? 'doubao-seed-2-0-lite-260215';
 
   // ── Validate image is a nail photo before running the expensive prompt ────────
   try {

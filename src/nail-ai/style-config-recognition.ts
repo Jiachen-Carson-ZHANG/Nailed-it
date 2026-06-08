@@ -22,7 +22,6 @@ import {
   stripJsonFence,
   type OpenRouterJsonSchemaResponseFormat,
 } from './openrouter';
-import { defaultTryOnModel } from './try-on';
 
 export type StyleAiConfig = {
   catalogSelections: CatalogSelection[];
@@ -103,9 +102,9 @@ export async function recognizeStyleName(
   language: AppLanguage = 'zh-CN',
   env = process.env,
 ): Promise<{ name: string; description: string }> {
-  const apiKey = env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY is required for style naming.');
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
+  const apiKey = env.ARK_API_KEY;
+  if (!apiKey) throw new Error('ARK_API_KEY is required for style naming.');
+  const model = env.ARK_VISION_MODEL ?? 'doubao-seed-2-0-lite-260215';
 
   return withRetry(async () => {
     const data = await postOpenRouterChat(

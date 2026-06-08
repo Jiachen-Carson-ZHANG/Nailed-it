@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStyleNamePrompt,
   parseStyleNameOutput,
+  recognizeStyleName,
   styleNameResponseFormat,
 } from './style-config-recognition';
 
@@ -33,5 +34,11 @@ describe('parseStyleNameOutput', () => {
   it('builds language-aware naming prompts', () => {
     expect(buildStyleNamePrompt('zh-CN')).toContain('Return the result in Simplified Chinese.');
     expect(buildStyleNamePrompt('en')).toContain('Return the result in English.');
+  });
+
+  it('requires ARK_API_KEY for style naming', async () => {
+    await expect(
+      recognizeStyleName('abc123', 'image/jpeg', 'zh-CN', { NODE_ENV: 'test' } as NodeJS.ProcessEnv),
+    ).rejects.toThrow('ARK_API_KEY is required for style naming.');
   });
 });

@@ -4,6 +4,7 @@ import {
   breakdownResponseFormat,
   getNailValidationPrompt,
   parseBreakdownModelOutput,
+  runGlossaryBreakdown,
 } from './breakdown';
 
 const settings: MerchantPricingSetting[] = [
@@ -121,5 +122,13 @@ describe('parseBreakdownModelOutput', () => {
   it('builds localized nail-photo validation prompts', () => {
     expect(getNailValidationPrompt('zh-CN')).toContain('请上传一张美甲照片');
     expect(getNailValidationPrompt('en')).toContain('Please upload a nail-style photo');
+  });
+});
+
+describe('runGlossaryBreakdown', () => {
+  it('requires ARK_API_KEY for image breakdown', async () => {
+    await expect(
+      runGlossaryBreakdown('abc123', 'image/jpeg', settings, 'zh-CN', { NODE_ENV: 'test' } as NodeJS.ProcessEnv)
+    ).rejects.toThrow('ARK_API_KEY is required for breakdown.');
   });
 });
