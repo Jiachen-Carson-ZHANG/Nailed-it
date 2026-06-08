@@ -13,10 +13,12 @@ const withdrawable = new Set<Booking['status']>(['pending_review', 'confirmed'])
 type BookingHistoryCardProps = {
   booking: Booking;
   onWithdraw?: (id: string) => Promise<void> | void;
+  /** Start expanded — used when deep-linked from a chat appointment card. */
+  defaultOpen?: boolean;
 };
 
-export function BookingHistoryCard({ booking, onWithdraw }: BookingHistoryCardProps) {
-  const [open, setOpen] = useState(false);
+export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }: BookingHistoryCardProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const { language } = useLanguage();
   const copy = {
@@ -59,7 +61,7 @@ export function BookingHistoryCard({ booking, onWithdraw }: BookingHistoryCardPr
   }
 
   return (
-    <article className="history-card">
+    <article className="history-card" id={`booking-${booking.id}`}>
       <button
         type="button"
         className="history-card-summary"

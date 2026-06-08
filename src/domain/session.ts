@@ -205,6 +205,11 @@ export function getCustomerProfilePath(): string {
   return customerPaths.profile;
 }
 
+/** Deep-link to the customer's profile with one booking pre-opened (no standalone detail route). */
+export function getCustomerBookingDetailPath(bookingId: string): string {
+  return `${customerPaths.profile}?booking=${encodeURIComponent(bookingId)}`;
+}
+
 export function getMerchantBookingPath(id: string): string {
   return merchantPaths.bookingDetail(id);
 }

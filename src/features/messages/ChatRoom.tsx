@@ -8,6 +8,7 @@ import {
   getMerchantStylePath,
   getMerchantBookingPath,
   getCustomerProfilePath,
+  getCustomerBookingDetailPath,
 } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import { formatStatusLabel } from '@/i18n/format';
@@ -85,10 +86,13 @@ export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appoin
   const copy = chatRoomCopy[language];
   const styleHref = viewerRole === 'merchant' ? getMerchantStylePath : getCustomerStylePath;
   const appt = appointment ?? null;
-  // Where "View (full) appointment" goes: merchant → the booking detail; customer → their booking
-  // history (no per-booking customer route exists).
-  const apptHref =
-    appt && viewerRole === 'merchant' ? getMerchantBookingPath(appt.bookingId) : getCustomerProfilePath();
+  // Where "View (full) appointment" goes: merchant → the booking detail; customer → their profile
+  // deep-linked to this specific booking (pre-opened), not the whole history list.
+  const apptHref = appt
+    ? viewerRole === 'merchant'
+      ? getMerchantBookingPath(appt.bookingId)
+      : getCustomerBookingDetailPath(appt.bookingId)
+    : getCustomerProfilePath();
 
   function sendDraftMessage() {
     if (!onSend) {

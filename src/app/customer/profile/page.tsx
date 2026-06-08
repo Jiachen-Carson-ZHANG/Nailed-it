@@ -34,6 +34,8 @@ const customerProfileCopy = {
 export default function CustomerProfilePage() {
   // Already filtered to the demo customer on the server (private bookings never reach the browser).
   const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
+  // Deep-link target from a chat appointment card (?booking=<id>) — pre-open + scroll to that card.
+  const [targetBookingId, setTargetBookingId] = useState<string | null>(null);
   const { language, t } = useLanguage();
   const copy = customerProfileCopy[language];
 
@@ -45,7 +47,15 @@ export default function CustomerProfilePage() {
     refresh().catch(() => {
       /* leave empty */
     });
+    setTargetBookingId(new URLSearchParams(window.location.search).get('booking'));
   }, [refresh]);
+
+  useEffect(() => {
+    if (!targetBookingId || customerBookings.length === 0) return;
+    document
+      .getElementById(`booking-${targetBookingId}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [targetBookingId, customerBookings]);
 
   const withdrawBooking = useCallback(async (id: string) => {
     await setBookingStatusAction(id, 'cancelled');
@@ -87,7 +97,12 @@ export default function CustomerProfilePage() {
         <h2>{copy.bookingHistory}</h2>
         <div className="history-list">
           {customerBookings.map((booking) => (
-            <BookingHistoryCard key={booking.id} booking={booking} onWithdraw={withdrawBooking} />
+            <BookingHistoryCard
+              key={booking.id}
+              booking={booking}
+              onWithdraw={withdrawBooking}
+              defaultOpen={booking.id === targetBookingId}
+            />
           ))}
         </div>
       </section>
