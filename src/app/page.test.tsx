@@ -1,7 +1,29 @@
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import type { AnchorHTMLAttributes } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { merchantEntryHintPendingKey } from '@/lib/merchant-entry-hint';
 import LandingPage from './page';
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    onClick,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
+      {children}
+    </a>
+  )
+}));
 
 vi.mock('next/font/local', () => ({
   default: () => ({
@@ -14,6 +36,10 @@ vi.mock('next/font/local', () => ({
 function renderLandingPage() {
   render(<LandingPage />);
 }
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 function getTopLevelRegions() {
   const main = screen.getByRole('main');
@@ -51,6 +77,19 @@ describe('LandingPage', () => {
 
   it('renders the approved hero and CTA route targets', () => {
     renderLandingPage();
+
+    const heroLinks = screen.getAllByRole('link', {
+      name: /^(用户入口|商家入口)$/
+    });
+    const ctaLinks = screen.getAllByRole('link', {
+      name: /^(Try as User|Try as Merchant)$/
+    });
+
+    expect(heroLinks.map((link) => link.textContent)).toEqual(['商家入口', '用户入口']);
+    expect(ctaLinks.map((link) => link.textContent)).toEqual([
+      'Try as Merchant',
+      'Try as User'
+    ]);
 
     expect(screen.getByRole('link', { name: '用户入口' })).toHaveAttribute('href', '/customer/home');
     expect(screen.getByRole('link', { name: '商家入口' })).toHaveAttribute(
@@ -99,6 +138,15 @@ describe('LandingPage', () => {
     expect(within(solution).getByRole('heading', { name: '商家图册' })).toBeInTheDocument();
     expect(within(solution).getByText('自动归档，持续种草')).toBeInTheDocument();
     expect(within(solution).getByAltText('商家图册截图')).toBeInTheDocument();
+  });
+
+  it('queues the merchant first-visit hint when a merchant entry is clicked for the first time', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+
+    await user.click(screen.getByRole('link', { name: '商家入口' }));
+
+    expect(window.localStorage.getItem(merchantEntryHintPendingKey)).toBe('true');
   });
 
   it('renders journey screenshots and keeps the missing user booking step as a placeholder', () => {

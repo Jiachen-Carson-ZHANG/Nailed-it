@@ -3,6 +3,10 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import { createBookingAction } from '@/lib/actions/booking-actions';
+import {
+  merchantEntryHintPendingKey,
+  merchantEntryHintSeenKey
+} from '@/lib/merchant-entry-hint';
 import { mockAIResult } from '@/mock/ai';
 import MerchantCalendarPage from './page';
 
@@ -14,6 +18,10 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
     back: vi.fn()
   })
+}));
+
+vi.mock('@/components/ui/Toast', () => ({
+  Toast: ({ message }: { message: string }) => (message ? <div role="status">{message}</div> : null)
 }));
 
 describe('MerchantCalendarPage', () => {
@@ -31,6 +39,7 @@ describe('MerchantCalendarPage', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-06T12:00:00Z'));
+    window.localStorage.clear();
     // The calendar now reads bookings from the repository-backed booking service; reset the
     // in-memory bundle so each test starts from the derived demo seed (booking-001..004).
     resetRepositoriesForTests();
@@ -52,6 +61,28 @@ describe('MerchantCalendarPage', () => {
     expect(screen.getByRole('tab', { name: /day/i })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('region', { name: /june 2026 — spots left per day/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /sat, 6 jun/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the onboarding hint once after arriving from the landing merchant entry', async () => {
+    window.localStorage.setItem(merchantEntryHintPendingKey, 'true');
+
+    await renderPage('zh-CN');
+
+    expect(screen.getByText('欢迎入驻！新手商家请先前往下方管理页面设置并保存价目表哦～')).toBeInTheDocument();
+    expect(window.localStorage.getItem(merchantEntryHintPendingKey)).toBeNull();
+    expect(window.localStorage.getItem(merchantEntryHintSeenKey)).toBe('true');
+  });
+
+  it('does not show the onboarding hint again after the first visit is recorded', async () => {
+    window.localStorage.setItem(merchantEntryHintPendingKey, 'true');
+    window.localStorage.setItem(merchantEntryHintSeenKey, 'true');
+
+    await renderPage('zh-CN');
+
+    expect(
+      screen.queryByText('欢迎入驻！新手商家请先前往下方管理页面设置并保存价目表哦～')
+    ).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(merchantEntryHintPendingKey)).toBeNull();
   });
 
   it('does not render the top subtitle in either language', async () => {

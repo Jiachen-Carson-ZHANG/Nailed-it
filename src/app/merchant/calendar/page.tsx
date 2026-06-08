@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { Toast } from '@/components/ui/Toast';
 import { CalendarSchedule } from '@/features/merchant/CalendarSchedule';
 import type { Booking } from '@/domain/nail';
 import { useLanguage } from '@/i18n/context';
 import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
+import { consumeMerchantEntryHint } from '@/lib/merchant-entry-hint';
 
 const calendarPageCopy = {
   'zh-CN': {
@@ -23,11 +25,17 @@ const calendarPageCopy = {
   },
 } as const;
 
+const merchantEntryHintCopy = {
+  'zh-CN': '欢迎入驻！新手商家请先前往下方管理页面设置并保存价目表哦～',
+  en: 'Welcome aboard! New merchants should set up and save the pricing menu from the management page below first.'
+} as const;
+
 export default function MerchantCalendarPage() {
   const { language } = useLanguage();
   const copy = calendarPageCopy[language];
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -46,6 +54,13 @@ export default function MerchantCalendarPage() {
     };
   }, []);
 
+  useEffect(() => {
+    // 只在通过 landing 商家入口首次进入时提示一次，避免后续重复打扰。
+    if (consumeMerchantEntryHint()) {
+      setToastMessage(merchantEntryHintCopy[language]);
+    }
+  }, [language]);
+
   return (
     <MobileLayout role="merchant" title="Nailed-it">
       <section className="page-heading">
@@ -57,6 +72,7 @@ export default function MerchantCalendarPage() {
       ) : (
         <CalendarSchedule bookings={bookings} />
       )}
+      <Toast message={toastMessage} />
     </MobileLayout>
   );
 }

@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import heroImage from '@/landing_assets/hero_icon.PNG?url';
 import logoImage from '@/landing_assets/logo.PNG?url';
+import { MerchantEntryLink } from './MerchantEntryLink';
 import styles from './LandingPage.module.css';
 import { landingRoutes } from './landing-content';
 
@@ -26,17 +27,14 @@ export function HeroSection() {
           让美甲预约更智能：基于 AI 拆解美甲款式图片，集合报价、预约、款式库的智能全链运营系统
         </p>
         <div className={styles.heroActions}>
+          <MerchantEntryLink className={`${styles.buttonBase} ${styles.heroMerchantButton}`}>
+            商家入口
+          </MerchantEntryLink>
           <Link
             href={landingRoutes.customer}
             className={`${styles.buttonBase} ${styles.heroCustomerButton}`}
           >
             用户入口
-          </Link>
-          <Link
-            href={landingRoutes.merchant}
-            className={`${styles.buttonBase} ${styles.heroMerchantButton}`}
-          >
-            商家入口
           </Link>
         </div>
       </div>
