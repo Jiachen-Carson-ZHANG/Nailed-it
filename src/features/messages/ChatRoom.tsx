@@ -27,6 +27,9 @@ export type ChatAppointment = {
   staffName?: string;
 };
 
+/** A style the viewer can attach to a message (the customer's saved looks). */
+export type AttachableStyle = { styleId: string; title: string; imageUrl: string; reason?: string };
+
 type ChatRoomProps = {
   conversation: Conversation;
   onSend?: (body: string) => void;
@@ -34,6 +37,9 @@ type ChatRoomProps = {
   viewerRole?: UserRole;
   /** The thread's appointment; renders the header button + inline card for both roles. */
   appointment?: ChatAppointment | null;
+  /** Styles the viewer can attach via the 📎 button (omit to keep the composer text-only). */
+  attachableStyles?: AttachableStyle[];
+  onAttachStyle?: (style: AttachableStyle) => void;
 };
 
 const chatRoomCopy = {
@@ -42,6 +48,9 @@ const chatRoomCopy = {
     styleMatch: (reason: string) => `匹配 ${reason}`,
     role: { customer: '顾客', merchant: '商家' },
     viewAppointment: '查看预约',
+    attachStyle: '附上一个款式',
+    attachPickerTitle: '附上你收藏的款式',
+    noSaved: '还没有收藏的款式，先去首页❤一个吧。',
     today: '今天',
     apptTitle: '预约详情',
     date: '日期',
@@ -55,6 +64,9 @@ const chatRoomCopy = {
     styleMatch: (reason: string) => `Matches ${reason}`,
     role: { customer: 'Customer', merchant: 'Merchant' },
     viewAppointment: 'View appointment',
+    attachStyle: 'Attach a style',
+    attachPickerTitle: 'Attach a saved style',
+    noSaved: 'No saved styles yet — ❤ one on the home feed first.',
     today: 'Today',
     apptTitle: 'Appointment details',
     date: 'Date',
@@ -65,9 +77,11 @@ const chatRoomCopy = {
   },
 } as const;
 
-export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appointment }: ChatRoomProps) {
+export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appointment, attachableStyles, onAttachStyle }: ChatRoomProps) {
   const [draftMessage, setDraftMessage] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { language, t } = useLanguage();
+  const canAttach = Boolean(onAttachStyle);
   const copy = chatRoomCopy[language];
   const styleHref = viewerRole === 'merchant' ? getMerchantStylePath : getCustomerStylePath;
   const appt = appointment ?? null;
@@ -153,9 +167,50 @@ export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appoin
         })}
       </div>
 
+      {onSend && canAttach && pickerOpen ? (
+        <div className="chat-attach-picker">
+          <p className="chat-attach-title">{copy.attachPickerTitle}</p>
+          {attachableStyles && attachableStyles.length > 0 ? (
+            <div className="chat-attach-list">
+              {attachableStyles.map((style) => (
+                <button
+                  key={style.styleId}
+                  type="button"
+                  className="chat-attach-item"
+                  onClick={() => {
+                    onAttachStyle?.(style);
+                    setPickerOpen(false);
+                  }}
+                >
+                  <img src={style.imageUrl} alt={style.title} loading="lazy" />
+                  <span className="chat-attach-item-body">
+                    <strong>{style.title}</strong>
+                    {style.reason ? <em>{style.reason}</em> : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="chat-attach-empty">{copy.noSaved}</p>
+          )}
+        </div>
+      ) : null}
+
       {onSend ? (
         <div className="chat-composer">
-          <span className="chat-composer-icon" aria-hidden>📎</span>
+          {canAttach ? (
+            <button
+              type="button"
+              className={`chat-composer-attach${pickerOpen ? ' chat-composer-attach-on' : ''}`}
+              aria-label={copy.attachStyle}
+              aria-expanded={pickerOpen}
+              onClick={() => setPickerOpen((value) => !value)}
+            >
+              📎
+            </button>
+          ) : (
+            <span className="chat-composer-icon" aria-hidden>📎</span>
+          )}
           <textarea
             className="chat-composer-input"
             aria-label={t('messages.chat.input')}

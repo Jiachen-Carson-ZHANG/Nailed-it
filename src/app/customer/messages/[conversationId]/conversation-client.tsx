@@ -1,14 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { getCustomerMessagesPath } from '@/domain/session';
 import type { Conversation } from '@/domain/nail';
-import { ChatRoom, type ChatAppointment } from '@/features/messages/ChatRoom';
+import { ChatRoom, type ChatAppointment, type AttachableStyle } from '@/features/messages/ChatRoom';
+import { useSavedStyles } from '@/features/customer/SavedStylesContext';
+import { cardFacetLabels } from '@/features/customer/style-facets';
 import { useLanguage } from '@/i18n/context';
-import { getCustomerConversationAction, sendCustomerMessageAction } from '@/lib/actions/conversation-actions';
+import {
+  getCustomerConversationAction,
+  sendCustomerMessageAction,
+  sendCustomerStyleAttachmentAction,
+} from '@/lib/actions/conversation-actions';
 import { listCustomerBookingViewsAction } from '@/lib/actions/booking-actions';
+import { listCustomerPublishedStylesAction } from '@/lib/actions/merchant-style-actions';
 import Link from 'next/link';
 
 type CustomerConversationClientProps = {
@@ -19,7 +26,40 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [appointment, setAppointment] = useState<ChatAppointment | null>(null);
   const [loading, setLoading] = useState(true);
-  const { t } = useLanguage();
+  const [publishedStyles, setPublishedStyles] = useState<AttachableStyle[]>([]);
+  const { t, language } = useLanguage();
+  const { savedIds } = useSavedStyles();
+
+  // The customer can attach one of their saved looks; resolve saved ids → style cards on read.
+  const attachableStyles = useMemo(
+    () => publishedStyles.filter((style) => savedIds.has(style.styleId)),
+    [publishedStyles, savedIds],
+  );
+
+  useEffect(() => {
+    let active = true;
+    listCustomerPublishedStylesAction()
+      .then((styles) => {
+        if (!active) return;
+        setPublishedStyles(
+          styles.map((style) => ({
+            styleId: style.id,
+            title: style.title,
+            imageUrl: style.imageUrl,
+            reason: cardFacetLabels(style.discoveryFacets).join(' · ') || undefined,
+          })),
+        );
+      })
+      .catch(() => {/* no attachable styles */});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleAttachStyle(style: AttachableStyle) {
+    const updated = await sendCustomerStyleAttachmentAction(conversationId, { ...style, language });
+    if (updated) setConversation(updated);
+  }
 
   useEffect(() => {
     let active = true;
@@ -75,7 +115,14 @@ export function CustomerConversationClient({ conversationId }: CustomerConversat
 
   return conversation ? (
     <>
-      <ChatRoom conversation={conversation} onSend={handleSend} viewerRole="customer" appointment={appointment} />
+      <ChatRoom
+        conversation={conversation}
+        onSend={handleSend}
+        viewerRole="customer"
+        appointment={appointment}
+        attachableStyles={attachableStyles}
+        onAttachStyle={handleAttachStyle}
+      />
       <Link className="button button-secondary" href={getCustomerMessagesPath()}>
         {t('messages.thread.back')}
       </Link>

@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { toConversationForRole } from '@/domain/messaging';
 import type { BookingConversationThread, Conversation, MessageAttachment, UserRole } from '@/domain/nail';
+import type { AppLanguage } from '@/i18n/types';
 import { getRepositories } from '@/lib/repositories';
 import { demoCustomerName } from '@/mock/customers';
 import { demoMerchantId } from '@/mock/merchants';
@@ -54,6 +55,22 @@ export async function sendCustomerMessageAction(
   body: string,
 ): Promise<Conversation | null> {
   return appendAs(conversationId, body, 'customer', isDemoCustomerThread);
+}
+
+/** Customer attaches one of their saved styles to the thread as a rich style card. */
+export async function sendCustomerStyleAttachmentAction(
+  conversationId: string,
+  input: { styleId: string; title: string; imageUrl: string; reason?: string; language?: AppLanguage },
+): Promise<Conversation | null> {
+  const share = input.language === 'en' ? `I'd love to try ${input.title}` : `想试试：${input.title}`;
+  const body = input.reason ? `${share} · ${input.reason}` : share;
+  return appendAs(conversationId, body, 'customer', isDemoCustomerThread, {
+    type: 'style',
+    styleId: input.styleId,
+    title: input.title,
+    imageUrl: input.imageUrl,
+    ...(input.reason ? { reason: input.reason } : {}),
+  });
 }
 
 // ─── Merchant-scoped (the whole shop inbox) ──────────────────────────────────

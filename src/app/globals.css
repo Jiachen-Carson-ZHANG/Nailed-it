@@ -3335,6 +3335,104 @@ select {
   cursor: default;
 }
 
+/* Style-attach picker (customer 📎) */
+.chat-composer-attach {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.chat-composer-attach-on {
+  color: var(--color-accent-strong);
+}
+
+.chat-attach-picker {
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-attach-title {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.chat-attach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.chat-attach-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-attach-item:hover,
+.chat-attach-item:focus-visible {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.chat-attach-item img {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.chat-attach-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.chat-attach-item-body strong {
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attach-item-body em {
+  font-size: 0.62rem;
+  font-style: normal;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attach-empty {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
 /* Inline appointment card (att3) — merchant view */
 .chat-appt-card {
   display: block;

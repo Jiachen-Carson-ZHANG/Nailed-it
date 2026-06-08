@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
+import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
 import { resetRepositoriesForTests } from '@/lib/repositories';
 import CustomerConversationPage from './page';
 
@@ -17,9 +18,11 @@ describe('CustomerConversationPage', () => {
   ) {
     return render(
       <LanguageProvider initialLanguage={language} role="customer">
-        {await CustomerConversationPage({
-          params: Promise.resolve({ conversationId })
-        })}
+        <SavedStylesProvider>
+          {await CustomerConversationPage({
+            params: Promise.resolve({ conversationId })
+          })}
+        </SavedStylesProvider>
       </LanguageProvider>
     );
   }
