@@ -26,6 +26,29 @@ describe('buildBreakdownFromConfig', () => {
     expect(result.catalogSelections.length).toBeGreaterThan(1);
   });
 
+  it('merges descriptive facets when the merchant editor stores English facet labels', () => {
+    const color = catalogItems.find((item) => item.category === 'color' && item.name.en);
+    expect(color, 'catalog should have a colour item with English name').toBeDefined();
+
+    const result = buildBreakdownFromConfig(
+      [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      [color!.name.en],
+    );
+
+    expect(result.items.some((item) => item.glossaryId === color!.id)).toBe(true);
+    expect(result.catalogSelections).toContainEqual({ catalogItemId: color!.id, quantity: 1 });
+  });
+
+  it('does not re-inject omitted billable_component facets back into catalogBreakdown', () => {
+    const result = buildBreakdownFromConfig(
+      [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      ['建构'],
+    );
+
+    expect(result.catalogSelections).not.toContainEqual({ catalogItemId: 'builder_gel', quantity: 1 });
+    expect(result.items.some((item) => item.glossaryId === 'builder_gel')).toBe(false);
+  });
+
   it('keeps the original priced selections', () => {
     const result = buildBreakdownFromConfig(
       [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
@@ -78,5 +101,123 @@ describe('buildBreakdownFromConfig', () => {
     );
     expect(rebuilt.totalPrice).toBe(88);
     expect(rebuilt.totalDuration).toBe(cached.totalDuration);
+  });
+
+  it('hydrates extension recognition with dependent builder gel and half cover tip chips', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(['nail_tip_full_cover']),
+      null,
+      null,
+      null,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+
+    expect(chip.structureIds.has('nail_tip_full_cover')).toBe(true);
+    expect(chip.structureIds.has('builder_gel')).toBe(false);
+    expect(chip.structureIds.has('nail_tip_half_cover')).toBe(false);
+    expect(chip.impliedStructureIds.has('builder_gel')).toBe(true);
+    expect(chip.impliedStructureIds.has('nail_tip_half_cover')).toBe(true);
+  });
+
+  it('does not reserialize implied full-cover helpers back into the priced breakdown until the user explicitly selects them', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(['nail_tip_full_cover']),
+      null,
+      null,
+      null,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+
+    expect(rebuilt.catalogSelections).toEqual(recognized.catalogSelections);
+    expect(rebuilt.totalPrice).toBe(recognized.totalPrice);
+  });
+
+  it('hydrates legacy finish_service items as color effects instead of hidden texture state', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(),
+      null,
+      null,
+      'matte_top',
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    expect(chip.texture).toBeNull();
+    expect(chip.colorEffectIds.has('matte_top')).toBe(true);
+  });
+
+  it('preserves pure texture round-trip serialization contract', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(),
+      'shape_almond',
+      'length_short',
+      'texture_matte',
+      new Set(['color_nude']),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    expect(chip.texture).toBe('texture_matte');
+
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+
+    expect(rebuilt.catalogSelections).toContainEqual({ catalogItemId: 'texture_matte', quantity: 1 });
+    expect(rebuilt.items.some((item) => item.glossaryId === 'texture_matte')).toBe(true);
   });
 });

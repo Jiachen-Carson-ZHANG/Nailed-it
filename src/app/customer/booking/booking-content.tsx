@@ -34,6 +34,32 @@ function RecognitionPreview({ imageUrl }: { imageUrl: string }) {
 
 type BookingStep = 'upload' | 'result' | 'quote';
 
+function isSameBreakdownResult(left: BreakdownResult | null, right: BreakdownResult): boolean {
+  if (!left) return false;
+  if (left.totalPrice !== right.totalPrice || left.totalDuration !== right.totalDuration || left.mode !== right.mode) {
+    return false;
+  }
+  if (left.catalogSelections.length !== right.catalogSelections.length || left.items.length !== right.items.length) {
+    return false;
+  }
+
+  return (
+    left.catalogSelections.every((selection, index) => {
+      const target = right.catalogSelections[index];
+      return selection.catalogItemId === target?.catalogItemId && selection.quantity === target?.quantity;
+    }) &&
+    left.items.every((item, index) => {
+      const target = right.items[index];
+      return (
+        item.glossaryId === target?.glossaryId &&
+        item.quantity === target?.quantity &&
+        item.price === target?.price &&
+        item.duration === target?.duration
+      );
+    })
+  );
+}
+
 type CustomerBookingContentProps = {
   prefillStyleId?: string;
   prefillImageUrl?: string;
@@ -176,11 +202,23 @@ export function CustomerBookingContent({
     if (step !== 'upload') setStep('upload');
   }
 
-  function persistCurrentDraft() {
-    // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
-    // price) rather than a flat recognition estimate.
-    // Strip data: URLs from imageUrl before persisting — base64 images can exceed sessionStorage
-    // limits and cause a silent write failure, leaving the confirm page with no draft.
+
+function persistCurrentDraft() {
+  // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
+  // price) rather than a flat recognition estimate.
+  // 中文注释：data URL 可能把 sessionStorage 撑爆，持久化草稿时只保留可安全存储的图片地址。
+  const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
+
+  saveCustomerBookingDraft({
+    estimate,
+    imageUrl: persistableImageUrl,
+    recognition,
+    breakdowns,
+    catalogSelections: breakdowns.glossary?.catalogSelections,
+    styleId: hasPrefill ? prefillStyleId : undefined,
+    styleTitle: hasPrefill ? prefillTitle : undefined,
+  });
+}
     const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
     saveCustomerBookingDraft({
       estimate,
@@ -211,7 +249,8 @@ export function CustomerBookingContent({
 
   const handleBreakdownResult = useCallback((result: BreakdownResult) => {
     saveBreakdownResult(result);
-    setBreakdowns({ glossary: getBreakdownResult() });
+    // 中文注释：结果页会在 hydration 后再次触发 onResult；相同结果不再回灌，避免父子之间形成重复更新。
+    setBreakdowns((prev) => (isSameBreakdownResult(prev.glossary, result) ? prev : { glossary: result }));
   }, []);
 
   // 中文注释：只有拿到 breakdown 报价结果后，结果页才显示“查看我的报价”，

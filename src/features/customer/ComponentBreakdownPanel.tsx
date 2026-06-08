@@ -33,8 +33,31 @@ const REMOVAL_IDS   = ['removal_basic_gel', 'removal_short_extension', 'removal_
 const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cover', 'nail_tip_shallow_cover'];
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
-const TEXTURE_IDS   = byCategory('texture').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
+
+function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
+  const impliedStructureIds = new Set<string>();
+
+  // 中文注释：全贴甲片会在 UI 上联动点亮依赖项，但这些 implied 选项不应自动回写到持久化报价里。
+  if (explicitStructureIds.has('nail_tip_full_cover')) {
+    impliedStructureIds.add('builder_gel');
+    impliedStructureIds.add('nail_tip_half_cover');
+  }
+
+  for (const id of explicitStructureIds) {
+    impliedStructureIds.delete(id);
+  }
+
+  return impliedStructureIds;
+}
+
+function mergeIdSets(...sets: ReadonlySet<string>[]): Set<string> {
+  const merged = new Set<string>();
+  for (const source of sets) {
+    for (const id of source) merged.add(id);
+  }
+  return merged;
+}
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
 export function seedStateFromBreakdown(result: BreakdownResult) {
@@ -76,7 +99,9 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
     }
   }
 
-  return { removalId, structureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
+  const impliedStructureIds = deriveImpliedStructureIds(structureIds);
+
+  return { removalId, structureIds, impliedStructureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
 }
 
 // ── Shared item builder (glossary id → priced breakdown row) ──────────────────
@@ -113,7 +138,7 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
       .filter((i) => i.affectsBookingDuration)
       .reduce(
         (sum, i) => {
-          // Mirror quote-service: only scale duration × quantity for per-unit items (per_finger / per_piece).
+          // 中文注释：只有按件/按手指计价的项目才按数量放大时长，其余项目沿用单次服务时长。
           const scales = i.unit === 'per_finger' || i.unit === 'per_piece';
           return sum + (scales ? i.duration * i.quantity : i.duration);
         },
@@ -202,12 +227,17 @@ export function buildBreakdownFromSelections(
   return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }
 
-const glossaryByName = new Map(glossaryEntries.map((entry) => [entry.name_zh, entry.id]));
+const glossaryByName = new Map(
+  glossaryEntries.flatMap((entry) => {
+    const labels = [entry.name_zh, entry.name_en].filter(Boolean);
+    return labels.map((label) => [label, entry.id] as const);
+  }),
+);
 
 // Seed from a stored style config: the priced selections (catalogBreakdown) PLUS the descriptive
 // facets (colour / shape / length / finish / style) the merchant pipeline stores as facets rather than
 // priced selections. Without this, a re-edited or published style shows no colour/shape selected even
-// though it has them. Facet labels are catalog names, so they resolve to ids via glossaryByName.
+// though it has them. Facet labels may come back in Chinese or English, so both names resolve to ids.
 export function buildBreakdownFromConfig(
   selections: CatalogSelection[],
   facetLabels: string[],
@@ -219,9 +249,7 @@ export function buildBreakdownFromConfig(
     const id = glossaryByName.get(label);
     if (id && !ids.has(id)) {
       const entry = glossaryById.get(id);
-      // Only merge descriptive facets (shape, color, texture, visual attributes, style tags).
-      // Skip billable_component entries — if they weren't in catalogBreakdown they were
-      // deliberately excluded by the merchant pipeline and must not be re-injected here.
+      // 中文注释：facet 只回填描述性标签；若 billable_component 没出现在 catalogBreakdown，说明它被上游刻意排除了。
       if (entry?.type === 'billable_component') continue;
       merged.push({ catalogItemId: id, quantity: 1 });
       ids.add(id);
@@ -325,15 +353,17 @@ function ChipGroup({
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
 function EffectsSection({
-  colorEffectIds, artIds, decoIds, quantities,
-  onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  colorIds, colorEffectIds, artIds, decoIds, quantities,
+  onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
   language,
   copy,
 }: {
+  colorIds: Set<string>;
   colorEffectIds: Set<string>;
   artIds: Set<string>;
   decoIds: Set<string>;
   quantities: Map<string, number>;
+  onColorToggle: (id: string) => void;
   onColorEffectToggle: (id: string) => void;
   onArtToggle: (id: string) => void;
   onDecoToggle: (id: string) => void;
@@ -341,8 +371,40 @@ function EffectsSection({
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
-  const [openSection, setOpenSection] = useState<'color' | 'art' | 'deco' | null>('color');
-  const toggle = (s: 'color' | 'art' | 'deco') => setOpenSection((prev) => (prev === s ? null : s));
+  const [openSections, setOpenSections] = useState<Set<'color' | 'art' | 'deco'>>(
+    () => new Set(),
+  );
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  useEffect(() => {
+    if (hasInteracted || openSections.size > 0) {
+      return;
+    }
+    if (colorEffectIds.size > 0 || colorIds.size > 0) {
+      setOpenSections(new Set(['color']));
+      return;
+    }
+    if (artIds.size > 0) {
+      setOpenSections(new Set(['art']));
+      return;
+    }
+    if (decoIds.size > 0) {
+      setOpenSections(new Set(['deco']));
+    }
+  }, [artIds, colorEffectIds, colorIds, decoIds, hasInteracted, openSections]);
+
+  const toggle = (section: 'color' | 'art' | 'deco') => {
+    setHasInteracted(true);
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="analyze-section">
@@ -351,11 +413,29 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('color')}>
           <span>{copy.colorEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'color' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('color') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'color' && (
+        {openSections.has('color') && (
           <div className="manage-accordion-body">
-            <ChipGroup ids={[...COLOR_EFFECT_IDS]} activeIds={colorEffectIds} onToggle={onColorEffectToggle} showAdd language={language} copy={copy} />
+            <div className="analyze-accordion-subgroup">
+              <div className="analyze-accordion-subgroup-label">{copy.baseColor}</div>
+              <ChipGroup
+                ids={COLOR_IDS}
+                activeIds={colorIds}
+                onToggle={onColorToggle}
+                showAdd
+                language={language}
+                copy={copy}
+              />
+            </div>
+            <ChipGroup
+              ids={[...COLOR_EFFECT_IDS]}
+              activeIds={colorEffectIds}
+              onToggle={onColorEffectToggle}
+              showAdd
+              language={language}
+              copy={copy}
+            />
           </div>
         )}
       </div>
@@ -363,9 +443,9 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('art')}>
           <span>{copy.artEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'art' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('art') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'art' && (
+        {openSections.has('art') && (
           <div className="manage-accordion-body">
             {copy.artGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
@@ -389,9 +469,9 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('deco')}>
           <span>{copy.decoEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'deco' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('deco') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'deco' && (
+        {openSections.has('deco') && (
           <div className="manage-accordion-body">
             {copy.decoGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
@@ -560,10 +640,15 @@ export function ComponentBreakdownPanel({
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
-  const [structureIds,    setStructureIds]     = useState<Set<string>>(new Set());
+  const [structureState,  setStructureState]   = useState<{
+    explicitIds: Set<string>;
+    dismissedImpliedIds: Set<string>;
+  }>({
+    explicitIds: new Set(['builder_gel']),
+    dismissedImpliedIds: new Set(),
+  });
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
-  const [texture,         setTexture]          = useState<string | null>(null);
   const [colorIds,        setColorIds]         = useState<Set<string>>(new Set());
   const [colorEffectIds,  setColorEffectIds]   = useState<Set<string>>(new Set());
   const [artIds,          setArtIds]           = useState<Set<string>>(new Set());
@@ -572,6 +657,18 @@ export function ComponentBreakdownPanel({
 
   const lastAnalysedRef = useRef<string | null>(
     cachedResult && image ? image.imageBase64.slice(0, 64) : null
+  );
+  const structureIds = structureState.explicitIds;
+  const impliedStructureIds = useMemo(() => {
+    const next = deriveImpliedStructureIds(structureState.explicitIds);
+    for (const id of structureState.dismissedImpliedIds) {
+      next.delete(id);
+    }
+    return next;
+  }, [structureState]);
+  const displayStructureIds = useMemo(
+    () => mergeIdSets(structureIds, impliedStructureIds),
+    [impliedStructureIds, structureIds],
   );
 
   useEffect(() => {
@@ -600,10 +697,12 @@ export function ComponentBreakdownPanel({
   function applyBreakdown(result: BreakdownResult) {
     const s = seedStateFromBreakdown(result);
     setRemovalId(s.removalId);
-    setStructureIds(s.structureIds);
+    setStructureState({
+      explicitIds: s.structureIds,
+      dismissedImpliedIds: new Set(),
+    });
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
-    setTexture(s.texture);
     setColorIds(s.colorIds);
     setColorEffectIds(s.colorEffectIds);
     setArtIds(s.artIds);
@@ -645,12 +744,12 @@ export function ComponentBreakdownPanel({
 
   const breakdown = useMemo(
     () => buildBreakdownResult(
-      removalId, structureIds, nailShape, nailLength, texture,
+      removalId, structureIds, nailShape, nailLength, null,
       colorIds, colorEffectIds, artIds, decoIds, quantities,
       settingsById,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [removalId, structureIds, nailShape, nailLength, texture,
+    [removalId, structureIds, nailShape, nailLength,
      colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 
@@ -675,6 +774,34 @@ export function ComponentBreakdownPanel({
 
   function handleQuantityChange(id: string, n: number) {
     setQuantities((prev) => { const next = new Map(prev); next.set(id, Math.max(1, n)); return next; });
+  }
+
+  function toggleStructure(id: string) {
+    setStructureState((prev) => {
+      const explicitIds = new Set(prev.explicitIds);
+      const dismissedImpliedIds = new Set(prev.dismissedImpliedIds);
+      const impliedBeforeToggle = deriveImpliedStructureIds(explicitIds);
+      const isImpliedOnly = impliedBeforeToggle.has(id) && !dismissedImpliedIds.has(id) && !explicitIds.has(id);
+
+      // 中文注释：首次点击 implied chip 视为“取消联动高亮”；再次点击才转成用户显式选择。
+      if (explicitIds.has(id)) {
+        explicitIds.delete(id);
+      } else if (isImpliedOnly) {
+        dismissedImpliedIds.add(id);
+      } else {
+        explicitIds.add(id);
+        dismissedImpliedIds.delete(id);
+      }
+
+      const impliedAfterToggle = deriveImpliedStructureIds(explicitIds);
+      for (const dismissedId of [...dismissedImpliedIds]) {
+        if (!impliedAfterToggle.has(dismissedId)) {
+          dismissedImpliedIds.delete(dismissedId);
+        }
+      }
+
+      return { explicitIds, dismissedImpliedIds };
+    });
   }
 
   if (isLoading) {
@@ -741,17 +868,17 @@ export function ComponentBreakdownPanel({
               <AnalyzeChip
                 key={id}
                 label={entryDisplayName(id, language)}
-                active={structureIds.has(id)}
-                onToggle={() => toggleSet(setStructureIds, id)}
+                active={displayStructureIds.has(id)}
+                onToggle={() => toggleStructure(id)}
               />
             );
           })}
         </div>
       </div>
 
-      {/* ── 甲型/颜色 ── */}
+      {/* ── 甲型 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.shapeColor}</h3>
+        <h3 className="analyze-section-title">{copy.shapeSection}</h3>
         <div className="analyze-subrow">
           <div className="analyze-subrow-label">{copy.nailShape}</div>
           <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd language={language} copy={copy} />
@@ -760,22 +887,16 @@ export function ComponentBreakdownPanel({
           <div className="analyze-subrow-label">{copy.nailLength}</div>
           <ChipGroup ids={LENGTH_IDS} activeIds={nailLength} mode="single" onToggle={(id) => toggleSingle(nailLength, setNailLength, id)} showAdd language={language} copy={copy} />
         </div>
-        <div className="analyze-subrow">
-          <div className="analyze-subrow-label">{copy.texture}</div>
-          <ChipGroup ids={TEXTURE_IDS} activeIds={texture} mode="single" onToggle={(id) => toggleSingle(texture, setTexture, id)} showAdd language={language} copy={copy} />
-        </div>
-        <div className="analyze-subrow">
-          <div className="analyze-subrow-label">{copy.baseColor}</div>
-          <ChipGroup ids={COLOR_IDS} activeIds={colorIds} onToggle={(id) => toggleSet(setColorIds, id)} showAdd language={language} copy={copy} />
-        </div>
       </div>
 
       {/* ── 款式效果 (accordion) ── */}
       <EffectsSection
+        colorIds={colorIds}
         colorEffectIds={colorEffectIds}
         artIds={artIds}
         decoIds={decoIds}
         quantities={quantities}
+        onColorToggle={(id) => toggleSet(setColorIds, id)}
         onColorEffectToggle={(id) => toggleSet(setColorEffectIds, id)}
         onArtToggle={(id) => toggleSet(setArtIds, id)}
         onDecoToggle={(id) => toggleSet(setDecoIds, id)}
