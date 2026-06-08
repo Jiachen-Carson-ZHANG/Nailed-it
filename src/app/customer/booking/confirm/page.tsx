@@ -38,6 +38,8 @@ export default function CustomerBookingConfirmPage() {
   const draft = draftSnapshot?.draft ?? null;
   const [notes, setNotes] = useState('');
   const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -63,9 +65,12 @@ export default function CustomerBookingConfirmPage() {
   // Availability now comes from the booking service (DB occupancy), not localStorage.
   useEffect(() => {
     if (!draft) {
+      setSlotsLoading(false);
       return undefined;
     }
     let active = true;
+    setSlotsLoading(true);
+    setSlotsError(null);
     const request = draft.styleId
       ? listAvailableSlotsForStyleAction(draft.styleId)
       : draft.catalogSelections?.length
@@ -73,10 +78,17 @@ export default function CustomerBookingConfirmPage() {
         : listAvailableSlotsAction(draft.estimate.duration);
     request
       .then((days) => {
-        if (active) setAvailableDays(days);
+        if (active) {
+          setAvailableDays(days);
+          setSlotsLoading(false);
+        }
       })
-      .catch(() => {
-        /* leave empty */
+      .catch((err) => {
+        console.error('listAvailableSlots failed', err);
+        if (active) {
+          setSlotsError(err instanceof Error ? err.message : 'unknown_error');
+          setSlotsLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -215,6 +227,8 @@ export default function CustomerBookingConfirmPage() {
       <BookingTimeSelector
         days={availableDays}
         disabled={bookingLocked}
+        loading={slotsLoading}
+        error={slotsError}
         value={selectedSlot}
         onChange={setSelectedSlot}
       />
