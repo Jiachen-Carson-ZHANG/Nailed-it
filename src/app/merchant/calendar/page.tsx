@@ -10,14 +10,12 @@ import { listMerchantBookingViewsAction } from '@/lib/actions/booking-actions';
 
 const calendarPageCopy = {
   'zh-CN': {
-    subtitle: '每日排期一览',
     eyebrow: '日历',
     title: '预约日历',
     loadingTitle: '正在加载预约',
     loadingBody: '正在获取最新排期。',
   },
   en: {
-    subtitle: 'Your daily schedule.',
     eyebrow: 'Calendar',
     title: 'Appointment calendar',
     loadingTitle: 'Loading appointments',
@@ -49,7 +47,7 @@ export default function MerchantCalendarPage() {
   }, []);
 
   return (
-    <MobileLayout role="merchant" subtitle={copy.subtitle} title="Nailed-it">
+    <MobileLayout role="merchant" title="Nailed-it">
       <section className="page-heading">
         <p className="section-eyebrow">{copy.eyebrow}</p>
         <h1>{copy.title}</h1>

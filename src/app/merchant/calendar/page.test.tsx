@@ -17,9 +17,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('MerchantCalendarPage', () => {
-  async function renderPage() {
+  async function renderPage(language: 'zh-CN' | 'en' = 'en') {
     render(
-      <LanguageProvider initialLanguage="en" role="merchant">
+      <LanguageProvider initialLanguage={language} role="merchant">
         <MerchantCalendarPage />
       </LanguageProvider>
     );
@@ -52,6 +52,21 @@ describe('MerchantCalendarPage', () => {
     expect(screen.getByRole('tab', { name: /day/i })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('region', { name: /june 2026 — spots left per day/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /sat, 6 jun/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render the top subtitle in either language', async () => {
+    await renderPage('en');
+    expect(screen.queryByText('Your daily schedule.')).not.toBeInTheDocument();
+
+    render(
+      <LanguageProvider initialLanguage="zh-CN" role="merchant">
+        <MerchantCalendarPage />
+      </LanguageProvider>
+    );
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(screen.queryByText('每日排期一览')).not.toBeInTheDocument();
   });
 
   it('switches to the day view for the selected calendar date', async () => {

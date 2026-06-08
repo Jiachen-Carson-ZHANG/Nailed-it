@@ -20,6 +20,7 @@ const enMessages = {
   'booking.upload.example': 'Try with example',
   'booking.upload.choosePhoto': 'Choose nail reference photo',
   'booking.upload.uploadPhoto': 'Upload or take photo',
+  'booking.upload.tryOn': 'Try on this look',
   'booking.result.title': 'Style detected',
   'booking.result.loadingTitle': 'Reading the style',
   'booking.result.loadingBody': 'Detecting shape, colors, and finish…',
