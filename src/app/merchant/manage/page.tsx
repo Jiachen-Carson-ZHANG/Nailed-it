@@ -56,7 +56,6 @@ const manageCopy = {
     saved: '已保存',
     saveSuccess: '价格表已更新，将用于用户端 AI 报价。',
     saveError: '保存失败，请重试。',
-    subtitle: '价格与团队',
     nav: '设置导航',
     currency: '货币单位',
     unitBasicPrice: '基础护理服务 单价',
@@ -97,7 +96,6 @@ const manageCopy = {
     saved: 'Saved',
     saveSuccess: 'Pricing updated and ready for customer-facing AI quotes.',
     saveError: 'Save failed. Please try again.',
-    subtitle: 'Pricing and team',
     nav: 'Settings navigation',
     currency: 'Currency unit',
     unitBasicPrice: 'Basic manicure service price',
@@ -575,7 +573,7 @@ export default function MerchantManagePage() {
   const panelProps = { settingsById, onChange: updateSetting, currency, language };
 
   return (
-    <MobileLayout role="merchant" title="Nailed-it" subtitle={copy.subtitle}>
+    <MobileLayout role="merchant" title="Nailed-it">
       <div className="manage-layout">
         {/* ── Sidebar ── */}
         <nav className="manage-sidebar" aria-label={copy.nav}>
