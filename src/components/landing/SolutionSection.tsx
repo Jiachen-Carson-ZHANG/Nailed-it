@@ -3,8 +3,8 @@
 import { useId, useRef, useState } from 'react';
 
 import styles from './LandingPage.module.css';
+import { LandingScreenshot } from './LandingScreenshot';
 import { featureTabs } from './landing-content';
-import { PhoneMockup } from './PhoneMockup';
 
 const defaultFeatureKey = 'recognition';
 
@@ -89,7 +89,11 @@ export function SolutionSection() {
         </div>
         <div className={styles.solutionBody}>
           <div className={styles.solutionVisual}>
-            <PhoneMockup />
+            <LandingScreenshot
+              alt={activeFeature.screenshot.alt}
+              src={activeFeature.screenshot.src}
+              variant="solution"
+            />
           </div>
           <div className={styles.solutionPanelArea}>
             {featureTabs.map((feature) => {

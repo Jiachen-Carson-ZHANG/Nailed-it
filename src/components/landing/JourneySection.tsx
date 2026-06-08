@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import styles from './LandingPage.module.css';
+import { LandingScreenshot } from './LandingScreenshot';
 import { journeyRows } from './landing-content';
 
 const JOURNEY_ROW_COUNT = 2;
@@ -124,13 +125,15 @@ function JourneyRowSection({ row }: JourneyRowSectionProps) {
                 <h4 className={styles.journeyCardTitle}>{item.title}</h4>
                 <p className={styles.journeyCardCopy}>{item.description}</p>
               </article>
-              <div
-                aria-hidden="true"
-                className={styles.journeyMobileScreenshot}
-              >
-                <div className={styles.journeyScreenshotFrame}>
-                  <div className={styles.journeyScreenshotNotch} />
-                </div>
+              <div className={styles.journeyMobileScreenshot}>
+                {item.screenshot ? (
+                  <LandingScreenshot
+                    alt={item.screenshot.alt}
+                    src={item.screenshot.src}
+                  />
+                ) : (
+                  <div className={styles.journeyScreenshotPlaceholder} />
+                )}
               </div>
             </li>
           ))}
@@ -175,19 +178,21 @@ function JourneyRowSection({ row }: JourneyRowSectionProps) {
             />
           ))}
         </div>
-        <div
-          aria-hidden="true"
-          className={styles.journeyScreenshotRow}
-        >
+        <div className={styles.journeyScreenshotRow}>
           {visibleItems.map((item, index) => (
             <div
               key={item.title}
               className={styles.journeyScreenshotSlot}
               style={{ ['--journey-index' as string]: index } as CSSProperties}
             >
-              <div className={styles.journeyScreenshotFrame}>
-                <div className={styles.journeyScreenshotNotch} />
-              </div>
+              {item.screenshot ? (
+                <LandingScreenshot
+                  alt={item.screenshot.alt}
+                  src={item.screenshot.src}
+                />
+              ) : (
+                <div className={styles.journeyScreenshotPlaceholder} />
+              )}
             </div>
           ))}
         </div>

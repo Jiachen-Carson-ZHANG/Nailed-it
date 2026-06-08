@@ -86,14 +86,28 @@ describe('LandingPage', () => {
 
     const solution = screen.getByRole('region', { name: 'Solution' });
 
+    expect(within(solution).getByAltText('AI 识图截图')).toBeInTheDocument();
+
     await user.click(within(solution).getByRole('tab', { name: '款式购物车' }));
 
     expect(within(solution).getByRole('heading', { name: '款式购物车' })).toBeInTheDocument();
     expect(within(solution).getByText('试戴比较，快速决策')).toBeInTheDocument();
+    expect(within(solution).getByAltText('款式购物车截图')).toBeInTheDocument();
 
     await user.click(within(solution).getByRole('tab', { name: '商家图册' }));
 
     expect(within(solution).getByRole('heading', { name: '商家图册' })).toBeInTheDocument();
     expect(within(solution).getByText('自动归档，持续种草')).toBeInTheDocument();
+    expect(within(solution).getByAltText('商家图册截图')).toBeInTheDocument();
+  });
+
+  it('renders journey screenshots and keeps the missing user booking step as a placeholder', () => {
+    renderLandingPage();
+
+    expect(screen.getAllByAltText('商家旅程第1步截图')).not.toHaveLength(0);
+    expect(screen.getAllByAltText('商家旅程第4步截图')).not.toHaveLength(0);
+    expect(screen.getAllByAltText('用户旅程第1步截图')).not.toHaveLength(0);
+    expect(screen.getAllByAltText('用户旅程第3步截图')).not.toHaveLength(0);
+    expect(screen.queryByAltText('用户旅程第4步截图')).not.toBeInTheDocument();
   });
 });
