@@ -60,10 +60,9 @@ function buildCachedResult({
   );
 }
 
-function expandAllVisibleAddOptionButtons() {
-  for (const button of screen.getAllByRole('button', { name: '添加选项' })) {
-    fireEvent.click(button);
-  }
+function expandNailShapeAddButtons() {
+  fireEvent.click(screen.getByRole('button', { name: /^\+\s*8$/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^\+\s*3$/ }));
 }
 
 describe('ComponentBreakdownPanel', () => {
@@ -73,14 +72,14 @@ describe('ComponentBreakdownPanel', () => {
     listMerchantPricingSettingsActionMock.mockResolvedValue([]);
   });
 
-  it('allows manually deselecting hydrated structure chips after hydration', async () => {
+  it('hydrates implied structure chips from the original structure selection and still allows deselecting them', async () => {
     renderPanel(
       buildCachedResult({
-        structureIds: new Set(['nail_tip_full_cover', 'builder_gel', 'nail_tip_half_cover']),
+        structureIds: new Set(['nail_tip_full_cover']),
       }),
     );
 
-    // hydration 后的 implied 结构项仍然要保留普通 chip 行为，用户可手动取消。
+    // 只输入原始结构项，真实走 hydration/派生路径，随后确认 implied chips 仍可手动取消。
     const builderGelChip = await screen.findByRole('button', { name: '建构' });
     const halfCoverTipChip = screen.getByRole('button', { name: '半贴甲片' });
     const fullCoverTipChip = screen.getByRole('button', { name: '全贴甲片' });
@@ -117,7 +116,7 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
 
     // 先点亮命中项，再通过 +N 展开剩余候选，是新交互必须锁定的行为。
-    expandAllVisibleAddOptionButtons();
+    expandNailShapeAddButtons();
 
     expect(screen.getByRole('button', { name: '方形' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '长甲' })).toBeInTheDocument();
