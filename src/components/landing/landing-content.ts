@@ -147,7 +147,8 @@ export const journeyRows = [
       {
         title: '立即预约',
         description:
-          '用户确认款式后，可以直接查看可预约时段，快速完成下单，减少反复沟通和等待。'
+          '用户确认款式后，可以直接查看可预约时段，快速完成下单，减少反复沟通和等待。',
+        screenshot: undefined
       }
     ]
   }
