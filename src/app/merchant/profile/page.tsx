@@ -23,7 +23,7 @@ const merchantProfileCopy = {
     openPricingRules: '打开定价规则',
     studioProfile: '门店资料',
     switchToCustomerView: '切换到顾客视图 ↗',
-    technicianWorkload: '技师工作负载',
+    technicianWorkload: '美甲师状态',
     unreadConversations: '未读对话',
     unreadConversationsDetail: '仍在等待你回复的顾客消息。',
     workspaceCopy: '在此快速了解门店概况，再前往日历或定价设置继续处理。',
@@ -38,7 +38,7 @@ const merchantProfileCopy = {
     openPricingRules: 'Open pricing rules',
     studioProfile: 'Studio profile',
     switchToCustomerView: 'Switch to customer view ↗',
-    technicianWorkload: 'Technician workload',
+    technicianWorkload: 'Nail artist status',
     unreadConversations: 'Unread conversations',
     unreadConversationsDetail: 'Conversations waiting for your reply.',
     workspaceCopy: 'Get a quick overview here, then head to your calendar or pricing settings.',
@@ -103,13 +103,13 @@ function MerchantProfileContent() {
         />
       </section>
 
+      <MerchantStylePreview />
+
       <TechnicianRosterCard
         bookings={bookings}
         technicians={mockTechnicians}
         title={copy.technicianWorkload}
       />
-
-      <MerchantStylePreview />
 
       <Link className="button button-primary button-block" href={getMerchantManagePath()}>
         {copy.openPricingRules}

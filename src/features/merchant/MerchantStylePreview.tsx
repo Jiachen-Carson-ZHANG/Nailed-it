@@ -11,15 +11,13 @@ export function MerchantStylePreview() {
   const { language } = useLanguage();
   const copy = {
     'zh-CN': {
-      eyebrow: '作品展示',
-      title: '你的款式集合',
-      manageLink: '管理款式集合',
+      title: '款式图册',
+      manageLink: '管理款式图册',
       empty: '先上传你的第一个款式，开始搭建顾客可见作品页。',
     },
     en: {
-      eyebrow: 'Showcase',
-      title: 'Your style collection',
-      manageLink: 'Manage collection',
+      title: 'Style lookbook',
+      manageLink: 'Manage lookbook',
       empty: 'Upload your first design to start the customer showcase.',
     },
   } as const;
@@ -36,10 +34,7 @@ export function MerchantStylePreview() {
   return (
     <section className="merchant-style-preview" aria-labelledby="merchant-style-preview-title">
       <div className="merchant-style-section-header">
-        <div>
-          <p className="section-eyebrow">{labels.eyebrow}</p>
-          <h2 id="merchant-style-preview-title">{labels.title}</h2>
-        </div>
+        <h2 className="merchant-style-preview-title" id="merchant-style-preview-title">{labels.title}</h2>
         <Link className="merchant-style-manage-link" href="/merchant/styles">
           {labels.manageLink} →
         </Link>
