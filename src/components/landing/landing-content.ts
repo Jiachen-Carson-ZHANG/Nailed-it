@@ -3,6 +3,7 @@ import type { StaticImageData } from 'next/image';
 import { getMockSession } from '@/domain/session';
 import aiRecognizingScreenshot from '@/landing_assets/screenshots/ai识别中.png';
 import aiBotScreenshot from '@/landing_assets/screenshots/ai_bot.png';
+import bookingScreenshot from '@/landing_assets/screenshots/book.png';
 import merchantCalendarScreenshot from '@/landing_assets/screenshots/商家日历.png';
 import merchantGalleryScreenshot from '@/landing_assets/screenshots/商家图册.png';
 import merchantInboxScreenshot from '@/landing_assets/screenshots/商家消息.png';
@@ -160,7 +161,7 @@ export const journeyRows = [
         title: '立即预约',
         description:
           '用户确认款式后，可以直接查看可预约时段，快速完成下单，减少反复沟通和等待。',
-        screenshot: undefined
+        screenshot: createScreenshot(bookingScreenshot, '用户旅程第4步截图')
       }
     ]
   }

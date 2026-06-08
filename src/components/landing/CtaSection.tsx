@@ -26,13 +26,13 @@ export function CtaSection() {
         <p className={styles.ctaSubtitle}>选择你的身份，进入 Nailed-it 的智能预约体验。</p>
         <div className={styles.ctaActions}>
           <MerchantEntryLink className={`${styles.buttonBase} ${styles.ctaMerchantButton}`}>
-            Try as Merchant
+            商家入口
           </MerchantEntryLink>
           <Link
             href={landingRoutes.customer}
             className={`${styles.buttonBase} ${styles.ctaCustomerButton}`}
           >
-            Try as User
+            用户入口
           </Link>
         </div>
       </div>
