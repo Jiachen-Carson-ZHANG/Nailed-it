@@ -34,6 +34,11 @@ const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cove
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
+const PANEL_TEXTURE_TO_COLOR_EFFECT_MAP = new Map<string, string>([
+  ['texture_translucent', 'jelly_translucent'],
+  ['texture_jelly', 'jelly_translucent'],
+  ['texture_matte', 'matte_top'],
+]);
 
 function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
   const impliedStructureIds = new Set<string>();
@@ -57,6 +62,25 @@ function mergeIdSets(...sets: ReadonlySet<string>[]): Set<string> {
     for (const id of source) merged.add(id);
   }
   return merged;
+}
+
+function foldPanelTextureIntoColorEffects(
+  texture: string | null,
+  colorEffectIds: Set<string>,
+): Set<string> {
+  const nextColorEffectIds = new Set(colorEffectIds);
+  if (!texture) return nextColorEffectIds;
+
+  // 中文注释：共享面板没有单独 texture 编辑入口，因此只把能映射到现有颜色效果 chip 的信号折叠进去。
+  const mappedColorEffectId = COLOR_EFFECT_IDS.includes(texture as (typeof COLOR_EFFECT_IDS)[number])
+    ? texture
+    : PANEL_TEXTURE_TO_COLOR_EFFECT_MAP.get(texture);
+
+  if (mappedColorEffectId) {
+    nextColorEffectIds.add(mappedColorEffectId);
+  }
+
+  return nextColorEffectIds;
 }
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
@@ -621,7 +645,6 @@ export function ComponentBreakdownPanel({
   });
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
-  const [texture,         setTexture]          = useState<string | null>(null);
   const [colorIds,        setColorIds]         = useState<Set<string>>(new Set());
   const [colorEffectIds,  setColorEffectIds]   = useState<Set<string>>(new Set());
   const [artIds,          setArtIds]           = useState<Set<string>>(new Set());
@@ -676,9 +699,8 @@ export function ComponentBreakdownPanel({
     });
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
-    setTexture(s.texture);
     setColorIds(s.colorIds);
-    setColorEffectIds(s.colorEffectIds);
+    setColorEffectIds(foldPanelTextureIntoColorEffects(s.texture, s.colorEffectIds));
     setArtIds(s.artIds);
     setDecoIds(s.decoIds);
     setQuantities(s.quantities);
@@ -718,12 +740,12 @@ export function ComponentBreakdownPanel({
 
   const breakdown = useMemo(
     () => buildBreakdownResult(
-      removalId, structureIds, nailShape, nailLength, texture,
+      removalId, structureIds, nailShape, nailLength, null,
       colorIds, colorEffectIds, artIds, decoIds, quantities,
       settingsById,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [removalId, structureIds, nailShape, nailLength, texture,
+    [removalId, structureIds, nailShape, nailLength,
      colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 

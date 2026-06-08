@@ -118,7 +118,7 @@ describe('ComponentBreakdownPanel', () => {
       buildCachedResult({
         nailShape: 'shape_almond',
         nailLength: 'length_short',
-        texture: 'matte_top',
+        texture: 'texture_matte',
         colorIds: new Set(['color_nude']),
       }),
     );
@@ -141,7 +141,7 @@ describe('ComponentBreakdownPanel', () => {
   it('shows legacy finish_service items inside the existing color effects bucket instead of a separate texture subgroup', () => {
     renderPanel(
       buildCachedResult({
-        texture: 'matte_top',
+        texture: 'texture_matte',
         colorIds: new Set(['color_nude']),
       }),
     );

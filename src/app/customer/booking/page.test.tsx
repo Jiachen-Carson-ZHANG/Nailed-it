@@ -257,6 +257,32 @@ describe('CustomerBookingPage', () => {
     });
   });
 
+  it('rewrites mappable texture signals through visible color effects when the booking page rehydrates a cached result', async () => {
+    const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
+    const cachedBreakdown = buildBreakdownResult(
+      null,
+      new Set(),
+      null,
+      null,
+      'texture_matte',
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+    saveBreakdownResult(cachedBreakdown);
+
+    renderBookingContent(<CustomerBookingContent skipToResult />);
+
+    await waitFor(() => {
+      const persistedSelections = getBreakdownResult()?.catalogSelections ?? [];
+      expect(persistedSelections).toContainEqual({ catalogItemId: 'matte_top', quantity: 1 });
+      expect(persistedSelections).not.toContainEqual({ catalogItemId: 'texture_matte', quantity: 1 });
+    });
+  });
+
   it('renders booking copy in English after switching language', async () => {
     renderBookingContent(<CustomerBookingContent />, 'en');
 
