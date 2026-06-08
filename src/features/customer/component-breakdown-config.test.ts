@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { catalogItems } from '@/mock/catalog';
 import {
   buildBreakdownFromConfig,
+  buildBreakdownFromSelections,
   buildBreakdownResult,
   seedStateFromBreakdown,
 } from './ComponentBreakdownPanel';
@@ -78,5 +79,16 @@ describe('buildBreakdownFromConfig', () => {
     );
     expect(rebuilt.totalPrice).toBe(88);
     expect(rebuilt.totalDuration).toBe(cached.totalDuration);
+  });
+
+  it('hydrates extension recognition with dependent builder gel and half cover tip chips', () => {
+    const recognized = buildBreakdownFromSelections([
+      { catalogItemId: 'extension_service', quantity: 1 },
+    ]);
+
+    const chip = seedStateFromBreakdown(recognized);
+
+    expect(chip.structureIds.has('builder_gel')).toBe(true);
+    expect(chip.structureIds.has('nail_tip_half_cover')).toBe(true);
   });
 });
