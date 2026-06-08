@@ -89,11 +89,19 @@ export function SolutionSection() {
         </div>
         <div className={styles.solutionBody}>
           <div className={styles.solutionVisual}>
-            <LandingScreenshot
-              alt={activeFeature.screenshot.alt}
-              src={activeFeature.screenshot.src}
-              variant="solution"
-            />
+            {featureTabs.map((feature) => (
+              <div
+                key={feature.key}
+                className={styles.solutionScreenshotSlot}
+                hidden={feature.key !== activeFeature.key}
+              >
+                <LandingScreenshot
+                  alt={feature.screenshot.alt}
+                  src={feature.screenshot.src}
+                  variant="solution"
+                />
+              </div>
+            ))}
           </div>
           <div className={styles.solutionPanelArea}>
             {featureTabs.map((feature) => {

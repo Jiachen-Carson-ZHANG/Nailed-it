@@ -251,6 +251,14 @@
   align-items: start;
 }
 
+.solutionScreenshotSlot {
+  grid-area: 1 / 1;
+}
+
+.solutionScreenshotSlot[hidden] {
+  display: none;
+}
+
 .solutionPanelArea {
   display: grid;
   align-self: stretch;
