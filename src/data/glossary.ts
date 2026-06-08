@@ -42,6 +42,7 @@ export type GlossaryEntry = {
   default_pricing_unit: string;
   quantity_supported: boolean | 'optional';
   complexity_supported: boolean | 'optional';
+  affects_booking_duration: boolean;
 };
 
 // CatalogItem tri-states ('yes' | 'no' | 'optional') → the glossary's boolean | 'optional'.
@@ -75,6 +76,7 @@ function toGlossaryEntry(item: CatalogItem): GlossaryEntry {
     default_pricing_unit: item.defaultPricingUnit,
     quantity_supported: triToBillable(item.quantitySupported),
     complexity_supported: item.complexitySupported === 'yes',
+    affects_booking_duration: item.affectsBookingDuration === 'yes',
   };
 }
 

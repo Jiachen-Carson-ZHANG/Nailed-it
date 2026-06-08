@@ -12,7 +12,7 @@ import {
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
-import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from '@/domain/session';
+import { getCustomerBookingPath, getCustomerMessagesPath, getCustomerStylePath, homePathForRole } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { useLanguage } from '@/i18n/context';
@@ -38,6 +38,8 @@ export default function CustomerBookingConfirmPage() {
   const draft = draftSnapshot?.draft ?? null;
   const [notes, setNotes] = useState('');
   const [availableDays, setAvailableDays] = useState<TechnicianSlotDay[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotChoice | null>(null);
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -63,9 +65,12 @@ export default function CustomerBookingConfirmPage() {
   // Availability now comes from the booking service (DB occupancy), not localStorage.
   useEffect(() => {
     if (!draft) {
+      setSlotsLoading(false);
       return undefined;
     }
     let active = true;
+    setSlotsLoading(true);
+    setSlotsError(null);
     const request = draft.styleId
       ? listAvailableSlotsForStyleAction(draft.styleId)
       : draft.catalogSelections?.length
@@ -73,10 +78,17 @@ export default function CustomerBookingConfirmPage() {
         : listAvailableSlotsAction(draft.estimate.duration);
     request
       .then((days) => {
-        if (active) setAvailableDays(days);
+        if (active) {
+          setAvailableDays(days);
+          setSlotsLoading(false);
+        }
       })
-      .catch(() => {
-        /* leave empty */
+      .catch((err) => {
+        console.error('listAvailableSlots failed', err);
+        if (active) {
+          setSlotsError(err instanceof Error ? err.message : 'unknown_error');
+          setSlotsLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -176,8 +188,20 @@ export default function CustomerBookingConfirmPage() {
       role="customer"
       title="Nailed-it"
     >
+      <div className="booking-steps" aria-label={t('booking.progress')}>
+        {[t('booking.steps.upload'), t('booking.steps.result'), t('booking.steps.quote')].map((label, index) => (
+          <span
+            key={label}
+            className={index <= 2 ? 'booking-step booking-step-active' : 'booking-step'}
+            aria-current={index === 2 ? 'step' : undefined}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
       <section className="page-heading">
-        <p className="section-eyebrow">{t('booking.confirm.eyebrow')}</p>
+        <p className="section-eyebrow">{t('booking.step3')}</p>
         <h2>{t('booking.confirm.heading')}</h2>
         <p className="section-copy">
           {t('booking.confirm.helper')}
@@ -203,6 +227,8 @@ export default function CustomerBookingConfirmPage() {
       <BookingTimeSelector
         days={availableDays}
         disabled={bookingLocked}
+        loading={slotsLoading}
+        error={slotsError}
         value={selectedSlot}
         onChange={setSelectedSlot}
       />
@@ -227,6 +253,14 @@ export default function CustomerBookingConfirmPage() {
               ? t('booking.confirm.confirmed')
               : t('booking.confirm.confirm')}
       </Button>
+      {!bookingLocked && (
+        <Link
+          className="button button-secondary button-block"
+          href={draft.styleId ? getCustomerStylePath(draft.styleId) : getCustomerBookingPath()}
+        >
+          {t('booking.confirm.back')}
+        </Link>
+      )}
       {createdBooking?.conversationId ? (
         <Link
           className="button button-secondary button-block"

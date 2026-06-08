@@ -202,10 +202,23 @@ export function CustomerBookingContent({
     if (step !== 'upload') setStep('upload');
   }
 
-  function persistCurrentDraft() {
-    // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
-    // price) rather than a flat recognition estimate.
-    // 中文注释：data URL 可能把 sessionStorage 撑爆，持久化草稿时只保留可安全存储的图片地址。
+
+function persistCurrentDraft() {
+  // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
+  // price) rather than a flat recognition estimate.
+  // 中文注释：data URL 可能把 sessionStorage 撑爆，持久化草稿时只保留可安全存储的图片地址。
+  const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
+
+  saveCustomerBookingDraft({
+    estimate,
+    imageUrl: persistableImageUrl,
+    recognition,
+    breakdowns,
+    catalogSelections: breakdowns.glossary?.catalogSelections,
+    styleId: hasPrefill ? prefillStyleId : undefined,
+    styleTitle: hasPrefill ? prefillTitle : undefined,
+  });
+}
     const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
     saveCustomerBookingDraft({
       estimate,
