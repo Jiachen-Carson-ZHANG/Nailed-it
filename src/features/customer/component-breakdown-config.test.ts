@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { catalogItems } from '@/mock/catalog';
 import {
   buildBreakdownFromConfig,
-  buildBreakdownFromSelections,
   buildBreakdownResult,
   seedStateFromBreakdown,
 } from './ComponentBreakdownPanel';
@@ -82,12 +81,24 @@ describe('buildBreakdownFromConfig', () => {
   });
 
   it('hydrates extension recognition with dependent builder gel and half cover tip chips', () => {
-    const recognized = buildBreakdownFromSelections([
-      { catalogItemId: 'extension_service', quantity: 1 },
-    ]);
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(['nail_tip_full_cover']),
+      null,
+      null,
+      null,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
 
     const chip = seedStateFromBreakdown(recognized);
 
+    expect(chip.structureIds.has('nail_tip_full_cover')).toBe(true);
     expect(chip.structureIds.has('builder_gel')).toBe(true);
     expect(chip.structureIds.has('nail_tip_half_cover')).toBe(true);
   });

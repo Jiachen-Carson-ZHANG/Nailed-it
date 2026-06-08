@@ -2,10 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import {
-  buildBreakdownFromConfig,
-  buildBreakdownFromSelections,
+  buildBreakdownResult,
   ComponentBreakdownPanel,
 } from './ComponentBreakdownPanel';
+import type { BreakdownResult } from '@/domain/nail';
+import { getDefaultSettings } from '@/data/glossary-settings-store';
 
 const { listMerchantPricingSettingsActionMock } = vi.hoisted(() => ({
   listMerchantPricingSettingsActionMock: vi.fn(),
@@ -15,11 +16,47 @@ vi.mock('@/lib/actions/merchant-pricing-actions', () => ({
   listMerchantPricingSettingsAction: listMerchantPricingSettingsActionMock,
 }));
 
-function renderPanel(cachedResult = buildBreakdownFromSelections([])) {
+function renderPanel(cachedResult = buildCachedResult()) {
   return render(
     <LanguageProvider initialLanguage="zh-CN" role="customer">
       <ComponentBreakdownPanel image={null} cachedResult={cachedResult} autoAnalyze={false} />
     </LanguageProvider>,
+  );
+}
+
+function buildCachedResult({
+  structureIds = new Set<string>(),
+  nailShape = null,
+  nailLength = null,
+  texture = null,
+  colorIds = new Set<string>(),
+  colorEffectIds = new Set<string>(),
+  artIds = new Set<string>(),
+  decoIds = new Set<string>(),
+}: {
+  structureIds?: Set<string>;
+  nailShape?: string | null;
+  nailLength?: string | null;
+  texture?: string | null;
+  colorIds?: Set<string>;
+  colorEffectIds?: Set<string>;
+  artIds?: Set<string>;
+  decoIds?: Set<string>;
+} = {}): BreakdownResult {
+  const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
+
+  return buildBreakdownResult(
+    null,
+    structureIds,
+    nailShape,
+    nailLength,
+    texture,
+    colorIds,
+    colorEffectIds,
+    artIds,
+    decoIds,
+    new Map(),
+    settingsById,
   );
 }
 
@@ -37,54 +74,110 @@ describe('ComponentBreakdownPanel', () => {
     listMerchantPricingSettingsActionMock.mockResolvedValue([]);
   });
 
-  it('renders a simplified nail shape section with only shape and length controls', () => {
+  it('allows manually deselecting hydrated implied structure chips after hydration', async () => {
     renderPanel(
-      buildBreakdownFromSelections([
-        { catalogItemId: 'shape_almond', quantity: 1 },
-        { catalogItemId: 'length_short', quantity: 1 },
-      ]),
+      buildCachedResult({
+        structureIds: new Set(['nail_tip_full_cover', 'builder_gel', 'nail_tip_half_cover']),
+      }),
+    );
+
+    // hydration 后的 implied 结构项仍然要保留普通 chip 行为，用户可手动取消。
+    const builderGelChip = await screen.findByRole('button', { name: '建构' });
+    const halfCoverTipChip = screen.getByRole('button', { name: '半贴甲片' });
+    const fullCoverTipChip = screen.getByRole('button', { name: '全贴甲片' });
+
+    expect(builderGelChip).toHaveAttribute('aria-pressed', 'true');
+    expect(halfCoverTipChip).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(builderGelChip);
+    fireEvent.click(halfCoverTipChip);
+
+    expect(builderGelChip).toHaveAttribute('aria-pressed', 'false');
+    expect(halfCoverTipChip).toHaveAttribute('aria-pressed', 'false');
+    expect(fullCoverTipChip).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('renders the simplified nail shape section with lit chips first and expands hidden options via +N', () => {
+    renderPanel(
+      buildCachedResult({
+        nailShape: 'shape_almond',
+        nailLength: 'length_short',
+        texture: 'matte_top',
+        colorIds: new Set(['color_nude']),
+      }),
     );
 
     // 新设计把旧的“甲型 / 颜色”收敛成单一“甲型”区块，只保留甲型和甲长。
     const shapeSection = getSectionByHeading('甲型');
+    const addButtons = within(shapeSection).getAllByRole('button', { name: '添加选项' });
+
     expect(screen.queryByRole('heading', { name: '甲型 / 颜色' })).not.toBeInTheDocument();
-    expect(within(shapeSection).getByText('甲长')).toBeInTheDocument();
+    expect(within(shapeSection).getByRole('button', { name: '杏仁形' })).toBeInTheDocument();
+    expect(within(shapeSection).getByRole('button', { name: '短甲' })).toBeInTheDocument();
     expect(within(shapeSection).queryByText('质感')).not.toBeInTheDocument();
     expect(within(shapeSection).queryByText('底色（可多选）')).not.toBeInTheDocument();
-    expect(within(shapeSection).getAllByRole('button', { name: /\+\s\d+/ }).length).toBeGreaterThan(0);
+    expect(within(shapeSection).queryByRole('button', { name: '方形' })).not.toBeInTheDocument();
+    expect(within(shapeSection).queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
+
+    // 先点亮命中项，再通过 +N 展开剩余候选，是新交互必须锁定的行为。
+    fireEvent.click(addButtons[0]);
+    fireEvent.click(addButtons[1]);
+
+    expect(within(shapeSection).getByRole('button', { name: '方形' })).toBeInTheDocument();
+    expect(within(shapeSection).getByRole('button', { name: '长甲' })).toBeInTheDocument();
   });
 
-  it('shows selected base color inside color effects instead of the old shape section', async () => {
-    renderPanel(buildBreakdownFromConfig([], ['裸色']));
-
-    const effectsSection = getSectionByHeading('款式效果');
-
-    // 底色迁入颜色效果后，颜色效果区应直接展示已识别的底色标签。
-    await waitFor(() => {
-      expect(within(effectsSection).getByText('裸色')).toBeInTheDocument();
-    });
-  });
-
-  it('keeps color, art, and decoration effect groups open at the same time', async () => {
+  it('shows base color inside the color effects bucket instead of the old shape section', () => {
     renderPanel(
-      buildBreakdownFromSelections([
-        { catalogItemId: 'solid_color', quantity: 1 },
-        { catalogItemId: 'french_tip_basic', quantity: 1 },
-        { catalogItemId: 'sticker', quantity: 1 },
-      ]),
+      buildCachedResult({
+        colorIds: new Set(['color_nude']),
+        colorEffectIds: new Set(['cat_eye']),
+      }),
     );
 
     const effectsSection = getSectionByHeading('款式效果');
 
+    // 底色标签和已选底色都必须出现在颜色效果 bucket 内，而不是留在旧的甲型区。
+    expect(within(effectsSection).getByText('底色（可多选）')).toBeInTheDocument();
+    expect(within(effectsSection).getByText('裸色')).toBeInTheDocument();
+    expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
+  });
+
+  it('keeps effect groups independently open and only closes the clicked section on second toggle', async () => {
+    renderPanel(
+      buildCachedResult({
+        colorEffectIds: new Set(['cat_eye']),
+        artIds: new Set(['french_tip_basic']),
+        decoIds: new Set(['sticker']),
+      }),
+    );
+
+    const effectsSection = getSectionByHeading('款式效果');
+    const colorToggle = screen.getByRole('button', { name: /颜色效果/ });
+    const artToggle = screen.getByRole('button', { name: /艺术效果/ });
+    const decoToggle = screen.getByRole('button', { name: /装饰效果/ });
+
     await waitFor(() => {
-      expect(within(effectsSection).getByText('纯色')).toBeInTheDocument();
+      expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /艺术效果/ }));
-    fireEvent.click(screen.getByRole('button', { name: /装饰效果/ }));
+    fireEvent.click(artToggle);
+    fireEvent.click(decoToggle);
 
-    expect(within(effectsSection).getByText('纯色')).toBeInTheDocument();
+    expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
     expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
     expect(within(effectsSection).getByText('贴纸')).toBeInTheDocument();
+
+    // 再次点击只关闭当前 bucket，其他已展开 bucket 应保持打开。
+    fireEvent.click(colorToggle);
+
+    expect(within(effectsSection).queryByText('猫眼色')).not.toBeInTheDocument();
+    expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
+    expect(within(effectsSection).getByText('贴纸')).toBeInTheDocument();
+
+    fireEvent.click(decoToggle);
+
+    expect(within(effectsSection).queryByText('贴纸')).not.toBeInTheDocument();
+    expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
   });
 });
