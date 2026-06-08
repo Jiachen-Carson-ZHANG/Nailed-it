@@ -11,6 +11,7 @@ import type {
 } from '@/domain/nail';
 import { findAvailableTechnicians } from '@/domain/scheduling';
 import type { MsInterval } from '@/domain/scheduling';
+import { quoteableStyleSelections } from '@/domain/style-selections';
 import type { RepositoryBundle } from '@/lib/repositories';
 import { getRepositories } from '@/lib/repositories';
 import { createAvailabilityService } from '@/lib/services/availability-service';
@@ -254,7 +255,7 @@ async function listAvailableSlotsForSelections(
         quote: await quoteService.buildQuote({
           merchantId: demoMerchantId,
           technicianId: technician.id,
-          selections,
+          selections: quoteableStyleSelections(selections),
         }),
       })),
     ),
@@ -508,7 +509,7 @@ async function createCatalogBooking(input: CreateCatalogBookingInput): Promise<B
   const quote = await createQuoteService(repos).buildQuote({
     merchantId: demoMerchantId,
     technicianId: input.technicianId,
-    selections: input.selections,
+    selections: quoteableStyleSelections(input.selections),
   });
   if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
   const available = await createAvailabilityService(repos).findAvailable({

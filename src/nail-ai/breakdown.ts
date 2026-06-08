@@ -182,6 +182,7 @@ function baseManicureItem(
     unit: 'set',
     price: setting.price ?? 0,
     duration: prepDuration > 0 ? prepDuration : (setting.duration ?? entry.default_duration_min),
+    affectsBookingDuration: entry.affects_booking_duration,
   };
 }
 
@@ -265,6 +266,7 @@ export function parseBreakdownModelOutput(
         unit: rawItem.unit,
         price,
         duration,
+        affectsBookingDuration: entry.affects_booking_duration,
       };
     });
   }
@@ -285,7 +287,12 @@ export function parseBreakdownModelOutput(
     items,
     catalogSelections,
     totalPrice: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    totalDuration: items.reduce((sum, item) => sum + item.duration, 0),
+    totalDuration: items
+      .filter((item) => item.affectsBookingDuration)
+      .reduce((sum, item) => {
+        const scales = item.unit === 'per_finger' || item.unit === 'per_piece';
+        return sum + (scales ? item.duration * item.quantity : item.duration);
+      }, 0),
     mode: 'glossary',
   };
 }

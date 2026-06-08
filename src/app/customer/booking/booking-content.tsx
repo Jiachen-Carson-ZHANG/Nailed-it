@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ImageUploader, type SelectedNailImage } from '@/components/ui/ImageUploader';
 import { MobileLayout } from '@/components/layout/MobileLayout';
@@ -55,6 +56,7 @@ export function CustomerBookingContent({
   skipToResult,
 }: CustomerBookingContentProps) {
   const { t, language } = useLanguage();
+  const router = useRouter();
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
 
@@ -177,9 +179,12 @@ export function CustomerBookingContent({
   function persistCurrentDraft() {
     // Carry the style id so the confirm step books the merchant's curated breakdown (server-derived
     // price) rather than a flat recognition estimate.
+    // Strip data: URLs from imageUrl before persisting — base64 images can exceed sessionStorage
+    // limits and cause a silent write failure, leaving the confirm page with no draft.
+    const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
     saveCustomerBookingDraft({
       estimate,
-      imageUrl,
+      imageUrl: persistableImageUrl,
       recognition,
       breakdowns,
       catalogSelections: breakdowns.glossary?.catalogSelections,
@@ -188,15 +193,34 @@ export function CustomerBookingContent({
     });
   }
 
-  function handleBreakdownResult(result: BreakdownResult) {
+  // When arriving from a style card, skip the quote step entirely — save the draft and go straight to confirm.
+  useEffect(() => {
+    if (!hasPrefill) return;
+    saveCustomerBookingDraft({
+      estimate,
+      imageUrl,
+      recognition,
+      breakdowns,
+      catalogSelections: breakdowns.glossary?.catalogSelections,
+      styleId: prefillStyleId,
+      styleTitle: prefillTitle,
+    });
+    router.replace(getCustomerBookingConfirmPath());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleBreakdownResult = useCallback((result: BreakdownResult) => {
     saveBreakdownResult(result);
     setBreakdowns({ glossary: getBreakdownResult() });
-  }
+  }, []);
 
   // 中文注释：只有拿到 breakdown 报价结果后，结果页才显示“查看我的报价”，
   // 这样分析中和失败态都会继续隐藏这个入口。
   const hasQuoteResult = Boolean(breakdowns.glossary);
   const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
+
+  // Suppress all rendering while the redirect to confirm is in flight.
+  if (hasPrefill) return null;
 
   return (
     <MobileLayout role="customer" title="Nailed-it">
@@ -271,9 +295,13 @@ export function CustomerBookingContent({
               ← {t('booking.upload.changePhoto')}
             </Button>
             {hasQuoteResult ? (
-              <Button block onClick={() => setStep('quote')}>
-                {t('booking.result.quoteCta')} →
-              </Button>
+              <Link
+                className="button button-primary button-block"
+                href={getCustomerBookingConfirmPath()}
+                onClick={persistCurrentDraft}
+              >
+                {t('booking.quote.next')}
+              </Link>
             ) : null}
           </div>
         </>

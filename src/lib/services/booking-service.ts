@@ -8,6 +8,7 @@ import type { BookingConversationThread } from '@/domain/nail';
 import type { RepositoryBundle } from '@/lib/repositories/types';
 import { createQuoteService, type QuoteSelection } from './quote-service';
 import { resolveSlot } from './timezone';
+import { quoteableStyleSelections } from '@/domain/style-selections';
 
 export type CreateBookingInput = {
   merchantId: string;
@@ -129,7 +130,7 @@ export function createBookingService(repos: RepositoryBundle): BookingService {
     const quote = await quoteService.buildQuote({
       merchantId: input.merchantId,
       technicianId: input.technicianId,
-      selections: input.selections,
+      selections: quoteableStyleSelections(input.selections),
     });
     if (quote.totalDurationMin <= 0) throw new Error('zero_duration');
 

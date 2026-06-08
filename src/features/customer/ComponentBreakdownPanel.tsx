@@ -100,6 +100,7 @@ function itemFromId(id: string, qty: number, settingsById: GlossarySettingMap): 
     unit,
     price: s?.price ?? 0,
     duration: s?.duration ?? entry.default_duration_min,
+    affectsBookingDuration: entry.affects_booking_duration,
   };
 }
 
@@ -108,10 +109,16 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
   const priced = items.filter((i) => PRICED.has(i.glossaryType));
   return {
     totalPrice: priced.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    totalDuration: priced.reduce(
-      (sum, i) => sum + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration),
-      0,
-    ),
+    totalDuration: priced
+      .filter((i) => i.affectsBookingDuration)
+      .reduce(
+        (sum, i) => {
+          // Mirror quote-service: only scale duration × quantity for per-unit items (per_finger / per_piece).
+          const scales = i.unit === 'per_finger' || i.unit === 'per_piece';
+          return sum + (scales ? i.duration * i.quantity : i.duration);
+        },
+        0,
+      ),
   };
 }
 
@@ -211,6 +218,11 @@ export function buildBreakdownFromConfig(
   for (const label of facetLabels) {
     const id = glossaryByName.get(label);
     if (id && !ids.has(id)) {
+      const entry = glossaryById.get(id);
+      // Only merge descriptive facets (shape, color, texture, visual attributes, style tags).
+      // Skip billable_component entries — if they weren't in catalogBreakdown they were
+      // deliberately excluded by the merchant pipeline and must not be re-injected here.
+      if (entry?.type === 'billable_component') continue;
       merged.push({ catalogItemId: id, quantity: 1 });
       ids.add(id);
     }
@@ -477,6 +489,8 @@ type ComponentBreakdownPanelProps = {
   // When false, a (possibly late-loaded) image is kept only for 重新分析 and never auto-analyzed —
   // used by the merchant re-edit, which seeds from cachedResult and must not overwrite it.
   autoAnalyze?: boolean;
+  // Hide the re-analyse button (customer style detail view doesn't need it).
+  showReanalyze?: boolean;
 };
 
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
@@ -535,6 +549,7 @@ export function ComponentBreakdownPanel({
   showRemoval = true,
   footer,
   autoAnalyze = true,
+  showReanalyze = true,
 }: ComponentBreakdownPanelProps) {
   const { language, t } = useLanguage();
   const copy = breakdownPanelCopy[language];
@@ -545,7 +560,7 @@ export function ComponentBreakdownPanel({
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
-  const [structureIds,    setStructureIds]     = useState<Set<string>>(new Set(['builder_gel']));
+  const [structureIds,    setStructureIds]     = useState<Set<string>>(new Set());
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
   const [texture,         setTexture]          = useState<string | null>(null);
@@ -773,11 +788,13 @@ export function ComponentBreakdownPanel({
       <PriceTable breakdown={breakdown} language={language} copy={copy} />
 
       {/* ── Re-analyse ── */}
-      <div style={{ padding: '0.75rem 0' }}>
-        <Button block size="compact" variant="secondary" disabled={isLoading} onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>
-          {copy.reanalyze}
-        </Button>
-      </div>
+      {showReanalyze && (
+        <div style={{ padding: '0.75rem 0' }}>
+          <Button block size="compact" variant="secondary" disabled={isLoading} onClick={() => { lastAnalysedRef.current = null; void runAnalysis(); }}>
+            {copy.reanalyze}
+          </Button>
+        </div>
+      )}
 
       {/* ── Extra actions (merchant: Save / Publish) ── */}
       {footer}

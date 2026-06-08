@@ -12,7 +12,7 @@ import {
   readCustomerBookingDraftSnapshot
 } from '@/domain/booking-draft';
 import type { Booking } from '@/domain/nail';
-import { getCustomerBookingPath, getCustomerMessagesPath, homePathForRole } from '@/domain/session';
+import { getCustomerBookingPath, getCustomerMessagesPath, getCustomerStylePath, homePathForRole } from '@/domain/session';
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { useLanguage } from '@/i18n/context';
@@ -176,8 +176,20 @@ export default function CustomerBookingConfirmPage() {
       role="customer"
       title="Nailed-it"
     >
+      <div className="booking-steps" aria-label={t('booking.progress')}>
+        {[t('booking.steps.upload'), t('booking.steps.result'), t('booking.steps.quote')].map((label, index) => (
+          <span
+            key={label}
+            className={index <= 2 ? 'booking-step booking-step-active' : 'booking-step'}
+            aria-current={index === 2 ? 'step' : undefined}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
       <section className="page-heading">
-        <p className="section-eyebrow">{t('booking.confirm.eyebrow')}</p>
+        <p className="section-eyebrow">{t('booking.step3')}</p>
         <h2>{t('booking.confirm.heading')}</h2>
         <p className="section-copy">
           {t('booking.confirm.helper')}
@@ -227,6 +239,14 @@ export default function CustomerBookingConfirmPage() {
               ? t('booking.confirm.confirmed')
               : t('booking.confirm.confirm')}
       </Button>
+      {!bookingLocked && (
+        <Link
+          className="button button-secondary button-block"
+          href={draft.styleId ? getCustomerStylePath(draft.styleId) : getCustomerBookingPath()}
+        >
+          {t('booking.confirm.back')}
+        </Link>
+      )}
       {createdBooking?.conversationId ? (
         <Link
           className="button button-secondary button-block"

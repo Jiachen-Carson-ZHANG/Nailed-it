@@ -1,4 +1,5 @@
 import type { CatalogSelection } from '@/domain/catalog';
+import { catalogItems } from '@/mock/catalog';
 
 /** Every bookable nail set includes base prep — ai_detectable=no so models never emit it. */
 export const BASE_MANICURE_CATALOG_ID = 'basic_manicure_service';
@@ -14,6 +15,16 @@ const NON_QUOTE_SERVICE_MODULE_IDS = new Set([
   'finish_service',
 ]);
 
+/**
+ * Items that have no default price AND require a merchant-set price — quoting them throws
+ * unresolved_pricing. Build the set once from the catalog at module load time.
+ */
+const UNRESOLVABLE_IDS = new Set(
+  catalogItems
+    .filter((item) => item.defaultPriceCents === null && item.merchantPriceRequired === 'yes')
+    .map((item) => item.id),
+);
+
 /** Prepend the base manicure floor when style layers omit it (matches server publish/quote). */
 export function withBaseManicure(selections: CatalogSelection[]): CatalogSelection[] {
   if (selections.some((selection) => selection.catalogItemId === BASE_MANICURE_CATALOG_ID)) {
@@ -22,7 +33,11 @@ export function withBaseManicure(selections: CatalogSelection[]): CatalogSelecti
   return [{ catalogItemId: BASE_MANICURE_CATALOG_ID, quantity: 1 }, ...selections];
 }
 
-/** Strip container modules before quoting — callers still run {@link withBaseManicure} after. */
+/** Strip container modules and unresolvable items before quoting — callers still run {@link withBaseManicure} after. */
 export function quoteableStyleSelections(selections: CatalogSelection[]): CatalogSelection[] {
-  return selections.filter((selection) => !NON_QUOTE_SERVICE_MODULE_IDS.has(selection.catalogItemId));
+  return selections.filter(
+    (selection) =>
+      !NON_QUOTE_SERVICE_MODULE_IDS.has(selection.catalogItemId) &&
+      !UNRESOLVABLE_IDS.has(selection.catalogItemId),
+  );
 }
