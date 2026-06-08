@@ -2543,6 +2543,14 @@ select {
   gap: 0.9rem;
 }
 
+/* Single-column grids size to their widest child's max-content by default, which let a long
+   message / appointment card push the whole chat past the viewport. Pin the column to the
+   container width so children shrink instead. */
+.chat-room,
+.chat-thread {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .messages-footer-hint {
   margin: 1rem 0 0;
   padding: 0.75rem 1rem;
