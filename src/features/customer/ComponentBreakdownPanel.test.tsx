@@ -138,7 +138,7 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.getByRole('button', { name: '长甲' })).toBeInTheDocument();
   });
 
-  it('renders texture as a visible editable subgroup inside the color effects bucket', () => {
+  it('shows legacy finish_service items inside the existing color effects bucket instead of a separate texture subgroup', () => {
     renderPanel(
       buildCachedResult({
         texture: 'matte_top',
@@ -146,7 +146,7 @@ describe('ComponentBreakdownPanel', () => {
       }),
     );
 
-    expect(screen.getByText('质感')).toBeInTheDocument();
+    expect(screen.queryByText('质感')).not.toBeInTheDocument();
 
     const textureChip = screen.getByRole('button', { name: '磨砂色' });
     expect(textureChip).toHaveAttribute('aria-pressed', 'true');

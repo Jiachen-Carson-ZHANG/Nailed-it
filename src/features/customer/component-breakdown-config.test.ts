@@ -140,14 +140,35 @@ describe('buildBreakdownFromConfig', () => {
     expect(rebuilt.totalPrice).toBe(recognized.totalPrice);
   });
 
-  it('preserves texture in round-trip serialization even when the customer panel no longer renders a texture row', () => {
+  it('hydrates legacy finish_service items as color effects instead of hidden texture state', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(),
+      null,
+      null,
+      'matte_top',
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    expect(chip.texture).toBeNull();
+    expect(chip.colorEffectIds.has('matte_top')).toBe(true);
+  });
+
+  it('preserves pure texture round-trip serialization contract', () => {
     const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
     const recognized = buildBreakdownResult(
       null,
       new Set(),
       'shape_almond',
       'length_short',
-      'matte_top',
+      'texture_matte',
       new Set(['color_nude']),
       new Set(),
       new Set(),
@@ -157,7 +178,7 @@ describe('buildBreakdownFromConfig', () => {
     );
 
     const chip = seedStateFromBreakdown(recognized);
-    expect(chip.texture).toBe('matte_top');
+    expect(chip.texture).toBe('texture_matte');
 
     const rebuilt = buildBreakdownResult(
       chip.removalId,
@@ -173,7 +194,7 @@ describe('buildBreakdownFromConfig', () => {
       settingsById,
     );
 
-    expect(rebuilt.catalogSelections).toContainEqual({ catalogItemId: 'matte_top', quantity: 1 });
-    expect(rebuilt.items.some((item) => item.glossaryId === 'matte_top')).toBe(true);
+    expect(rebuilt.catalogSelections).toContainEqual({ catalogItemId: 'texture_matte', quantity: 1 });
+    expect(rebuilt.items.some((item) => item.glossaryId === 'texture_matte')).toBe(true);
   });
 });

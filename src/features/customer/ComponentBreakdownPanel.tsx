@@ -34,12 +34,6 @@ const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cove
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
-const TEXTURE_IDS   = glossaryEntries
-  .filter((entry) => entry.parent_id === 'finish_service' && entry.type === 'billable_component')
-  .map((entry) => entry.id);
-const TEXTURE_ID_SET = new Set(TEXTURE_IDS);
-const DISPLAY_COLOR_EFFECT_IDS = COLOR_EFFECT_IDS.filter((id) => !TEXTURE_ID_SET.has(id));
-const LEGACY_TEXTURE_PARENT_IDS = new Set(['finish_service']);
 
 function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
   const impliedStructureIds = new Set<string>();
@@ -90,7 +84,7 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
       nailShape = item.glossaryId;
     } else if (cat === 'nail_length') {
       nailLength = item.glossaryId;
-    } else if (cat === 'texture' || LEGACY_TEXTURE_PARENT_IDS.has(entry?.parent_id ?? '')) {
+    } else if (cat === 'texture') {
       texture = item.glossaryId;
     } else if (cat === 'color') {
       colorIds.add(item.glossaryId);
@@ -344,18 +338,16 @@ function ChipGroup({
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
 function EffectsSection({
-  texture, colorIds, colorEffectIds, artIds, decoIds, quantities,
-  onTextureToggle, onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  colorIds, colorEffectIds, artIds, decoIds, quantities,
+  onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
   language,
   copy,
 }: {
-  texture: string | null;
   colorIds: Set<string>;
   colorEffectIds: Set<string>;
   artIds: Set<string>;
   decoIds: Set<string>;
   quantities: Map<string, number>;
-  onTextureToggle: (id: string) => void;
   onColorToggle: (id: string) => void;
   onColorEffectToggle: (id: string) => void;
   onArtToggle: (id: string) => void;
@@ -370,11 +362,11 @@ function EffectsSection({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0 && !texture)) {
+    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0)) {
       return;
     }
     setOpenSections(new Set(['color']));
-  }, [colorEffectIds, colorIds, hasInteracted, openSections, texture]);
+  }, [colorEffectIds, colorIds, hasInteracted, openSections]);
 
   const toggle = (section: 'color' | 'art' | 'deco') => {
     setHasInteracted(true);
@@ -400,20 +392,6 @@ function EffectsSection({
         </button>
         {openSections.has('color') && (
           <div className="manage-accordion-body">
-            {TEXTURE_IDS.length > 0 && (
-              <div className="analyze-accordion-subgroup">
-                <div className="analyze-accordion-subgroup-label">{copy.texture}</div>
-                <ChipGroup
-                  ids={TEXTURE_IDS}
-                  activeIds={texture}
-                  mode="single"
-                  onToggle={onTextureToggle}
-                  showAdd
-                  language={language}
-                  copy={copy}
-                />
-              </div>
-            )}
             <div className="analyze-accordion-subgroup">
               <div className="analyze-accordion-subgroup-label">{copy.baseColor}</div>
               <ChipGroup
@@ -426,7 +404,7 @@ function EffectsSection({
               />
             </div>
             <ChipGroup
-              ids={DISPLAY_COLOR_EFFECT_IDS}
+              ids={[...COLOR_EFFECT_IDS]}
               activeIds={colorEffectIds}
               onToggle={onColorEffectToggle}
               showAdd
@@ -887,13 +865,11 @@ export function ComponentBreakdownPanel({
 
       {/* ── 款式效果 (accordion) ── */}
       <EffectsSection
-        texture={texture}
         colorIds={colorIds}
         colorEffectIds={colorEffectIds}
         artIds={artIds}
         decoIds={decoIds}
         quantities={quantities}
-        onTextureToggle={(id) => toggleSingle(texture, setTexture, id)}
         onColorToggle={(id) => toggleSet(setColorIds, id)}
         onColorEffectToggle={(id) => toggleSet(setColorEffectIds, id)}
         onArtToggle={(id) => toggleSet(setArtIds, id)}
