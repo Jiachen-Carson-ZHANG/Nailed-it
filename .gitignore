@@ -49,3 +49,6 @@ AGENTS.md
 # macOS junk
 .DS_Store
 **/.DS_Store
+
+# Local git worktrees
+.worktrees/

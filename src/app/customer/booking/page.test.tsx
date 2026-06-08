@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
+import { clearBreakdownResults } from '@/domain/breakdown-store';
 import { LanguageProvider } from '@/i18n/context';
 import { CustomerBookingContent } from './booking-content';
 
@@ -12,6 +13,7 @@ vi.mock('next/navigation', () => ({
 
 describe('CustomerBookingPage', () => {
   afterEach(() => {
+    clearBreakdownResults();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -30,8 +32,23 @@ describe('CustomerBookingPage', () => {
   it('walks through the three-step booking flow and persists the draft', async () => {
     // Recognition runs against the live endpoint now that the example shortcut is gone; the breakdown
     // panel fetch in step 2 hits the same mock and is handled gracefully if the shape doesn't match.
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === '/api/ai/breakdown') {
+        return new Response(
+          JSON.stringify({
+            items: [],
+            catalogSelections: [],
+            totalPrice: 0,
+            totalDuration: 0,
+            mode: 'glossary'
+          }),
+          { headers: { 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+
+      return new Response(
         JSON.stringify({
           recognition: {
             selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'Sample look.' },
@@ -39,8 +56,8 @@ describe('CustomerBookingPage', () => {
           }
         }),
         { headers: { 'Content-Type': 'application/json' }, status: 200 }
-      )
-    );
+      );
+    });
 
     renderBookingContent(<CustomerBookingContent />);
 
@@ -60,6 +77,10 @@ describe('CustomerBookingPage', () => {
     // Step 2: Result — style detected
     await screen.findByRole('heading', { name: '款式识别结果' });
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /查看我的报价/i })).toBeInTheDocument();
+    });
+
     fireEvent.click(screen.getByRole('button', { name: /查看我的报价/i }));
 
     // Step 3: Quote
@@ -77,6 +98,50 @@ describe('CustomerBookingPage', () => {
           otherNotes: expect.any(String)
         }
       }
+    });
+  });
+
+  it('keeps the quote CTA hidden until a quote result exists', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === '/api/ai/breakdown') {
+        return new Response(
+          JSON.stringify({
+            items: [],
+            catalogSelections: [],
+            totalPrice: 0,
+            totalDuration: 0,
+            mode: 'glossary'
+          }),
+          { headers: { 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          recognition: {
+            selection: { baseServices: [], nailShape: 'oval', styles: ['french'], addons: [], otherNotes: 'Sample look.' },
+            meta: { confidence: 0.9, aiSuggestedQuote: { source: 'ai_suggestion', price: 0, duration: 0 } }
+          }
+        }),
+        { headers: { 'Content-Type': 'application/json' }, status: 200 }
+      );
+    });
+
+    renderBookingContent(<CustomerBookingContent />);
+
+    const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('选择美甲参考图'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'AI智能识别' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'AI智能识别' }));
+
+    await screen.findByRole('heading', { name: '款式识别结果' });
+    expect(screen.queryByRole('button', { name: /查看我的报价/i })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /查看我的报价/i })).toBeInTheDocument();
     });
   });
 
