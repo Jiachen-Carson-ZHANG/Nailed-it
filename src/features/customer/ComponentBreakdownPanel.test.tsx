@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import {
@@ -61,8 +61,14 @@ function buildCachedResult({
 }
 
 function expandNailShapeAddButtons() {
-  fireEvent.click(screen.getByRole('button', { name: /^\+\s*8$/ }));
-  fireEvent.click(screen.getByRole('button', { name: /^\+\s*3$/ }));
+  const shapeChipGroup = screen.getByRole('button', { name: '杏仁形' }).parentElement;
+  const lengthChipGroup = screen.getByRole('button', { name: '短甲' }).parentElement;
+
+  expect(shapeChipGroup).not.toBeNull();
+  expect(lengthChipGroup).not.toBeNull();
+
+  fireEvent.click(within(shapeChipGroup as HTMLElement).getByRole('button', { name: '添加选项' }));
+  fireEvent.click(within(lengthChipGroup as HTMLElement).getByRole('button', { name: '添加选项' }));
 }
 
 describe('ComponentBreakdownPanel', () => {
