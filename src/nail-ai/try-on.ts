@@ -1,7 +1,10 @@
 import type { TryOnResult } from '@/domain/nail';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
-export const defaultTryOnModel = 'google/gemini-3.1-flash-image-preview';
+const DEFAULT_ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
+
+export const defaultTryOnModel = 'doubao-seedream-5.0-litenew';
+export const defaultTryOnValidationModel = 'doubao-seed-2-0-lite-260215';
 
 export class TryOnError extends Error {
   constructor(
@@ -47,39 +50,33 @@ export async function runTryOn(
   styleMimeType: string,
   env = process.env
 ): Promise<TryOnResult> {
-  const apiKey = env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new TryOnError('missing_config', 'OPENROUTER_API_KEY is required for try-on.');
+  const apiKey = env.ARK_API_KEY;
+  if (!apiKey) throw new TryOnError('missing_config', 'ARK_API_KEY is required for try-on.');
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultTryOnModel;
+  const validationModel = env.ARK_VISION_MODEL ?? defaultTryOnValidationModel;
+  const generationModel = env.ARK_IMAGE_MODEL ?? defaultTryOnModel;
+  const baseUrl = env.ARK_BASE_URL ?? DEFAULT_ARK_BASE_URL;
 
   // ── Step 1: validate both images before running the expensive generation ──────
-  await validateImages({ apiKey, model, handImageBase64, handMimeType, styleImageBase64, styleMimeType });
+  await validateImages({ apiKey, model: validationModel, handImageBase64, handMimeType, styleImageBase64, styleMimeType });
 
   // ── Step 2: run the actual try-on ─────────────────────────────────────────────
   let data: unknown;
   try {
-    data = await postOpenRouterChat(
-      {
-        model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: `data:${handMimeType};base64,${handImageBase64}` } },
-              { type: 'image_url', image_url: { url: `data:${styleMimeType};base64,${styleImageBase64}` } },
-              { type: 'text', text: tryOnPrompt }
-            ]
-          }
-        ],
-        modalities: ['image', 'text']
-      },
-      apiKey
-    );
+    data = await postArkTryOnGeneration({
+      apiKey,
+      baseUrl,
+      model: generationModel,
+      handImageBase64,
+      handMimeType,
+      styleImageBase64,
+      styleMimeType
+    });
   } catch (error) {
-    throw new TryOnError('provider_error', 'OpenRouter try-on request failed.', { cause: error });
+    throw new TryOnError('provider_error', 'Ark try-on request failed.', { cause: error });
   }
 
-  return extractImageFromResponse(data);
+  return extractImageFromArkGeneration(data);
 }
 
 async function validateImages(opts: {
@@ -109,7 +106,7 @@ async function validateImages(opts: {
       opts.apiKey
     );
   } catch (error) {
-    throw new TryOnError('provider_error', 'OpenRouter validation request failed.', { cause: error });
+    throw new TryOnError('provider_error', 'Ark validation request failed.', { cause: error });
   }
 
   let result: Record<string, unknown>;
@@ -131,20 +128,49 @@ async function validateImages(opts: {
   if (combined) throw new TryOnError('invalid_input', combined);
 }
 
-function extractImageFromResponse(data: unknown): TryOnResult {
-  const record = asRecord(data);
-  const choices = Array.isArray(record.choices) ? record.choices : [];
-  const message = asRecord(asRecord(choices[0]).message);
-  const images = Array.isArray(message.images) ? message.images : [];
+async function postArkTryOnGeneration(opts: {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  handImageBase64: string;
+  handMimeType: string;
+  styleImageBase64: string;
+  styleMimeType: string;
+}): Promise<unknown> {
+  const response = await fetch(`${opts.baseUrl}/images/generations`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      prompt: tryOnPrompt,
+      image: [
+        `data:${opts.handMimeType};base64,${opts.handImageBase64}`,
+        `data:${opts.styleMimeType};base64,${opts.styleImageBase64}`
+      ],
+      response_format: 'b64_json',
+      sequential_image_generation: 'disabled',
+      watermark: false
+    })
+  });
 
-  if (images.length > 0) {
-    const dataUrl = String(asRecord(asRecord(images[0]).image_url).url ?? '');
-    if (dataUrl.includes(',')) {
-      const [header, base64] = dataUrl.split(',', 2);
-      const mimeType = header.includes('jpeg') ? 'image/jpeg' : 'image/png';
-      return { imageBase64: base64, mimeType };
-    }
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(`Ark image generation error ${response.status}: ${JSON.stringify(json)}`);
+  }
+  return json;
+}
+
+export function extractImageFromArkGeneration(data: unknown): TryOnResult {
+  const record = asRecord(data);
+  const items = Array.isArray(record.data) ? record.data : [];
+  const base64 = typeof asRecord(items[0]).b64_json === 'string' ? String(asRecord(items[0]).b64_json) : '';
+
+  if (base64) {
+    return { imageBase64: base64, mimeType: 'image/png' };
   }
 
-  throw new TryOnError('invalid_model_output', 'OpenRouter try-on response did not include an image.');
+  throw new TryOnError('invalid_model_output', 'Ark try-on response did not include an image.');
 }
