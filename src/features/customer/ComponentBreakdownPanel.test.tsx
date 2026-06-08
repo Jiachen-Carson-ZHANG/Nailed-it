@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import {
@@ -60,11 +60,10 @@ function buildCachedResult({
   );
 }
 
-function getSectionByHeading(name: string) {
-  const heading = screen.getByRole('heading', { name });
-  const section = heading.closest('.analyze-section');
-  expect(section).not.toBeNull();
-  return section as HTMLElement;
+function expandAllVisibleAddOptionButtons() {
+  for (const button of screen.getAllByRole('button', { name: '添加选项' })) {
+    fireEvent.click(button);
+  }
 }
 
 describe('ComponentBreakdownPanel', () => {
@@ -74,7 +73,7 @@ describe('ComponentBreakdownPanel', () => {
     listMerchantPricingSettingsActionMock.mockResolvedValue([]);
   });
 
-  it('allows manually deselecting hydrated implied structure chips after hydration', async () => {
+  it('allows manually deselecting hydrated structure chips after hydration', async () => {
     renderPanel(
       buildCachedResult({
         structureIds: new Set(['nail_tip_full_cover', 'builder_gel', 'nail_tip_half_cover']),
@@ -108,23 +107,20 @@ describe('ComponentBreakdownPanel', () => {
     );
 
     // 新设计把旧的“甲型 / 颜色”收敛成单一“甲型”区块，只保留甲型和甲长。
-    const shapeSection = getSectionByHeading('甲型');
-    const addButtons = within(shapeSection).getAllByRole('button', { name: '添加选项' });
-
     expect(screen.queryByRole('heading', { name: '甲型 / 颜色' })).not.toBeInTheDocument();
-    expect(within(shapeSection).getByRole('button', { name: '杏仁形' })).toBeInTheDocument();
-    expect(within(shapeSection).getByRole('button', { name: '短甲' })).toBeInTheDocument();
-    expect(within(shapeSection).queryByText('质感')).not.toBeInTheDocument();
-    expect(within(shapeSection).queryByText('底色（可多选）')).not.toBeInTheDocument();
-    expect(within(shapeSection).queryByRole('button', { name: '方形' })).not.toBeInTheDocument();
-    expect(within(shapeSection).queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '甲型' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '杏仁形' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '短甲' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('质感')).not.toBeInTheDocument();
+    expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '方形' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
 
     // 先点亮命中项，再通过 +N 展开剩余候选，是新交互必须锁定的行为。
-    fireEvent.click(addButtons[0]);
-    fireEvent.click(addButtons[1]);
+    expandAllVisibleAddOptionButtons();
 
-    expect(within(shapeSection).getByRole('button', { name: '方形' })).toBeInTheDocument();
-    expect(within(shapeSection).getByRole('button', { name: '长甲' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '方形' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '长甲' })).toBeInTheDocument();
   });
 
   it('shows base color inside the color effects bucket instead of the old shape section', () => {
@@ -135,12 +131,18 @@ describe('ComponentBreakdownPanel', () => {
       }),
     );
 
-    const effectsSection = getSectionByHeading('款式效果');
+    const colorToggle = screen.getByRole('button', { name: /颜色效果/ });
 
-    // 底色标签和已选底色都必须出现在颜色效果 bucket 内，而不是留在旧的甲型区。
-    expect(within(effectsSection).getByText('底色（可多选）')).toBeInTheDocument();
-    expect(within(effectsSection).getByText('裸色')).toBeInTheDocument();
-    expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
+    // 若底色确实属于颜色效果 bucket，那么关闭该 bucket 后，底色标签和底色选项都应一起消失。
+    expect(screen.getByText('底色（可多选）')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '裸色' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '猫眼色' })).toBeInTheDocument();
+
+    fireEvent.click(colorToggle);
+
+    expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '裸色' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '猫眼色' })).not.toBeInTheDocument();
   });
 
   it('keeps effect groups independently open and only closes the clicked section on second toggle', async () => {
@@ -152,32 +154,31 @@ describe('ComponentBreakdownPanel', () => {
       }),
     );
 
-    const effectsSection = getSectionByHeading('款式效果');
     const colorToggle = screen.getByRole('button', { name: /颜色效果/ });
     const artToggle = screen.getByRole('button', { name: /艺术效果/ });
     const decoToggle = screen.getByRole('button', { name: /装饰效果/ });
 
     await waitFor(() => {
-      expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '猫眼色' })).toBeInTheDocument();
     });
 
     fireEvent.click(artToggle);
     fireEvent.click(decoToggle);
 
-    expect(within(effectsSection).getByText('猫眼色')).toBeInTheDocument();
-    expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
-    expect(within(effectsSection).getByText('贴纸')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '猫眼色' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '普通法式' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '贴纸' })).toBeInTheDocument();
 
     // 再次点击只关闭当前 bucket，其他已展开 bucket 应保持打开。
     fireEvent.click(colorToggle);
 
-    expect(within(effectsSection).queryByText('猫眼色')).not.toBeInTheDocument();
-    expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
-    expect(within(effectsSection).getByText('贴纸')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '猫眼色' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '普通法式' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '贴纸' })).toBeInTheDocument();
 
     fireEvent.click(decoToggle);
 
-    expect(within(effectsSection).queryByText('贴纸')).not.toBeInTheDocument();
-    expect(within(effectsSection).getByText('法式')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '贴纸' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '普通法式' })).toBeInTheDocument();
   });
 });
