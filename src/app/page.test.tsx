@@ -112,6 +112,7 @@ describe('LandingPage', () => {
     expect(screen.getByRole('heading', { name: '少沟通，多成交' })).toBeInTheDocument();
     expect(screen.getByText('好看的款式背后，是低效的预约流程')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'AI 识图' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'AI运营助手' })).toBeInTheDocument();
     expect(
       screen.getByText((_, element) => element?.textContent === '试戴选款帮助决策')
     ).toBeInTheDocument();
@@ -138,6 +139,12 @@ describe('LandingPage', () => {
     expect(within(solution).getByRole('heading', { name: '商家图册' })).toBeInTheDocument();
     expect(within(solution).getByText('自动归档，持续种草')).toBeInTheDocument();
     expect(within(solution).getByAltText('商家图册截图')).toBeInTheDocument();
+
+    await user.click(within(solution).getByRole('tab', { name: 'AI运营助手' }));
+
+    expect(within(solution).getByRole('heading', { name: 'AI运营助手' })).toBeInTheDocument();
+    expect(within(solution).getByText('真实数据，个性分析')).toBeInTheDocument();
+    expect(within(solution).getByAltText('AI运营助手截图')).toBeInTheDocument();
   });
 
   it('queues the merchant first-visit hint when a merchant entry is clicked for the first time', async () => {

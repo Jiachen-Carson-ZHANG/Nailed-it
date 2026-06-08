@@ -2,6 +2,7 @@ import type { StaticImageData } from 'next/image';
 
 import { getMockSession } from '@/domain/session';
 import aiRecognizingScreenshot from '@/landing_assets/screenshots/ai识别中.png';
+import aiBotScreenshot from '@/landing_assets/screenshots/ai_bot.png';
 import merchantCalendarScreenshot from '@/landing_assets/screenshots/商家日历.png';
 import merchantGalleryScreenshot from '@/landing_assets/screenshots/商家图册.png';
 import merchantInboxScreenshot from '@/landing_assets/screenshots/商家消息.png';
@@ -85,6 +86,17 @@ export const featureTabs = [
     paragraphs: [
       '每完成一个订单，系统提醒美甲师上传完成图，并自动识别款式特征、分类打标，沉淀为商家的专属图册。',
       '商家可以快速管理历史作品、展示热门款式造成持续转化，也可以追踪用户偏好和流行趋势。'
+    ]
+  },
+  {
+    key: 'assistant',
+    tabLabel: 'AI运营助手',
+    title: 'AI运营助手',
+    subtitle: '真实数据，个性分析',
+    screenshot: createScreenshot(aiBotScreenshot, 'AI运营助手截图'),
+    paragraphs: [
+      'Nailed AI 助手连接商家的真实运营数据，自动分析成交漏斗的关键指标，生成每日 / 每周门店简报，帮助商家了解当前经营情况、用户转化路径和业务变化。',
+      '同时，AI 会识别热门款式和上升趋势，并通过消息页面主动推送，让商家不只看到数据，更能知道下一步该主推什么、优化什么。'
     ]
   }
 ] as const;

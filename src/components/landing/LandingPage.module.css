@@ -259,7 +259,7 @@
 
 .solutionTabList {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.6rem;
 }
 
@@ -267,11 +267,11 @@
   width: 100%;
   min-width: 0;
   min-height: 3.2rem;
-  padding: 0.65rem 0.7rem;
+  padding: 0.6rem 0.45rem;
   border: 0;
   border-radius: 999px;
   color: var(--landing-deep);
-  font-size: clamp(0.76rem, 2.7vw, 0.9rem);
+  font-size: clamp(0.68rem, 2.3vw, 0.84rem);
   font-weight: 800;
   font-family: inherit;
   transition:
@@ -296,6 +296,11 @@
 .solutionTab[data-variant='gallery'] {
   background: var(--landing-cream);
   color: var(--landing-light-purple);
+}
+
+.solutionTab[data-variant='assistant'] {
+  background: #c2cdff;
+  color: #696fc7;
 }
 
 .solutionTab[aria-selected='true'] {
@@ -327,6 +332,10 @@
   background: var(--landing-cream);
 }
 
+.solutionPanel[data-variant='assistant'] {
+  background: #c2cdff;
+}
+
 .solutionHeading {
   margin: 0;
   color: var(--landing-deep);
@@ -342,6 +351,10 @@
 
 .solutionPanel[data-variant='gallery'] .solutionHeading {
   color: var(--landing-light-purple);
+}
+
+.solutionPanel[data-variant='assistant'] .solutionHeading {
+  color: #696fc7;
 }
 
 .solutionSubtitle {
@@ -901,7 +914,7 @@
 
   .solutionTabList {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.9rem 1rem;
     overflow: visible;
     padding-bottom: 0;
@@ -913,8 +926,8 @@
     width: 100%;
     min-width: 0;
     min-height: 3.875rem;
-    padding: 0.75rem 1.35rem;
-    font-size: clamp(0.92rem, 1.12vw, 1.12rem);
+    padding: 0.75rem 0.95rem;
+    font-size: clamp(0.84rem, 0.98vw, 1rem);
   }
 
   .solutionPanel {
