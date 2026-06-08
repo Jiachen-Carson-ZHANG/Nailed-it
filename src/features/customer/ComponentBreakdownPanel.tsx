@@ -783,7 +783,7 @@ export function ComponentBreakdownPanel({
 
       {/* ── 甲型 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.shapeColor}</h3>
+        <h3 className="analyze-section-title">{copy.shapeSection}</h3>
         <div className="analyze-subrow">
           <div className="analyze-subrow-label">{copy.nailShape}</div>
           <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd language={language} copy={copy} />

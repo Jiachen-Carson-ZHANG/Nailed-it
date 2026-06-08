@@ -5,6 +5,7 @@ import {
   buildBreakdownResult,
   ComponentBreakdownPanel,
 } from './ComponentBreakdownPanel';
+import { breakdownPanelCopy } from './breakdown-panel-copy';
 import type { BreakdownResult } from '@/domain/nail';
 import { getDefaultSettings } from '@/data/glossary-settings-store';
 
@@ -76,6 +77,13 @@ describe('ComponentBreakdownPanel', () => {
     window.localStorage.clear();
     listMerchantPricingSettingsActionMock.mockReset();
     listMerchantPricingSettingsActionMock.mockResolvedValue([]);
+  });
+
+  it('uses the renamed shapeSection copy key for the simplified nail shape section title', () => {
+    expect(breakdownPanelCopy['zh-CN']).toHaveProperty('shapeSection', '甲型');
+    expect(breakdownPanelCopy.en).toHaveProperty('shapeSection', 'Shape');
+    expect(breakdownPanelCopy['zh-CN']).not.toHaveProperty('shapeColor');
+    expect(breakdownPanelCopy.en).not.toHaveProperty('shapeColor');
   });
 
   it('hydrates implied structure chips from the original structure selection and still allows deselecting them', async () => {
