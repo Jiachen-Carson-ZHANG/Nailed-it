@@ -158,4 +158,10 @@ describe('LandingPage', () => {
     expect(screen.getAllByAltText('用户旅程第3步截图')).not.toHaveLength(0);
     expect(screen.queryByAltText('用户旅程第4步截图')).not.toBeInTheDocument();
   });
+
+  it('renders the booking problem icon from the shared calendar image asset', () => {
+    const { container } = render(<LandingPage />);
+
+    expect(container.querySelector('img[src*="calendar_icon.PNG"]')).toBeInTheDocument();
+  });
 });

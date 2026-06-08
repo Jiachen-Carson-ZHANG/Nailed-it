@@ -1,8 +1,8 @@
 import Image from 'next/image';
 
+import calendarIconImage from '@/landing_assets/calendar_icon.PNG?url';
 import choiceImage from '@/landing_assets/choice.PNG?url';
 import moneyImage from '@/landing_assets/money.PNG?url';
-import { CalendarIconSvg } from './CalendarIconSvg';
 import styles from './LandingPage.module.css';
 import { ProblemCard } from './ProblemCard';
 import { problemCards } from './landing-content';
@@ -10,7 +10,7 @@ import { problemCards } from './landing-content';
 const problemIconsByKey = {
   pricing: <Image src={moneyImage} alt="" width={220} height={220} unoptimized />,
   selection: <Image src={choiceImage} alt="" width={220} height={220} unoptimized />,
-  booking: <CalendarIconSvg />
+  booking: <Image src={calendarIconImage} alt="" width={220} height={220} unoptimized />
 } as const;
 
 export function ProblemSection() {
