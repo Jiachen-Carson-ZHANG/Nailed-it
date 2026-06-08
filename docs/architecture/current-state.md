@@ -72,7 +72,7 @@ Known gaps:
 
 ## LLM integration
 
-Gemini calls use `GEMINI_API_KEY` directly. OpenRouter calls use `OPENROUTER_API_KEY` via `src/nail-ai/openrouter.ts`. Breakdown and style-name calls request strict JSON Schema output and validate the parsed result again at runtime; invalid output retries and then leaves the upload for manual review. All pricing/booking decisions remain deterministic app logic — AI only extracts attributes.
+Image-related AI flows now use Volcengine Ark. `nail-recognition`, image breakdown, style-name recognition, try-on validation, and trending styles route through Ark `responses`; final try-on image generation routes through Ark `images/generations`. The remaining text-only `insights-summary` flow still uses OpenRouter. Breakdown and style-name calls continue to validate parsed JSON again at runtime; invalid output retries and then leaves the upload for manual review. All pricing/booking decisions remain deterministic app logic — AI only extracts attributes.
 
 **Recognition → catalog bridge (P6):** `src/domain/recognition-catalog.ts` is the pure layer that turns recognizer-emitted `catalog_item` ids + confidence into a `detected` set and an `uncertain` set the user confirms, then into `CatalogSelection[]` for `quoteService` (`bucketRecognition` / `toCatalogSelections`; the constrained subset is `aiDetectableCatalogItems`). It deliberately validates ids rather than mapping visual attributes. Merchant style uploads use the glossary-driven catalog-id recognizer; the separate customer nail-attribute recognizer still emits free-form attributes.
 

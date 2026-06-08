@@ -1,7 +1,7 @@
 import type { AITrendingResponse, AITrendingStyle, TrendingSearchLink } from '@/domain/nail';
 import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
-export const defaultTrendingModel = 'qwen/qwen3.5-flash-02-23';
+export const defaultTrendingModel = 'doubao-seed-2-0-lite-260428';
 
 export class TrendingStylesError extends Error {
   constructor(
@@ -15,12 +15,12 @@ export class TrendingStylesError extends Error {
 }
 
 export async function fetchAITrendingStyles(env = process.env): Promise<AITrendingResponse> {
-  const apiKey = env.OPENROUTER_API_KEY;
+  const apiKey = env.ARK_API_KEY;
   if (!apiKey) {
-    throw new TrendingStylesError('missing_config', 'OPENROUTER_API_KEY is required for trending styles.');
+    throw new TrendingStylesError('missing_config', 'ARK_API_KEY is required for trending styles.');
   }
 
-  const model = defaultTrendingModel ?? env.GEMINI_IMAGE_MODEL_NAME;
+  const model = env.ARK_TRENDING_MODEL ?? env.ARK_VISION_MODEL ?? defaultTrendingModel;
   const now = new Date();
   const monthYear = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
@@ -39,7 +39,7 @@ export async function fetchAITrendingStyles(env = process.env): Promise<AITrendi
       apiKey
     );
   } catch (error) {
-    throw new TrendingStylesError('provider_error', 'OpenRouter trending request failed.', { cause: error });
+    throw new TrendingStylesError('provider_error', 'Ark trending request failed.', { cause: error });
   }
 
   let rawStyles: unknown[];
@@ -49,7 +49,7 @@ export async function fetchAITrendingStyles(env = process.env): Promise<AITrendi
     if (!Array.isArray(parsed)) throw new Error('Expected array');
     rawStyles = parsed;
   } catch (error) {
-    throw new TrendingStylesError('invalid_model_output', 'OpenRouter response did not include a valid JSON array.', {
+    throw new TrendingStylesError('invalid_model_output', 'Ark response did not include a valid JSON array.', {
       cause: error
     });
   }
