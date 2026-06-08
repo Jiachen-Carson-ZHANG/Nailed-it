@@ -219,17 +219,6 @@ function persistCurrentDraft() {
     styleTitle: hasPrefill ? prefillTitle : undefined,
   });
 }
-    const persistableImageUrl = imageUrl.startsWith('data:') ? '' : imageUrl;
-    saveCustomerBookingDraft({
-      estimate,
-      imageUrl: persistableImageUrl,
-      recognition,
-      breakdowns,
-      catalogSelections: breakdowns.glossary?.catalogSelections,
-      styleId: hasPrefill ? prefillStyleId : undefined,
-      styleTitle: hasPrefill ? prefillTitle : undefined,
-    });
-  }
 
   // When arriving from a style card, skip the quote step entirely — save the draft and go straight to confirm.
   useEffect(() => {
