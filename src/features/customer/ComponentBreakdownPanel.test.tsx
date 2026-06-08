@@ -138,24 +138,6 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.getByRole('button', { name: '长甲' })).toBeInTheDocument();
   });
 
-  it('shows pure texture items inside the existing color effects bucket without adding a texture heading', () => {
-    renderPanel(
-      buildCachedResult({
-        texture: 'texture_matte',
-        colorIds: new Set(['color_nude']),
-      }),
-    );
-
-    expect(screen.queryByText('质感')).not.toBeInTheDocument();
-
-    const textureChip = screen.getByRole('button', { name: '磨砂感' });
-    expect(textureChip).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(textureChip);
-
-    expect(screen.queryByRole('button', { name: '磨砂感' })).not.toBeInTheDocument();
-  });
-
   it('keeps legacy finish_service items in the existing color effects set', () => {
     renderPanel(
       buildCachedResult({

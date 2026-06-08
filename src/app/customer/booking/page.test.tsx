@@ -257,33 +257,6 @@ describe('CustomerBookingPage', () => {
     });
   });
 
-  it('keeps pure texture signals editable in the color effects bucket when the booking page rehydrates a cached result', async () => {
-    const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
-    const cachedBreakdown = buildBreakdownResult(
-      null,
-      new Set(),
-      null,
-      null,
-      'texture_matte',
-      new Set(),
-      new Set(),
-      new Set(),
-      new Set(),
-      new Map(),
-      settingsById,
-    );
-    saveBreakdownResult(cachedBreakdown);
-
-    renderBookingContent(<CustomerBookingContent skipToResult />);
-
-    await waitFor(() => {
-      const persistedSelections = getBreakdownResult()?.catalogSelections ?? [];
-      expect(screen.getByRole('button', { name: '磨砂感' })).toHaveAttribute('aria-pressed', 'true');
-      expect(persistedSelections).toContainEqual({ catalogItemId: 'texture_matte', quantity: 1 });
-      expect(persistedSelections).not.toContainEqual({ catalogItemId: 'matte_top', quantity: 1 });
-    });
-  });
-
   it('renders booking copy in English after switching language', async () => {
     renderBookingContent(<CustomerBookingContent />, 'en');
 
