@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { extractImageFromArkGeneration, runTryOn, TryOnError } from './try-on';
+import type { TryOnError as TryOnErrorType } from './try-on';
+import * as TryOnModule from './try-on';
+
+const { extractImageFromArkGeneration, runTryOn } = TryOnModule;
 
 describe('runTryOn', () => {
   it('requires ARK_API_KEY when try-on runs', async () => {
     await expect(
       runTryOn('hand', 'image/jpeg', 'style', 'image/jpeg', { NODE_ENV: 'test' } as NodeJS.ProcessEnv)
-    ).rejects.toMatchObject({ code: 'missing_config' } satisfies Partial<TryOnError>);
+    ).rejects.toMatchObject({ code: 'missing_config' } satisfies Partial<TryOnErrorType>);
   });
 });
 

@@ -163,7 +163,7 @@ async function postArkTryOnGeneration(opts: {
   return json;
 }
 
-export function extractImageFromArkGeneration(data: unknown): TryOnResult {
+function extractImageFromArkGeneration(data: unknown): TryOnResult {
   const record = asRecord(data);
   const items = Array.isArray(record.data) ? record.data : [];
   const base64 = typeof asRecord(items[0]).b64_json === 'string' ? String(asRecord(items[0]).b64_json) : '';
@@ -174,3 +174,5 @@ export function extractImageFromArkGeneration(data: unknown): TryOnResult {
 
   throw new TryOnError('invalid_model_output', 'Ark try-on response did not include an image.');
 }
+
+export { extractImageFromArkGeneration };
