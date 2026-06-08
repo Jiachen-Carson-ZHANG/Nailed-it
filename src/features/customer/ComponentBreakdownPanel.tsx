@@ -34,11 +34,7 @@ const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cove
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
-const PANEL_TEXTURE_TO_COLOR_EFFECT_MAP = new Map<string, string>([
-  ['texture_translucent', 'jelly_translucent'],
-  ['texture_jelly', 'jelly_translucent'],
-  ['texture_matte', 'matte_top'],
-]);
+const TEXTURE_IDS   = byCategory('texture').map((e) => e.id);
 
 function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
   const impliedStructureIds = new Set<string>();
@@ -62,25 +58,6 @@ function mergeIdSets(...sets: ReadonlySet<string>[]): Set<string> {
     for (const id of source) merged.add(id);
   }
   return merged;
-}
-
-function foldPanelTextureIntoColorEffects(
-  texture: string | null,
-  colorEffectIds: Set<string>,
-): Set<string> {
-  const nextColorEffectIds = new Set(colorEffectIds);
-  if (!texture) return nextColorEffectIds;
-
-  // 中文注释：共享面板没有单独 texture 编辑入口，因此只把能映射到现有颜色效果 chip 的信号折叠进去。
-  const mappedColorEffectId = COLOR_EFFECT_IDS.includes(texture as (typeof COLOR_EFFECT_IDS)[number])
-    ? texture
-    : PANEL_TEXTURE_TO_COLOR_EFFECT_MAP.get(texture);
-
-  if (mappedColorEffectId) {
-    nextColorEffectIds.add(mappedColorEffectId);
-  }
-
-  return nextColorEffectIds;
 }
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
@@ -362,16 +339,18 @@ function ChipGroup({
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
 function EffectsSection({
-  colorIds, colorEffectIds, artIds, decoIds, quantities,
-  onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  texture, colorIds, colorEffectIds, artIds, decoIds, quantities,
+  onTextureToggle, onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
   language,
   copy,
 }: {
+  texture: string | null;
   colorIds: Set<string>;
   colorEffectIds: Set<string>;
   artIds: Set<string>;
   decoIds: Set<string>;
   quantities: Map<string, number>;
+  onTextureToggle: (id: string) => void;
   onColorToggle: (id: string) => void;
   onColorEffectToggle: (id: string) => void;
   onArtToggle: (id: string) => void;
@@ -386,11 +365,11 @@ function EffectsSection({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0)) {
+    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0 && !texture)) {
       return;
     }
     setOpenSections(new Set(['color']));
-  }, [colorEffectIds, colorIds, hasInteracted, openSections]);
+  }, [colorEffectIds, colorIds, hasInteracted, openSections, texture]);
 
   const toggle = (section: 'color' | 'art' | 'deco') => {
     setHasInteracted(true);
@@ -416,6 +395,17 @@ function EffectsSection({
         </button>
         {openSections.has('color') && (
           <div className="manage-accordion-body">
+            {TEXTURE_IDS.length > 0 && (
+              <ChipGroup
+                ids={TEXTURE_IDS}
+                activeIds={texture}
+                mode="single"
+                onToggle={onTextureToggle}
+                showAdd
+                language={language}
+                copy={copy}
+              />
+            )}
             <div className="analyze-accordion-subgroup">
               <div className="analyze-accordion-subgroup-label">{copy.baseColor}</div>
               <ChipGroup
@@ -645,6 +635,7 @@ export function ComponentBreakdownPanel({
   });
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
+  const [texture,         setTexture]          = useState<string | null>(null);
   const [colorIds,        setColorIds]         = useState<Set<string>>(new Set());
   const [colorEffectIds,  setColorEffectIds]   = useState<Set<string>>(new Set());
   const [artIds,          setArtIds]           = useState<Set<string>>(new Set());
@@ -699,8 +690,9 @@ export function ComponentBreakdownPanel({
     });
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
+    setTexture(s.texture);
     setColorIds(s.colorIds);
-    setColorEffectIds(foldPanelTextureIntoColorEffects(s.texture, s.colorEffectIds));
+    setColorEffectIds(s.colorEffectIds);
     setArtIds(s.artIds);
     setDecoIds(s.decoIds);
     setQuantities(s.quantities);
@@ -740,12 +732,12 @@ export function ComponentBreakdownPanel({
 
   const breakdown = useMemo(
     () => buildBreakdownResult(
-      removalId, structureIds, nailShape, nailLength, null,
+      removalId, structureIds, nailShape, nailLength, texture,
       colorIds, colorEffectIds, artIds, decoIds, quantities,
       settingsById,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [removalId, structureIds, nailShape, nailLength,
+    [removalId, structureIds, nailShape, nailLength, texture,
      colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 
@@ -887,11 +879,13 @@ export function ComponentBreakdownPanel({
 
       {/* ── 款式效果 (accordion) ── */}
       <EffectsSection
+        texture={texture}
         colorIds={colorIds}
         colorEffectIds={colorEffectIds}
         artIds={artIds}
         decoIds={decoIds}
         quantities={quantities}
+        onTextureToggle={(id) => toggleSingle(texture, setTexture, id)}
         onColorToggle={(id) => toggleSet(setColorIds, id)}
         onColorEffectToggle={(id) => toggleSet(setColorEffectIds, id)}
         onArtToggle={(id) => toggleSet(setArtIds, id)}
