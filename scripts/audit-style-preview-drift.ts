@@ -58,6 +58,7 @@ function buildBreakdownFromConfigPure(
       unit: s?.unit ?? entry.default_pricing_unit,
       price: s?.price ?? 0,
       duration: s?.duration ?? entry.default_duration_min,
+      affectsBookingDuration: entry.affects_booking_duration,
     });
   }
   const priced = items.filter((i) => PRICED.has(i.glossaryType));
