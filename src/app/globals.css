@@ -1491,6 +1491,17 @@ select {
   gap: 0.6rem;
 }
 
+/* Status / loading / error line inside time-selector */
+.time-selector-status {
+  font-size: 0.85rem;
+  color: var(--color-muted, #999);
+  padding: 0.5rem 0;
+}
+
+.time-selector-error {
+  color: var(--color-error, #c0392b);
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;

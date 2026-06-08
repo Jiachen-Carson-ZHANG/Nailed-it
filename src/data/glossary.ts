@@ -37,6 +37,7 @@ export type GlossaryEntry = {
   billable: BillableValue;
   merchant_price_required: BillableValue;
   merchant_duration_required: BillableValue;
+  affects_booking_duration: boolean;
   default_duration_min: number;
   default_pricing_unit: string;
   quantity_supported: boolean | 'optional';
@@ -69,6 +70,7 @@ function toGlossaryEntry(item: CatalogItem): GlossaryEntry {
     billable: triToBillable(item.billable),
     merchant_price_required: triToBillable(item.merchantPriceRequired),
     merchant_duration_required: triToBillable(item.merchantDurationRequired),
+    affects_booking_duration: item.affectsBookingDuration === 'yes',
     default_duration_min: item.defaultDurationMin ?? 0,
     default_pricing_unit: item.defaultPricingUnit,
     quantity_supported: triToBillable(item.quantitySupported),

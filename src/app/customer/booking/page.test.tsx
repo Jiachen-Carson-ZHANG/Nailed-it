@@ -7,8 +7,12 @@ import { LanguageProvider } from '@/i18n/context';
 import { buildBreakdownResult } from '@/features/customer/ComponentBreakdownPanel';
 import { CustomerBookingContent } from './booking-content';
 
+const { replaceMock } = vi.hoisted(() => ({
+  replaceMock: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: replaceMock }),
   usePathname: () => '/customer/booking',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -16,6 +20,7 @@ vi.mock('next/navigation', () => ({
 describe('CustomerBookingPage', () => {
   afterEach(() => {
     clearBreakdownResults();
+    replaceMock.mockReset();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -80,13 +85,8 @@ describe('CustomerBookingPage', () => {
     await screen.findByRole('heading', { name: '款式识别结果' });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /查看我的报价/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '下一步：选择时间' })).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByRole('button', { name: /查看我的报价/i }));
-
-    // Step 3: Quote
-    expect(screen.getByRole('heading', { name: '你的报价' })).toBeInTheDocument();
 
     const nextLink = screen.getByRole('link', { name: '下一步：选择时间' });
     expect(nextLink).toHaveAttribute('href', '/customer/booking/confirm');
@@ -140,10 +140,10 @@ describe('CustomerBookingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'AI智能识别' }));
 
     await screen.findByRole('heading', { name: '款式识别结果' });
-    expect(screen.queryByRole('button', { name: /查看我的报价/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '下一步：选择时间' })).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /查看我的报价/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '下一步：选择时间' })).toBeInTheDocument();
     });
   });
 
@@ -210,7 +210,7 @@ describe('CustomerBookingPage', () => {
     });
   });
 
-  it('opens a published style on its frozen quote without rerunning image analysis', () => {
+  it('opens a published style on its frozen quote without rerunning image analysis', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     renderBookingContent(
       <CustomerBookingContent
@@ -222,13 +222,11 @@ describe('CustomerBookingPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '你的报价' })).toBeInTheDocument();
-    expect(screen.getByText(/merchant-reviewed configuration/i)).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    const nextLink = screen.getByRole('link', { name: '下一步：选择时间' });
-    nextLink.addEventListener('click', (event) => event.preventDefault(), { once: true });
-    fireEvent.click(nextLink);
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith('/customer/booking/confirm');
+    });
     expect(getCustomerBookingDraft()).toMatchObject({ styleId: 'published-style' });
   });
 

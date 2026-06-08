@@ -39,6 +39,16 @@ describe('buildBreakdownFromConfig', () => {
     expect(result.catalogSelections).toContainEqual({ catalogItemId: color!.id, quantity: 1 });
   });
 
+  it('does not re-inject omitted billable_component facets back into catalogBreakdown', () => {
+    const result = buildBreakdownFromConfig(
+      [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      ['建构'],
+    );
+
+    expect(result.catalogSelections).not.toContainEqual({ catalogItemId: 'builder_gel', quantity: 1 });
+    expect(result.items.some((item) => item.glossaryId === 'builder_gel')).toBe(false);
+  });
+
   it('keeps the original priced selections', () => {
     const result = buildBreakdownFromConfig(
       [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],

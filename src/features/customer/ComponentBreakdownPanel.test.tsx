@@ -208,6 +208,21 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.queryByRole('button', { name: '普通法式' })).not.toBeInTheDocument();
   });
 
+  it('hides the reanalyze button when showReanalyze is false', () => {
+    render(
+      <LanguageProvider initialLanguage="zh-CN" role="customer">
+        <ComponentBreakdownPanel
+          image={null}
+          cachedResult={buildCachedResult()}
+          autoAnalyze={false}
+          showReanalyze={false}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByRole('button', { name: '重新分析' })).not.toBeInTheDocument();
+  });
+
   it('keeps quantity controls interactive without breaking chip toggle semantics', () => {
     renderPanel(
       buildCachedResult({

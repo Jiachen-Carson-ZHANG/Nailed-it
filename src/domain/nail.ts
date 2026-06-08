@@ -257,6 +257,7 @@ export type GlossaryBreakdownItem = {
   unit: string;
   price: number;
   duration: number;
+  affectsBookingDuration: boolean;
 };
 
 export type BreakdownItem = GlossaryBreakdownItem;
