@@ -220,12 +220,17 @@ export function buildBreakdownFromSelections(
   return { items, catalogSelections, totalPrice, totalDuration, mode: 'glossary' };
 }
 
-const glossaryByName = new Map(glossaryEntries.map((entry) => [entry.name_zh, entry.id]));
+const glossaryByName = new Map(
+  glossaryEntries.flatMap((entry) => {
+    const labels = [entry.name_zh, entry.name_en].filter(Boolean);
+    return labels.map((label) => [label, entry.id] as const);
+  }),
+);
 
 // Seed from a stored style config: the priced selections (catalogBreakdown) PLUS the descriptive
 // facets (colour / shape / length / finish / style) the merchant pipeline stores as facets rather than
 // priced selections. Without this, a re-edited or published style shows no colour/shape selected even
-// though it has them. Facet labels are catalog names, so they resolve to ids via glossaryByName.
+// though it has them. Facet labels may come back in Chinese or English, so both names resolve to ids.
 export function buildBreakdownFromConfig(
   selections: CatalogSelection[],
   facetLabels: string[],

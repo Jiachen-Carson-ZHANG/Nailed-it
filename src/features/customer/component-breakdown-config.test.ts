@@ -26,6 +26,19 @@ describe('buildBreakdownFromConfig', () => {
     expect(result.catalogSelections.length).toBeGreaterThan(1);
   });
 
+  it('merges descriptive facets when the merchant editor stores English facet labels', () => {
+    const color = catalogItems.find((item) => item.category === 'color' && item.name.en);
+    expect(color, 'catalog should have a colour item with English name').toBeDefined();
+
+    const result = buildBreakdownFromConfig(
+      [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
+      [color!.name.en],
+    );
+
+    expect(result.items.some((item) => item.glossaryId === color!.id)).toBe(true);
+    expect(result.catalogSelections).toContainEqual({ catalogItemId: color!.id, quantity: 1 });
+  });
+
   it('keeps the original priced selections', () => {
     const result = buildBreakdownFromConfig(
       [{ catalogItemId: 'basic_manicure_service', quantity: 1 }],
