@@ -124,12 +124,15 @@ describe('recognizeNailImageWithTelemetry', () => {
     ).rejects.toMatchObject({ code: 'invalid_model_output' } satisfies Partial<NailRecognitionError>);
   });
 
-  it('builds prompts in the requested language', () => {
-    expect(getNailRecognitionPrompt('zh-CN')).toContain('written in Simplified Chinese');
-    expect(getNailRecognitionPrompt('en')).toContain('written in English');
+  it('builds a language-agnostic recognition prompt (structured output, no prose description)', () => {
+    const prompt = getNailRecognitionPrompt('en');
+    // Output is enum JSON, so the prompt no longer varies by language and asks for no description.
+    expect(prompt).toBe(getNailRecognitionPrompt('zh-CN'));
+    expect(prompt).toContain('baseServices');
+    expect(prompt).not.toMatch(/describe the nail style|otherNotes/i);
   });
 
-  it('sends the requested language prompt to OpenRouter', async () => {
+  it('sends the recognition prompt to OpenRouter', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -146,6 +149,6 @@ describe('recognizeNailImageWithTelemetry', () => {
 
     const [, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(String(request?.body));
-    expect(body.messages[0].content[1].text).toContain('written in English');
+    expect(body.messages[0].content[1].text).toContain('Return ONLY valid JSON');
   });
 });

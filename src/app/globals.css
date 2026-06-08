@@ -729,6 +729,7 @@ select {
 .mobile-content {
   min-height: 0;
   padding: 1rem;
+  overflow-x: hidden;
 }
 
 .mobile-content-with-tabs {
@@ -3128,8 +3129,18 @@ select {
 
 .history-card-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
+}
+
+.history-card-actions > * {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .conversation-row strong,
@@ -3431,7 +3442,8 @@ select {
 .chat-bubble {
   display: grid;
   gap: 0.35rem;
-  max-width: 74%;
+  max-width: 80%;
+  min-width: 0;
   padding: 0.8rem 0.85rem;
   border-radius: var(--radius-md);
 }
@@ -3466,7 +3478,7 @@ select {
   grid-template-columns: 52px 1fr;
   gap: 0.6rem;
   align-items: center;
-  min-width: 13rem;
+  min-width: 0;
   text-decoration: none;
   color: inherit;
 }
@@ -3481,6 +3493,12 @@ select {
 .chat-style-card-body {
   display: grid;
   gap: 2px;
+  min-width: 0;
+}
+
+.chat-style-card-title,
+.chat-style-card-reason {
+  overflow-wrap: anywhere;
 }
 
 .chat-style-card-title {
@@ -3643,8 +3661,14 @@ select {
 }
 
 .uploader-action {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  white-space: normal;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .image-uploader-copy,
@@ -4374,12 +4398,11 @@ select {
   flex-wrap: wrap;
   gap: 0.25rem 0.4rem;
   margin: 0 0 0.4rem;
-  max-height: 2.4rem;
-  overflow: hidden;
 }
 
 .xhs-card-shape {
   display: inline-block;
+  flex-shrink: 0;
   margin: 0;
   padding: 0.12rem 0.5rem;
   border: 1px solid var(--color-border);
@@ -4388,6 +4411,7 @@ select {
   color: var(--color-muted);
   font-size: 0.68rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 button.xhs-card-shape {

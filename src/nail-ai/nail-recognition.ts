@@ -145,20 +145,16 @@ function clampConfidence(value: unknown): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export function getNailRecognitionPrompt(language: AppLanguage): string {
-  const notesInstruction =
-    language === 'zh-CN'
-      ? 'otherNotes (string, written in Simplified Chinese, describe the nail style directly without phrases like "图片展示的是" or "图中"), confidence (0-1 number).'
-      : 'otherNotes (string, written in English, describe the nail style directly without phrases like "the image shows" or "pictured here"), confidence (0-1 number).';
-
+export function getNailRecognitionPrompt(_language: AppLanguage): string {
   return [
     'Extract only visible nail-service attributes from this customer reference image.',
     'Do not estimate price, duration, discounts, appointment time, technician, or availability.',
+    'Do not write any prose description of the style.',
     'Return a JSON object with keys: baseServices (array of: removal|extension|builderGel),',
     'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
     'styles (array of: solid|catEye|french|chrome|rhinestone),',
     'addons (array of: rhinestone|charms|glitter),',
-    notesInstruction,
+    'confidence (0-1 number).',
     'Use only exact values listed. If an attribute is not visible, use an empty array.',
     'For nailShape, choose the closest visible shape; use round if unclear.',
     'Return ONLY valid JSON, no markdown.'

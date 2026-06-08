@@ -122,9 +122,8 @@ describe('CustomerBookingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '分析我的照片' }));
 
-    // Should advance to step 2 with API result
+    // Should advance to step 2 with API result (description text is intentionally no longer shown)
     await screen.findByRole('heading', { name: '款式识别结果' });
-    expect(screen.getAllByText(/thin white french tips from gemini/i).length).toBeGreaterThan(0);
 
     expect(fetch).toHaveBeenCalledWith(
       '/api/ai/recognize-nail-style',
@@ -204,9 +203,13 @@ describe('CustomerBookingPage', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Analyze my photo' }));
-    await screen.findByText(/english note/i);
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith('/api/ai/recognize-nail-style', expect.anything());
+    });
 
-    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    const request = vi.mocked(fetch).mock.calls.find(
+      (call) => call[0] === '/api/ai/recognize-nail-style',
+    )?.[1] as RequestInit | undefined;
     expect(JSON.parse(String(request?.body))).toMatchObject({ language: 'en' });
   });
 });

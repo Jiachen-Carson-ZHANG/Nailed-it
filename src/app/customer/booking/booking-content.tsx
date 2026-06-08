@@ -26,18 +26,12 @@ import { getStyleDefinitionById } from '@/mock/styles';
 
 const sampleImageUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ?? '';
 
-function RecognitionPreview({ imageUrl, recognition }: { imageUrl: string; recognition: AIRecognitionResult }) {
+function RecognitionPreview({ imageUrl }: { imageUrl: string }) {
+  if (!imageUrl) return null;
   return (
-    <>
-      {imageUrl && (
-        <div className="booking-result-preview">
-          <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
-        </div>
-      )}
-      <section className="summary-card">
-        <strong>{recognition.selection.otherNotes}</strong>
-      </section>
-    </>
+    <div className="booking-result-preview">
+      <img alt="Your nail reference" src={imageUrl} className="booking-result-image" />
+    </div>
   );
 }
 
@@ -272,7 +266,7 @@ export function CustomerBookingContent({
           ) : isRecognizing ? (
             <LoadingState title={t('booking.result.loadingTitle')} body={t('booking.result.loadingBody')} />
           ) : (
-            <RecognitionPreview imageUrl="" recognition={recognition} />
+            <RecognitionPreview imageUrl="" />
           )}
           <ComponentBreakdownPanel image={selectedImage} cachedResult={breakdowns.glossary} onResult={handleBreakdownResult} />
 
@@ -302,7 +296,7 @@ export function CustomerBookingContent({
               </div>
             ) : null
           ) : (
-            <RecognitionPreview imageUrl={imageUrl} recognition={recognition} />
+            <RecognitionPreview imageUrl={imageUrl} />
           )}
 
           {prefillPreviewQuote ? (
