@@ -102,4 +102,41 @@ describe('buildBreakdownFromConfig', () => {
     expect(chip.structureIds.has('builder_gel')).toBe(true);
     expect(chip.structureIds.has('nail_tip_half_cover')).toBe(true);
   });
+
+  it('preserves texture in round-trip serialization even when the customer panel no longer renders a texture row', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(),
+      'shape_almond',
+      'length_short',
+      'matte_top',
+      new Set(['color_nude']),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    expect(chip.texture).toBe('matte_top');
+
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+
+    expect(rebuilt.catalogSelections).toContainEqual({ catalogItemId: 'matte_top', quantity: 1 });
+    expect(rebuilt.items.some((item) => item.glossaryId === 'matte_top')).toBe(true);
+  });
 });

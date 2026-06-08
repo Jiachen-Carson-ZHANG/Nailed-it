@@ -28,6 +28,7 @@ export function AnalyzeChip({
       className={`analyze-chip${active ? ' analyze-chip-active' : ''}`}
       onClick={onToggle}
       aria-pressed={active}
+      aria-label={label}
     >
       <span className="analyze-chip-label">{label}</span>
       {showQty && (

@@ -34,6 +34,7 @@ const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cove
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
+const LEGACY_TEXTURE_PARENT_IDS = new Set(['finish_service']);
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
 export function seedStateFromBreakdown(result: BreakdownResult) {
@@ -60,7 +61,7 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
       nailShape = item.glossaryId;
     } else if (cat === 'nail_length') {
       nailLength = item.glossaryId;
-    } else if (cat === 'texture') {
+    } else if (cat === 'texture' || LEGACY_TEXTURE_PARENT_IDS.has(entry?.parent_id ?? '')) {
       texture = item.glossaryId;
     } else if (cat === 'color') {
       colorIds.add(item.glossaryId);
@@ -125,7 +126,7 @@ function catalogSelectionsFromChipState(
   structureIds: Set<string>,
   nailShape: string | null,
   nailLength: string | null,
-  _texture: string | null,
+  texture: string | null,
   colorIds: Set<string>,
   colorEffectIds: Set<string>,
   artIds: Set<string>,
@@ -137,6 +138,7 @@ function catalogSelectionsFromChipState(
   for (const id of structureIds) selections.push({ catalogItemId: id, quantity: 1 });
   if (nailShape) selections.push({ catalogItemId: nailShape, quantity: 1 });
   if (nailLength) selections.push({ catalogItemId: nailLength, quantity: 1 });
+  if (texture) selections.push({ catalogItemId: texture, quantity: 1 });
   for (const id of colorIds) selections.push({ catalogItemId: id, quantity: 1 });
   for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: 1 });
   for (const id of artIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
@@ -260,7 +262,6 @@ function ChipGroup({
   quantities,
   onQuantityChange,
   showAdd = false,
-  quantityControlMode = 'inline',
   language,
   copy,
 }: {
@@ -271,7 +272,6 @@ function ChipGroup({
   quantities?: Map<string, number>;
   onQuantityChange?: (id: string, n: number) => void;
   showAdd?: boolean;
-  quantityControlMode?: 'inline' | 'separate';
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
@@ -294,37 +294,16 @@ function ChipGroup({
         const active = isActive(id);
         const qty = quantities?.get(id) ?? 1;
         const unitLabel = active && quantities ? resolveUnitLabel(id, language) : undefined;
-        const showSeparateQuantity = quantityControlMode === 'separate' && active && quantities && onQuantityChange;
-        const chip = (
+        return (
           <AnalyzeChip
             key={id}
             label={entryDisplayName(id, language)}
             active={active}
             onToggle={() => onToggle(id)}
-            quantity={quantityControlMode === 'inline' && quantities && active ? qty : undefined}
-            unitLabel={quantityControlMode === 'inline' ? unitLabel : undefined}
-            onQuantityChange={
-              quantityControlMode === 'inline' && onQuantityChange
-                ? (n) => onQuantityChange(id, n)
-                : undefined
-            }
+            quantity={quantities && active ? qty : undefined}
+            unitLabel={unitLabel}
+            onQuantityChange={onQuantityChange ? (n) => onQuantityChange(id, n) : undefined}
           />
-        );
-        if (!showSeparateQuantity) {
-          return chip;
-        }
-        return (
-          <span
-            key={id}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
-          >
-            {chip}
-            <ChipQuantityControl
-              quantity={qty}
-              unitLabel={unitLabel}
-              onQuantityChange={(n) => onQuantityChange(id, n)}
-            />
-          </span>
         );
       })}
       {!expanded && dimIds.length > 0 && (
@@ -334,51 +313,6 @@ function ChipGroup({
         <AddChip onClick={() => setExpanded(false)} label={copy.collapse} />
       )}
     </div>
-  );
-}
-
-function ChipQuantityControl({
-  quantity,
-  unitLabel,
-  onQuantityChange,
-}: {
-  quantity: number;
-  unitLabel?: string;
-  onQuantityChange: (n: number) => void;
-}) {
-  const { t } = useLanguage();
-
-  return (
-    <span className="analyze-qty-stepper">
-      <button
-        type="button"
-        className="analyze-qty-btn"
-        onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
-        aria-label={t('common.decreaseQty')}
-      >
-        −
-      </button>
-      <input
-        type="number"
-        className="analyze-qty-input"
-        value={quantity}
-        min={1}
-        onChange={(e) => {
-          const nextQuantity = Math.max(1, Math.round(Number(e.target.value) || 1));
-          onQuantityChange(nextQuantity);
-        }}
-        aria-label={t('common.quantity')}
-      />
-      <button
-        type="button"
-        className="analyze-qty-btn"
-        onClick={() => onQuantityChange(quantity + 1)}
-        aria-label={t('common.increaseQty')}
-      >
-        +
-      </button>
-      {unitLabel ? <span className="analyze-qty-unit">{unitLabel}</span> : null}
-    </span>
   );
 }
 
@@ -408,11 +342,11 @@ function EffectsSection({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (hasInteracted || openSections.size > 0 || colorEffectIds.size === 0) {
+    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0)) {
       return;
     }
     setOpenSections(new Set(['color']));
-  }, [colorEffectIds, hasInteracted, openSections]);
+  }, [colorEffectIds, colorIds, hasInteracted, openSections]);
 
   const toggle = (section: 'color' | 'art' | 'deco') => {
     setHasInteracted(true);
@@ -477,7 +411,6 @@ function EffectsSection({
                   onToggle={onArtToggle}
                   quantities={quantities}
                   onQuantityChange={onQuantityChange}
-                  quantityControlMode="separate"
                   showAdd
                   language={language}
                   copy={copy}
@@ -504,7 +437,6 @@ function EffectsSection({
                   onToggle={onDecoToggle}
                   quantities={quantities}
                   onQuantityChange={onQuantityChange}
-                  quantityControlMode="separate"
                   showAdd
                   language={language}
                   copy={copy}

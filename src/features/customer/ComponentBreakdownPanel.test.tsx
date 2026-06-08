@@ -117,7 +117,6 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.getByRole('button', { name: '杏仁形' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: '短甲' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByText('质感')).not.toBeInTheDocument();
-    expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '方形' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
 
@@ -148,6 +147,17 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '裸色' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '猫眼色' })).not.toBeInTheDocument();
+  });
+
+  it('opens the color effects bucket by default when only base color is already selected', () => {
+    renderPanel(
+      buildCachedResult({
+        colorIds: new Set(['color_nude']),
+      }),
+    );
+
+    expect(screen.getByText('底色（可多选）')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '裸色' })).toBeInTheDocument();
   });
 
   it('keeps effect groups independently open and only closes the clicked section on second toggle', async () => {
