@@ -178,7 +178,7 @@ const zhCNMessages = {
   'profile.language.zh': '中文',
   'profile.language.en': '英文',
   'layout.openProfile': '打开个人资料',
-  'layout.newNailDesign': '新的美甲设计',
+  'layout.newNailDesign': '上传款式',
   'booking.steps.upload': '上传',
   'booking.steps.result': '识别结果',
   'booking.steps.quote': '报价',

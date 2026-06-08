@@ -21,9 +21,6 @@ import { useLanguage } from '@/i18n/context';
 import { formatCurrency, formatDuration } from '@/i18n/format';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
-import { getStyleDefinitionById } from '@/mock/styles';
-
-const sampleImageUrl = getStyleDefinitionById('rose-cat-eye')?.imageUrl ?? '';
 
 function RecognitionPreview({ imageUrl }: { imageUrl: string }) {
   if (!imageUrl) return null;
@@ -43,6 +40,7 @@ type CustomerBookingContentProps = {
   prefillDescription?: string;
   prefillRecognition?: AIRecognitionResult;
   prefillPreviewQuote?: StylePreviewQuote;
+  defaultExampleImageUrl?: string;
   skipToResult?: boolean;
 };
 
@@ -53,6 +51,7 @@ export function CustomerBookingContent({
   prefillDescription,
   prefillRecognition,
   prefillPreviewQuote,
+  defaultExampleImageUrl,
   skipToResult,
 }: CustomerBookingContentProps) {
   const { t, language } = useLanguage();
@@ -127,8 +126,16 @@ export function CustomerBookingContent({
     setRecognitionError('');
 
     try {
-      const nextRecognition = selectedImage
-        ? await requestLiveRecognition(selectedImage, language)
+      // 中文注释：示例图只有 imageUrl 时，先把它补成和用户上传一致的 SelectedNailImage，
+      // 再走真实识别接口，保证两条路径的 AI 流程一致。
+      const recognitionImage = selectedImage ?? await createSelectedImageFromUrl(imageUrl);
+
+      if (recognitionImage && !selectedImage) {
+        setSelectedImage(recognitionImage);
+      }
+
+      const nextRecognition = recognitionImage
+        ? await requestLiveRecognition(recognitionImage, language)
         : await getSampleRecognition();
 
       setRecognition(nextRecognition);
@@ -144,7 +151,8 @@ export function CustomerBookingContent({
   }
 
   function selectSampleImage() {
-    setImageUrl(sampleImageUrl);
+    // 中文注释：预约页的“示例图”优先使用服务端传入的主页款式图片，避免这里再写死某个 mock 款。
+    setImageUrl(defaultExampleImageUrl ?? '');
     setSelectedImage(null);
     setRecognitionError('');
     setBreakdowns({ glossary: null });
@@ -337,6 +345,63 @@ export function CustomerBookingContent({
 async function getSampleRecognition(): Promise<AIRecognitionResult> {
   await new Promise((resolve) => window.setTimeout(resolve, 700));
   return mockAIResult;
+}
+
+function createSelectedImageFromUrl(imageUrl: string): Promise<SelectedNailImage | null> {
+  if (!imageUrl) {
+    return Promise.resolve(null);
+  }
+
+  if (imageUrl.startsWith('data:')) {
+    return Promise.resolve(parseDataUrlImage(imageUrl));
+  }
+
+  return fetch(imageUrl)
+    .then((response) => response.blob())
+    .then(readBlobAsSelectedImage(imageUrl))
+    .catch(() => null);
+}
+
+function parseDataUrlImage(imageUrl: string): SelectedNailImage | null {
+  const [header, imageBase64 = ''] = imageUrl.split(',', 2);
+  const mimeTypeMatch = header.match(/^data:(.*?);base64$/);
+  const mimeType = mimeTypeMatch?.[1] ?? '';
+
+  if (!imageBase64 || !mimeType) {
+    return null;
+  }
+
+  return {
+    imageBase64,
+    mimeType,
+    previewUrl: imageUrl,
+  };
+}
+
+function readBlobAsSelectedImage(previewUrl: string) {
+  return (blob: Blob): Promise<SelectedNailImage | null> =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+
+      reader.addEventListener('load', () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        const imageBase64 = dataUrl.split(',')[1] ?? '';
+
+        if (!imageBase64) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          imageBase64,
+          mimeType: blob.type || 'image/jpeg',
+          previewUrl,
+        });
+      });
+
+      reader.addEventListener('error', () => resolve(null));
+      reader.readAsDataURL(blob);
+    });
 }
 
 async function requestLiveRecognition(

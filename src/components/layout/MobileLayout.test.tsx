@@ -27,7 +27,7 @@ describe('MobileLayout', () => {
       </LanguageProvider>
     );
 
-    expect(screen.getByRole('link', { name: '新的美甲设计' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '上传款式' })).toHaveAttribute(
       'href',
       '/customer/booking'
     );

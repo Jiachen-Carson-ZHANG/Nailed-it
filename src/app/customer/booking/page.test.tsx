@@ -191,6 +191,106 @@ describe('CustomerBookingPage', () => {
     });
   });
 
+  it('hides the uploaded-image helper copy after a photo is selected', async () => {
+    const { container } = renderBookingContent(<CustomerBookingContent />);
+
+    const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('选择美甲参考图'), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'AI智能识别' })).toBeEnabled();
+    });
+
+    expect(container.querySelector('.image-uploader-copy')).toBeNull();
+  });
+
+  it('hides the uploaded-image helper copy in English after a photo is selected', async () => {
+    const { container } = renderBookingContent(<CustomerBookingContent />, 'en');
+
+    const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Choose nail reference photo'), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Analyze my photo' })).toBeEnabled();
+    });
+
+    expect(container.querySelector('.image-uploader-copy')).toBeNull();
+  });
+
+  it('uses the provided example image when the user taps the example shortcut', async () => {
+    renderBookingContent(
+      <CustomerBookingContent defaultExampleImageUrl="https://example.com/melissa-8265.jpg" />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '试试示例图' }));
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Uploaded nail reference')).toHaveAttribute(
+        'src',
+        'https://example.com/melissa-8265.jpg',
+      );
+    });
+  });
+
+  it('runs live recognition for the example image instead of using mock recognition', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          recognition: {
+            selection: {
+              baseServices: [],
+              nailShape: 'almond',
+              styles: ['french'],
+              addons: [],
+              otherNotes: 'Live recognition for example image.',
+            },
+            meta: {
+              confidence: 0.95,
+              aiSuggestedQuote: {
+                source: 'ai_suggestion',
+                price: 0,
+                duration: 0,
+              },
+            },
+          },
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      ),
+    );
+
+    renderBookingContent(
+      <CustomerBookingContent defaultExampleImageUrl="data:image/png;base64,ZmFrZQ==" />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '试试示例图' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'AI智能识别' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'AI智能识别' }));
+
+    await screen.findByRole('heading', { name: '款式识别结果' });
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/ai/recognize-nail-style',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      imageBase64: 'ZmFrZQ==',
+      mimeType: 'image/png',
+      language: 'zh-CN',
+    });
+  });
+
   it('sends the current language with the live recognition request', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

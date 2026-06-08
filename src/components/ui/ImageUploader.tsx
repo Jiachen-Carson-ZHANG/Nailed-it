@@ -82,14 +82,12 @@ export function ImageUploader({
         </label>
       )}
 
-      <div className="image-uploader-copy">
-        <strong>{hasImage ? t('booking.result.title') : t('booking.upload.title')}</strong>
-        <p>
-          {hasImage
-            ? t('booking.upload.changePhoto')
-            : t('booking.upload.example')}
-        </p>
-      </div>
+      {!hasImage ? (
+        <div className="image-uploader-copy">
+          <strong>{t('booking.upload.title')}</strong>
+          <p>{t('booking.upload.example')}</p>
+        </div>
+      ) : null}
 
       {!hideControls && (
         hasImage ? (
