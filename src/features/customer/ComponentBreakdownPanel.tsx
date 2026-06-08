@@ -541,6 +541,7 @@ export function ComponentBreakdownPanel({
   const { settings, settingsById } = useMerchantPricingSettings();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
+  const [hasResolvedAnalysis, setHasResolvedAnalysis] = useState(Boolean(cachedResult));
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
@@ -559,7 +560,10 @@ export function ComponentBreakdownPanel({
   );
 
   useEffect(() => {
-    if (cachedResult) applyBreakdown(cachedResult);
+    if (cachedResult) {
+      applyBreakdown(cachedResult);
+      setHasResolvedAnalysis(true);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -616,6 +620,7 @@ export function ComponentBreakdownPanel({
         onSuggestedStyleName?.(body.suggestedStyleName);
       }
       applyBreakdown(body);
+      setHasResolvedAnalysis(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.breakdownFailed);
     } finally {
@@ -634,7 +639,10 @@ export function ComponentBreakdownPanel({
      colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 
-  useEffect(() => { onResult?.(breakdown); }, [breakdown]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!hasResolvedAnalysis) return;
+    onResult?.(breakdown);
+  }, [breakdown, hasResolvedAnalysis, onResult]);
 
   const displayPreviewUrl = image?.previewUrl ?? previewUrl;
 

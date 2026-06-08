@@ -193,6 +193,9 @@ export function CustomerBookingContent({
     setBreakdowns({ glossary: getBreakdownResult() });
   }
 
+  // 中文注释：只有拿到 breakdown 报价结果后，结果页才显示“查看我的报价”，
+  // 这样分析中和失败态都会继续隐藏这个入口。
+  const hasQuoteResult = Boolean(breakdowns.glossary);
   const stepIndex: Record<BookingStep, number> = { upload: 0, result: 1, quote: 2 };
 
   return (
@@ -267,9 +270,11 @@ export function CustomerBookingContent({
             <Button block variant="secondary" onClick={() => setStep('upload')}>
               ← {t('booking.upload.changePhoto')}
             </Button>
-            <Button block onClick={() => setStep('quote')}>
-              {t('booking.result.quoteCta')} →
-            </Button>
+            {hasQuoteResult ? (
+              <Button block onClick={() => setStep('quote')}>
+                {t('booking.result.quoteCta')} →
+              </Button>
+            ) : null}
           </div>
         </>
       )}
