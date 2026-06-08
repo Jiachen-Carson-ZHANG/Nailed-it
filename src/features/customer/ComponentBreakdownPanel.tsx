@@ -33,7 +33,6 @@ const REMOVAL_IDS   = ['removal_basic_gel', 'removal_short_extension', 'removal_
 const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cover', 'nail_tip_shallow_cover'];
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
-const TEXTURE_IDS   = byCategory('texture').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
@@ -74,6 +73,11 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
       decoIds.add(item.glossaryId);
       if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     }
+  }
+
+  if (structureIds.has('nail_tip_full_cover')) {
+    structureIds.add('builder_gel');
+    structureIds.add('nail_tip_half_cover');
   }
 
   return { removalId, structureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
@@ -121,7 +125,7 @@ function catalogSelectionsFromChipState(
   structureIds: Set<string>,
   nailShape: string | null,
   nailLength: string | null,
-  texture: string | null,
+  _texture: string | null,
   colorIds: Set<string>,
   colorEffectIds: Set<string>,
   artIds: Set<string>,
@@ -133,7 +137,6 @@ function catalogSelectionsFromChipState(
   for (const id of structureIds) selections.push({ catalogItemId: id, quantity: 1 });
   if (nailShape) selections.push({ catalogItemId: nailShape, quantity: 1 });
   if (nailLength) selections.push({ catalogItemId: nailLength, quantity: 1 });
-  if (texture) selections.push({ catalogItemId: texture, quantity: 1 });
   for (const id of colorIds) selections.push({ catalogItemId: id, quantity: 1 });
   for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: 1 });
   for (const id of artIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
@@ -257,6 +260,7 @@ function ChipGroup({
   quantities,
   onQuantityChange,
   showAdd = false,
+  quantityControlMode = 'inline',
   language,
   copy,
 }: {
@@ -267,6 +271,7 @@ function ChipGroup({
   quantities?: Map<string, number>;
   onQuantityChange?: (id: string, n: number) => void;
   showAdd?: boolean;
+  quantityControlMode?: 'inline' | 'separate';
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
@@ -289,16 +294,37 @@ function ChipGroup({
         const active = isActive(id);
         const qty = quantities?.get(id) ?? 1;
         const unitLabel = active && quantities ? resolveUnitLabel(id, language) : undefined;
-        return (
+        const showSeparateQuantity = quantityControlMode === 'separate' && active && quantities && onQuantityChange;
+        const chip = (
           <AnalyzeChip
             key={id}
             label={entryDisplayName(id, language)}
             active={active}
             onToggle={() => onToggle(id)}
-            quantity={quantities && active ? qty : undefined}
-            unitLabel={unitLabel}
-            onQuantityChange={onQuantityChange ? (n) => onQuantityChange(id, n) : undefined}
+            quantity={quantityControlMode === 'inline' && quantities && active ? qty : undefined}
+            unitLabel={quantityControlMode === 'inline' ? unitLabel : undefined}
+            onQuantityChange={
+              quantityControlMode === 'inline' && onQuantityChange
+                ? (n) => onQuantityChange(id, n)
+                : undefined
+            }
           />
+        );
+        if (!showSeparateQuantity) {
+          return chip;
+        }
+        return (
+          <span
+            key={id}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+          >
+            {chip}
+            <ChipQuantityControl
+              quantity={qty}
+              unitLabel={unitLabel}
+              onQuantityChange={(n) => onQuantityChange(id, n)}
+            />
+          </span>
         );
       })}
       {!expanded && dimIds.length > 0 && (
@@ -311,17 +337,64 @@ function ChipGroup({
   );
 }
 
+function ChipQuantityControl({
+  quantity,
+  unitLabel,
+  onQuantityChange,
+}: {
+  quantity: number;
+  unitLabel?: string;
+  onQuantityChange: (n: number) => void;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <span className="analyze-qty-stepper">
+      <button
+        type="button"
+        className="analyze-qty-btn"
+        onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
+        aria-label={t('common.decreaseQty')}
+      >
+        −
+      </button>
+      <input
+        type="number"
+        className="analyze-qty-input"
+        value={quantity}
+        min={1}
+        onChange={(e) => {
+          const nextQuantity = Math.max(1, Math.round(Number(e.target.value) || 1));
+          onQuantityChange(nextQuantity);
+        }}
+        aria-label={t('common.quantity')}
+      />
+      <button
+        type="button"
+        className="analyze-qty-btn"
+        onClick={() => onQuantityChange(quantity + 1)}
+        aria-label={t('common.increaseQty')}
+      >
+        +
+      </button>
+      {unitLabel ? <span className="analyze-qty-unit">{unitLabel}</span> : null}
+    </span>
+  );
+}
+
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
 function EffectsSection({
-  colorEffectIds, artIds, decoIds, quantities,
-  onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  colorIds, colorEffectIds, artIds, decoIds, quantities,
+  onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
   language,
   copy,
 }: {
+  colorIds: Set<string>;
   colorEffectIds: Set<string>;
   artIds: Set<string>;
   decoIds: Set<string>;
   quantities: Map<string, number>;
+  onColorToggle: (id: string) => void;
   onColorEffectToggle: (id: string) => void;
   onArtToggle: (id: string) => void;
   onDecoToggle: (id: string) => void;
@@ -329,8 +402,30 @@ function EffectsSection({
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
-  const [openSection, setOpenSection] = useState<'color' | 'art' | 'deco' | null>('color');
-  const toggle = (s: 'color' | 'art' | 'deco') => setOpenSection((prev) => (prev === s ? null : s));
+  const [openSections, setOpenSections] = useState<Set<'color' | 'art' | 'deco'>>(
+    () => new Set(),
+  );
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  useEffect(() => {
+    if (hasInteracted || openSections.size > 0 || colorEffectIds.size === 0) {
+      return;
+    }
+    setOpenSections(new Set(['color']));
+  }, [colorEffectIds, hasInteracted, openSections]);
+
+  const toggle = (section: 'color' | 'art' | 'deco') => {
+    setHasInteracted(true);
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="analyze-section">
@@ -339,11 +434,29 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('color')}>
           <span>{copy.colorEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'color' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('color') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'color' && (
+        {openSections.has('color') && (
           <div className="manage-accordion-body">
-            <ChipGroup ids={[...COLOR_EFFECT_IDS]} activeIds={colorEffectIds} onToggle={onColorEffectToggle} showAdd language={language} copy={copy} />
+            <div className="analyze-accordion-subgroup">
+              <div className="analyze-accordion-subgroup-label">{copy.baseColor}</div>
+              <ChipGroup
+                ids={COLOR_IDS}
+                activeIds={colorIds}
+                onToggle={onColorToggle}
+                showAdd
+                language={language}
+                copy={copy}
+              />
+            </div>
+            <ChipGroup
+              ids={[...COLOR_EFFECT_IDS]}
+              activeIds={colorEffectIds}
+              onToggle={onColorEffectToggle}
+              showAdd
+              language={language}
+              copy={copy}
+            />
           </div>
         )}
       </div>
@@ -351,9 +464,9 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('art')}>
           <span>{copy.artEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'art' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('art') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'art' && (
+        {openSections.has('art') && (
           <div className="manage-accordion-body">
             {copy.artGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
@@ -364,6 +477,7 @@ function EffectsSection({
                   onToggle={onArtToggle}
                   quantities={quantities}
                   onQuantityChange={onQuantityChange}
+                  quantityControlMode="separate"
                   showAdd
                   language={language}
                   copy={copy}
@@ -377,9 +491,9 @@ function EffectsSection({
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('deco')}>
           <span>{copy.decoEffects}</span>
-          <span className="manage-accordion-chevron">{openSection === 'deco' ? '▲' : '▼'}</span>
+          <span className="manage-accordion-chevron">{openSections.has('deco') ? '▲' : '▼'}</span>
         </button>
-        {openSection === 'deco' && (
+        {openSections.has('deco') && (
           <div className="manage-accordion-body">
             {copy.decoGroups.map((group) => (
               <div key={group.label} className="analyze-accordion-subgroup">
@@ -390,6 +504,7 @@ function EffectsSection({
                   onToggle={onDecoToggle}
                   quantities={quantities}
                   onQuantityChange={onQuantityChange}
+                  quantityControlMode="separate"
                   showAdd
                   language={language}
                   copy={copy}
@@ -734,7 +849,7 @@ export function ComponentBreakdownPanel({
         </div>
       </div>
 
-      {/* ── 甲型/颜色 ── */}
+      {/* ── 甲型 ── */}
       <div className="analyze-section">
         <h3 className="analyze-section-title">{copy.shapeColor}</h3>
         <div className="analyze-subrow">
@@ -745,22 +860,16 @@ export function ComponentBreakdownPanel({
           <div className="analyze-subrow-label">{copy.nailLength}</div>
           <ChipGroup ids={LENGTH_IDS} activeIds={nailLength} mode="single" onToggle={(id) => toggleSingle(nailLength, setNailLength, id)} showAdd language={language} copy={copy} />
         </div>
-        <div className="analyze-subrow">
-          <div className="analyze-subrow-label">{copy.texture}</div>
-          <ChipGroup ids={TEXTURE_IDS} activeIds={texture} mode="single" onToggle={(id) => toggleSingle(texture, setTexture, id)} showAdd language={language} copy={copy} />
-        </div>
-        <div className="analyze-subrow">
-          <div className="analyze-subrow-label">{copy.baseColor}</div>
-          <ChipGroup ids={COLOR_IDS} activeIds={colorIds} onToggle={(id) => toggleSet(setColorIds, id)} showAdd language={language} copy={copy} />
-        </div>
       </div>
 
       {/* ── 款式效果 (accordion) ── */}
       <EffectsSection
+        colorIds={colorIds}
         colorEffectIds={colorEffectIds}
         artIds={artIds}
         decoIds={decoIds}
         quantities={quantities}
+        onColorToggle={(id) => toggleSet(setColorIds, id)}
         onColorEffectToggle={(id) => toggleSet(setColorEffectIds, id)}
         onArtToggle={(id) => toggleSet(setArtIds, id)}
         onDecoToggle={(id) => toggleSet(setDecoIds, id)}
