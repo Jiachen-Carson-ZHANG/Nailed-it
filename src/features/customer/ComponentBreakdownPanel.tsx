@@ -367,11 +367,21 @@ function EffectsSection({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0)) {
+    if (hasInteracted || openSections.size > 0) {
       return;
     }
-    setOpenSections(new Set(['color']));
-  }, [colorEffectIds, colorIds, hasInteracted, openSections]);
+    if (colorEffectIds.size > 0 || colorIds.size > 0) {
+      setOpenSections(new Set(['color']));
+      return;
+    }
+    if (artIds.size > 0) {
+      setOpenSections(new Set(['art']));
+      return;
+    }
+    if (decoIds.size > 0) {
+      setOpenSections(new Set(['deco']));
+    }
+  }, [artIds, colorEffectIds, colorIds, decoIds, hasInteracted, openSections]);
 
   const toggle = (section: 'color' | 'art' | 'deco') => {
     setHasInteracted(true);
@@ -626,7 +636,6 @@ export function ComponentBreakdownPanel({
   });
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
-  const [texture,         setTexture]          = useState<string | null>(null);
   const [colorIds,        setColorIds]         = useState<Set<string>>(new Set());
   const [colorEffectIds,  setColorEffectIds]   = useState<Set<string>>(new Set());
   const [artIds,          setArtIds]           = useState<Set<string>>(new Set());
@@ -681,7 +690,6 @@ export function ComponentBreakdownPanel({
     });
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
-    setTexture(s.texture);
     setColorIds(s.colorIds);
     setColorEffectIds(s.colorEffectIds);
     setArtIds(s.artIds);
@@ -723,12 +731,12 @@ export function ComponentBreakdownPanel({
 
   const breakdown = useMemo(
     () => buildBreakdownResult(
-      removalId, structureIds, nailShape, nailLength, texture,
+      removalId, structureIds, nailShape, nailLength, null,
       colorIds, colorEffectIds, artIds, decoIds, quantities,
       settingsById,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [removalId, structureIds, nailShape, nailLength, texture,
+    [removalId, structureIds, nailShape, nailLength,
      colorIds, colorEffectIds, artIds, decoIds, quantities, settingsById]
   );
 

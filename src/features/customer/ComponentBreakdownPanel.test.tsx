@@ -182,6 +182,30 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.getByRole('button', { name: '裸色' })).toBeInTheDocument();
   });
 
+  it('opens the art bucket by default when hydration only contains art selections', () => {
+    renderPanel(
+      buildCachedResult({
+        artIds: new Set(['french_tip_basic']),
+      }),
+    );
+
+    expect(screen.getByRole('button', { name: '普通法式' })).toBeInTheDocument();
+    expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '贴纸' })).not.toBeInTheDocument();
+  });
+
+  it('opens the decoration bucket by default when hydration only contains decoration selections', () => {
+    renderPanel(
+      buildCachedResult({
+        decoIds: new Set(['sticker']),
+      }),
+    );
+
+    expect(screen.getByRole('button', { name: '贴纸' })).toBeInTheDocument();
+    expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '普通法式' })).not.toBeInTheDocument();
+  });
+
   it('keeps effect groups independently open and only closes the clicked section on second toggle', async () => {
     renderPanel(
       buildCachedResult({

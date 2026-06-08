@@ -257,6 +257,31 @@ describe('CustomerBookingPage', () => {
     });
   });
 
+  it('does not persist hidden texture selections back into the cached breakdown after result hydration', async () => {
+    const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
+    const cachedBreakdown = buildBreakdownResult(
+      null,
+      new Set(),
+      null,
+      null,
+      'texture_matte',
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+    saveBreakdownResult(cachedBreakdown);
+
+    renderBookingContent(<CustomerBookingContent skipToResult />);
+
+    await waitFor(() => {
+      const persistedSelections = getBreakdownResult()?.catalogSelections ?? [];
+      expect(persistedSelections).not.toContainEqual({ catalogItemId: 'texture_matte', quantity: 1 });
+    });
+  });
+
   it('renders booking copy in English after switching language', async () => {
     renderBookingContent(<CustomerBookingContent />, 'en');
 
