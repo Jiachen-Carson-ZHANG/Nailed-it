@@ -34,6 +34,7 @@ function buildCachedResult({
   colorEffectIds = new Set<string>(),
   artIds = new Set<string>(),
   decoIds = new Set<string>(),
+  quantities = new Map<string, number>(),
 }: {
   structureIds?: Set<string>;
   nailShape?: string | null;
@@ -43,6 +44,7 @@ function buildCachedResult({
   colorEffectIds?: Set<string>;
   artIds?: Set<string>;
   decoIds?: Set<string>;
+  quantities?: Map<string, number>;
 } = {}): BreakdownResult {
   const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
 
@@ -56,14 +58,14 @@ function buildCachedResult({
     colorEffectIds,
     artIds,
     decoIds,
-    new Map(),
+    quantities,
     settingsById,
   );
 }
 
 function expandNailShapeAddButtons() {
-  const shapeChipGroup = screen.getByRole('button', { name: '杏仁形' }).parentElement;
-  const lengthChipGroup = screen.getByRole('button', { name: '短甲' }).parentElement;
+  const shapeChipGroup = screen.getByRole('button', { name: '杏仁形' }).closest('.analyze-chip-group');
+  const lengthChipGroup = screen.getByRole('button', { name: '短甲' }).closest('.analyze-chip-group');
 
   expect(shapeChipGroup).not.toBeNull();
   expect(lengthChipGroup).not.toBeNull();
@@ -203,6 +205,31 @@ describe('ComponentBreakdownPanel', () => {
 
     expect(screen.getByRole('button', { name: '贴纸' })).toBeInTheDocument();
     expect(screen.queryByText('底色（可多选）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '普通法式' })).not.toBeInTheDocument();
+  });
+
+  it('keeps quantity controls interactive without breaking chip toggle semantics', () => {
+    renderPanel(
+      buildCachedResult({
+        artIds: new Set(['french_tip_basic']),
+        quantities: new Map([['french_tip_basic', 1]]),
+      }),
+    );
+
+    const artChip = screen.getByRole('button', { name: '普通法式' });
+    const increaseButton = screen.getByRole('button', { name: '增加数量' });
+    const decreaseButton = screen.getByRole('button', { name: '减少数量' });
+    const quantityInput = screen.getByRole('spinbutton', { name: '数量' }) as HTMLInputElement;
+
+    fireEvent.click(increaseButton);
+    expect(quantityInput.value).toBe('2');
+    expect(artChip).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(decreaseButton);
+    expect(quantityInput.value).toBe('1');
+    expect(artChip).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(artChip);
     expect(screen.queryByRole('button', { name: '普通法式' })).not.toBeInTheDocument();
   });
 

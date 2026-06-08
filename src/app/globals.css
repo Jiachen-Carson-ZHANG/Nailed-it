@@ -2386,6 +2386,11 @@ select {
   flex-shrink: 0;
 }
 
+.analyze-chip-with-qty {
+  display: inline-flex;
+  align-items: center;
+}
+
 .analyze-chip-group {
   display: flex;
   flex-wrap: wrap;

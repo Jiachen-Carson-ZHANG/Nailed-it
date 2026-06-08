@@ -23,16 +23,18 @@ export function AnalyzeChip({
   const showQty = active && quantity !== undefined && onQuantityChange;
 
   return (
-    <button
-      type="button"
-      className={`analyze-chip${active ? ' analyze-chip-active' : ''}`}
-      onClick={onToggle}
-      aria-pressed={active}
-      aria-label={label}
-    >
-      <span className="analyze-chip-label">{label}</span>
+    <span className="analyze-chip-with-qty">
+      <button
+        type="button"
+        className={`analyze-chip${active ? ' analyze-chip-active' : ''}`}
+        onClick={onToggle}
+        aria-pressed={active}
+        aria-label={label}
+      >
+        <span className="analyze-chip-label">{label}</span>
+      </button>
       {showQty && (
-        <span className="analyze-qty-stepper" onClick={(e) => e.stopPropagation()}>
+        <span className="analyze-qty-stepper">
           <button
             type="button"
             className="analyze-qty-btn"
@@ -60,7 +62,7 @@ export function AnalyzeChip({
           {unitLabel && <span className="analyze-qty-unit">{unitLabel}</span>}
         </span>
       )}
-    </button>
+    </span>
   );
 }
 
