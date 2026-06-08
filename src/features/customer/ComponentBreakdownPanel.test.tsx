@@ -97,9 +97,13 @@ describe('ComponentBreakdownPanel', () => {
     const builderGelChip = await screen.findByRole('button', { name: '建构' });
     const halfCoverTipChip = screen.getByRole('button', { name: '半贴甲片' });
     const fullCoverTipChip = screen.getByRole('button', { name: '全贴甲片' });
+    const priceTable = screen.getByRole('table');
 
     expect(builderGelChip).toHaveAttribute('aria-pressed', 'true');
     expect(halfCoverTipChip).toHaveAttribute('aria-pressed', 'true');
+    expect(within(priceTable).queryByText('建构')).not.toBeInTheDocument();
+    expect(within(priceTable).queryByText('半贴甲片')).not.toBeInTheDocument();
+    expect(within(priceTable).getByText('全贴甲片')).toBeInTheDocument();
 
     fireEvent.click(builderGelChip);
     fireEvent.click(halfCoverTipChip);
@@ -124,7 +128,6 @@ describe('ComponentBreakdownPanel', () => {
     expect(screen.getByRole('heading', { name: '甲型' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '杏仁形' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: '短甲' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByText('质感')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '方形' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '长甲' })).not.toBeInTheDocument();
 
@@ -133,6 +136,24 @@ describe('ComponentBreakdownPanel', () => {
 
     expect(screen.getByRole('button', { name: '方形' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '长甲' })).toBeInTheDocument();
+  });
+
+  it('renders texture as a visible editable subgroup inside the color effects bucket', () => {
+    renderPanel(
+      buildCachedResult({
+        texture: 'matte_top',
+        colorIds: new Set(['color_nude']),
+      }),
+    );
+
+    expect(screen.getByText('质感')).toBeInTheDocument();
+
+    const textureChip = screen.getByRole('button', { name: '磨砂色' });
+    expect(textureChip).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(textureChip);
+
+    expect(screen.queryByRole('button', { name: '磨砂色' })).not.toBeInTheDocument();
   });
 
   it('shows base color inside the color effects bucket instead of the old shape section', () => {

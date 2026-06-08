@@ -34,7 +34,36 @@ const STRUCTURE_IDS = ['builder_gel', 'nail_tip_full_cover', 'nail_tip_half_cove
 const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
+const TEXTURE_IDS   = glossaryEntries
+  .filter((entry) => entry.parent_id === 'finish_service' && entry.type === 'billable_component')
+  .map((entry) => entry.id);
+const TEXTURE_ID_SET = new Set(TEXTURE_IDS);
+const DISPLAY_COLOR_EFFECT_IDS = COLOR_EFFECT_IDS.filter((id) => !TEXTURE_ID_SET.has(id));
 const LEGACY_TEXTURE_PARENT_IDS = new Set(['finish_service']);
+
+function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
+  const impliedStructureIds = new Set<string>();
+
+  // 中文注释：全贴甲片会在 UI 上联动点亮依赖项，但这些 implied 选项不应自动回写到持久化报价里。
+  if (explicitStructureIds.has('nail_tip_full_cover')) {
+    impliedStructureIds.add('builder_gel');
+    impliedStructureIds.add('nail_tip_half_cover');
+  }
+
+  for (const id of explicitStructureIds) {
+    impliedStructureIds.delete(id);
+  }
+
+  return impliedStructureIds;
+}
+
+function mergeIdSets(...sets: ReadonlySet<string>[]): Set<string> {
+  const merged = new Set<string>();
+  for (const source of sets) {
+    for (const id of source) merged.add(id);
+  }
+  return merged;
+}
 
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
 export function seedStateFromBreakdown(result: BreakdownResult) {
@@ -76,12 +105,9 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
     }
   }
 
-  if (structureIds.has('nail_tip_full_cover')) {
-    structureIds.add('builder_gel');
-    structureIds.add('nail_tip_half_cover');
-  }
+  const impliedStructureIds = deriveImpliedStructureIds(structureIds);
 
-  return { removalId, structureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
+  return { removalId, structureIds, impliedStructureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
 }
 
 // ── Shared item builder (glossary id → priced breakdown row) ──────────────────
@@ -318,16 +344,18 @@ function ChipGroup({
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
 function EffectsSection({
-  colorIds, colorEffectIds, artIds, decoIds, quantities,
-  onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
+  texture, colorIds, colorEffectIds, artIds, decoIds, quantities,
+  onTextureToggle, onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
   language,
   copy,
 }: {
+  texture: string | null;
   colorIds: Set<string>;
   colorEffectIds: Set<string>;
   artIds: Set<string>;
   decoIds: Set<string>;
   quantities: Map<string, number>;
+  onTextureToggle: (id: string) => void;
   onColorToggle: (id: string) => void;
   onColorEffectToggle: (id: string) => void;
   onArtToggle: (id: string) => void;
@@ -342,11 +370,11 @@ function EffectsSection({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0)) {
+    if (hasInteracted || openSections.size > 0 || (colorEffectIds.size === 0 && colorIds.size === 0 && !texture)) {
       return;
     }
     setOpenSections(new Set(['color']));
-  }, [colorEffectIds, colorIds, hasInteracted, openSections]);
+  }, [colorEffectIds, colorIds, hasInteracted, openSections, texture]);
 
   const toggle = (section: 'color' | 'art' | 'deco') => {
     setHasInteracted(true);
@@ -372,6 +400,20 @@ function EffectsSection({
         </button>
         {openSections.has('color') && (
           <div className="manage-accordion-body">
+            {TEXTURE_IDS.length > 0 && (
+              <div className="analyze-accordion-subgroup">
+                <div className="analyze-accordion-subgroup-label">{copy.texture}</div>
+                <ChipGroup
+                  ids={TEXTURE_IDS}
+                  activeIds={texture}
+                  mode="single"
+                  onToggle={onTextureToggle}
+                  showAdd
+                  language={language}
+                  copy={copy}
+                />
+              </div>
+            )}
             <div className="analyze-accordion-subgroup">
               <div className="analyze-accordion-subgroup-label">{copy.baseColor}</div>
               <ChipGroup
@@ -384,7 +426,7 @@ function EffectsSection({
               />
             </div>
             <ChipGroup
-              ids={[...COLOR_EFFECT_IDS]}
+              ids={DISPLAY_COLOR_EFFECT_IDS}
               activeIds={colorEffectIds}
               onToggle={onColorEffectToggle}
               showAdd
@@ -592,7 +634,13 @@ export function ComponentBreakdownPanel({
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
-  const [structureIds,    setStructureIds]     = useState<Set<string>>(new Set(['builder_gel']));
+  const [structureState,  setStructureState]   = useState<{
+    explicitIds: Set<string>;
+    dismissedImpliedIds: Set<string>;
+  }>({
+    explicitIds: new Set(['builder_gel']),
+    dismissedImpliedIds: new Set(),
+  });
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
   const [texture,         setTexture]          = useState<string | null>(null);
@@ -604,6 +652,18 @@ export function ComponentBreakdownPanel({
 
   const lastAnalysedRef = useRef<string | null>(
     cachedResult && image ? image.imageBase64.slice(0, 64) : null
+  );
+  const structureIds = structureState.explicitIds;
+  const impliedStructureIds = useMemo(() => {
+    const next = deriveImpliedStructureIds(structureState.explicitIds);
+    for (const id of structureState.dismissedImpliedIds) {
+      next.delete(id);
+    }
+    return next;
+  }, [structureState]);
+  const displayStructureIds = useMemo(
+    () => mergeIdSets(structureIds, impliedStructureIds),
+    [impliedStructureIds, structureIds],
   );
 
   useEffect(() => {
@@ -632,7 +692,10 @@ export function ComponentBreakdownPanel({
   function applyBreakdown(result: BreakdownResult) {
     const s = seedStateFromBreakdown(result);
     setRemovalId(s.removalId);
-    setStructureIds(s.structureIds);
+    setStructureState({
+      explicitIds: s.structureIds,
+      dismissedImpliedIds: new Set(),
+    });
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
     setTexture(s.texture);
@@ -709,6 +772,34 @@ export function ComponentBreakdownPanel({
     setQuantities((prev) => { const next = new Map(prev); next.set(id, Math.max(1, n)); return next; });
   }
 
+  function toggleStructure(id: string) {
+    setStructureState((prev) => {
+      const explicitIds = new Set(prev.explicitIds);
+      const dismissedImpliedIds = new Set(prev.dismissedImpliedIds);
+      const impliedBeforeToggle = deriveImpliedStructureIds(explicitIds);
+      const isImpliedOnly = impliedBeforeToggle.has(id) && !dismissedImpliedIds.has(id) && !explicitIds.has(id);
+
+      // 中文注释：首次点击 implied chip 视为“取消联动高亮”；再次点击才转成用户显式选择。
+      if (explicitIds.has(id)) {
+        explicitIds.delete(id);
+      } else if (isImpliedOnly) {
+        dismissedImpliedIds.add(id);
+      } else {
+        explicitIds.add(id);
+        dismissedImpliedIds.delete(id);
+      }
+
+      const impliedAfterToggle = deriveImpliedStructureIds(explicitIds);
+      for (const dismissedId of [...dismissedImpliedIds]) {
+        if (!impliedAfterToggle.has(dismissedId)) {
+          dismissedImpliedIds.delete(dismissedId);
+        }
+      }
+
+      return { explicitIds, dismissedImpliedIds };
+    });
+  }
+
   if (isLoading) {
     return (
       <LoadingState
@@ -773,8 +864,8 @@ export function ComponentBreakdownPanel({
               <AnalyzeChip
                 key={id}
                 label={entryDisplayName(id, language)}
-                active={structureIds.has(id)}
-                onToggle={() => toggleSet(setStructureIds, id)}
+                active={displayStructureIds.has(id)}
+                onToggle={() => toggleStructure(id)}
               />
             );
           })}
@@ -796,11 +887,13 @@ export function ComponentBreakdownPanel({
 
       {/* ── 款式效果 (accordion) ── */}
       <EffectsSection
+        texture={texture}
         colorIds={colorIds}
         colorEffectIds={colorEffectIds}
         artIds={artIds}
         decoIds={decoIds}
         quantities={quantities}
+        onTextureToggle={(id) => toggleSingle(texture, setTexture, id)}
         onColorToggle={(id) => toggleSet(setColorIds, id)}
         onColorEffectToggle={(id) => toggleSet(setColorEffectIds, id)}
         onArtToggle={(id) => toggleSet(setArtIds, id)}

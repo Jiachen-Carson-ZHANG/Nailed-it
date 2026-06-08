@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { getCustomerBookingDraft } from '@/domain/booking-draft';
-import { clearBreakdownResults } from '@/domain/breakdown-store';
+import { clearBreakdownResults, getBreakdownResult, saveBreakdownResult } from '@/domain/breakdown-store';
+import { getDefaultSettings } from '@/data/glossary-settings-store';
 import { LanguageProvider } from '@/i18n/context';
+import { buildBreakdownResult } from '@/features/customer/ComponentBreakdownPanel';
 import { CustomerBookingContent } from './booking-content';
 
 vi.mock('next/navigation', () => ({
@@ -228,6 +230,31 @@ describe('CustomerBookingPage', () => {
     nextLink.addEventListener('click', (event) => event.preventDefault(), { once: true });
     fireEvent.click(nextLink);
     expect(getCustomerBookingDraft()).toMatchObject({ styleId: 'published-style' });
+  });
+
+  it('does not inflate a cached full-cover quote with implied helper structures when the booking page rehydrates it', async () => {
+    const settingsById = new Map(getDefaultSettings().map((setting) => [setting.id, setting]));
+    const cachedBreakdown = buildBreakdownResult(
+      null,
+      new Set(['nail_tip_full_cover']),
+      null,
+      null,
+      null,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+    saveBreakdownResult(cachedBreakdown);
+
+    renderBookingContent(<CustomerBookingContent skipToResult />);
+
+    await waitFor(() => {
+      expect(getBreakdownResult()?.catalogSelections).toEqual(cachedBreakdown.catalogSelections);
+      expect(getBreakdownResult()?.totalPrice).toBe(cachedBreakdown.totalPrice);
+    });
   });
 
   it('renders booking copy in English after switching language', async () => {

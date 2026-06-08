@@ -99,8 +99,45 @@ describe('buildBreakdownFromConfig', () => {
     const chip = seedStateFromBreakdown(recognized);
 
     expect(chip.structureIds.has('nail_tip_full_cover')).toBe(true);
-    expect(chip.structureIds.has('builder_gel')).toBe(true);
-    expect(chip.structureIds.has('nail_tip_half_cover')).toBe(true);
+    expect(chip.structureIds.has('builder_gel')).toBe(false);
+    expect(chip.structureIds.has('nail_tip_half_cover')).toBe(false);
+    expect(chip.impliedStructureIds.has('builder_gel')).toBe(true);
+    expect(chip.impliedStructureIds.has('nail_tip_half_cover')).toBe(true);
+  });
+
+  it('does not reserialize implied full-cover helpers back into the priced breakdown until the user explicitly selects them', () => {
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const recognized = buildBreakdownResult(
+      null,
+      new Set(['nail_tip_full_cover']),
+      null,
+      null,
+      null,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Map(),
+      settingsById,
+    );
+
+    const chip = seedStateFromBreakdown(recognized);
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+
+    expect(rebuilt.catalogSelections).toEqual(recognized.catalogSelections);
+    expect(rebuilt.totalPrice).toBe(recognized.totalPrice);
   });
 
   it('preserves texture in round-trip serialization even when the customer panel no longer renders a texture row', () => {
