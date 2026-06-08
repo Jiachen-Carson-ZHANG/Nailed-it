@@ -1,4 +1,4 @@
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 
 export type OpenRouterMessage = {
   role: 'user' | 'assistant' | 'system';
@@ -33,24 +33,46 @@ export type OpenRouterJsonSchemaResponseFormat = {
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 
+type ArkInputPart =
+  | { type: 'input_text'; text: string }
+  | { type: 'input_image'; image_url: string };
+
+function toArkInput(messages: OpenRouterMessage[]): Array<{ role: OpenRouterMessage['role']; content: ArkInputPart[] }> {
+  return messages.map((message) => ({
+    role: message.role,
+    content: (
+      typeof message.content === 'string'
+        ? [{ type: 'input_text', text: message.content }]
+        : message.content.map((part) =>
+            part.type === 'text'
+              ? { type: 'input_text', text: part.text }
+              : { type: 'input_image', image_url: part.image_url.url }
+          )
+    )
+  }));
+}
+
 export async function postOpenRouterChat(
   payload: OpenRouterPayload,
   apiKey: string,
   fetchImpl: FetchLike = fetch
 ): Promise<unknown> {
-  const response = await fetchImpl(OPENROUTER_URL, {
+  const response = await fetchImpl(`${process.env.ARK_BASE_URL ?? ARK_BASE_URL}/responses`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      model: payload.model,
+      input: toArkInput(payload.messages)
+    })
   });
 
   const json = await response.json();
 
   if (!response.ok) {
-    throw new Error(`OpenRouter error ${response.status}: ${JSON.stringify(json)}`);
+    throw new Error(`Ark error ${response.status}: ${JSON.stringify(json)}`);
   }
 
   return json;
@@ -58,10 +80,21 @@ export async function postOpenRouterChat(
 
 export function extractTextContent(data: unknown): string {
   const record = asRecord(data);
-  const choices = Array.isArray(record.choices) ? record.choices : [];
-  const message = asRecord(asRecord(choices[0]).message);
-  if (typeof message.content === 'string') return message.content;
-  throw new Error('OpenRouter response did not include text content.');
+  const outputText = typeof record.output_text === 'string' ? record.output_text.trim() : '';
+  if (outputText) return outputText;
+
+  const output = Array.isArray(record.output) ? record.output : [];
+  for (const item of output) {
+    const itemRecord = asRecord(item);
+    const content = Array.isArray(itemRecord.content) ? itemRecord.content : [];
+    for (const part of content) {
+      const partRecord = asRecord(part);
+      const text = typeof partRecord.text === 'string' ? partRecord.text.trim() : '';
+      if (text) return text;
+    }
+  }
+
+  throw new Error('Ark response did not include text content.');
 }
 
 export function stripJsonFence(text: string): string {

@@ -13,7 +13,7 @@ export const nailShapeValues = ['round', 'square', 'squoval', 'oval', 'almond', 
 export const nailStyleValues = ['solid', 'catEye', 'french', 'chrome', 'rhinestone'] as const;
 export const nailAddonValues = ['rhinestone', 'charms', 'glitter'] as const;
 
-export const defaultVisionModel = 'google/gemini-2.5-flash-lite';
+export const defaultVisionModel = 'doubao-seed-2-0-lite-260215';
 
 export type NailImageRecognitionInput = {
   imageBase64: string;
@@ -23,7 +23,7 @@ export type NailImageRecognitionInput = {
 
 export type NailRecognitionProviderResult = {
   recognition: AIRecognitionResult;
-  telemetry: { provider: 'openrouter'; model: string };
+  telemetry: { provider: 'volcengine'; model: string };
 };
 
 export class NailRecognitionError extends Error {
@@ -48,12 +48,12 @@ export async function recognizeNailImageWithTelemetry(
   env: Record<string, string | undefined> = process.env,
   fetchImpl?: FetchLike
 ): Promise<NailRecognitionProviderResult> {
-  const apiKey = env.OPENROUTER_API_KEY;
+  const apiKey = env.ARK_API_KEY;
   if (!apiKey) {
-    throw new NailRecognitionError('missing_vision_config', 'OPENROUTER_API_KEY is required for nail recognition.');
+    throw new NailRecognitionError('missing_vision_config', 'ARK_API_KEY is required for nail recognition.');
   }
 
-  const model = env.GEMINI_IMAGE_MODEL_NAME ?? defaultVisionModel;
+  const model = env.ARK_VISION_MODEL ?? defaultVisionModel;
 
   const language = input.language ?? 'zh-CN';
 
@@ -76,24 +76,24 @@ export async function recognizeNailImageWithTelemetry(
       fetchImpl
     );
   } catch (error) {
-    throw new NailRecognitionError('vision_provider_error', 'OpenRouter recognition request failed.', {
+    throw new NailRecognitionError('vision_provider_error', 'Ark recognition request failed.', {
       cause: error
     });
   }
 
-  const text = extractTextContent(data);
   let parsed: unknown;
   try {
+    const text = extractTextContent(data);
     parsed = JSON.parse(stripJsonFence(text));
   } catch (error) {
-    throw new NailRecognitionError('invalid_model_output', 'OpenRouter response was not valid JSON.', {
+    throw new NailRecognitionError('invalid_model_output', 'Ark response was not valid JSON.', {
       cause: error
     });
   }
 
   return {
     recognition: normalizeNailRecognition(parsed),
-    telemetry: { provider: 'openrouter', model }
+    telemetry: { provider: 'volcengine', model }
   };
 }
 

@@ -47,7 +47,7 @@ describe('normalizeNailRecognition', () => {
 });
 
 describe('recognizeNailImageWithTelemetry', () => {
-  it('calls OpenRouter with image data URL and returns normalized recognition', async () => {
+  it('calls Ark responses with image data URL and returns normalized recognition', async () => {
     const recognitionPayload = {
       baseServices: ['extension'],
       nailShape: 'oval',
@@ -61,11 +61,9 @@ describe('recognizeNailImageWithTelemetry', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [
+        output: [
           {
-            message: {
-              content: JSON.stringify(recognitionPayload)
-            }
+            content: [{ text: JSON.stringify(recognitionPayload) }]
           }
         ]
       })
@@ -73,7 +71,7 @@ describe('recognizeNailImageWithTelemetry', () => {
 
     const result = await recognizeNailImageWithTelemetry(
       { imageBase64: 'abc123', mimeType: 'image/jpeg' },
-      { OPENROUTER_API_KEY: 'test-or-key' },
+      { ARK_API_KEY: 'test-ark-key' },
       fetchImpl
     );
 
@@ -83,24 +81,28 @@ describe('recognizeNailImageWithTelemetry', () => {
       styles: ['french']
     });
     expect(result.telemetry).toMatchObject({
-      provider: 'openrouter',
+      provider: 'volcengine',
       model: defaultVisionModel
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
 
     const [url, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
-    expect((request?.headers as Record<string, string>)?.Authorization).toBe('Bearer test-or-key');
+    expect(url).toBe('https://ark.cn-beijing.volces.com/api/v3/responses');
+    expect((request?.headers as Record<string, string>)?.Authorization).toBe('Bearer test-ark-key');
 
     const body = JSON.parse(String(request?.body));
     expect(body.model).toBe(defaultVisionModel);
-    expect(body.messages[0].content[0]).toEqual({
-      type: 'image_url',
-      image_url: { url: 'data:image/jpeg;base64,abc123' }
+    expect(body.input[0].content[0]).toEqual({
+      type: 'input_image',
+      image_url: 'data:image/jpeg;base64,abc123'
+    });
+    expect(body.input[0].content[1]).toEqual({
+      type: 'input_text',
+      text: expect.stringContaining('Return ONLY valid JSON')
     });
   });
 
-  it('raises missing_vision_config when OPENROUTER_API_KEY is absent', async () => {
+  it('raises missing_vision_config when ARK_API_KEY is absent', async () => {
     await expect(
       recognizeNailImageWithTelemetry({ imageBase64: 'abc', mimeType: 'image/jpeg' }, {})
     ).rejects.toMatchObject({ code: 'missing_vision_config' } satisfies Partial<NailRecognitionError>);
@@ -111,14 +113,14 @@ describe('recognizeNailImageWithTelemetry', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{ message: { content: '{not valid json' } }]
+        output: [{ content: [{ text: '{not valid json' }] }]
       })
     }));
 
     await expect(
       recognizeNailImageWithTelemetry(
         { imageBase64: 'abc123', mimeType: 'image/jpeg' },
-        { OPENROUTER_API_KEY: 'test-or-key' },
+        { ARK_API_KEY: 'test-ark-key' },
         fetchImpl
       )
     ).rejects.toMatchObject({ code: 'invalid_model_output' } satisfies Partial<NailRecognitionError>);
@@ -132,23 +134,23 @@ describe('recognizeNailImageWithTelemetry', () => {
     expect(prompt).not.toMatch(/describe the nail style|otherNotes/i);
   });
 
-  it('sends the recognition prompt to OpenRouter', async () => {
+  it('sends the recognition prompt to Ark', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{ message: { content: JSON.stringify({ confidence: 0.5 }) } }],
+        output: [{ content: [{ text: JSON.stringify({ confidence: 0.5 }) }] }],
       }),
     }));
 
     await recognizeNailImageWithTelemetry(
       { imageBase64: 'abc123', mimeType: 'image/jpeg', language: 'en' },
-      { OPENROUTER_API_KEY: 'test-or-key' },
+      { ARK_API_KEY: 'test-ark-key' },
       fetchImpl
     );
 
     const [, request] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(String(request?.body));
-    expect(body.messages[0].content[1].text).toContain('Return ONLY valid JSON');
+    expect(body.input[0].content[1].text).toContain('Return ONLY valid JSON');
   });
 });
