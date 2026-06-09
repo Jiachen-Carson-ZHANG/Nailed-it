@@ -112,12 +112,13 @@ export async function listConfigurableCatalogAction(): Promise<ConfigurableCatal
 }
 
 export async function uploadMerchantStyleAction(formData: FormData): Promise<MerchantStyleView> {
-  // `File` is not a global in Node 18 (it landed in Node 20), so `image instanceof File` throws
-  // "File is not defined" in this runtime and breaks every upload. FormData file entries are
-  // Blob-like; guard by excluding the string/empty case instead of referencing the File global.
-  const image = formData.get('image');
-  if (!image || typeof image === 'string') throw new Error('style_image_required');
-  const bytes = new Uint8Array(await image.arrayBuffer());
+  // Binary multipart/form-data can be corrupted by reverse proxies (e.g. Coze sandbox).
+  // Callers encode the file as base64 text and pass imageBase64 + mimeType fields instead.
+  const imageBase64Field = formData.get('imageBase64');
+  const mimeTypeField = formData.get('mimeType');
+  if (!imageBase64Field || typeof imageBase64Field !== 'string') throw new Error('style_image_required');
+  if (!mimeTypeField || typeof mimeTypeField !== 'string') throw new Error('style_image_required');
+  const bytes = new Uint8Array(Buffer.from(imageBase64Field, 'base64'));
   const titleField = formData.get('title');
   const title = typeof titleField === 'string' ? titleField : '';
   const sourceField = formData.get('source');
@@ -125,7 +126,7 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
   return getService().upload({
     merchantId: demoMerchantId,
     title,
-    mimeType: image.type,
+    mimeType: mimeTypeField,
     bytes,
     source,
   });

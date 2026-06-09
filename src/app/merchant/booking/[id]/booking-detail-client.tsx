@@ -139,8 +139,10 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
     setIsCompleting(true);
     setMessage('');
     try {
+      const imageBase64 = await readFileAsBase64(image);
       const formData = new FormData();
-      formData.set('image', image);
+      formData.set('imageBase64', imageBase64);
+      formData.set('mimeType', image.type);
       formData.set('source', 'completed_booking');
       if (booking?.styleTitle.trim()) {
         formData.set('title', booking.styleTitle.trim());
@@ -206,4 +208,18 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
       </Link>
     </section>
   );
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      const base64 = dataUrl.split(',')[1] ?? '';
+      if (!base64) reject(new Error('Failed to read file'));
+      else resolve(base64);
+    });
+    reader.addEventListener('error', () => reject(new Error('Failed to read file')));
+    reader.readAsDataURL(file);
+  });
 }

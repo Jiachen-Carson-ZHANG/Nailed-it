@@ -62,24 +62,16 @@ function validateTitle(title: string): string {
   return trimmed;
 }
 
-function hasValidImageSignature(mimeType: string, bytes: Uint8Array): boolean {
-  if (mimeType === 'image/jpeg') {
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  }
-  if (mimeType === 'image/png') {
-    return bytes.length >= 8
-      && bytes[0] === 0x89
-      && bytes[1] === 0x50
-      && bytes[2] === 0x4e
-      && bytes[3] === 0x47
-      && bytes[4] === 0x0d
-      && bytes[5] === 0x0a
-      && bytes[6] === 0x1a
-      && bytes[7] === 0x0a;
-  }
-  return bytes.length >= 12
-    && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
-    && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
+// Detects the true MIME type from magic bytes, ignoring the browser-declared type.
+// Browsers (and OS screenshot tools) sometimes report image/png for files that are
+// actually image/webp, causing mismatch failures. Trust the bytes, not the label.
+function detectMimeType(bytes: Uint8Array): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return 'image/png';
+  if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
+      && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'image/webp';
+  return null;
 }
 
 export function createMerchantStyleService(
@@ -157,11 +149,13 @@ export function createMerchantStyleService(
     },
 
     async upload(input: UploadMerchantStyleInput): Promise<MerchantStyleView> {
-      const extension = imageExtensions[input.mimeType];
-      if (!extension) throw new Error('unsupported_image_type');
       if (input.bytes.byteLength === 0) throw new Error('empty_image');
       if (input.bytes.byteLength > maxUploadBytes) throw new Error('image_too_large');
-      if (!hasValidImageSignature(input.mimeType, input.bytes)) throw new Error('invalid_image_content');
+      // Trust magic bytes over the browser-declared MIME type.
+      const detectedMime = detectMimeType(input.bytes);
+      if (!detectedMime) throw new Error('invalid_image_content');
+      const extension = imageExtensions[detectedMime];
+      if (!extension) throw new Error('unsupported_image_type');
 
       // The DB requires a non-empty title (merchant_style_title_check). A fresh upload has none yet, so
       // store a placeholder; the merchant renames it in the editor before publishing.
@@ -193,7 +187,7 @@ export function createMerchantStyleService(
           originalPath,
           publishedBucket: null,
           publishedPath: null,
-          mimeType: input.mimeType,
+          mimeType: detectedMime,
           byteSize: input.bytes.byteLength,
           source: input.source ?? 'merchant_upload',
           state: 'uploaded',
