@@ -109,7 +109,7 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
   return {
     totalPrice: priced.reduce((sum, i) => sum + i.price * i.quantity, 0),
     totalDuration: priced
-      .filter((i) => i.affectsBookingDuration && (i.glossaryType !== 'service_module' || i.glossaryId === BASE_MANICURE_CATALOG_ID))
+      .filter((i) => i.affectsBookingDuration)
       .reduce(
         (sum, i) => {
           // 中文注释：只有按件/按手指计价的项目才按数量放大时长，其余项目沿用单次服务时长。
@@ -479,11 +479,8 @@ function EffectsSection({
 // ── Price table (shown below the chip sections) ───────────────────────────────
 const BASE_MANICURE_ID = BASE_MANICURE_CATALOG_ID;
 
-// A row is shown if it's a billable_component or the base manicure service_module.
-function isBillableRow(glossaryType: string, glossaryId: string): boolean {
-  if (glossaryType === 'billable_component') return true;
-  return glossaryId === BASE_MANICURE_ID;
-}
+const isBillableRow = (glossaryType: string, glossaryId: string) =>
+  glossaryType === 'billable_component' || glossaryId === BASE_MANICURE_ID;
 
 function PriceTable({
   breakdown,

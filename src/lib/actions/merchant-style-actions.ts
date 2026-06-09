@@ -113,11 +113,9 @@ export async function listConfigurableCatalogAction(): Promise<ConfigurableCatal
 
 export async function uploadMerchantStyleAction(formData: FormData): Promise<MerchantStyleView> {
   // Binary multipart/form-data can be corrupted by reverse proxies (e.g. Coze sandbox).
-  // Callers encode the file as base64 text and pass imageBase64 + mimeType fields instead.
+  // Callers encode the file as base64 text and pass imageBase64 as a text field instead.
   const imageBase64Field = formData.get('imageBase64');
-  const mimeTypeField = formData.get('mimeType');
   if (!imageBase64Field || typeof imageBase64Field !== 'string') throw new Error('style_image_required');
-  if (!mimeTypeField || typeof mimeTypeField !== 'string') throw new Error('style_image_required');
   const bytes = new Uint8Array(Buffer.from(imageBase64Field, 'base64'));
   const titleField = formData.get('title');
   const title = typeof titleField === 'string' ? titleField : '';
@@ -126,7 +124,6 @@ export async function uploadMerchantStyleAction(formData: FormData): Promise<Mer
   return getService().upload({
     merchantId: demoMerchantId,
     title,
-    mimeType: mimeTypeField,
     bytes,
     source,
   });

@@ -27,7 +27,6 @@ const imageExtensions: Record<string, string> = {
 export type UploadMerchantStyleInput = {
   merchantId: string;
   title: string;
-  mimeType: string;
   bytes: Uint8Array;
   /** Defaults to merchant_upload; completed_booking tags photos captured at appointment checkout. */
   source?: MediaAssetSource;
@@ -200,7 +199,7 @@ export function createMerchantStyleService(
         bucket: merchantStyleOriginalsBucket,
         path: originalPath,
         bytes: input.bytes,
-        contentType: input.mimeType,
+        contentType: detectedMime,
       });
       try {
         return merchantView(await repository.create(record));

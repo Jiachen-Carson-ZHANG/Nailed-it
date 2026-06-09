@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { pickLocalizedText } from '@/i18n/localized';
 import { useLanguage } from '@/i18n/context';
 import type { PublishedMerchantStyle } from '@/domain/merchant-style';
@@ -20,8 +20,10 @@ export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
   const { language, t } = useLanguage();
   const title = style.titleLocalized ? pickLocalizedText(style.titleLocalized, language) : style.title;
 
-  const facetLabels = style.discoveryFacets.map((f) => f.label);
-  const cachedResult = buildBreakdownFromConfig(style.catalogBreakdown, facetLabels);
+  const cachedResult = useMemo(
+    () => buildBreakdownFromConfig(style.catalogBreakdown, style.discoveryFacets.map((f) => f.label)),
+    [style.catalogBreakdown, style.discoveryFacets],
+  );
 
   const [liveBreakdown, setLiveBreakdown] = useState<BreakdownResult>(cachedResult);
 

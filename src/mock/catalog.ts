@@ -42,7 +42,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "yes",
     "durationConfigLevel": "merchant_level",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
       "fixed"
@@ -157,7 +157,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "yes",
     "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 30,
     "allowedPricingUnits": [
       "per_set"
@@ -180,7 +180,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "yes",
     "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 30,
     "allowedPricingUnits": [
       "per_set"
@@ -318,7 +318,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "optional",
     "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 20,
     "allowedPricingUnits": [
       "per_set"
@@ -341,7 +341,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "yes",
     "durationConfigLevel": "staff_level",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 40,
     "allowedPricingUnits": [
       "per_level"
@@ -364,7 +364,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "optional",
     "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 15,
     "allowedPricingUnits": [
       "per_piece"
@@ -387,7 +387,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "no",
     "merchantDurationRequired": "no",
     "durationConfigLevel": "platform_default",
-    "affectsBookingDuration": "yes",
+    "affectsBookingDuration": "no",
     "defaultDurationMin": 15,
     "allowedPricingUnits": [
       "included"
