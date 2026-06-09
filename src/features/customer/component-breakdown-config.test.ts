@@ -103,7 +103,7 @@ describe('buildBreakdownFromConfig', () => {
     expect(rebuilt.totalDuration).toBe(cached.totalDuration);
   });
 
-  it('hydrates extension recognition with dependent builder gel and half cover tip chips', () => {
+  it('hydrates extension recognition with only explicitly selected structure chips', () => {
     const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
     const recognized = buildBreakdownResult(
       null,
@@ -124,11 +124,9 @@ describe('buildBreakdownFromConfig', () => {
     expect(chip.structureIds.has('nail_tip_full_cover')).toBe(true);
     expect(chip.structureIds.has('builder_gel')).toBe(false);
     expect(chip.structureIds.has('nail_tip_half_cover')).toBe(false);
-    expect(chip.impliedStructureIds.has('builder_gel')).toBe(true);
-    expect(chip.impliedStructureIds.has('nail_tip_half_cover')).toBe(true);
   });
 
-  it('does not reserialize implied full-cover helpers back into the priced breakdown until the user explicitly selects them', () => {
+  it('does not reserialize full-cover into the priced breakdown as extra items', () => {
     const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
     const recognized = buildBreakdownResult(
       null,

@@ -35,30 +35,6 @@ const SHAPE_IDS     = byCategory('nail_shape').map((e) => e.id);
 const LENGTH_IDS    = byCategory('nail_length').map((e) => e.id);
 const COLOR_IDS     = byCategory('color').map((e) => e.id);
 
-function deriveImpliedStructureIds(explicitStructureIds: Set<string>): Set<string> {
-  const impliedStructureIds = new Set<string>();
-
-  // 中文注释：全贴甲片会在 UI 上联动点亮依赖项，但这些 implied 选项不应自动回写到持久化报价里。
-  if (explicitStructureIds.has('nail_tip_full_cover')) {
-    impliedStructureIds.add('builder_gel');
-    impliedStructureIds.add('nail_tip_half_cover');
-  }
-
-  for (const id of explicitStructureIds) {
-    impliedStructureIds.delete(id);
-  }
-
-  return impliedStructureIds;
-}
-
-function mergeIdSets(...sets: ReadonlySet<string>[]): Set<string> {
-  const merged = new Set<string>();
-  for (const source of sets) {
-    for (const id of source) merged.add(id);
-  }
-  return merged;
-}
-
 /** @internal Exported for regression tests — round-trip stored config → chip state → totals. */
 export function seedStateFromBreakdown(result: BreakdownResult) {
   const structureIds = new Set<string>();
@@ -99,9 +75,7 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
     }
   }
 
-  const impliedStructureIds = deriveImpliedStructureIds(structureIds);
-
-  return { removalId, structureIds, impliedStructureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
+  return { removalId, structureIds, nailShape, nailLength, texture, colorIds, colorEffectIds, artIds, decoIds, quantities };
 }
 
 // ── Shared item builder (glossary id → priced breakdown row) ──────────────────
@@ -135,7 +109,7 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
   return {
     totalPrice: priced.reduce((sum, i) => sum + i.price * i.quantity, 0),
     totalDuration: priced
-      .filter((i) => i.affectsBookingDuration)
+      .filter((i) => i.affectsBookingDuration && (i.glossaryType !== 'service_module' || i.glossaryId === BASE_MANICURE_CATALOG_ID))
       .reduce(
         (sum, i) => {
           // 中文注释：只有按件/按手指计价的项目才按数量放大时长，其余项目沿用单次服务时长。
@@ -496,14 +470,12 @@ function EffectsSection({
 }
 
 // ── Price table (shown below the chip sections) ───────────────────────────────
-const PRICED_SET = new Set(['service_module', 'billable_component']);
 const BASE_MANICURE_ID = BASE_MANICURE_CATALOG_ID;
 
-// Container service modules (颜色与效果服务 / 美术设计服务 …) are grouping parents, not real rows; only the
-// base manicure is a genuine service_module line.
-function isPricedRow(glossaryType: string, glossaryId: string): boolean {
-  if (!PRICED_SET.has(glossaryType)) return false;
-  return glossaryType !== 'service_module' || glossaryId === BASE_MANICURE_ID;
+// A row is shown if it's a billable_component or the base manicure service_module.
+function isBillableRow(glossaryType: string, glossaryId: string): boolean {
+  if (glossaryType === 'billable_component') return true;
+  return glossaryId === BASE_MANICURE_ID;
 }
 
 function PriceTable({
@@ -515,8 +487,8 @@ function PriceTable({
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
-  const priced = breakdown.items.filter((i) => isPricedRow(i.glossaryType, i.glossaryId));
-  if (priced.length === 0) return null;
+  const rows = breakdown.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
+  if (rows.length === 0) return null;
 
   return (
     <div className="analyze-section">
@@ -530,10 +502,9 @@ function PriceTable({
           </tr>
         </thead>
         <tbody>
-          {priced.map((item) => {
+          {rows.map((item) => {
             const qty = item.quantity;
-            const isBillable = item.glossaryType === 'billable_component';
-            const dur = isBillable ? item.duration * qty : item.duration;
+            const dur = item.glossaryType === 'billable_component' ? item.duration * qty : item.duration;
             const price = item.price * qty;
             const unitLabel = copy.units[item.unit as keyof typeof copy.units] ?? item.unit;
             const displayName = entryDisplayName(item.glossaryId, language);
@@ -577,19 +548,15 @@ type ComponentBreakdownPanelProps = {
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
   const { language } = useLanguage();
   const copy = breakdownPanelCopy[language];
-  const priced = result.items.filter((i) => isPricedRow(i.glossaryType, i.glossaryId));
-  const totalPrice = priced.reduce((s, i) => s + i.price * i.quantity, 0);
-  const totalDuration = priced.reduce((s, i) => {
-    return s + (i.glossaryType === 'billable_component' ? i.duration * i.quantity : i.duration);
-  }, 0);
+  const rows = result.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
+  const totalPrice = rows.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
     <div className="breakdown-inline">
       <table className="breakdown-table" aria-label={copy.tableAria}>
         <tbody>
-          {priced.map((item) => {
+          {rows.map((item) => {
             const qty = item.quantity;
-            const isBillable = item.glossaryType === 'billable_component';
             const displayName = entryDisplayName(item.glossaryId, language);
             return (
               <tr key={item.glossaryId}>
@@ -598,7 +565,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
                   {qty > 1 && <span className="breakdown-qty"> ×{qty}</span>}
                 </td>
                 <td className="breakdown-duration">
-                  {item.duration > 0 ? copy.minutes(isBillable ? item.duration * qty : item.duration) : copy.noValue}
+                  {item.duration > 0 ? copy.minutes(item.glossaryType === 'billable_component' ? item.duration * qty : item.duration) : copy.noValue}
                 </td>
                 <td className="breakdown-price">
                   {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100) }) : copy.noValue}
@@ -610,7 +577,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
         <tfoot>
           <tr className="breakdown-total">
             <td>{copy.total}</td>
-            <td className="breakdown-duration">{copy.minutes(totalDuration)}</td>
+            <td className="breakdown-duration">{copy.minutes(result.totalDuration)}</td>
             <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100) })}</td>
           </tr>
         </tfoot>
@@ -640,13 +607,7 @@ export function ComponentBreakdownPanel({
 
   // Selection state
   const [removalId,       setRemovalId]       = useState<string | null>(null);
-  const [structureState,  setStructureState]   = useState<{
-    explicitIds: Set<string>;
-    dismissedImpliedIds: Set<string>;
-  }>({
-    explicitIds: new Set(['builder_gel']),
-    dismissedImpliedIds: new Set(),
-  });
+  const [structureIds,    setStructureIds]     = useState<Set<string>>(new Set(['builder_gel']));
   const [nailShape,       setNailShape]        = useState<string | null>(null);
   const [nailLength,      setNailLength]       = useState<string | null>(null);
   const [colorIds,        setColorIds]         = useState<Set<string>>(new Set());
@@ -657,18 +618,6 @@ export function ComponentBreakdownPanel({
 
   const lastAnalysedRef = useRef<string | null>(
     cachedResult && image ? image.imageBase64.slice(0, 64) : null
-  );
-  const structureIds = structureState.explicitIds;
-  const impliedStructureIds = useMemo(() => {
-    const next = deriveImpliedStructureIds(structureState.explicitIds);
-    for (const id of structureState.dismissedImpliedIds) {
-      next.delete(id);
-    }
-    return next;
-  }, [structureState]);
-  const displayStructureIds = useMemo(
-    () => mergeIdSets(structureIds, impliedStructureIds),
-    [impliedStructureIds, structureIds],
   );
 
   useEffect(() => {
@@ -697,10 +646,7 @@ export function ComponentBreakdownPanel({
   function applyBreakdown(result: BreakdownResult) {
     const s = seedStateFromBreakdown(result);
     setRemovalId(s.removalId);
-    setStructureState({
-      explicitIds: s.structureIds,
-      dismissedImpliedIds: new Set(),
-    });
+    setStructureIds(s.structureIds);
     setNailShape(s.nailShape);
     setNailLength(s.nailLength);
     setColorIds(s.colorIds);
@@ -777,31 +723,7 @@ export function ComponentBreakdownPanel({
   }
 
   function toggleStructure(id: string) {
-    setStructureState((prev) => {
-      const explicitIds = new Set(prev.explicitIds);
-      const dismissedImpliedIds = new Set(prev.dismissedImpliedIds);
-      const impliedBeforeToggle = deriveImpliedStructureIds(explicitIds);
-      const isImpliedOnly = impliedBeforeToggle.has(id) && !dismissedImpliedIds.has(id) && !explicitIds.has(id);
-
-      // 中文注释：首次点击 implied chip 视为“取消联动高亮”；再次点击才转成用户显式选择。
-      if (explicitIds.has(id)) {
-        explicitIds.delete(id);
-      } else if (isImpliedOnly) {
-        dismissedImpliedIds.add(id);
-      } else {
-        explicitIds.add(id);
-        dismissedImpliedIds.delete(id);
-      }
-
-      const impliedAfterToggle = deriveImpliedStructureIds(explicitIds);
-      for (const dismissedId of [...dismissedImpliedIds]) {
-        if (!impliedAfterToggle.has(dismissedId)) {
-          dismissedImpliedIds.delete(dismissedId);
-        }
-      }
-
-      return { explicitIds, dismissedImpliedIds };
-    });
+    toggleSet(setStructureIds, id);
   }
 
   if (isLoading) {
@@ -868,7 +790,7 @@ export function ComponentBreakdownPanel({
               <AnalyzeChip
                 key={id}
                 label={entryDisplayName(id, language)}
-                active={displayStructureIds.has(id)}
+                active={structureIds.has(id)}
                 onToggle={() => toggleStructure(id)}
               />
             );

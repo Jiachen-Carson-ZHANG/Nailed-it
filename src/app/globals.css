@@ -1120,6 +1120,11 @@ select {
   color: var(--color-accent-strong);
 }
 
+.breakdown-row-non-billable td {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
 /* Label-only table — no price/duration columns, more compact rows */
 .breakdown-table-labels td {
   padding-top: 0.3rem;
@@ -2503,9 +2508,9 @@ select {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  background: rgba(255,255,255,0.25);
-  border: 1px solid rgba(255,255,255,0.5);
-  color: #ffffff;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
@@ -2516,7 +2521,7 @@ select {
 }
 
 .analyze-qty-btn:hover {
-  background: rgba(255,255,255,0.4);
+  background: var(--color-border);
 }
 
 .analyze-qty-value {
@@ -2530,10 +2535,10 @@ select {
   text-align: center;
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
-  background: rgba(255,255,255,0.25);
-  border: 1px solid rgba(255,255,255,0.5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  color: #ffffff;
+  color: var(--color-text);
   padding: 0.05rem 0.15rem;
   -moz-appearance: textfield;
 }
@@ -2582,15 +2587,35 @@ select {
 }
 
 .analyze-total-duration {
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   color: var(--color-muted);
 }
 
 .analyze-total-price {
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   color: var(--color-accent-strong);
+}
+
+.analyze-row-non-billable td {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.analyze-row-non-billable .analyze-total-price {
+  color: var(--color-muted);
+}
+
+.analyze-row-overhead-label td {
+  padding-top: 0.75rem;
+  padding-bottom: 0.2rem;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: none;
 }
 
 .analyze-section-title {

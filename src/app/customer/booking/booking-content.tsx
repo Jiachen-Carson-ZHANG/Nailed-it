@@ -67,6 +67,9 @@ type CustomerBookingContentProps = {
   prefillDescription?: string;
   prefillRecognition?: AIRecognitionResult;
   prefillPreviewQuote?: StylePreviewQuote;
+  /** Live price/duration from the style detail panel, overrides prefillPreviewQuote. In cents / minutes. */
+  livePriceCents?: number;
+  liveDurationMin?: number;
   defaultExampleImageUrl?: string;
   skipToResult?: boolean;
 };
@@ -78,6 +81,8 @@ export function CustomerBookingContent({
   prefillDescription,
   prefillRecognition,
   prefillPreviewQuote,
+  livePriceCents,
+  liveDurationMin,
   defaultExampleImageUrl,
   skipToResult,
 }: CustomerBookingContentProps) {
@@ -131,9 +136,12 @@ export function CustomerBookingContent({
       });
   }, [hasPrefill, prefillImageUrl]);
 
-  // For a published style the merchant's curated, server-derived quote is authoritative; fall back
-  // to the rule-based estimate only for free-form photo uploads.
+  // Live values from the style detail panel (user may have toggled chips) take priority.
+  // Fall back to the stored previewQuote only if no live values were passed.
   const estimate = useMemo<RuleBasedQuote>(() => {
+    if (livePriceCents !== undefined && liveDurationMin !== undefined) {
+      return { source: 'pricing_rules', price: livePriceCents / 100, duration: liveDurationMin };
+    }
     if (prefillPreviewQuote) {
       return { source: 'pricing_rules', price: prefillPreviewQuote.price, duration: prefillPreviewQuote.duration };
     }
@@ -145,7 +153,7 @@ export function CustomerBookingContent({
       };
     }
     return calculateEstimate(recognition, defaultPricingRules);
-  }, [breakdowns.glossary, recognition, prefillPreviewQuote]);
+  }, [breakdowns.glossary, recognition, prefillPreviewQuote, livePriceCents, liveDurationMin]);
 
   async function startRecognition() {
     // Move to step 2 immediately and show the photo; the description and the breakdown then stream in

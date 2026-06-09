@@ -287,7 +287,7 @@ export function parseBreakdownModelOutput(
     catalogSelections,
     totalPrice: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     totalDuration: items
-      .filter((item) => item.affectsBookingDuration)
+      .filter((item) => item.affectsBookingDuration && (item.glossaryType !== 'service_module' || item.glossaryId === 'basic_manicure_service'))
       .reduce((sum, item) => {
         const scales = item.unit === 'per_finger' || item.unit === 'per_piece';
         return sum + (scales ? item.duration * item.quantity : item.duration);

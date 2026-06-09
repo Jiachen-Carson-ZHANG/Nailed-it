@@ -663,7 +663,7 @@ const rawCatalogItems: RawCatalogItem[] = [
     "merchantPriceRequired": "yes",
     "merchantDurationRequired": "optional",
     "durationConfigLevel": "merchant_optional",
-    "affectsBookingDuration": "no",
+    "affectsBookingDuration": "yes",
     "defaultDurationMin": 10,
     "allowedPricingUnits": [
       "per_set"
