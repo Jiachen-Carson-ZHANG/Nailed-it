@@ -326,6 +326,10 @@ function ChipGroup({
 }
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
+function CountBadge({ count }: { count: number }) {
+  return <span className="analyze-count-badge">{count}</span>;
+}
+
 function EffectsSection({
   colorIds, colorEffectIds, artIds, decoIds, quantities,
   onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
@@ -382,11 +386,14 @@ function EffectsSection({
 
   return (
     <div className="analyze-section">
-      <h3 className="analyze-section-title">{copy.effectsTitle}</h3>
+      <h3 className="analyze-section-title">
+        {copy.effectsTitle}
+        <CountBadge count={colorIds.size + colorEffectIds.size + artIds.size + decoIds.size} />
+      </h3>
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('color')}>
-          <span>{copy.colorEffects}</span>
+          <span>{copy.colorEffects}<CountBadge count={colorIds.size + colorEffectIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('color') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('color') && (
@@ -416,7 +423,7 @@ function EffectsSection({
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('art')}>
-          <span>{copy.artEffects}</span>
+          <span>{copy.artEffects}<CountBadge count={artIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('art') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('art') && (
@@ -442,7 +449,7 @@ function EffectsSection({
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('deco')}>
-          <span>{copy.decoEffects}</span>
+          <span>{copy.decoEffects}<CountBadge count={decoIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('deco') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('deco') && (
@@ -761,7 +768,10 @@ export function ComponentBreakdownPanel({
       {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
       {showRemoval && (
         <div className="analyze-section">
-          <h3 className="analyze-section-title">{copy.removal}</h3>
+          <h3 className="analyze-section-title">
+            {copy.removal}
+            <CountBadge count={removalId ? 1 : 0} />
+          </h3>
           <div className="analyze-chip-group">
             {REMOVAL_IDS.map((id) => {
               const entry = glossaryById.get(id);
@@ -781,7 +791,10 @@ export function ComponentBreakdownPanel({
 
       {/* ── 建构/延长 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.structure}</h3>
+        <h3 className="analyze-section-title">
+          {copy.structure}
+          <CountBadge count={structureIds.size} />
+        </h3>
         <div className="analyze-chip-group">
           {STRUCTURE_IDS.map((id) => {
             const entry = glossaryById.get(id);
@@ -800,7 +813,10 @@ export function ComponentBreakdownPanel({
 
       {/* ── 甲型 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.shapeSection}</h3>
+        <h3 className="analyze-section-title">
+          {copy.shapeSection}
+          <CountBadge count={(nailShape ? 1 : 0) + (nailLength ? 1 : 0)} />
+        </h3>
         <div className="analyze-subrow">
           <div className="analyze-subrow-label">{copy.nailShape}</div>
           <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd language={language} copy={copy} />
