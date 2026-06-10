@@ -56,6 +56,4 @@ npm install
 
 ## 相关文档
 
-- [产品需求文档 PRD](docs/prds/nailed-it-prd1.0.md)
-- [设计系统](DESIGN.md)
-- [产品定义](PRODUCT.md)
+- 详情请见landing page

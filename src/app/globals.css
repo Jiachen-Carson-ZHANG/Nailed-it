@@ -2103,6 +2103,22 @@ select {
   justify-content: space-between;
 }
 
+.manage-currency-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 0.25rem;
+}
+
+.manage-currency-label {
+  font-size: 0.6rem;
+  color: var(--color-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
 .manage-currency-select {
   margin-top: auto;
   font-size: 0.65rem;

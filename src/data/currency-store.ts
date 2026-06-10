@@ -1,21 +1,23 @@
 import { getBrowserStorage } from '@/lib/browser-storage';
 
-/** Display currency for all customer/merchant UI — always Singapore dollars, never translated. */
-export const DISPLAY_CURRENCY = 'SGD' as const;
-export type Currency = typeof DISPLAY_CURRENCY;
+export const SUPPORTED_CURRENCIES = ['CNY', 'SGD', 'AUD', 'CAD', 'EUR', 'USD', 'JPY', 'KRW', 'FRF'] as const;
+export type Currency = (typeof SUPPORTED_CURRENCIES)[number];
+
+export const DEFAULT_CURRENCY: Currency = 'SGD';
 
 const LEGACY_STORAGE_KEY = 'nailed-it.currency.v1';
 
 export function loadCurrency(): Currency {
-  // Clear any legacy localStorage currency preference (was CNY/USD/etc.).
   const storage = getBrowserStorage('local');
-  if (storage?.getItem(LEGACY_STORAGE_KEY) !== DISPLAY_CURRENCY) {
-    storage?.setItem(LEGACY_STORAGE_KEY, DISPLAY_CURRENCY);
+  const stored = storage?.getItem(LEGACY_STORAGE_KEY);
+  if (stored && (SUPPORTED_CURRENCIES as readonly string[]).includes(stored)) {
+    return stored as Currency;
   }
-  return DISPLAY_CURRENCY;
+  storage?.setItem(LEGACY_STORAGE_KEY, DEFAULT_CURRENCY);
+  return DEFAULT_CURRENCY;
 }
 
-/** @deprecated Currency is fixed to SGD; kept for call-site compatibility. */
-export function saveCurrency(_c: Currency): void {
-  loadCurrency();
+export function saveCurrency(c: Currency): void {
+  const storage = getBrowserStorage('local');
+  storage?.setItem(LEGACY_STORAGE_KEY, c);
 }

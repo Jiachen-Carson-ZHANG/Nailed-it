@@ -6,6 +6,7 @@ import type { Booking } from '@/domain/nail';
 import { Button } from '@/components/ui/Button';
 import { useLanguage } from '@/i18n/context';
 import { formatCurrency, formatDuration, formatStatusLabel } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 
 // A customer can withdraw a booking the studio hasn't completed yet.
 const withdrawable = new Set<Booking['status']>(['pending_review', 'confirmed']);
@@ -21,6 +22,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
   const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const { language } = useLanguage();
+  const { currency } = useCurrency();
   const styleImageUrl = booking.styleImageUrl.trim();
   const copy = {
     'zh-CN': {
@@ -76,6 +78,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
             {booking.date} · {booking.time} · {formatCurrency({
               cents: Math.round(booking.quote.price * 100),
               language,
+              currency,
             })}
           </span>
         </span>
@@ -98,6 +101,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
                 {formatCurrency({
                   cents: Math.round(booking.quote.price * 100),
                   language,
+                  currency,
                 })} · {formatDuration({ minutes: booking.quote.duration, language })}
               </dd>
             </div>

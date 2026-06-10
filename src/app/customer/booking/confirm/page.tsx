@@ -16,6 +16,7 @@ import { getCustomerBookingPath, getCustomerMessagesPath, getCustomerStylePath, 
 import { BookingTimeSelector, type BookingSlotChoice } from '@/features/customer/BookingTimeSelector';
 import type { TechnicianSlotDay } from '@/domain/availability';
 import { useLanguage } from '@/i18n/context';
+import { useCurrency } from '@/i18n/currency-context';
 import {
   bookingConfirmFailedToast,
   bookingConfirmOverlapToast,
@@ -33,6 +34,7 @@ import {
 
 export default function CustomerBookingConfirmPage() {
   const { language, t } = useLanguage();
+  const { currency } = useCurrency();
   const router = useRouter();
   const [draftSnapshot] = useState(() => readCustomerBookingDraftSnapshot());
   const draft = draftSnapshot?.draft ?? null;
@@ -219,7 +221,7 @@ export default function CustomerBookingConfirmPage() {
           {t('booking.confirm.estimated')}:{' '}
           <strong>
             {formatDuration({ minutes: displayEstimate.duration, language })} ·{' '}
-            {formatCurrency({ cents: Math.round(displayEstimate.price * 100), language })}
+            {formatCurrency({ cents: Math.round(displayEstimate.price * 100), language, currency })}
           </strong>
         </p>
       </section>

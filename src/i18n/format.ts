@@ -1,9 +1,9 @@
 import type { AppLanguage, BookingStatusLabel, PricingUnitLabel } from './types';
-import { DISPLAY_CURRENCY } from '@/data/currency-store';
+import { DEFAULT_CURRENCY, type Currency } from '@/data/currency-store';
 
 type WithLanguage = { language: AppLanguage };
 
-type CurrencyInput = { cents: number; language?: AppLanguage };
+type CurrencyInput = { cents: number; language?: AppLanguage; currency?: Currency };
 type DurationInput = WithLanguage & { minutes: number };
 type UnitLabelInput = WithLanguage & { unit: PricingUnitLabel };
 type StatusLabelInput = WithLanguage & { status: BookingStatusLabel };
@@ -27,10 +27,10 @@ const statusLabels: Record<BookingStatusLabel, LanguageTextMap> = {
   cancelled: { 'zh-CN': '已取消', en: 'Cancelled' },
 };
 
-/** Format money as `SGD 12.34` — language does not change the currency code or symbol. */
-export function formatCurrency({ cents }: CurrencyInput) {
+/** Format money as `SGD 12.34`. Pass `currency` to override the default. */
+export function formatCurrency({ cents, currency }: CurrencyInput) {
   const amount = (cents / 100).toFixed(2);
-  return `${DISPLAY_CURRENCY} ${amount}`;
+  return `${currency ?? DEFAULT_CURRENCY} ${amount}`;
 }
 
 export function formatDuration({ minutes, language }: DurationInput) {

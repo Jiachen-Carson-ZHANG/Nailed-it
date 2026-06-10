@@ -17,6 +17,7 @@ import { AnalyzeChip, AddChip } from '@/features/merchant/AnalyzeChip';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import { formatCurrency } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 import {
   breakdownPanelCopy,
   COLOR_EFFECT_IDS,
@@ -240,8 +241,9 @@ function BreakdownSummary({
   breakdown: BreakdownResult;
   copy: BreakdownPanelCopy;
 }) {
+  const { currency } = useCurrency();
   const priceStr = breakdown.totalPrice > 0
-    ? formatCurrency({ cents: Math.round(breakdown.totalPrice * 100) })
+    ? formatCurrency({ cents: Math.round(breakdown.totalPrice * 100), currency })
     : copy.noValue;
   const durationStr = breakdown.totalDuration > 0
     ? copy.minutes(breakdown.totalDuration)
@@ -491,6 +493,7 @@ function PriceTable({
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
+  const { currency } = useCurrency();
   const rows = breakdown.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
   if (rows.length === 0) return null;
 
@@ -519,7 +522,7 @@ function PriceTable({
                   {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitLabel}</span>}
                 </td>
                 <td className="analyze-total-duration">{dur > 0 ? copy.minutes(dur) : copy.noValue}</td>
-                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100) }) : copy.noValue}</td>
+                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100), currency }) : copy.noValue}</td>
               </tr>
             );
           })}
@@ -551,6 +554,7 @@ type ComponentBreakdownPanelProps = {
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
   const { language } = useLanguage();
+  const { currency } = useCurrency();
   const copy = breakdownPanelCopy[language];
   const rows = result.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
   const totalPrice = rows.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -572,7 +576,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
                   {item.duration > 0 ? copy.minutes(item.glossaryType === 'billable_component' ? item.duration * qty : item.duration) : copy.noValue}
                 </td>
                 <td className="breakdown-price">
-                  {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100) }) : copy.noValue}
+                  {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100), currency }) : copy.noValue}
                 </td>
               </tr>
             );
@@ -582,7 +586,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
           <tr className="breakdown-total">
             <td>{copy.total}</td>
             <td className="breakdown-duration">{copy.minutes(result.totalDuration)}</td>
-            <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100) })}</td>
+            <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100), currency })}</td>
           </tr>
         </tfoot>
       </table>
