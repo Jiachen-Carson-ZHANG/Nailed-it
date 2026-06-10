@@ -22,6 +22,9 @@
   /* Layout */
   --page-max-width: 32rem;
   --shell-max-width: 26.875rem;
+  --desktop-shell-viewport-gap: 2rem;
+  --desktop-shell-height: calc(100dvh - var(--desktop-shell-viewport-gap));
+  --desktop-shell-width: calc(var(--desktop-shell-height) * 9 / 19.5);
   --top-bar-height: 4.5rem;
   --tab-bar-height: 5.25rem;
 
@@ -3956,9 +3959,33 @@ select {
     padding: 1.4rem;
   }
 
-  .mobile-shell {
+  .mobile-shell:not(.mobile-shell-workspace) {
+    width: min(100%, var(--desktop-shell-width));
+    max-width: var(--desktop-shell-width);
+    height: var(--desktop-shell-height);
+    min-height: var(--desktop-shell-height);
+    margin: calc(var(--desktop-shell-viewport-gap) / 2) auto;
+    overflow: hidden;
     border-left: 1px solid rgba(46, 31, 43, 0.06);
     border-right: 1px solid rgba(46, 31, 43, 0.06);
+  }
+
+  .mobile-shell:not(.mobile-shell-workspace) .mobile-content {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .bottom-tab-bar {
+    bottom: calc(var(--desktop-shell-viewport-gap) / 2);
+    width: min(100%, var(--desktop-shell-width));
+  }
+
+  .toast {
+    bottom: calc(
+      var(--tab-bar-height) + 0.85rem + calc(var(--desktop-shell-viewport-gap) / 2)
+    );
+    max-width: calc(var(--desktop-shell-width) - 2rem);
   }
 }
 
