@@ -21,6 +21,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
   const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const { language } = useLanguage();
+  const styleImageUrl = booking.styleImageUrl.trim();
   const copy = {
     'zh-CN': {
       confirmWithdraw: '确认撤销这个预约吗？',
@@ -68,7 +69,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <img className="history-card-thumb" alt={booking.styleTitle} src={booking.styleImageUrl} />
+        {styleImageUrl ? <img className="history-card-thumb" alt={booking.styleTitle} src={styleImageUrl} /> : null}
         <span className="history-card-summary-text">
           <strong>{booking.styleTitle}</strong>
           <span>
@@ -86,7 +87,7 @@ export function BookingHistoryCard({ booking, onWithdraw, defaultOpen = false }:
 
       {open ? (
         <div className="history-card-detail">
-          <img className="history-card-image" alt={booking.styleTitle} src={booking.styleImageUrl} />
+          {styleImageUrl ? <img className="history-card-image" alt={booking.styleTitle} src={styleImageUrl} /> : null}
           <dl className="history-card-facts">
             <div><dt>{labels.time}</dt><dd>{booking.date} · {booking.time}</dd></div>
             <div><dt>{labels.studio}</dt><dd>{booking.merchantName}</dd></div>

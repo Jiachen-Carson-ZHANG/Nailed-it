@@ -212,9 +212,10 @@ export function MerchantStyleLibrary() {
           {visible.map((style) => {
             const isPublished = style.status === 'published';
             const isArchived = style.status === 'archived';
+            const imageUrl = style.imageUrl.trim();
             return (
               <article className="merchant-style-management-card" key={style.id}>
-                <img alt={style.title} src={style.imageUrl} />
+                {imageUrl ? <img alt={style.title} src={imageUrl} /> : null}
                 <div className="merchant-style-card-body">
                   <div className="merchant-style-card-heading">
                     <strong>{style.title}</strong>

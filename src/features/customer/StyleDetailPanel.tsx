@@ -19,6 +19,7 @@ type StyleDetailPanelProps = {
 export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
   const { language, t } = useLanguage();
   const title = style.titleLocalized ? pickLocalizedText(style.titleLocalized, language) : style.title;
+  const imageUrl = style.imageUrl.trim();
 
   const cachedResult = useMemo(
     () => buildBreakdownFromConfig(style.catalogBreakdown, style.discoveryFacets.map((f) => f.label)),
@@ -50,7 +51,7 @@ export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
       />
       <Link className="detail-back-link detail-back-top" href={backHref}>← {t('style.detail.back')}</Link>
       <div className="style-detail-hero">
-        <img alt={title} className="style-detail-image" src={style.imageUrl} />
+        {imageUrl ? <img alt={title} className="style-detail-image" src={imageUrl} /> : null}
         <div className="style-detail-summary">
           <h1>{title}</h1>
         </div>

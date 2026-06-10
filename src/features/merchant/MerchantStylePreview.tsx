@@ -41,9 +41,10 @@ export function MerchantStylePreview() {
       </div>
       {styles.length > 0 ? (
         <div className="merchant-style-preview-grid">
-          {styles.slice(0, 4).map((style) => (
-            <img alt={style.title} key={style.id} src={style.imageUrl} />
-          ))}
+          {styles.slice(0, 4).map((style) => {
+            const imageUrl = style.imageUrl.trim();
+            return imageUrl ? <img alt={style.title} key={style.id} src={imageUrl} /> : null;
+          })}
         </div>
       ) : (
         <p className="helper-copy">{labels.empty}</p>
