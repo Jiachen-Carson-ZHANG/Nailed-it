@@ -21,10 +21,10 @@
 
   /* Layout */
   --page-max-width: 32rem;
-  --shell-max-width: 26.875rem;
+  --shell-max-width: 26.875rem;         /* 430px — mobile phone fill cap */
   --desktop-shell-viewport-gap: 2rem;
   --desktop-shell-height: calc(100dvh - var(--desktop-shell-viewport-gap));
-  --desktop-shell-width: calc(var(--desktop-shell-height) * 9 / 19.5);
+  --desktop-shell-width: 34rem;         /* 544px fixed — wide enough for manage rows on 1080p */
   --top-bar-height: 4.5rem;
   --tab-bar-height: 5.25rem;
 
@@ -90,6 +90,7 @@ body {
   color: var(--color-text);
   font-family:
     Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding-top: env(safe-area-inset-top);
 }
 
 a {
@@ -251,6 +252,7 @@ select {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
+  width: min(100%, var(--shell-max-width));
   max-width: var(--shell-max-width);
   margin: 0 auto;
   background:
