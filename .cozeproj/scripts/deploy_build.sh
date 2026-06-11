@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 
+echo "Enabling pnpm..."
+corepack enable pnpm
+
 echo "Installing dependencies..."
 pnpm install
 
