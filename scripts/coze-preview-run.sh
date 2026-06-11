@@ -10,6 +10,8 @@ export PORT=5000
 fuser -k 5000/tcp 2>/dev/null || true
 sleep 1
 
-corepack enable pnpm
+if ! command -v pnpm &>/dev/null; then
+  corepack enable pnpm
+fi
 
 exec pnpm exec next dev --hostname 0.0.0.0 --port 5000

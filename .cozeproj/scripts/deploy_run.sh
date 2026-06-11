@@ -8,8 +8,10 @@ cd "$PROJECT_DIR"
 PORT="${DEPLOY_RUN_PORT:-5000}"
 
 start_service() {
-  echo "Enabling pnpm..."
-  corepack enable pnpm
+  if ! command -v pnpm &>/dev/null; then
+    echo "Enabling pnpm via corepack..."
+    corepack enable pnpm
+  fi
 
   echo "Starting HTTP service on port ${PORT} for deploy..."
   pnpm run start --port "${PORT}"
