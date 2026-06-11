@@ -16,5 +16,12 @@ export function createMemoryMerchantRepository(
       const found = state.find((m) => m.id === id);
       return found ? structuredClone(found) : null;
     },
+
+    async updateCurrency(id: string, currency: string): Promise<void> {
+      const found = state.find((m) => m.id === id);
+      if (found) {
+        found.currency = currency;
+      }
+    },
   };
 }
