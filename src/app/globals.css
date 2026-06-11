@@ -2133,6 +2133,20 @@ select {
   text-align: center;
 }
 
+.manage-currency-loading {
+  font-size: 0.6rem;
+  color: var(--color-muted);
+  text-align: center;
+  padding: 0.2rem 0;
+  opacity: 0.7;
+  animation: manage-currency-pulse 1s ease-in-out infinite;
+}
+
+@keyframes manage-currency-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 0.3; }
+}
+
 .manage-sidebar-btn {
   display: flex;
   align-items: center;
