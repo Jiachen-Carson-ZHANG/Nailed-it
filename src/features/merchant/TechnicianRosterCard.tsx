@@ -3,6 +3,7 @@ import type { Booking, Technician } from '@/domain/nail';
 import { getMerchantBookingPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import { formatCurrency, formatDuration, formatStatusLabel } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 
 type TechnicianRosterCardProps = {
   bookings: Booking[];
@@ -34,6 +35,7 @@ export function TechnicianRosterCard({
   title
 }: TechnicianRosterCardProps) {
   const { language } = useLanguage();
+  const { currency } = useCurrency();
   const copy = {
     'zh-CN': {
       active: '在岗',
@@ -122,6 +124,7 @@ export function TechnicianRosterCard({
                                   {formatCurrency({
                                     cents: Math.round(booking.quote.price * 100),
                                     language,
+                                    currency,
                                   })} · {formatDuration({ minutes: booking.quote.duration, language })}
                                 </dd>
                               </div>

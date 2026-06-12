@@ -54,6 +54,7 @@ export interface CatalogRepository {
 export interface MerchantRepository {
   list(): Promise<Merchant[]>;
   getById(id: string): Promise<Merchant | null>;
+  updateCurrency(id: string, currency: string): Promise<void>;
 }
 
 export interface MerchantPricingRepository {

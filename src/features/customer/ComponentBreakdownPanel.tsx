@@ -17,6 +17,7 @@ import { AnalyzeChip, AddChip } from '@/features/merchant/AnalyzeChip';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import { formatCurrency } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 import {
   breakdownPanelCopy,
   COLOR_EFFECT_IDS,
@@ -109,7 +110,7 @@ function pricedTotals(items: GlossaryBreakdownItem[]): { totalPrice: number; tot
   return {
     totalPrice: priced.reduce((sum, i) => sum + i.price * i.quantity, 0),
     totalDuration: priced
-      .filter((i) => i.affectsBookingDuration && (i.glossaryType !== 'service_module' || i.glossaryId === BASE_MANICURE_CATALOG_ID))
+      .filter((i) => i.affectsBookingDuration)
       .reduce(
         (sum, i) => {
           // 中文注释：只有按件/按手指计价的项目才按数量放大时长，其余项目沿用单次服务时长。
@@ -240,8 +241,9 @@ function BreakdownSummary({
   breakdown: BreakdownResult;
   copy: BreakdownPanelCopy;
 }) {
+  const { currency } = useCurrency();
   const priceStr = breakdown.totalPrice > 0
-    ? formatCurrency({ cents: Math.round(breakdown.totalPrice * 100) })
+    ? formatCurrency({ cents: Math.round(breakdown.totalPrice * 100), currency })
     : copy.noValue;
   const durationStr = breakdown.totalDuration > 0
     ? copy.minutes(breakdown.totalDuration)
@@ -326,6 +328,10 @@ function ChipGroup({
 }
 
 // ── Effects sub-panel (keeps accordion) ───────────────────────────────────────
+function CountBadge({ count }: { count: number }) {
+  return <span className="analyze-count-badge">{count}</span>;
+}
+
 function EffectsSection({
   colorIds, colorEffectIds, artIds, decoIds, quantities,
   onColorToggle, onColorEffectToggle, onArtToggle, onDecoToggle, onQuantityChange,
@@ -382,11 +388,14 @@ function EffectsSection({
 
   return (
     <div className="analyze-section">
-      <h3 className="analyze-section-title">{copy.effectsTitle}</h3>
+      <h3 className="analyze-section-title">
+        {copy.effectsTitle}
+        <CountBadge count={colorIds.size + colorEffectIds.size + artIds.size + decoIds.size} />
+      </h3>
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('color')}>
-          <span>{copy.colorEffects}</span>
+          <span>{copy.colorEffects}<CountBadge count={colorIds.size + colorEffectIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('color') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('color') && (
@@ -416,7 +425,7 @@ function EffectsSection({
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('art')}>
-          <span>{copy.artEffects}</span>
+          <span>{copy.artEffects}<CountBadge count={artIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('art') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('art') && (
@@ -442,7 +451,7 @@ function EffectsSection({
 
       <div className="manage-accordion">
         <button type="button" className="manage-accordion-header" onClick={() => toggle('deco')}>
-          <span>{copy.decoEffects}</span>
+          <span>{copy.decoEffects}<CountBadge count={decoIds.size} /></span>
           <span className="manage-accordion-chevron">{openSections.has('deco') ? '▲' : '▼'}</span>
         </button>
         {openSections.has('deco') && (
@@ -472,11 +481,8 @@ function EffectsSection({
 // ── Price table (shown below the chip sections) ───────────────────────────────
 const BASE_MANICURE_ID = BASE_MANICURE_CATALOG_ID;
 
-// A row is shown if it's a billable_component or the base manicure service_module.
-function isBillableRow(glossaryType: string, glossaryId: string): boolean {
-  if (glossaryType === 'billable_component') return true;
-  return glossaryId === BASE_MANICURE_ID;
-}
+const isBillableRow = (glossaryType: string, glossaryId: string) =>
+  glossaryType === 'billable_component' || glossaryId === BASE_MANICURE_ID;
 
 function PriceTable({
   breakdown,
@@ -487,6 +493,7 @@ function PriceTable({
   language: AppLanguage;
   copy: BreakdownPanelCopy;
 }) {
+  const { currency } = useCurrency();
   const rows = breakdown.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
   if (rows.length === 0) return null;
 
@@ -515,7 +522,7 @@ function PriceTable({
                   {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitLabel}</span>}
                 </td>
                 <td className="analyze-total-duration">{dur > 0 ? copy.minutes(dur) : copy.noValue}</td>
-                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100) }) : copy.noValue}</td>
+                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100), currency }) : copy.noValue}</td>
               </tr>
             );
           })}
@@ -547,6 +554,7 @@ type ComponentBreakdownPanelProps = {
 // ── Full breakdown export (used by TryOn — read-only, unchanged) ──────────────
 export function BreakdownTable({ result }: { result: BreakdownResult }) {
   const { language } = useLanguage();
+  const { currency } = useCurrency();
   const copy = breakdownPanelCopy[language];
   const rows = result.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
   const totalPrice = rows.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -568,7 +576,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
                   {item.duration > 0 ? copy.minutes(item.glossaryType === 'billable_component' ? item.duration * qty : item.duration) : copy.noValue}
                 </td>
                 <td className="breakdown-price">
-                  {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100) }) : copy.noValue}
+                  {item.price > 0 ? formatCurrency({ cents: Math.round(item.price * qty * 100), currency }) : copy.noValue}
                 </td>
               </tr>
             );
@@ -578,7 +586,7 @@ export function BreakdownTable({ result }: { result: BreakdownResult }) {
           <tr className="breakdown-total">
             <td>{copy.total}</td>
             <td className="breakdown-duration">{copy.minutes(result.totalDuration)}</td>
-            <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100) })}</td>
+            <td className="breakdown-price">{formatCurrency({ cents: Math.round(totalPrice * 100), currency })}</td>
           </tr>
         </tfoot>
       </table>
@@ -761,7 +769,10 @@ export function ComponentBreakdownPanel({
       {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
       {showRemoval && (
         <div className="analyze-section">
-          <h3 className="analyze-section-title">{copy.removal}</h3>
+          <h3 className="analyze-section-title">
+            {copy.removal}
+            <CountBadge count={removalId ? 1 : 0} />
+          </h3>
           <div className="analyze-chip-group">
             {REMOVAL_IDS.map((id) => {
               const entry = glossaryById.get(id);
@@ -781,7 +792,10 @@ export function ComponentBreakdownPanel({
 
       {/* ── 建构/延长 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.structure}</h3>
+        <h3 className="analyze-section-title">
+          {copy.structure}
+          <CountBadge count={structureIds.size} />
+        </h3>
         <div className="analyze-chip-group">
           {STRUCTURE_IDS.map((id) => {
             const entry = glossaryById.get(id);
@@ -800,7 +814,10 @@ export function ComponentBreakdownPanel({
 
       {/* ── 甲型 ── */}
       <div className="analyze-section">
-        <h3 className="analyze-section-title">{copy.shapeSection}</h3>
+        <h3 className="analyze-section-title">
+          {copy.shapeSection}
+          <CountBadge count={(nailShape ? 1 : 0) + (nailLength ? 1 : 0)} />
+        </h3>
         <div className="analyze-subrow">
           <div className="analyze-subrow-label">{copy.nailShape}</div>
           <ChipGroup ids={SHAPE_IDS} activeIds={nailShape} mode="single" onToggle={(id) => toggleSingle(nailShape, setNailShape, id)} showAdd language={language} copy={copy} />

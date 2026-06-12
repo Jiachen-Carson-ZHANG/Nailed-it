@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { pickLocalizedText } from '@/i18n/localized';
 import { useLanguage } from '@/i18n/context';
 import type { PublishedMerchantStyle } from '@/domain/merchant-style';
@@ -19,9 +19,12 @@ type StyleDetailPanelProps = {
 export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
   const { language, t } = useLanguage();
   const title = style.titleLocalized ? pickLocalizedText(style.titleLocalized, language) : style.title;
+  const imageUrl = style.imageUrl.trim();
 
-  const facetLabels = style.discoveryFacets.map((f) => f.label);
-  const cachedResult = buildBreakdownFromConfig(style.catalogBreakdown, facetLabels);
+  const cachedResult = useMemo(
+    () => buildBreakdownFromConfig(style.catalogBreakdown, style.discoveryFacets.map((f) => f.label)),
+    [style.catalogBreakdown, style.discoveryFacets],
+  );
 
   const [liveBreakdown, setLiveBreakdown] = useState<BreakdownResult>(cachedResult);
 
@@ -48,7 +51,7 @@ export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
       />
       <Link className="detail-back-link detail-back-top" href={backHref}>← {t('style.detail.back')}</Link>
       <div className="style-detail-hero">
-        <img alt={title} className="style-detail-image" src={style.imageUrl} />
+        {imageUrl ? <img alt={title} className="style-detail-image" src={imageUrl} /> : null}
         <div className="style-detail-summary">
           <h1>{title}</h1>
         </div>

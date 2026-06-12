@@ -11,6 +11,7 @@ import { useLanguage } from '@/i18n/context';
 import { formatDuration, formatStatusLabel } from '@/i18n/format';
 import { listMerchantBookingViewsAction, setBookingStatusAction } from '@/lib/actions/booking-actions';
 import { uploadMerchantStyleAction } from '@/lib/actions/merchant-style-actions';
+import { readFileAsBase64 } from '@/lib/file-utils';
 
 type MerchantBookingDetailClientProps = {
   id: string;
@@ -119,6 +120,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
   const conversationId = booking.conversationId;
   const currentStatus = status ?? booking.status;
   const statusLabel = formatStatusLabel({ status: currentStatus, language });
+  const styleImageUrl = booking.styleImageUrl.trim();
 
   async function changeStatus(option: Booking['status']) {
     if (option === 'completed') {
@@ -139,8 +141,10 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
     setIsCompleting(true);
     setMessage('');
     try {
+      const imageBase64 = await readFileAsBase64(image);
       const formData = new FormData();
-      formData.set('image', image);
+      formData.set('imageBase64', imageBase64);
+      formData.set('mimeType', image.type);
       formData.set('source', 'completed_booking');
       if (booking?.styleTitle.trim()) {
         formData.set('title', booking.styleTitle.trim());
@@ -166,7 +170,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
         type="file"
         onChange={handleCompletionPhoto}
       />
-      <img alt={booking.styleTitle} src={booking.styleImageUrl} />
+      {styleImageUrl ? <img alt={booking.styleTitle} src={styleImageUrl} /> : null}
       <div className="booking-detail-copy">
         <h1>{booking.customerName}</h1>
         <p>

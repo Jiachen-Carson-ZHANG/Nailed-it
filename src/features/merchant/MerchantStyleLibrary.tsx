@@ -12,6 +12,7 @@ import {
   listMerchantStylesAction,
   uploadMerchantStyleAction,
 } from '@/lib/actions/merchant-style-actions';
+import { readFileAsBase64 } from '@/lib/file-utils';
 
 const libraryFlashKey = 'merchant-style-library-flash';
 
@@ -107,8 +108,10 @@ export function MerchantStyleLibrary() {
     setIsPending(true);
     setMessage('');
     try {
+      const imageBase64 = await readFileAsBase64(image);
       const formData = new FormData();
-      formData.set('image', image);
+      formData.set('imageBase64', imageBase64);
+      formData.set('mimeType', image.type);
       const draft = await uploadMerchantStyleAction(formData);
       router.push(`/merchant/styles/${draft.id}/review`);
     } catch (error) {
@@ -209,9 +212,10 @@ export function MerchantStyleLibrary() {
           {visible.map((style) => {
             const isPublished = style.status === 'published';
             const isArchived = style.status === 'archived';
+            const imageUrl = style.imageUrl.trim();
             return (
               <article className="merchant-style-management-card" key={style.id}>
-                <img alt={style.title} src={style.imageUrl} />
+                {imageUrl ? <img alt={style.title} src={imageUrl} /> : null}
                 <div className="merchant-style-card-body">
                   <div className="merchant-style-card-heading">
                     <strong>{style.title}</strong>

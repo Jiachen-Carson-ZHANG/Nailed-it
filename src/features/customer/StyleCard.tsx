@@ -9,6 +9,7 @@ import { cardFacetLabels } from './style-facets';
 import { useSavedStyles } from './SavedStylesContext';
 import { useLanguage } from '@/i18n/context';
 import { formatCurrency } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 
 type StyleCardProps = {
   style: NailStyleCard;
@@ -20,9 +21,10 @@ type StyleCardProps = {
 export function StyleCard({ style, onTagClick, activeTags }: StyleCardProps) {
   const { isSaved, toggle } = useSavedStyles();
   const { t, language } = useLanguage();
+  const { currency } = useCurrency();
   const saved = isSaved(style.id);
   const tags = cardFacetLabels(style.discoveryFacets);
-  const priceLabel = formatCurrency({ cents: Math.round(style.previewQuote.price * 100), language });
+  const priceLabel = formatCurrency({ cents: Math.round(style.previewQuote.price * 100), language, currency });
   const linkAria =
     language === 'zh-CN'
       ? `${style.title}，参考价 ${priceLabel}`

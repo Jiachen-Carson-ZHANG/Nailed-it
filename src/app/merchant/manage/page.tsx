@@ -20,7 +20,11 @@ import {
 } from '@/lib/actions/merchant-pricing-actions';
 import { mergeMerchantPricingIntoDefaults } from '@/features/merchant/merge-merchant-pricing-settings';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
-import { DISPLAY_CURRENCY, type Currency } from '@/data/currency-store';
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, loadCurrency, saveCurrency, type Currency } from '@/data/currency-store';
+import {
+  getMerchantCurrencyAction,
+  updateMerchantCurrencyAction,
+} from '@/lib/actions/merchant-currency-actions';
 
 const manageCopy = {
   'zh-CN': {
@@ -58,6 +62,9 @@ const manageCopy = {
     saveError: '保存失败，请重试。',
     nav: '设置导航',
     currency: '货币单位',
+    currencyUpdated: '货币已更新',
+    currencyError: '货币更新失败，请重试。',
+    currencyLoading: '加载中…',
     unitBasicPrice: '基础护理服务 单价',
     unitBasicPricing: '基础护理服务 单位',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_zh,
@@ -98,6 +105,9 @@ const manageCopy = {
     saveError: 'Save failed. Please try again.',
     nav: 'Settings navigation',
     currency: 'Currency unit',
+    currencyUpdated: 'Currency updated',
+    currencyError: 'Failed to update currency. Please try again.',
+    currencyLoading: 'Loading…',
     unitBasicPrice: 'Basic manicure service price',
     unitBasicPricing: 'Basic manicure service unit',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_en,
@@ -511,7 +521,8 @@ export default function MerchantManagePage() {
   const [activePanel, setActivePanel] = useState<PanelId>('basic');
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
-  const currency = DISPLAY_CURRENCY;
+  const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
+  const [currencyLoading, setCurrencyLoading] = useState(true);
 
   // Pricing is authoritative in the DB (merchant_pricing), not localStorage. Load the full UI entry
   // set (incl. the time-only base procedures the panels show) from defaults, then overlay the
@@ -520,10 +531,21 @@ export default function MerchantManagePage() {
     let active = true;
     (async () => {
       try {
-        const db = await listMerchantPricingSettingsAction();
-        if (active) setSettings(mergeMerchantPricingIntoDefaults(db));
+        const [db, dbCurrency] = await Promise.all([
+          listMerchantPricingSettingsAction(),
+          getMerchantCurrencyAction(),
+        ]);
+        if (active) {
+          setSettings(mergeMerchantPricingIntoDefaults(db));
+          setCurrency(dbCurrency);
+          saveCurrency(dbCurrency);
+          setCurrencyLoading(false);
+        }
       } catch {
-        if (active) setSettings(getDefaultSettings());
+        if (active) {
+          setSettings(getDefaultSettings());
+          setCurrencyLoading(false);
+        }
       }
     })();
     return () => {
@@ -539,6 +561,17 @@ export default function MerchantManagePage() {
   function updateSetting(next: GlossaryEntrySettings) {
     setSettings((current) => current.map((s) => (s.id === next.id ? next : s)));
     setDirty(true);
+  }
+
+  async function handleCurrencyChange(next: Currency) {
+    setCurrency(next);
+    saveCurrency(next);
+    try {
+      await updateMerchantCurrencyAction(next);
+      setToastMessage(copy.currencyUpdated);
+    } catch {
+      setToastMessage(copy.currencyError);
+    }
   }
 
   async function handleSave() {
@@ -577,6 +610,27 @@ export default function MerchantManagePage() {
       <div className="manage-layout">
         {/* ── Sidebar ── */}
         <nav className="manage-sidebar" aria-label={copy.nav}>
+          <div className="manage-currency-picker">
+            <label className="manage-currency-label" htmlFor="currency-select">
+              {copy.currency}
+            </label>
+            {currencyLoading ? (
+              <div className="manage-currency-loading" aria-label={copy.currencyLoading}>
+                {copy.currencyLoading}
+              </div>
+            ) : (
+              <select
+                id="currency-select"
+                className="manage-currency-select"
+                value={currency}
+                onChange={(e) => handleCurrencyChange(e.target.value as Currency)}
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
+          </div>
           {(['basic', 'removal', 'extension', 'effects', 'preview'] as const).map((panelId) => (
             <button
               key={panelId}

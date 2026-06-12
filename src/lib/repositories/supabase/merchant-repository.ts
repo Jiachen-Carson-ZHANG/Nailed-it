@@ -39,5 +39,15 @@ export function createSupabaseMerchantRepository(): MerchantRepository {
       }
       return data ? rowToMerchant(data as MerchantRow) : null;
     },
+
+    async updateCurrency(id: string, currency: string): Promise<void> {
+      const { error } = await getServiceClient()
+        .from('merchant')
+        .update({ currency })
+        .eq('id', id);
+      if (error) {
+        throw new Error(`MerchantRepository.updateCurrency failed: ${error.message}`);
+      }
+    },
   };
 }

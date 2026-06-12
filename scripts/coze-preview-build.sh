@@ -5,4 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+if ! command -v pnpm &>/dev/null; then
+  corepack enable pnpm
+fi
 pnpm install

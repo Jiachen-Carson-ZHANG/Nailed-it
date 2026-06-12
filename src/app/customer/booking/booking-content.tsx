@@ -20,6 +20,7 @@ import {
 import { ComponentBreakdownPanel } from '@/features/customer/ComponentBreakdownPanel';
 import { useLanguage } from '@/i18n/context';
 import { formatCurrency, formatDuration } from '@/i18n/format';
+import { useCurrency } from '@/i18n/currency-context';
 import { mockAIResult } from '@/mock/ai';
 import { defaultPricingRules } from '@/mock/pricing';
 
@@ -87,6 +88,7 @@ export function CustomerBookingContent({
   skipToResult,
 }: CustomerBookingContentProps) {
   const { t, language } = useLanguage();
+  const { currency } = useCurrency();
   const router = useRouter();
   // hasPrefill: user arrived from a style card with a known image
   const hasPrefill = Boolean(prefillStyleId && prefillImageUrl);
@@ -367,7 +369,7 @@ function persistCurrentDraft() {
               <p>
                 {t('booking.quote.studioPrice')}:{' '}
                 <strong>
-                  {formatDuration({ minutes: estimate.duration, language })} · {formatCurrency({ cents: Math.round(estimate.price * 100) })}
+                  {formatDuration({ minutes: estimate.duration, language })} · {formatCurrency({ cents: Math.round(estimate.price * 100), currency })}
                 </strong>
               </p>
             </section>
@@ -377,7 +379,7 @@ function persistCurrentDraft() {
                 <p>
                   {t('booking.quote.aiEstimate')}:{' '}
                   <strong>
-                    {formatDuration({ minutes: breakdowns.glossary.totalDuration, language })} · {formatCurrency({ cents: Math.round(breakdowns.glossary.totalPrice * 100) })}
+                    {formatDuration({ minutes: breakdowns.glossary.totalDuration, language })} · {formatCurrency({ cents: Math.round(breakdowns.glossary.totalPrice * 100), currency })}
                   </strong>
                 </p>
               </section>
