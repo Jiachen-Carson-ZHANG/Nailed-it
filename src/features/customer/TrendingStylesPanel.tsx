@@ -20,8 +20,37 @@ const PLATFORM_SHORT: Record<string, string> = {
   Pinterest: 'Pinterest',
   Xiaohongshu: '小红书',
   TikTok: 'TikTok',
+  Douyin: '抖音',
   'Google Images': 'Google',
 };
+
+function handleMobileAppLink(e: React.MouseEvent<HTMLAnchorElement>, link: { url: string; appUrl?: string }) {
+  if (!link.appUrl) return;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) return;
+
+  e.preventDefault();
+
+  let appOpened = false;
+
+  const cancelFallback = () => {
+    if (!appOpened) {
+      appOpened = true;
+      clearTimeout(timer);
+    }
+  };
+
+  const timer = setTimeout(() => {
+    if (!appOpened) window.open(link.url, '_blank', 'noopener,noreferrer');
+  }, 1500);
+
+  // visibilitychange fires on iOS; blur/pagehide fire on Android — listen to all three
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelFallback(); }, { once: true });
+  window.addEventListener('blur', cancelFallback, { once: true });
+  window.addEventListener('pagehide', cancelFallback, { once: true });
+
+  window.location.href = link.appUrl;
+}
 
 function TrendingRow({ style }: { style: AITrendingStyle }) {
   const rankGlyph = RANK_EMOJI[style.rank - 1] ?? String(style.rank);
@@ -39,6 +68,7 @@ function TrendingRow({ style }: { style: AITrendingStyle }) {
               href={link.url}
               rel="noopener noreferrer"
               target="_blank"
+              onClick={(e) => handleMobileAppLink(e, link)}
             >
               {PLATFORM_SHORT[link.platform] ?? link.label}
             </a>
