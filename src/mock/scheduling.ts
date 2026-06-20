@@ -1,13 +1,13 @@
 import type { BlockedTime, LocalMinuteRange, Weekday, WorkingPlanDay } from '@/domain/scheduling';
 
 // Demo working plans + blocked times for the seed technicians (Asia/Singapore).
-// Weekday convention: 0=Sunday … 6=Saturday. Sunday closed for all.
+// Weekday convention: 0=Sunday … 6=Saturday. All technicians work 7 days.
 
 const STANDARD_BREAK: LocalMinuteRange = { startMin: 13 * 60, endMin: 14 * 60 }; // 13:00–14:00
 const ANNA_BREAK: LocalMinuteRange = { startMin: 14 * 60, endMin: 15 * 60 }; // 14:00–15:00
 
-const MON_TO_SAT: Weekday[] = [1, 2, 3, 4, 5, 6];
-const TUE_TO_SAT: Weekday[] = [2, 3, 4, 5, 6];
+const MON_TO_SUN: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
+const TUE_TO_SUN: Weekday[] = [0, 2, 3, 4, 5, 6];
 
 function plansFor(
   technicianId: string,
@@ -20,9 +20,9 @@ function plansFor(
 }
 
 export const mockWorkingPlans: WorkingPlanDay[] = [
-  ...plansFor('tech-mei', MON_TO_SAT, 10 * 60, 19 * 60, [STANDARD_BREAK]),
-  ...plansFor('tech-lina', MON_TO_SAT, 10 * 60, 19 * 60, [STANDARD_BREAK]),
-  ...plansFor('tech-anna', TUE_TO_SAT, 11 * 60, 20 * 60, [ANNA_BREAK]),
+  ...plansFor('tech-mei', MON_TO_SUN, 10 * 60, 19 * 60, [STANDARD_BREAK]),
+  ...plansFor('tech-lina', MON_TO_SUN, 10 * 60, 19 * 60, [STANDARD_BREAK]),
+  ...plansFor('tech-anna', TUE_TO_SUN, 11 * 60, 20 * 60, [ANNA_BREAK]),
 ];
 
 export const mockBlockedTimes: BlockedTime[] = [
