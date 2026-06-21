@@ -155,6 +155,7 @@ const enMessages = {
   'tryOn.commentError': 'Please enter nail-related notes only (e.g. nail shape, length, colour).',
   'tryOn.quickConfirm': 'Apply',
   'tryOn.quickCancel': 'Cancel',
+  'feed.searchPlaceholder': 'Search styles…',
   'feed.aria': 'Style discovery feed',
   'feed.tabListAria': 'Feed type',
   'feed.tabTrending': 'Trending',

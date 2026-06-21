@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import type { UserRole } from '@/domain/nail';
 import {
@@ -40,6 +40,15 @@ export function MobileLayout({
   const avatarInitial = role === 'customer' ? 'M' : 'N';
   const newNailDesignLabel = role === 'customer' ? t('layout.newNailDesign') : null;
   const openProfileLabel = t('layout.openProfile');
+
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
+    const el = e.currentTarget;
+    el.classList.add('is-scrolling');
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => el.classList.remove('is-scrolling'), 1200);
+  }, []);
+
   const rightSlot = (
     <>
       {role === 'customer' && newNailDesignLabel ? (
@@ -69,6 +78,7 @@ export function MobileLayout({
           showTabs && 'mobile-content-with-tabs',
           wide && 'mobile-content-workspace',
         ].filter(Boolean).join(' ')}
+        onScroll={handleScroll}
       >
         {children}
       </main>

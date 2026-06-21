@@ -16,13 +16,12 @@ type StyleWaterfallGridClientProps = {
   reasonByStyleId?: Record<string, string>;
 };
 
-type FeedTab = 'trending' | 'saved';
-
 export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
   const { t, language } = useLanguage();
-  const [activeTab, setActiveTab] = useState<FeedTab>('trending');
+  const [showSaved, setShowSaved] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { savedIds } = useSavedStyles();
 
   const filterGroups = useMemo(() => {
@@ -52,13 +51,25 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
     }
   }
 
+  const savedCount = styles.filter((s) => savedIds.has(s.id)).length;
+
   const tabStyles =
-    activeTab === 'saved' ? styles.filter((s) => savedIds.has(s.id)) : styles;
+    showSaved ? styles.filter((s) => savedIds.has(s.id)) : styles;
+
+  const searchFiltered =
+    searchQuery.trim() === ''
+      ? tabStyles
+      : tabStyles.filter((s) => {
+          const q = searchQuery.trim().toLowerCase();
+          const titleEn = s.title?.toLowerCase() ?? '';
+          const titleZh = s.titleLocalized?.['zh-CN']?.toLowerCase() ?? '';
+          return titleEn.includes(q) || titleZh.includes(q);
+        });
 
   const visibleStyles =
     selectedTags.size === 0
-      ? tabStyles
-      : tabStyles.filter((style) => style.discoveryFacets.some((facet) => selectedTags.has(facet.label)));
+      ? searchFiltered
+      : searchFiltered.filter((style) => style.discoveryFacets.some((facet) => selectedTags.has(facet.label)));
 
   const lastNoResultKey = useRef<string | null>(null);
   useEffect(() => {
@@ -75,39 +86,35 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
     }
   }, [selectedTags, visibleStyles.length]);
 
-  const tabs: { id: FeedTab; label: string }[] = [
-    { id: 'trending', label: t('feed.tabTrending') },
-    { id: 'saved', label: t('feed.tabSaved') },
-  ];
-
   const emptyTitle =
     selectedTags.size > 0
       ? t('feed.emptyNoMatchTitle')
-      : activeTab === 'saved'
+      : showSaved
         ? t('feed.emptySavedTitle')
         : t('feed.emptyNoMatchTitle');
   const emptyBody =
     selectedTags.size > 0
       ? t('feed.emptyNoMatchBody')
-      : activeTab === 'saved'
+      : showSaved
         ? t('feed.emptySavedBody')
         : t('feed.emptyNoMatchBody');
 
   return (
     <section className="xhs-feed" aria-label={t('feed.aria')}>
-      <div className="xhs-tab-row" role="tablist" aria-label={t('feed.tabListAria')}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            type="button"
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? 'xhs-tab xhs-tab-active' : 'xhs-tab'}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="feed-search">
+        <div className="feed-search-wrap">
+          <svg className="feed-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.25" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="12.5" y1="12.5" x2="16.5" y2="16.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('feed.searchPlaceholder')}
+            aria-label={t('feed.searchPlaceholder')}
+          />
+        </div>
       </div>
 
       {filterGroups.length > 0 ? (
@@ -177,6 +184,23 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
           ))}
         </div>
       )}
+
+      <button
+        type="button"
+        aria-label={t('feed.tabSaved')}
+        aria-pressed={showSaved}
+        className={`feed-cart-fab${showSaved ? ' feed-cart-fab-active' : ''}`}
+        onClick={() => setShowSaved((v) => !v)}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+          <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+          <path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {savedCount > 0 && (
+          <span className="feed-cart-fab-badge">{savedCount}</span>
+        )}
+      </button>
     </section>
   );
 }
