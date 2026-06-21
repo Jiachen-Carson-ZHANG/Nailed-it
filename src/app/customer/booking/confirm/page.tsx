@@ -190,41 +190,19 @@ export default function CustomerBookingConfirmPage() {
       role="customer"
       title="Nailed-it"
     >
-      <div className="booking-steps" aria-label={t('booking.progress')}>
-        {[t('booking.steps.upload'), t('booking.steps.result'), t('booking.steps.quote')].map((label, index) => (
-          <span
-            key={label}
-            className={index <= 2 ? 'booking-step booking-step-active' : 'booking-step'}
-            aria-current={index === 2 ? 'step' : undefined}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-
-      <section className="page-heading">
-        <p className="section-eyebrow">{t('booking.step3')}</p>
-        <h2>{t('booking.confirm.heading')}</h2>
-        <p className="section-copy">
-          {t('booking.confirm.helper')}
-        </p>
-      </section>
-
-      {draft.imageUrl && (
-        <div className="booking-result-preview">
-          <img alt={t('booking.confirm.referenceAlt')} className="booking-result-image" src={draft.imageUrl} />
-        </div>
-      )}
-
-      <section className="summary-card">
-        <p>
-          {t('booking.confirm.estimated')}:{' '}
-          <strong>
+      {/* Compact estimate header */}
+      <div className="bc-header">
+        {draft.imageUrl && (
+          <img alt={t('booking.confirm.referenceAlt')} className="bc-thumb" src={draft.imageUrl} />
+        )}
+        <div className="bc-header-meta">
+          <p className="bc-header-title">{t('booking.confirm.heading')}</p>
+          <p className="bc-header-estimate">
             {formatDuration({ minutes: displayEstimate.duration, language })} ·{' '}
             {formatCurrency({ cents: Math.round(displayEstimate.price * 100), language, currency })}
-          </strong>
-        </p>
-      </section>
+          </p>
+        </div>
+      </div>
 
       <BookingTimeSelector
         days={availableDays}

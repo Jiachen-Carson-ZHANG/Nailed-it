@@ -29,7 +29,7 @@ import {
 import { demoMerchantId } from '@/mock/merchants';
 import { demoCustomerName, demoCustomerId } from '@/mock/customers';
 
-const SLOT_LOOKAHEAD_DAYS = 7;
+const SLOT_LOOKAHEAD_DAYS = 30;
 const CANDIDATE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

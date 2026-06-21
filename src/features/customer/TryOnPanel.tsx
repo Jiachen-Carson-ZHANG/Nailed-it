@@ -11,6 +11,7 @@ import { saveTryOnImage } from '@/domain/tryon-image-store';
 import { demoCustomerId } from '@/mock/customers';
 import { track } from '@/features/analytics/track';
 import { useLanguage } from '@/i18n/context';
+import { tryOnQuickCategories, buildCustomPrompt } from '@/data/tryOnCustomisations';
 
 type ImageSlotProps = {
   label: string;
@@ -70,14 +71,42 @@ type TryOnPanelProps = {
 
 export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
   const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(null);
+  const [userComment, setUserComment] = useState('');
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [quickSelections, setQuickSelections] = useState<Record<string, string[]>>({});
   const [result, setResult] = useState<TryOnResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
 
   const canGenerate = Boolean(handImage) && (Boolean(styleImage) || Boolean(prefillStyleImageUrl));
+
+  function toggleCategory(catId: string) {
+    setOpenCategory((prev) => (prev === catId ? null : catId));
+  }
+
+  function toggleOption(catId: string, optId: string, mode: 'single' | 'multi') {
+    setQuickSelections((prev) => {
+      const current = prev[catId] ?? [];
+      let next: string[];
+      if (mode === 'single') {
+        next = current.includes(optId) ? [] : [optId];
+      } else {
+        next = current.includes(optId)
+          ? current.filter((id) => id !== optId)
+          : [...current, optId];
+      }
+      return { ...prev, [catId]: next };
+    });
+  }
+
+  function applyQuickPrompt() {
+    const prompt = buildCustomPrompt(quickSelections, language);
+    setUserComment(prompt);
+    setOpenCategory(null);
+  }
 
   async function generate() {
     if (!handImage) return;
@@ -121,13 +150,17 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
           handImageBase64: handImage.imageBase64,
           handMimeType: handImage.mimeType,
           styleImageBase64: finalStyleBase64,
-          styleMimeType: finalStyleMime
+          styleMimeType: finalStyleMime,
+          userComment: userComment.trim(),
         })
       });
 
-      const body = (await response.json()) as TryOnResult & { error?: string };
+      const body = (await response.json()) as TryOnResult & { error?: string; code?: string };
 
       if (!response.ok) {
+        if (body.code === 'invalid_comment') {
+          throw new Error(t('tryOn.commentError'));
+        }
         throw new Error(body.error ?? t('tryOn.tryOnFailed'));
       }
 
@@ -157,9 +190,6 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
 
   return (
     <div className="try-on-panel">
-      <button type="button" className="detail-back-link detail-back-top" onClick={() => router.back()}>
-        {t('tryOn.back')}
-      </button>
       <div className="try-on-slots">
         <ImageSlot
           label={handLabel}
@@ -184,6 +214,68 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
           <p>{error}</p>
         </section>
       )}
+
+      {/* Quick-select customisation bar + label + textarea grouped together */}
+      <div className="field">
+        <span>{t('tryOn.commentLabel')}</span>
+
+        {/* Category pills — between label and textarea */}
+        <div className="try-on-quick">
+          {openCategory && (
+            <div className="try-on-quick-backdrop" onClick={() => setOpenCategory(null)} />
+          )}
+          <div className="try-on-quick-cats">
+            {tryOnQuickCategories.map((cat) => {
+              const count = (quickSelections[cat.id] ?? []).length;
+              const isOpen = openCategory === cat.id;
+              const selected = quickSelections[cat.id] ?? [];
+              return (
+                <div key={cat.id} className="try-on-quick-cat-wrap">
+                  <button
+                    type="button"
+                    className={`try-on-quick-cat${isOpen || count > 0 ? ' try-on-quick-cat-on' : ''}`}
+                    onClick={() => toggleCategory(cat.id)}
+                  >
+                    {language === 'zh-CN' ? cat.zh : cat.en}
+                    <span className="try-on-quick-chevron" aria-hidden="true">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className={`try-on-quick-dropdown try-on-quick-dropdown--${cat.id}`}>
+                      <div className="chip-row">
+                        {cat.options.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            className={selected.includes(opt.id) ? 'chip chip-selected' : 'chip'}
+                            onClick={() => toggleOption(cat.id, opt.id, cat.mode)}
+                          >
+                            {language === 'zh-CN' ? opt.zh : opt.en}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              className="try-on-quick-apply try-on-quick-apply-global"
+              onClick={applyQuickPrompt}
+            >
+              {t('tryOn.quickConfirm')}
+            </button>
+          </div>
+        </div>
+
+        <textarea
+          value={userComment}
+          placeholder={t('tryOn.commentPlaceholder')}
+          onChange={(e) => setUserComment(e.target.value)}
+          rows={2}
+        />
+      </div>
 
       {isGenerating ? (
         <LoadingState
