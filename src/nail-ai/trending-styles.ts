@@ -75,12 +75,37 @@ function normalizeTrendingStyle(raw: unknown): AITrendingStyle {
 
 function buildSearchLinks(name: string, nameCn: string): TrendingSearchLink[] {
   const encoded = encodeURIComponent(`${name} nail style`);
-  const encodedXhs = encodeURIComponent(`${nameCn} 美甲`);
+  const encodedCn = encodeURIComponent(`${nameCn} 美甲`);
 
   return [
-    { platform: 'Pinterest', label: 'Pinterest', url: `https://www.pinterest.com/search/pins/?q=${encoded}` },
-    { platform: 'Xiaohongshu', label: '小红书', url: `https://www.xiaohongshu.com/search_result?keyword=${encodedXhs}` },
-    { platform: 'Google Images', label: 'Google', url: `https://www.google.com/search?tbm=isch&q=${encoded}` },
-    { platform: 'TikTok', label: 'TikTok', url: `https://www.tiktok.com/search?q=${encoded}` }
+    {
+      platform: 'Pinterest',
+      label: 'Pinterest',
+      url: `https://www.pinterest.com/search/pins/?q=${encoded}`,
+      appUrl: `pinterest://search/pins/?q=${encoded}`,
+    },
+    {
+      platform: 'Xiaohongshu',
+      label: '小红书',
+      url: `https://www.xiaohongshu.com/search_result?keyword=${encodedCn}`,
+      appUrl: `xhsdiscover://search/result?keyword=${encodedCn}`,
+    },
+    {
+      platform: 'Google Images',
+      label: 'Google',
+      url: `https://www.google.com/search?tbm=isch&q=${encoded}`,
+    },
+    {
+      platform: 'TikTok',
+      label: 'TikTok',
+      url: `https://www.tiktok.com/search/video?q=${encoded}`,
+      appUrl: `tiktok://search?q=${encoded}`,
+    },
+    {
+      platform: 'Douyin',
+      label: '抖音',
+      url: `https://www.douyin.com/search/${encodedCn}`,
+      appUrl: `snssdk1128://search?keyword=${encodedCn}`,
+    },
   ];
 }

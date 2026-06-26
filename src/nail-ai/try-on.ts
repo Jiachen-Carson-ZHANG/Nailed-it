@@ -8,7 +8,7 @@ export const defaultTryOnValidationModel = 'doubao-seed-2-0-lite-260215';
 
 export class TryOnError extends Error {
   constructor(
-    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output' | 'invalid_input',
+    public readonly code: 'missing_config' | 'provider_error' | 'invalid_model_output' | 'invalid_input' | 'invalid_comment',
     message: string,
     options?: ErrorOptions
   ) {
@@ -30,6 +30,10 @@ const validationPrompt =
   '- handValid=false: Image 1 is NOT a hand photo (e.g. food, scenery, object, face without hands).\n' +
   '- styleValid=true: Image 2 is a nail art or nail design reference photo.\n' +
   '- styleValid=false: Image 2 does NOT include nail art.\n' +
+  'If the user provided a customisation comment (passed separately as text), also validate it:\n' +
+  '- Add "commentValid": true if the comment is about nail appearance (shape, length, color, finish, art style, etc.).\n' +
+  '- Add "commentValid": false and "commentError": "<brief reason in the same language as the comment>" if the comment is unrelated to nails.\n' +
+  '- Omit commentValid and commentError entirely if no comment was provided.\n' +
   'Output only the JSON object, nothing else.';
 
 const tryOnPrompt =
@@ -48,6 +52,7 @@ export async function runTryOn(
   handMimeType: string,
   styleImageBase64: string,
   styleMimeType: string,
+  userComment = '',
   env = process.env
 ): Promise<TryOnResult> {
   const apiKey = env.ARK_API_KEY;
@@ -58,15 +63,27 @@ export async function runTryOn(
   const baseUrl = env.ARK_BASE_URL ?? DEFAULT_ARK_BASE_URL;
 
   // ── Step 1: validate both images before running the expensive generation ──────
-  await validateImages({ apiKey, model: validationModel, handImageBase64, handMimeType, styleImageBase64, styleMimeType });
+  await validateImages({ apiKey, model: validationModel, handImageBase64, handMimeType, styleImageBase64, styleMimeType, userComment });
 
   // ── Step 2: run the actual try-on ─────────────────────────────────────────────
+  const prompt = userComment
+    ? 'Apply nail art to the hand in image 1. ' +
+      `The user has made the following specific requests — these take PRIORITY over the reference image for the aspects they mention: "${userComment}". ` +
+      'Then, strictly apply image 2 (nail style reference) for aspects NOT covered by the user\'s request. ' +
+      'Keep the hand, skin tone, fingers, and lighting completely realistic and unchanged. Only change the nail appearance. ' +
+      'ADDITIONAL RULES: ' +
+      '(1) If any nails are missing or obscured in the hand photo, fill those nail positions with the closest natural nude color matching the person\'s skin tone — do not leave any finger without a nail. ' +
+      '(2) If the hand photo contains hands from multiple different people, focus on the hand where the fingers and nails are most clearly visible. If it is one person\'s two hands shown together, treat them normally. ' +
+      '(3) If the nail photo involves more hands than the hand photo, do not add additional hands to the hand photo for the try-on effect.'
+    : tryOnPrompt;
+
   let data: unknown;
   try {
     data = await postArkTryOnGeneration({
       apiKey,
       baseUrl,
       model: generationModel,
+      prompt,
       handImageBase64,
       handMimeType,
       styleImageBase64,
@@ -86,7 +103,9 @@ async function validateImages(opts: {
   handMimeType: string;
   styleImageBase64: string;
   styleMimeType: string;
+  userComment?: string;
 }): Promise<void> {
+  const commentText = opts.userComment ? `\n\nUser customisation comment: "${opts.userComment}"` : '';
   let raw: unknown;
   try {
     raw = await postOpenRouterChat(
@@ -98,7 +117,7 @@ async function validateImages(opts: {
             content: [
               { type: 'image_url', image_url: { url: `data:${opts.handMimeType};base64,${opts.handImageBase64}` } },
               { type: 'image_url', image_url: { url: `data:${opts.styleMimeType};base64,${opts.styleImageBase64}` } },
-              { type: 'text', text: validationPrompt }
+              { type: 'text', text: validationPrompt + commentText }
             ]
           }
         ]
@@ -126,12 +145,18 @@ async function validateImages(opts: {
     : null;
   const combined = [handError, styleError].filter(Boolean).join(' | ');
   if (combined) throw new TryOnError('invalid_input', combined);
+
+  if (result.commentValid === false) {
+    const msg = typeof result.commentError === 'string' ? result.commentError : '请输入与美甲相关的内容。';
+    throw new TryOnError('invalid_comment', msg);
+  }
 }
 
 async function postArkTryOnGeneration(opts: {
   apiKey: string;
   baseUrl: string;
   model: string;
+  prompt: string;
   handImageBase64: string;
   handMimeType: string;
   styleImageBase64: string;
@@ -145,7 +170,7 @@ async function postArkTryOnGeneration(opts: {
     },
     body: JSON.stringify({
       model: opts.model,
-      prompt: tryOnPrompt,
+      prompt: opts.prompt,
       image: [
         `data:${opts.handMimeType};base64,${opts.handImageBase64}`,
         `data:${opts.styleMimeType};base64,${opts.styleImageBase64}`

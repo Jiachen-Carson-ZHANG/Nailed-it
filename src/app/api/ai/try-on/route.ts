@@ -10,14 +10,16 @@ export async function POST(request: Request) {
       body.handImageBase64,
       body.handMimeType,
       body.styleImageBase64,
-      body.styleMimeType
+      body.styleMimeType,
+      body.userComment,
     );
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof TryOnError) {
       const status =
-        error.code === 'missing_config' ? 500 :
-        error.code === 'invalid_input'  ? 422 : 502;
+        error.code === 'missing_config'   ? 500 :
+        error.code === 'invalid_input'    ? 422 :
+        error.code === 'invalid_comment'  ? 422 : 502;
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status }
@@ -36,6 +38,7 @@ type TryOnRequest = {
   handMimeType: string;
   styleImageBase64: string;
   styleMimeType: string;
+  userComment: string;
 };
 
 function parseRequestBody(value: unknown): TryOnRequest {
@@ -44,11 +47,12 @@ function parseRequestBody(value: unknown): TryOnRequest {
   const handMimeType = typeof body.handMimeType === 'string' ? body.handMimeType.trim() : '';
   const styleImageBase64 = typeof body.styleImageBase64 === 'string' ? body.styleImageBase64.trim() : '';
   const styleMimeType = typeof body.styleMimeType === 'string' ? body.styleMimeType.trim() : '';
+  const userComment = typeof body.userComment === 'string' ? body.userComment.trim().slice(0, 300) : '';
 
   if (!handImageBase64) throw new Error('handImageBase64 is required.');
   if (!supportedMimeTypes.has(handMimeType)) throw new Error('handMimeType must be PNG, JPEG, WEBP, HEIC, or HEIF.');
   if (!styleImageBase64) throw new Error('styleImageBase64 is required.');
   if (!supportedMimeTypes.has(styleMimeType)) throw new Error('styleMimeType must be PNG, JPEG, WEBP, HEIC, or HEIF.');
 
-  return { handImageBase64, handMimeType, styleImageBase64, styleMimeType };
+  return { handImageBase64, handMimeType, styleImageBase64, styleMimeType, userComment };
 }

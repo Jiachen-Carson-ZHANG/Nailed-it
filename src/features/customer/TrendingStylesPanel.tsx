@@ -1,27 +1,80 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import type { AITrendingResponse, AITrendingStyle } from '@/domain/nail';
+import type { AITrendingStyle } from '@/domain/nail';
 import { Button } from '@/components/ui/Button';
 
 const RANK_EMOJI = ['①', '②', '③'];
-const TOP_N = 3;
-
-// Module-level cache: the trending feed is a live web search, so it should run once per session, not
-// every time the customer returns to home. Refresh still forces a fresh fetch.
-let trendingCache: AITrendingResponse | null = null;
-
-/** Test-only: clear the session cache so each case starts from a clean fetch. */
-export function resetTrendingCacheForTests() {
-  trendingCache = null;
-}
 
 const PLATFORM_SHORT: Record<string, string> = {
   Pinterest: 'Pinterest',
   Xiaohongshu: '小红书',
   TikTok: 'TikTok',
+  Douyin: '抖音',
   'Google Images': 'Google',
 };
+
+const STATIC_TRENDING: AITrendingStyle[] = [
+  {
+    rank: 1,
+    nameCn: '日晒感生物凝胶渐变甲',
+    nameEn: 'Sun-kissed Bio Gel Gradient Nails',
+    searchLinks: [
+      { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2' },
+      { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2' },
+      { platform: 'TikTok', label: 'TikTok', url: 'https://www.tiktok.com/search?q=sun+kissed+gel+gradient+nails' },
+      { platform: 'Douyin', label: '抖音', url: 'https://www.douyin.com/search/%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2', appUrl: 'snssdk1128://search/result?keyword=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2' },
+    ],
+  },
+  {
+    rank: 2,
+    nameCn: '幻彩海玻璃碎封装甲',
+    nameEn: 'Iridescent Sea Glass Encapsulated Nails',
+    searchLinks: [
+      { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=sea+glass+encapsulated+nails' },
+      { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%B5%B7%E7%8E%BB%E7%92%83%E7%A2%8E%E5%B0%81%E8%A3%85%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%B5%B7%E7%8E%BB%E7%92%83%E7%A2%8E%E5%B0%81%E8%A3%85%E7%94%B2' },
+      { platform: 'TikTok', label: 'TikTok', url: 'https://www.tiktok.com/search?q=sea+glass+nail+art' },
+      { platform: 'Douyin', label: '抖音', url: 'https://www.douyin.com/search/%E6%B5%B7%E7%8E%BB%E7%92%83%E7%94%B2', appUrl: 'snssdk1128://search/result?keyword=%E6%B5%B7%E7%8E%BB%E7%92%83%E7%94%B2' },
+    ],
+  },
+  {
+    rank: 3,
+    nameCn: '温变迷你棋盘手印甲',
+    nameEn: 'Thermochromic Mini Checkerboard Handprint Nails',
+    searchLinks: [
+      { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=checkerboard+thermochromic+nail+art' },
+      { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2' },
+      { platform: 'TikTok', label: 'TikTok', url: 'https://www.tiktok.com/search?q=thermochromic+checkerboard+nails' },
+      { platform: 'Douyin', label: '抖音', url: 'https://www.douyin.com/search/%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2', appUrl: 'snssdk1128://search/result?keyword=%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2' },
+    ],
+  },
+];
+
+function handleMobileAppLink(e: React.MouseEvent<HTMLAnchorElement>, link: { url: string; appUrl?: string }) {
+  if (!link.appUrl) return;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) return;
+
+  e.preventDefault();
+
+  let appOpened = false;
+
+  const cancelFallback = () => {
+    if (!appOpened) {
+      appOpened = true;
+      clearTimeout(timer);
+    }
+  };
+
+  const timer = setTimeout(() => {
+    if (!appOpened) window.open(link.url, '_blank', 'noopener,noreferrer');
+  }, 1500);
+
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelFallback(); }, { once: true });
+  window.addEventListener('blur', cancelFallback, { once: true });
+  window.addEventListener('pagehide', cancelFallback, { once: true });
+
+  window.location.href = link.appUrl;
+}
 
 function TrendingRow({ style }: { style: AITrendingStyle }) {
   const rankGlyph = RANK_EMOJI[style.rank - 1] ?? String(style.rank);
@@ -39,6 +92,7 @@ function TrendingRow({ style }: { style: AITrendingStyle }) {
               href={link.url}
               rel="noopener noreferrer"
               target="_blank"
+              onClick={(e) => handleMobileAppLink(e, link)}
             >
               {PLATFORM_SHORT[link.platform] ?? link.label}
             </a>
@@ -49,50 +103,7 @@ function TrendingRow({ style }: { style: AITrendingStyle }) {
   );
 }
 
-function TrendingRowSkeleton() {
-  return (
-    <div className="trending-row trending-row-skeleton" aria-hidden="true">
-      <div className="skeleton-line skeleton-line-medium" />
-    </div>
-  );
-}
-
 export function TrendingStylesPanel() {
-  const [data, setData] = useState<AITrendingResponse | null>(trendingCache);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const hasAutoLoadedRef = useRef(false);
-
-  async function loadTrending() {
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch('/api/ai/trending-styles');
-      const body = (await response.json()) as AITrendingResponse & { error?: string };
-
-      if (!response.ok) {
-        throw new Error(body.error ?? 'Failed to load trending styles.');
-      }
-
-      trendingCache = body;
-      setData(body);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load trending styles.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    // Run the live search at most once per session. Returning to home reuses the cached result;
-    // the Refresh button is the explicit way to fetch again.
-    if (hasAutoLoadedRef.current || trendingCache) return;
-
-    hasAutoLoadedRef.current = true;
-    void loadTrending();
-  }, []);
-
   return (
     <section className="trending-panel" aria-labelledby="trending-panel-title">
       <div className="trending-panel-header">
@@ -100,36 +111,15 @@ export function TrendingStylesPanel() {
           <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
           <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
         </div>
-        <Button
-          size="compact"
-          variant="secondary"
-          onClick={loadTrending}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Loading…' : 'Refresh'}
+        <Button size="compact" variant="secondary" onClick={() => {}}>
+          Refresh
         </Button>
       </div>
-
-      {error && (
-        <section className="summary-card" role="alert">
-          <strong>Could not load trends</strong>
-          <p>{error}</p>
-        </section>
-      )}
-
-      {isLoading && (
-        <div className="trending-list" aria-busy="true" aria-label="Loading trending styles">
-          {Array.from({ length: TOP_N }, (_, i) => <TrendingRowSkeleton key={i} />)}
-        </div>
-      )}
-
-      {!isLoading && data && (
-        <div className="trending-list">
-          {data.styles.slice(0, TOP_N).map((style) => (
-            <TrendingRow key={style.rank} style={style} />
-          ))}
-        </div>
-      )}
+      <div className="trending-list">
+        {STATIC_TRENDING.map((style) => (
+          <TrendingRow key={style.rank} style={style} />
+        ))}
+      </div>
     </section>
   );
 }

@@ -226,6 +226,8 @@ export type BookingConversationThread = {
 export type TrendingSearchLink = {
   platform: string;
   url: string;
+  /** Native app URL scheme for mobile — if present, attempted before falling back to `url`. */
+  appUrl?: string;
   label: string;
 };
 
