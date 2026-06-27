@@ -9,7 +9,11 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { useLanguage } from '@/i18n/context';
 import { StyleWaterfallGridClient } from './StyleWaterfallGridClient';
 
-export function PublishedStyleFeed() {
+type PublishedStyleFeedProps = {
+  searchQuery: string;
+};
+
+export function PublishedStyleFeed({ searchQuery }: PublishedStyleFeedProps) {
   const { t } = useLanguage();
   const [styles, setStyles] = useState<PublishedMerchantStyle[] | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
@@ -17,8 +21,6 @@ export function PublishedStyleFeed() {
 
   useEffect(() => {
     let active = true;
-    // Personalized order for the demo customer; fall back to the plain published list if ranking
-    // is unavailable so the feed always renders.
     getRankedFeedAction()
       .then((feed) => {
         if (!active) return;
@@ -41,5 +43,5 @@ export function PublishedStyleFeed() {
   if (styles === null) {
     return <LoadingState title={t('feed.loadingTitle')} body={t('feed.loadingBody')} />;
   }
-  return <StyleWaterfallGridClient styles={styles} reasonByStyleId={reasons} />;
+  return <StyleWaterfallGridClient styles={styles} reasonByStyleId={reasons} searchQuery={searchQuery} />;
 }
