@@ -108,17 +108,16 @@ export function TrendingStylesPanel() {
 
   return (
     <section className="trending-panel" aria-labelledby="trending-panel-title">
+      <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
       <button
         type="button"
         className="trending-panel-toggle"
         aria-expanded={expanded}
         aria-controls="trending-panel-body"
+        aria-labelledby="trending-panel-title"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div>
-          <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
-          <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
-        </div>
+        <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
         <svg
           className="trending-panel-chevron"
           aria-hidden="true"
@@ -132,13 +131,11 @@ export function TrendingStylesPanel() {
           <polyline points="5,7 10,13 15,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
       </button>
-      {expanded && (
-        <div id="trending-panel-body" className="trending-list">
-          {STATIC_TRENDING.map((style) => (
-            <TrendingRow key={style.rank} style={style} />
-          ))}
-        </div>
-      )}
+      <div id="trending-panel-body" className="trending-list" hidden={!expanded}>
+        {STATIC_TRENDING.map((style) => (
+          <TrendingRow key={style.rank} style={style} />
+        ))}
+      </div>
     </section>
   );
 }
