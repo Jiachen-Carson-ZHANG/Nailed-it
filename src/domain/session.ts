@@ -55,6 +55,7 @@ const merchantPaths = {
   opsBot: '/merchant/messages/ops',
   messages: '/merchant/messages',
   profile: '/merchant/profile',
+  styles: '/merchant/styles',
   messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`,
   styleDetail: (id: string) => `/merchant/styles/${id}/review`,
   agents: '/merchant/agents',
@@ -234,6 +235,12 @@ export function getMerchantMessagesPath(conversationId?: string): string {
 
 export function getMerchantProfilePath(): string {
   return merchantPaths.profile;
+}
+
+/** The merchant's style library (upload + review). Where an approved 上架-new proposal routes the
+ *  merchant to supply the image and complete the listing (ADR-0007 §4 gate). */
+export function getMerchantStylesPath(): string {
+  return merchantPaths.styles;
 }
 
 /** The merchant's own view of a published style (the library review/editor page for that style). */

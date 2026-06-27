@@ -13,7 +13,7 @@ import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/sc
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import type { AnalyticsEvent, Customer, NewAnalyticsEvent } from '@/domain/analytics';
-import type { Agent, AgentAction, AgentRunView, ActionStatus } from '@/domain/agents';
+import type { Agent, AgentAction, AgentActionType, AgentRunView, ActionStatus } from '@/domain/agents';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -178,8 +178,14 @@ export interface AgentRepository {
   /** Runs for a merchant, most recent first, each joined with its agent identity + actions. */
   listRuns(merchantId: string): Promise<AgentRunView[]>;
   getRun(id: string): Promise<AgentRunView | null>;
-  /** Flip an action's status — backs the panel's one-click undo (reversible tier). */
-  setActionStatus(actionId: string, status: ActionStatus): Promise<AgentAction | null>;
+  /** Flip an action's status for one merchant, enforcing the panel's legal transitions. */
+  setActionStatus(actionId: string, merchantId: string, status: ActionStatus): Promise<AgentAction | null>;
+  /** Actions for a merchant (most recent first), optionally filtered by type/status. Powers the
+   *  in-context surfaces (投广 / 价格config / 老板msg) that render what the agents did on the real pages. */
+  listActions(
+    merchantId: string,
+    opts?: { types?: AgentActionType[]; statuses?: ActionStatus[] },
+  ): Promise<AgentAction[]>;
 }
 
 export interface RepositoryBundle {

@@ -1,5 +1,61 @@
 # Implementation Log
 
+## 2026-06-27 — Agent audit follow-up: OpenRouter default, guarded actions (ADR-0007)
+
+Post-audit correction to the Phase 3/3b agent work:
+- Default agent provider is now `MODEL_PROVIDER=openrouter`; Anthropic SDK `tool_runner` is optional,
+  not the default handoff path.
+- Python tool bodies validate model-supplied action payloads before writing `agent_actions`.
+- Agent action status updates are merchant-scoped and only allow legal transitions (`applied`
+  reversible → `undone`, `proposed` draft upload → `approved`/`undone`).
+- Runtime action-type filters are sanitized before querying in-context cards.
+
+Verification: `pytest agent-service/tests -q` = 10 passed; `npm run test --
+src/lib/repositories/memory/agent-repository.test.ts` = 9 passed. `npx tsc --noEmit` is still blocked
+by unrelated existing customer/trending/try-on errors; no agent files were reported.
+
+## 2026-06-27 — Agent service Phase 3b: in-context surfaces + panel Run button (ADR-0007)
+
+The agent team's actions now show up on the **real merchant pages**, not just the dashboard.
+
+- **Read layer:** `AgentRepository.listActions(merchantId, {types, statuses})` (memory + supabase) +
+  `listAgentActionsAction(types)` (applied-only).
+- **Shared surface:** `src/features/merchant/AgentActionInline.tsx` — one self-fetching, self-hiding,
+  AI-attributed card with one-click undo, dropped on three surfaces: `place_ad` → style library
+  (`/merchant/styles`), `set_group_buy_coupon` → price-config (`/merchant/manage`),
+  `send_customer_message` → the 老板msg thread (filtered by `participantName`).
+- **Gate completion:** approving a gated `draft_upload` shows a **去上架/Upload** link to the style
+  library — the merchant supplies the image (auto-publish is impossible by design; that's why it's
+  gated). New `getMerchantStylesPath()`.
+- **Panel Run button:** `triggerAgentRoundAction()` spawns the Python service detached
+  (`agent-service/.venv/bin/python -m nailed_agents`, localhost-demo, disabled in production); the
+  panel polls `listAgentRunsAction` (~90s) so runs appear and flip running→completed live. Confirms
+  before running (it calls the model / spends credits).
+- Regression: `listActions` filter test (applied `place_ad` present; proposed `draft_upload` excluded).
+
+Verification: `tsc` clean on all touched files; vitest agent-repository **8 passed**; pytest **10
+passed** (unchanged — Python service untouched this step). The spawn trigger is localhost infra (not
+unit-tested).
+
+## 2026-06-27 — Agent provider direction clarified + tool payload validation (ADR-0007)
+
+Aligned ADR-0007, the agent README, current-state docs, and `.env.example` with the current decision:
+the repo-owned Python agent framework stays, **OpenRouter via the OpenAI-compatible SDK is the default
+demo model path**, and Anthropic SDK `tool_runner` is an optional provider when explicitly selected.
+OpenRouter does not literally run Anthropic's `tool_runner`; it runs the same plain Python tool bodies
+through our OpenAI-format call→tool→call loop.
+
+Also hardened the LLM trust boundary in `agent-service/nailed_agents/tools.py`: model-supplied action
+arguments are now validated before any `agent_actions` payload is written (style id shape, ad slot,
+positive/bounded money, trimmed/capped text). Added pytest coverage for invalid payloads.
+
+Aligned assumptions:
+- One tool source of truth remains the plain Python functions in `tools.py`.
+- `MODEL_PROVIDER=openrouter` is the handoff/default path for the demo; `MODEL_PROVIDER=anthropic`
+  requires separate verification if selected.
+- Agent actions are still data-side records; in-context cards render them, but true ad/coupon/message
+  entities and publish-on-approve remain pending.
+
 ## 2026-06-27 — Agent service: test coverage (Python + TS) (ADR-0007)
 
 Closed the standing gap — the agent service had no automated tests (only `py_compile`/`tsc`). Added
@@ -996,4 +1052,3 @@ Aligned assumptions:
 
 Verification:
 - `npm test -- src/i18n/messages/ui/messages.test.ts src/app/merchant/messages/page.test.tsx src/app/merchant/styles/[id]/review/page.test.tsx src/app/customer/profile/page.test.tsx` — all passed.
-

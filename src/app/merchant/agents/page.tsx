@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { listAgentsAction, listAgentRunsAction } from '@/lib/actions/agent-actions';
+import { listAgentsAction, listAgentRunsAction, triggerAgentRoundAction } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
@@ -18,6 +18,9 @@ const agentsCopy = {
     loop: '闭环：数分 → 决策 → 执行（投广 / 团购 / 上下架 / 用户运营）→ 监测',
     teamTitle: '团队成员',
     runsTitle: '最近运行',
+    runRound: '运行一轮',
+    runningRound: '运行中…',
+    runConfirm: '运行一轮会调用模型并产生少量费用，确认运行？',
     emptyTitle: '暂无运行记录',
     emptyBody: '运营团队运行后，这里会显示每次运行的思考链与动作。',
     loading: '正在加载…',
@@ -33,6 +36,9 @@ const agentsCopy = {
     loop: 'Loop: Insight → Decision → Act (ad / coupon / catalog / customer-ops) → Monitor',
     teamTitle: 'Team',
     runsTitle: 'Recent runs',
+    runRound: 'Run a round',
+    runningRound: 'Running…',
+    runConfirm: 'Running a round calls the model (small cost). Proceed?',
     emptyTitle: 'No runs yet',
     emptyBody: 'Once the team runs, each run’s thinking chain and actions show here.',
     loading: 'Loading…',
@@ -60,6 +66,8 @@ export default function MerchantAgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [runs, setRuns] = useState<AgentRunView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [triggering, setTriggering] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -73,8 +81,34 @@ export default function MerchantAgentsPage() {
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  async function handleRun() {
+    if (triggering || !window.confirm(copy.runConfirm)) return;
+    setTriggering(true);
+    const res = await triggerAgentRoundAction();
+    if (!res.ok) {
+      window.alert(res.error ?? 'Failed to start');
+      setTriggering(false);
+      return;
+    }
+    // The Python service writes runs/actions to Supabase as it goes → poll to show running→completed
+    // live. Stop after ~90s (a round is ~1–2 min; data persists if it's still finishing).
+    let polls = 0;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      polls += 1;
+      try {
+        setRuns(await listAgentRunsAction());
+      } catch {/* keep polling */}
+      if (polls >= 30) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setTriggering(false);
+      }
+    }, 3000);
+  }
 
   return (
     <MobileLayout role="merchant" title="Nailed-it">
@@ -107,6 +141,14 @@ export default function MerchantAgentsPage() {
           <section className="detail-surface" aria-labelledby="agents-runs-title">
             <div className="detail-surface-header">
               <h2 id="agents-runs-title">{copy.runsTitle}</h2>
+              <button
+                type="button"
+                className="button button-primary button-compact"
+                disabled={triggering}
+                onClick={() => void handleRun()}
+              >
+                {triggering ? copy.runningRound : copy.runRound}
+              </button>
             </div>
             {runs.length === 0 ? (
               <EmptyState title={copy.emptyTitle} body={copy.emptyBody} />

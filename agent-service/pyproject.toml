@@ -1,7 +1,7 @@
 [project]
 name = "nailed-agents"
 version = "0.1.0"
-description = "Nailed-it merchant operations agent team (ADR-0007) — Python multi-agent (Claude prod / OpenRouter dev)."
+description = "Nailed-it merchant operations agent team (ADR-0007) — Python multi-agent with OpenRouter default and optional Anthropic tool_runner."
 requires-python = ">=3.10"
 dependencies = [
     "anthropic>=0.40",

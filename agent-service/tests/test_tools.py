@@ -67,6 +67,20 @@ def test_place_ad_writes_reversible_action_and_two_steps(ctx):
     assert ctx.transcript[-1]["status"] == "applied"
 
 
+def test_action_tools_validate_model_supplied_payloads_before_write(ctx):
+    with pytest.raises(ValueError, match="slot_invalid"):
+        tools.place_ad("style-1", "bad_slot", 5000)
+    with pytest.raises(ValueError, match="budget_cents_must_be_positive"):
+        tools.place_ad("style-1", "top_funnel", -1)
+    with pytest.raises(ValueError, match="style_id_invalid"):
+        tools.set_group_buy_coupon("../style", 6800)
+    with pytest.raises(ValueError, match="body_too_long"):
+        tools.send_customer_message("Melissa Tan", "x" * 281)
+
+    assert ctx.writes == []
+    assert ctx.transcript == []
+
+
 def test_propose_listing_is_gated(ctx):
     """The one human gate (ADR-0007 §4): proposes (not applies), sets awaiting_approval."""
     tools.propose_listing("暗黑", "高搜索低供给")

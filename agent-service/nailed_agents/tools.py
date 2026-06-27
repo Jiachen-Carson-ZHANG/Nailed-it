@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 import typing
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
@@ -61,6 +62,48 @@ def _ctx() -> RunContext:
     return _current.get()
 
 
+_STYLE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,120}$")
+_AD_SLOTS = {"top_funnel", "lower_funnel", "mid_funnel"}
+_MAX_AD_BUDGET_CENTS = 200_000
+_MAX_COUPON_PRICE_CENTS = 100_000
+_MAX_TEXT_CHARS = 280
+_MAX_TAG_CHARS = 40
+
+
+def _clean_text(value: str, *, field: str, max_chars: int = _MAX_TEXT_CHARS) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field}_invalid")
+    cleaned = " ".join(value.strip().split())
+    if not cleaned:
+        raise ValueError(f"{field}_required")
+    if len(cleaned) > max_chars:
+        raise ValueError(f"{field}_too_long")
+    return cleaned
+
+
+def _clean_style_id(value: str, *, required: bool = True) -> str:
+    if not isinstance(value, str):
+        raise ValueError("style_id_invalid")
+    cleaned = value.strip()
+    if not cleaned:
+        if required:
+            raise ValueError("style_id_required")
+        return ""
+    if not _STYLE_ID_RE.fullmatch(cleaned):
+        raise ValueError("style_id_invalid")
+    return cleaned
+
+
+def _bounded_int(value: int, *, field: str, maximum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field}_invalid")
+    if value <= 0:
+        raise ValueError(f"{field}_must_be_positive")
+    if value > maximum:
+        raise ValueError(f"{field}_too_large")
+    return value
+
+
 # ── tool bodies (plain functions — type hints + docstrings drive BOTH schemas) ──────────────────
 
 def get_merchant_insights(range_days: int = 7) -> str:
@@ -94,6 +137,10 @@ def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
     'lower_funnel', 'mid_funnel'. budget_cents is the ad budget in cents. Reversible — the merchant
     can undo it from the panel."""
     ctx = _ctx()
+    style_id = _clean_style_id(style_id)
+    if not isinstance(slot, str) or slot not in _AD_SLOTS:
+        raise ValueError("slot_invalid")
+    budget_cents = _bounded_int(budget_cents, field="budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
     payload = {"styleId": style_id, "slot": slot, "budgetCents": budget_cents}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="place_ad", payload=payload)
     ctx.transcript.append({"kind": "tool_call", "tool": "place_ad", "input": payload, "output": {"ok": True}})
@@ -108,6 +155,8 @@ def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
     """Set a 团购券 (group-buy coupon) post-coupon price for a style, surfaced on the price-config
     page. price_cents is the post-coupon price in cents. Reversible — the merchant can undo it."""
     ctx = _ctx()
+    style_id = _clean_style_id(style_id)
+    price_cents = _bounded_int(price_cents, field="price_cents", maximum=_MAX_COUPON_PRICE_CENTS)
     payload = {"styleId": style_id, "priceCents": price_cents}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="set_group_buy_coupon", payload=payload)
     ctx.transcript.append(
@@ -124,6 +173,7 @@ def list_style(style_id: str) -> str:
     """Re-list (publish) an EXISTING style that is currently archived. Reversible — the merchant can
     undo it from the panel. Use only for styles that already exist in the catalog."""
     ctx = _ctx()
+    style_id = _clean_style_id(style_id)
     payload = {"styleId": style_id}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="list_style", payload=payload)
     ctx.transcript.append({"kind": "tool_call", "tool": "list_style", "input": payload, "output": {"ok": True}})
@@ -137,6 +187,7 @@ def delist_style(style_id: str) -> str:
     """Delist (archive) an existing style that has been unproductive for a long time. Reversible — the
     merchant can undo it from the panel."""
     ctx = _ctx()
+    style_id = _clean_style_id(style_id)
     payload = {"styleId": style_id}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="delist_style", payload=payload)
     ctx.transcript.append({"kind": "tool_call", "tool": "delist_style", "input": payload, "output": {"ok": True}})
@@ -153,6 +204,8 @@ def propose_listing(gap_tag: str, reason: str) -> str:
     the panel before it goes live (ADR-0007 §4, the one human gate). gap_tag: the demand tag (e.g.
     '暗黑'); reason: one line of grounded justification."""
     ctx = _ctx()
+    gap_tag = _clean_text(gap_tag, field="gap_tag", max_chars=_MAX_TAG_CHARS)
+    reason = _clean_text(reason, field="reason")
     payload = {"gapTag": gap_tag, "reason": reason}
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="draft_upload",
@@ -172,6 +225,9 @@ def send_customer_message(customer_name: str, body: str, style_id: str = "") -> 
     an optional recommended-style card. Reversible — the merchant can retract it. customer_name: from
     the roster; body: the message text; style_id: optional style to attach as a card."""
     ctx = _ctx()
+    customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
+    body = _clean_text(body, field="body")
+    style_id = _clean_style_id(style_id, required=False)
     payload = {"customerName": customer_name, "body": body, "styleId": style_id or None}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload)
     ctx.transcript.append(

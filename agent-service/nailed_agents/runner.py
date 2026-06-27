@@ -29,7 +29,7 @@ def _anthropic():
 def _openai():
     global _openai_client
     if _openai_client is None:
-        from openai import OpenAI  # lazy — only needed for the OpenRouter dev path
+        from openai import OpenAI  # lazy — only needed for the OpenRouter path
         _openai_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
     return _openai_client
 

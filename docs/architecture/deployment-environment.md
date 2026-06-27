@@ -68,6 +68,17 @@ This means production still needs both provider groups unless those text-only pa
 | `VISION_OUTPUT_PRICE_PER_1M_TOKENS` | Optional | AI usage-cost logging | Only needed if you override pricing assumptions |
 | `VISION_COST_LOGGING_ENABLED` | Optional | AI usage-cost logging | Defaults to enabled unless explicitly set to `false` |
 
+### Merchant Agent Service
+
+| Variable | Required | Used by | Notes |
+| --- | --- | --- | --- |
+| `MODEL_PROVIDER` | Recommended | `agent-service` | Default is `openrouter`; use `anthropic` only when running the direct Anthropic SDK path |
+| `AGENT_MODEL` | Recommended | `agent-service` | Default for OpenRouter is `google/gemini-2.5-flash`; override for the selected provider |
+| `OPENROUTER_BASE_URL` | Optional | `agent-service` OpenRouter path | Defaults to `https://openrouter.ai/api/v1` |
+| `ANTHROPIC_API_KEY` | Only if `MODEL_PROVIDER=anthropic` | `agent-service` Anthropic path | OpenRouter runs do not use this |
+| `NAILED_APP_URL` | Optional | `agent-service` briefing/customer reads | Defaults to `http://localhost:3000`; set to the deployed app URL outside local dev |
+| `NAILED_MERCHANT_ID` | Optional | `agent-service` Supabase writes | Defaults to `merchant-nailed-it` |
+
 ## Recommended Production Values
 
 ```env
@@ -84,6 +95,13 @@ OPENROUTER_API_KEY=your-openrouter-api-key
 GEMINI_IMAGE_MODEL_NAME=your-openrouter-text-model
 INSIGHTS_MODEL_NAME=your-openrouter-text-model
 INSIGHTS_TIMEOUT_MS=6000
+
+MODEL_PROVIDER=openrouter
+AGENT_MODEL=google/gemini-2.5-flash
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+ANTHROPIC_API_KEY=
+NAILED_APP_URL=https://your-app.example.com
+NAILED_MERCHANT_ID=merchant-nailed-it
 ```
 
 ## Deployment Notes
@@ -145,6 +163,7 @@ Before promoting a deployment, verify:
 - `ARK_IMAGE_MODEL` is set to `doubao-seedream-5-0-260128`
 - `ARK_TRENDING_MODEL` is set to `doubao-seed-2-0-lite-260428`
 - `OPENROUTER_API_KEY` is present if `insights-summary` is enabled
+- `MODEL_PROVIDER=openrouter` is set for the demo agent service unless intentionally testing the Anthropic path
 - `GEMINI_IMAGE_MODEL_NAME` and `INSIGHTS_MODEL_NAME` point to text-capable OpenRouter models when the fallback path is used
 - `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present for persistent environments
 

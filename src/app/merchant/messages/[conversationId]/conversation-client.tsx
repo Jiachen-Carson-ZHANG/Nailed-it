@@ -7,6 +7,7 @@ import { getMerchantMessagesPath } from '@/domain/session';
 import type { Conversation } from '@/domain/nail';
 import { ChatRoom, type ChatAppointment } from '@/features/messages/ChatRoom';
 import { CustomerIntelPanel } from '@/features/merchant/CustomerIntelPanel';
+import { AgentActionInline } from '@/features/merchant/AgentActionInline';
 import { useLanguage } from '@/i18n/context';
 import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
 import { getCustomerIntelligenceAction } from '@/lib/actions/customer-intel-actions';
@@ -94,6 +95,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
   return conversation ? (
     <>
       <ChatRoom conversation={conversation} onSend={handleSend} viewerRole="merchant" appointment={appointment} />
+      <AgentActionInline types={['send_customer_message']} filterCustomerName={conversation.participantName} />
       <CustomerIntelPanel
         customerName={conversation.participantName}
         conversationId={conversationId}

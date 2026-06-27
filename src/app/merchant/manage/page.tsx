@@ -20,6 +20,7 @@ import {
 } from '@/lib/actions/merchant-pricing-actions';
 import { mergeMerchantPricingIntoDefaults } from '@/features/merchant/merge-merchant-pricing-settings';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
+import { AgentActionInline } from '@/features/merchant/AgentActionInline';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, loadCurrency, saveCurrency, type Currency } from '@/data/currency-store';
 import {
   getMerchantCurrencyAction,
@@ -645,6 +646,7 @@ export default function MerchantManagePage() {
 
         {/* ── Main panel ── */}
         <div className="manage-main">
+          <AgentActionInline types={['set_group_buy_coupon']} />
           {activePanel === 'basic'     && <BasicPanel {...panelProps} />}
           {activePanel === 'removal'   && <RemovalPanel {...panelProps} />}
           {activePanel === 'extension' && <ExtensionPanel {...panelProps} />}

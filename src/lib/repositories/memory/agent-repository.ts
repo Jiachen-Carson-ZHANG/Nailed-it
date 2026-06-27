@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentAction,
+  AgentActionType,
   AgentRunView,
   ActionStatus,
   NewAgentRun,
@@ -38,6 +39,19 @@ export function createMemoryAgentRepository(
     };
   }
 
+  function canTransition(action: AgentAction, status: ActionStatus): boolean {
+    if (status === 'approved') {
+      return action.status === 'proposed' && action.type === 'draft_upload';
+    }
+    if (status === 'undone') {
+      return (
+        (action.status === 'applied' && action.risk === 'reversible') ||
+        action.status === 'proposed'
+      );
+    }
+    return false;
+  }
+
   return {
     async listAgents(): Promise<Agent[]> {
       return structuredClone(agents);
@@ -57,11 +71,28 @@ export function createMemoryAgentRepository(
       return run ? structuredClone(toView(run)) : null;
     },
 
-    async setActionStatus(actionId: string, status: ActionStatus): Promise<AgentAction | null> {
-      const action = actions.find((a) => a.id === actionId);
-      if (!action) return null;
+    async setActionStatus(
+      actionId: string,
+      merchantId: string,
+      status: ActionStatus,
+    ): Promise<AgentAction | null> {
+      const action = actions.find((a) => a.id === actionId && a.merchantId === merchantId);
+      if (!action || !canTransition(action, status)) return null;
       action.status = status;
       return structuredClone(action);
+    },
+
+    async listActions(
+      merchantId: string,
+      opts?: { types?: AgentActionType[]; statuses?: ActionStatus[] },
+    ): Promise<AgentAction[]> {
+      return structuredClone(
+        actions
+          .filter((a) => a.merchantId === merchantId)
+          .filter((a) => !opts?.types || opts.types.includes(a.type))
+          .filter((a) => !opts?.statuses || opts.statuses.includes(a.status))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      );
     },
   };
 }

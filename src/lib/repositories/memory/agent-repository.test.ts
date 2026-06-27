@@ -43,7 +43,7 @@ describe('memory AgentRepository', () => {
     const action = runs.flatMap((r) => r.actions)[0];
     expect(action.status).toBe('applied');
 
-    const updated = await repo.setActionStatus(action.id, 'undone');
+    const updated = await repo.setActionStatus(action.id, demoMerchantId, 'undone');
     expect(updated?.status).toBe('undone');
 
     const after = await repo.getRun(action.runId);
@@ -60,10 +60,21 @@ describe('memory AgentRepository', () => {
     expect(proposal?.status).toBe('proposed');
     expect(proposal?.risk).toBe('irreversible');
 
-    const approved = await repo.setActionStatus(proposal!.id, 'approved');
+    const approved = await repo.setActionStatus(proposal!.id, demoMerchantId, 'approved');
     expect(approved?.status).toBe('approved');
     const after = await repo.getRun(catalog!.id);
     expect(after?.actions.find((a) => a.id === proposal!.id)?.status).toBe('approved');
+  });
+
+  it('rejects illegal action status transitions', async () => {
+    const repo = mk();
+    const runs = await repo.listRuns(demoMerchantId);
+    const proposal = runs.find((r) => r.agentSlug === 'catalog')!.actions[0]!;
+    const ad = runs.find((r) => r.agentSlug === 'ad')!.actions[0]!;
+
+    expect(await repo.setActionStatus(ad.id, 'other-merchant', 'undone')).toBeNull();
+    expect(await repo.setActionStatus(ad.id, demoMerchantId, 'approved')).toBeNull();
+    expect(await repo.setActionStatus(proposal.id, demoMerchantId, 'applied')).toBeNull();
   });
 
   it('customer-ops run carries a reversible boss-message action', async () => {
@@ -71,6 +82,16 @@ describe('memory AgentRepository', () => {
     const co = runs.find((r) => r.agentSlug === 'customer_ops');
     expect(co?.actions[0]?.type).toBe('send_customer_message');
     expect(co?.actions[0]?.risk).toBe('reversible');
+  });
+
+  it('listActions filters by type + status for the in-context surfaces', async () => {
+    const repo = mk();
+    const ads = await repo.listActions(demoMerchantId, { types: ['place_ad'], statuses: ['applied'] });
+    expect(ads.length).toBeGreaterThanOrEqual(1);
+    expect(ads.every((a) => a.type === 'place_ad' && a.status === 'applied')).toBe(true);
+    // a gated proposal is NOT 'applied' → must not leak into an applied-only surface
+    const appliedDraft = await repo.listActions(demoMerchantId, { types: ['draft_upload'], statuses: ['applied'] });
+    expect(appliedDraft).toHaveLength(0);
   });
 
   it('returns null for an unknown run', async () => {

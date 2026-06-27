@@ -9,7 +9,7 @@ import {
   approveAgentActionAction,
   rejectAgentActionAction,
 } from '@/lib/actions/agent-actions';
-import { getMerchantAgentsPath } from '@/domain/session';
+import { getMerchantAgentsPath, getMerchantStylesPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { AgentActionType, AgentRunView, TranscriptStep } from '@/domain/agents';
@@ -28,6 +28,7 @@ const detailCopy = {
     reject: '拒绝',
     approved: '已批准',
     rejected: '已拒绝',
+    upload: '去上架',
     proposedNote: '待商家批准（库内无匹配款式，需提供图片后上架）',
     reasoning: '推理',
     tool: '工具',
@@ -54,6 +55,7 @@ const detailCopy = {
     reject: 'Reject',
     approved: 'Approved',
     rejected: 'Rejected',
+    upload: 'Upload it',
     proposedNote: 'Awaiting merchant approval (no internal match — needs an image to list)',
     reasoning: 'Reasoning',
     tool: 'Tool',
@@ -168,7 +170,14 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
                       </button>
                     </div>
                   ) : isApproved ? (
-                    <span className="agent-action-status">{copy.approved}</span>
+                    <span className="agent-action-gate">
+                      <span className="agent-action-status">{copy.approved}</span>
+                      {a.type === 'draft_upload' ? (
+                        <Link className="button button-primary button-compact" href={getMerchantStylesPath()}>
+                          {copy.upload}
+                        </Link>
+                      ) : null}
+                    </span>
                   ) : isRejected ? (
                     <span className="agent-action-status">{copy.rejected}</span>
                   ) : a.risk === 'reversible' ? (

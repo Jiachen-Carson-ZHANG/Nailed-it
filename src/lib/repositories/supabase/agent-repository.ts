@@ -126,15 +126,44 @@ export function createSupabaseAgentRepository(): AgentRepository {
       return data ? rowToRunView(data as RunRow) : null;
     },
 
-    async setActionStatus(actionId: string, status: ActionStatus): Promise<AgentAction | null> {
-      const { data, error } = await getServiceClient()
+    async setActionStatus(
+      actionId: string,
+      merchantId: string,
+      status: ActionStatus,
+    ): Promise<AgentAction | null> {
+      if (status !== 'approved' && status !== 'undone') return null;
+
+      let query = getServiceClient()
         .from('agent_actions')
         .update({ status })
         .eq('id', actionId)
-        .select('*')
-        .maybeSingle();
+        .eq('merchant_id', merchantId);
+
+      if (status === 'approved') {
+        query = query.eq('status', 'proposed').eq('type', 'draft_upload');
+      } else {
+        query = query.in('status', ['applied', 'proposed']).or('risk.eq.reversible,status.eq.proposed');
+      }
+
+      const { data, error } = await query.select('*').maybeSingle();
       if (error) throw new Error(`AgentRepository.setActionStatus failed: ${error.message}`);
       return data ? rowToAction(data as ActionRow) : null;
+    },
+
+    async listActions(
+      merchantId: string,
+      opts?: { types?: AgentActionType[]; statuses?: ActionStatus[] },
+    ): Promise<AgentAction[]> {
+      let q = getServiceClient()
+        .from('agent_actions')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('created_at', { ascending: false });
+      if (opts?.types) q = q.in('type', opts.types);
+      if (opts?.statuses) q = q.in('status', opts.statuses);
+      const { data, error } = await q;
+      if (error) throw new Error(`AgentRepository.listActions failed: ${error.message}`);
+      return (data as ActionRow[]).map(rowToAction);
     },
   };
 }

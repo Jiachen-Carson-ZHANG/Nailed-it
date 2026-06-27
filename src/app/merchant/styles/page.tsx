@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { MerchantStyleLibrary } from '@/features/merchant/MerchantStyleLibrary';
+import { AgentActionInline } from '@/features/merchant/AgentActionInline';
 import { getMerchantProfilePath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 
@@ -30,6 +31,7 @@ export default function MerchantStylesPage() {
         <h1>{copy.title}</h1>
         <p>{copy.body}</p>
       </section>
+      <AgentActionInline types={['place_ad']} />
       <MerchantStyleLibrary />
     </MobileLayout>
   );

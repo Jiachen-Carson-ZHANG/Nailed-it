@@ -3,7 +3,7 @@
 **Status:** Proposed (revised 2026-06-27 after the 0626 semifinal design meetings)
 **Date:** 2026-06-26 · revised 2026-06-27
 **Depends on:** ADR-0006 (intelligence layer), ADR-0004 (repository seam)
-**Supersedes the framework choice in this ADR's earlier drafts:** custom in-process TS runtime → CC/Codex + skills → **now a Python multi-agent service calling Claude directly** (see Alternatives).
+**Supersedes the framework choice in this ADR's earlier drafts:** custom in-process TS runtime → CC/Codex + skills → **now a Python multi-agent tool-call service, defaulting to OpenRouter through the OpenAI-compatible SDK** (see Alternatives).
 
 ## Context
 
@@ -40,12 +40,12 @@ Constraints from ADR-0006 hold: single-salon **competition demo**, mock data, no
 
 ## Decision
 
-Build the agent team as a **Python multi-agent service that calls Claude (Anthropic) directly**, acting over a thin **action + observability substrate inside Nailed-it**, surfaced **both** in a dedicated panel and in-context on the real merchant pages.
+Build the agent team as a **Python multi-agent service with provider-specific tool-call loops**, acting over a thin **action + observability substrate inside Nailed-it**, surfaced **both** in a dedicated panel and in-context on the real merchant pages. The demo/default model path is **OpenRouter via the OpenAI-compatible SDK**. The Anthropic SDK `tool_runner` path remains supported when `MODEL_PROVIDER=anthropic`, but OpenRouter does not literally run Anthropic's SDK helper.
 
-1. **Framework = Python multi-agent + Claude (Anthropic), not OpenRouter, not CC/Codex.**
-   - The agent **reasoning** runs in a small **Python** multi-agent service (the team is most comfortable in Python). **Prod = Claude via the Anthropic API/SDK directly.** A one-flag **`MODEL_PROVIDER` seam** lets **dev** run cheap models (Gemini/GPT via **OpenRouter**, keys we already have) — *only the model adapter in `runner.py` forks; orchestrator/skills/tools/bus/panel are provider-agnostic.* This is **not** a provider for production (we ship Claude) and **not** the OpenAI Agents SDK framework — just a dev-cost adapter. Skew caveat: test on Gemini, run a final pass on Claude.
+1. **Framework = Python multi-agent + tool-call-loop abstraction, not CC/Codex.**
+   - The agent **reasoning** runs in a small **Python** multi-agent service (the team is most comfortable in Python). A one-flag **`MODEL_PROVIDER` seam** selects the model adapter: **`openrouter` is the default demo path** (OpenAI-compatible SDK, one OpenRouter key, e.g. Gemini/GPT models); **`anthropic` is optional** (Anthropic SDK `tool_runner`, direct Claude). Only the model adapter in `runner.py` forks; orchestrator/skills/tools/bus/panel are provider-agnostic. This is not the OpenAI Agents SDK framework, and it is not Claude Code/Codex subagents.
    - **Agents are data** (Multica pattern): each role agent = `instructions` (system prompt) + a `tools` allow-list. An **orchestrator (运营助手)** dispatches **targeted runs** (one run → one agent).
-   - **Each agent = a tool-call loop.** Per-agent behaviour runs as a Claude **tool-call loop** via the Anthropic SDK's **`tool_runner` (beta)** — the agent reasons, calls a tool from its allow-list, reads the result, loops. The **outer** team sequence (数分→决策→执行→监测) stays a **deterministic Python sequence** (a fixed, demo-predictable process). Each agent's process is a **"skill" file we own** (`agent-service/skills/*.md`, loaded as the system prompt) — **not** the Claude `.claude/skills` feature (also on the repo's deliverable ban-list). This is the mentor's "tool-call loop" without adopting the heavy Claude Agent SDK / Claude Code harness.
+   - **Each agent = a tool-call loop.** Per-agent behaviour runs as a tool-call loop: OpenRouter uses our OpenAI-format call→tool→call loop; Anthropic uses the SDK's `tool_runner` (beta). The agent reasons, calls a tool from its allow-list, reads the result, and loops. The **outer** team sequence (数分→决策→执行→监测) stays a **deterministic Python sequence** (a fixed, demo-predictable process). Each agent's process is a **"skill" file we own** (`agent-service/skills/*.md`, loaded as the system prompt) — **not** the Claude `.claude/skills` feature (also on the repo's deliverable ban-list). This keeps the mentor's "tool-call loop" pattern without adopting the heavy Claude Agent SDK / Claude Code harness.
    - We do **not** build a TS in-process LLM loop, and we do **not** port Multica's daemon/CLI/sandbox. We use Multica's **pattern only — no Multica code, API, or process.** Phase 1 built our **own** Python orchestrator; Multica is studied for inspiration, not wired in.
 
 2. **The substrate + both surfaces live in Nailed-it.**
@@ -80,8 +80,8 @@ Build the agent team as a **Python multi-agent service that calls Claude (Anthro
 
 ## Alternatives considered
 
-- **CC / Codex subagents + skills** (a prior draft of this ADR). Superseded — the team chose **Python + Claude** for familiarity and direct control of the loop. The substrate/panel work it described is retained; only the runtime changed.
-- **OpenRouter multi-model as the *production* provider** (proposed in the dev meeting: one key, many models in config). Dropped for prod — we standardise on **Claude directly**. *Later kept as a **dev-only** backend behind `MODEL_PROVIDER` (cheap iteration on Gemini/GPT), never the shipped path — see §1.* (The existing `src/nail-ai/openrouter.ts` also stays for the image/recognition pipeline.)
+- **CC / Codex subagents + skills** (a prior draft of this ADR). Superseded — the team chose a repo-owned **Python** service for familiarity and direct control of the loop. The substrate/panel work it described is retained; only the runtime changed.
+- **Anthropic-only provider.** Rejected for the demo default because the team has an OpenRouter key and wants one provider path to iterate quickly. Kept as an optional direct-Claude adapter behind `MODEL_PROVIDER=anthropic`.
 - **Custom in-process TS LLM loop** (the very first draft). Replaced by a standalone Python service — keeps agent code out of the Next.js request path and matches the team's language preference.
 - **Port / run Multica wholesale.** Rejected — built to run coding-agent subprocesses that edit files; too heavy for business-ops on mock data. We reuse its *pattern* (agents-as-data, targeted runs, transcript→dashboard).
 - **One mega "do-everything" agent.** Rejected — no role separation, no per-step observability, no visible collaboration (the exact thing the panel must show).
@@ -90,12 +90,13 @@ Build the agent team as a **Python multi-agent service that calls Claude (Anthro
 
 ## Consequences
 
-- **Positive:** Strong "AI-native / agent team" story; every run replayable; every reversible action undoable; actions plug into the real 团购券 + ad mechanics so agent work and commercialisation reinforce each other; both surfaces covered.
+- **Positive:** Strong "AI-native / agent team" story; every run replayable; every reversible action undoable; actions are visible on the real merchant surfaces so agent work and commercialisation reinforce each other; both surfaces covered.
 - **Negative:** A **Python agent service is a new runtime to own**, plus a **cross-language bridge** to the TS app's data (the service must read Supabase / call action functions / write `agent_runs` + `agent_actions`). Capturing the thinking chain into a panel-readable transcript needs a deliberate contract. The demo depends on the Python service being runnable in the demo environment.
-- **Resolved in Phase 1:** Multica = pattern only (our own Python service, no Multica code/API). **Supabase is the shared bus** (Python writes runs/actions; the TS panel reads them). Migration `0022` + the read substrate + panel are built. Per-agent process = **tool-call loops** (`tool_runner` beta) driven by **skill files we own** under `agent-service/skills/` (not `.claude/skills`).
+- **Resolved in Phase 1:** Multica = pattern only (our own Python service, no Multica code/API). **Supabase is the shared bus** (Python writes runs/actions; the TS panel reads them). Migration `0022` + the read substrate + panel are built. Per-agent process = **tool-call loops** driven by **skill files we own** under `agent-service/skills/` (not `.claude/skills`); OpenRouter uses the OpenAI-compatible loop and Anthropic uses `tool_runner`.
 - **Resolved in Phase 2:** the **closed loop** is built — `数分 → 决策 → 投广 → 团购 → Monitor → 数分'`. 决策 emits both 投广 + 团购 intents; Monitor is read-only and re-dispatches a re-baseline 数分' (parented, non-recursive) to close the B→C loop. No new tables/tools.
 - **Resolved in Phase 3:** the **full team loop** — added 运营(上下架) + 用户运营. `list_style`/`delist_style` auto-execute (reversible); the **one human gate** (§4) is live — `propose_listing` writes `status='proposed'` + finalizes the run as `awaiting_approval`, and the panel renders **Approve/Reject** (`approveAgentActionAction`). 用户运营 reads a grounded customer roster (`/api/agent/customers`) and sends a reversible boss-message. Seed shows the full loop + gate cold (no API key).
-- **Still open:** **App ↔ Python trigger/stream** — runs are triggered from the terminal (`python -m nailed_agents`) and the panel replays the stored run; a panel "Run" button (live trigger) is a later upgrade. **Phase 3b** = the actual publish-on-approve into `merchant_style` + the in-context surfaces (投广/价格config/老板msg) — touches the concurrent style + messages WIP, so it's a separate cross-cutting pass. Live verification of the `tool_runner` loops is still pending an `ANTHROPIC_API_KEY`.
+- **Resolved in Phase 3b (partial):** **in-context surfaces** — a shared `AgentActionInline` card renders applied actions on the real pages (`place_ad`→style library, `set_group_buy_coupon`→price-config, `send_customer_message`→老板msg thread) with one-click undo, via `AgentRepository.listActions`. Approving a gated 上架 routes the merchant to the upload flow (auto-publish is impossible — no image, which is the whole reason for the gate). The panel has a **Run button** (`triggerAgentRoundAction` spawns the service detached on localhost; polls running→completed live) — partially resolving the trigger question.
+- **Still open:** **Live trigger in a deployed environment** — the Run button spawns the local Python process (localhost-demo only; disabled in production). A hosted trigger (worker-queue or a service endpoint) is a later upgrade. **True business-side-effect entities** for ad/coupon/message actions and publish-on-approve into `merchant_style` are still pending; the current surfaces render `agent_actions` records. The OpenRouter loop has been live-verified; the Anthropic path is optional and needs separate verification only if selected.
 
 ## References
 
