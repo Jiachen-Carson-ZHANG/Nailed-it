@@ -1,7 +1,7 @@
 'use client';
 
+import { useState } from 'react';
 import type { AITrendingStyle } from '@/domain/nail';
-import { Button } from '@/components/ui/Button';
 
 const RANK_EMOJI = ['①', '②', '③'];
 
@@ -104,22 +104,41 @@ function TrendingRow({ style }: { style: AITrendingStyle }) {
 }
 
 export function TrendingStylesPanel() {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <section className="trending-panel" aria-labelledby="trending-panel-title">
-      <div className="trending-panel-header">
+      <button
+        type="button"
+        className="trending-panel-toggle"
+        aria-expanded={expanded}
+        aria-controls="trending-panel-body"
+        onClick={() => setExpanded((v) => !v)}
+      >
         <div>
           <h2 id="trending-panel-title" className="trending-panel-title">热门款式</h2>
           <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
         </div>
-        <Button size="compact" variant="secondary" onClick={() => {}}>
-          Refresh
-        </Button>
-      </div>
-      <div className="trending-list">
-        {STATIC_TRENDING.map((style) => (
-          <TrendingRow key={style.rank} style={style} />
-        ))}
-      </div>
+        <svg
+          className="trending-panel-chevron"
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="none"
+          width="16"
+          height="16"
+          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="5,7 10,13 15,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      </button>
+      {expanded && (
+        <div id="trending-panel-body" className="trending-list">
+          {STATIC_TRENDING.map((style) => (
+            <TrendingRow key={style.rank} style={style} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

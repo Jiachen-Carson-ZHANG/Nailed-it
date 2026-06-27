@@ -5185,13 +5185,6 @@ button.xhs-card-shape {
   margin-bottom: var(--space-5);
 }
 
-.trending-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
 .trending-panel-title {
   font-size: var(--text-md);
   font-weight: 700;
@@ -5203,6 +5196,20 @@ button.xhs-card-shape {
   font-size: var(--text-sm);
   color: var(--color-muted);
   margin: 0;
+}
+
+.trending-panel-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
 }
 
 .trending-list {
