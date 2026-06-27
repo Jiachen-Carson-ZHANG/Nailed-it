@@ -21,6 +21,8 @@ export function PublishedStyleFeed({ searchQuery }: PublishedStyleFeedProps) {
 
   useEffect(() => {
     let active = true;
+    // Personalized order for the demo customer; fall back to the plain published list if ranking
+    // is unavailable so the feed always renders.
     getRankedFeedAction()
       .then((feed) => {
         if (!active) return;
