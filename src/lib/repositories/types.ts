@@ -13,6 +13,7 @@ import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/sc
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import type { AnalyticsEvent, Customer, NewAnalyticsEvent } from '@/domain/analytics';
+import type { Agent, AgentAction, AgentRunView, ActionStatus } from '@/domain/agents';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -171,6 +172,16 @@ export interface CustomerRepository {
   getById(id: string): Promise<Customer | null>;
 }
 
+export interface AgentRepository {
+  /** The agent team definitions (ADR-0007). */
+  listAgents(): Promise<Agent[]>;
+  /** Runs for a merchant, most recent first, each joined with its agent identity + actions. */
+  listRuns(merchantId: string): Promise<AgentRunView[]>;
+  getRun(id: string): Promise<AgentRunView | null>;
+  /** Flip an action's status — backs the panel's one-click undo (reversible tier). */
+  setActionStatus(actionId: string, status: ActionStatus): Promise<AgentAction | null>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -187,4 +198,5 @@ export interface RepositoryBundle {
   merchantStyles: MerchantStyleRepository;
   analytics: AnalyticsRepository;
   customers: CustomerRepository;
+  agents: AgentRepository;
 }

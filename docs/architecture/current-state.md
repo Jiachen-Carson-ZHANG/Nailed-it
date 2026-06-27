@@ -1,6 +1,6 @@
 # Architecture: Current State
 
-Last updated: 2026-06-08
+Last updated: 2026-06-27
 
 ## Stack
 
@@ -85,6 +85,16 @@ Event-sourced, compute-on-read demand intelligence. Only two tables are stored (
 - **Read model.** `src/domain/intelligence/` — pure, `now`-injectable functions: `getCustomerProfile` (weighted, time-decayed tag affinity + budget), `getMerchantInsights` (snapshot, demand trends this-vs-previous period, design performance incl. high-interest/low-conversion, catalog gaps with the ADR ≤1 rule), `rankStyles` (affinity + popularity + freshness, reason-coded — one function, two call sites), `getCustomerIntelligence` (profile + recommendations + appointment context).
 - **Surfaces.** `/merchant/insights` (`getMerchantInsightsAction` + grounded `summarizeInsights`, which narrates only pre-computed numbers and falls back to a deterministic summary when the model is unavailable); the customer-intelligence panel in the merchant conversation view (`CustomerIntelPanel` + `getCustomerIntelligenceAction`; "发送" logs `recommended_style_sent`); and the customer feed re-ordered for the demo customer without showing the internal ranking reason chip (`getRankedFeedAction` → `PublishedStyleFeed`).
 - **Demo dataset.** `npm run seed:intelligence` writes 6 personas + ~2 weeks of backdated events bound to the real published style ids (gap tag 暗黑 / low-conversion 8284 / top converter 8265). The regression `src/mock/intelligence-seed.test.ts` runs the read model over the generated seed and asserts the demo narrative. Re-seed shortly before a demo to keep the this-week/last-week windows fresh.
+
+## Agent team (ADR-0007) — Phase 1
+
+Merchant operations agent team: **reasoning is full Python on Claude**; **Supabase is the shared bus**; the panel UI is TS. The Python service never re-derives metrics — it reads the grounded briefing from TS.
+
+- **Substrate (migration `0022`).** `agents` (agents-as-data: slug/name/role/`instructions`/`tools`), `agent_runs` (targeted run + jsonb `transcript` thinking-chain + `parent_run_id` loop), `agent_actions` (type/risk/status/payload — the undo ramp). Read via `AgentRepository` (memory + supabase, ADR-0004); `src/domain/agents.ts`.
+- **Briefing seam.** `GET /api/agent/briefing` reuses `getMerchantInsightsAction` (the only TS the agents read). The Python service fetches it; Claude narrates/decides on top.
+- **Python service (`agent-service/`).** `config` / `bus` (Supabase I/O + briefing) / `runner` (Claude + JSON) / `orchestrator` (the 数分→决策→投广 chain writing `agent_runs`/`agent_actions`). Run: `python -m nailed_agents`.
+- **Surfaces.** `/merchant/agents` (team + recent runs) + `/merchant/agents/runs/[id]` (thinking chain + one-click undo on reversible actions); entry card on the merchant Me page. `npm run seed:agents` writes the definitions + a demo loop so the panel renders before the service runs.
+- **Phase 2 (planned):** Monitor (lift → re-dispatch) + 团购 chain + in-context surfaces (投广页面 / 价格config / 老板msg). See `docs/plans/2026-06-27-merchant-agent-team.md`.
 
 ## Domain modules (`src/domain/`)
 

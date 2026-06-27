@@ -16,6 +16,7 @@ import { createMemoryIntervalBookingRepository } from './memory/interval-booking
 import { createMemoryMerchantStyleRepository } from './memory/merchant-style-repository';
 import { createMemoryAnalyticsRepository } from './memory/analytics-repository';
 import { createMemoryCustomerRepository } from './memory/customer-repository';
+import { createMemoryAgentRepository } from './memory/agent-repository';
 import { hasSupabaseEnv } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
@@ -39,6 +40,7 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     merchantStyles: createMemoryMerchantStyleRepository(),
     analytics: createMemoryAnalyticsRepository(),
     customers: createMemoryCustomerRepository(),
+    agents: createMemoryAgentRepository(),
   };
 }
 
@@ -76,4 +78,5 @@ export type {
   MerchantStyleRepository,
   AnalyticsRepository,
   CustomerRepository,
+  AgentRepository,
 } from './types';

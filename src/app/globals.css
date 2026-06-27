@@ -3914,6 +3914,120 @@ select {
   color: var(--color-accent-strong);
 }
 
+/* ── Agent team panel (ADR-0007, Phase 1) ───────────────────────────────────── */
+.agent-loop-caption {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.agent-team-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.agent-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.agent-card-name { margin: 0; font-weight: 700; color: var(--color-text); font-size: var(--text-sm); }
+.agent-role-chip {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  color: var(--color-muted);
+}
+.agent-role-lead { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.agent-role-analyst { background: #e7eefc; color: #2f6df0; }
+.agent-role-planner { background: #fef3e2; color: var(--color-warning); }
+.agent-role-operator { background: #e3f5ee; color: var(--color-success); }
+.agent-role-reviewer { background: #f0e9fb; color: #7a4ed6; }
+
+.agent-run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.agent-run-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.agent-run-row:hover { border-color: var(--color-accent-strong); }
+.agent-run-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.agent-run-name { font-weight: 700; color: var(--color-text); }
+.agent-run-status { font-size: var(--text-xs); padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--color-border); color: var(--color-muted); }
+.agent-run-status-completed { background: #e3f5ee; color: var(--color-success); }
+.agent-run-status-running { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.agent-run-status-failed { background: #fde8e8; color: var(--color-danger); }
+.agent-run-status-awaiting_approval { background: #fef3e2; color: var(--color-warning); }
+.agent-run-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--text-xs); color: var(--color-muted); }
+.agent-run-actions-count { color: var(--color-accent-strong); font-weight: 600; }
+
+.agent-chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.agent-chain-step {
+  border-left: 2px solid var(--color-border);
+  padding: 2px 0 2px var(--space-3);
+}
+.agent-chain-reasoning { border-left-color: var(--color-muted); }
+.agent-chain-tool_call { border-left-color: #2f6df0; }
+.agent-chain-action { border-left-color: var(--color-accent-strong); }
+.agent-chain-tag { font-size: var(--text-xs); font-weight: 700; color: var(--color-muted); }
+.agent-chain-text { margin: 2px 0 0; font-size: var(--text-sm); color: var(--color-text); line-height: 1.5; }
+.agent-chain-io { margin: 2px 0 0; font-size: var(--text-xs); color: var(--color-muted); word-break: break-word; }
+
+.agent-action-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.agent-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-strong);
+}
+.agent-action-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.agent-action-type {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.agent-action-payload { font-size: var(--text-xs); color: var(--color-muted); word-break: break-word; }
+.agent-action-gate-note { font-size: var(--text-xs); color: var(--color-warning, #b8860b); }
+.agent-action-gate { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.agent-action-status { font-size: var(--text-xs); font-weight: 700; color: var(--color-muted); flex-shrink: 0; }
+
+.agent-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  color: inherit;
+  background:
+    radial-gradient(circle at top right, rgba(236, 93, 123, 0.12), transparent 45%),
+    var(--color-surface);
+  transition: border-color 0.15s ease;
+}
+.agent-entry:hover { border-color: var(--color-accent-strong); }
+.agent-entry-body { flex: 1; min-width: 0; }
+.agent-entry-title { margin: 2px 0; }
+.agent-entry-caret { font-size: 1.5rem; font-weight: 700; color: var(--color-accent-strong); }
+
 .chat-thread {
   display: flex;
   flex-direction: column;

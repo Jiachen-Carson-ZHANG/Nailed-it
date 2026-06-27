@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import type { Booking, Conversation } from '@/domain/nail';
-import { getMerchantManagePath, homePathForRole } from '@/domain/session';
+import { getMerchantManagePath, getMerchantAgentsPath, homePathForRole } from '@/domain/session';
 import { MerchantAnalyticsCard } from '@/features/merchant/MerchantAnalyticsCard';
 import { MerchantStylePreview } from '@/features/merchant/MerchantStylePreview';
 import { TechnicianRosterCard } from '@/features/merchant/TechnicianRosterCard';
@@ -15,6 +15,8 @@ import { mockTechnicians } from '@/mock/technicians';
 
 const merchantProfileCopy = {
   'zh-CN': {
+    agentTeam: '运营 Agent 团队',
+    agentTeamDesc: 'AI 团队自动分析、决策、执行并复盘',
     analyticsLabel: '商家数据',
     appointmentsThisWeek: '本周预约',
     appointmentsThisWeekDetail: '本周所有技师的活跃预约数量。',
@@ -30,6 +32,8 @@ const merchantProfileCopy = {
     workspaceEyebrow: '你的工作台',
   },
   en: {
+    agentTeam: 'Operations agent team',
+    agentTeamDesc: 'The AI team analyzes, decides, acts, and reviews',
     analyticsLabel: 'Merchant analytics',
     appointmentsThisWeek: 'Appointments this week',
     appointmentsThisWeekDetail: 'Bookings active this week across all technicians.',
@@ -104,6 +108,15 @@ function MerchantProfileContent() {
       </section>
 
       <MerchantStylePreview />
+
+      <Link className="detail-surface agent-entry" href={getMerchantAgentsPath()}>
+        <div className="agent-entry-body">
+          <p className="section-eyebrow">Nailed AI</p>
+          <h2 className="agent-entry-title">{copy.agentTeam}</h2>
+          <p className="helper-copy">{copy.agentTeamDesc}</p>
+        </div>
+        <span className="agent-entry-caret" aria-hidden>›</span>
+      </Link>
 
       <TechnicianRosterCard
         bookings={bookings}

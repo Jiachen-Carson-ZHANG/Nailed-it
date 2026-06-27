@@ -1,5 +1,150 @@
 # Implementation Log
 
+## 2026-06-27 — Agent service: test coverage (Python + TS) (ADR-0007)
+
+Closed the standing gap — the agent service had no automated tests (only `py_compile`/`tsc`). Added
+network-free suites (bus I/O + the model client stubbed):
+
+- **Python (pytest, 9 tests)** `agent-service/tests/`: OpenAI-schema derivation (types/required from
+  signatures), registry integrity (IMPL/BETA/OPENAI cover the same 8 tools), tool side-effects +
+  transcript steps, the **gated proposal** (`propose_listing` → `awaiting_approval` + proposed/
+  irreversible action), and the **OpenRouter loop** (executes the real tool body, plain-text turn,
+  feeds tool errors back instead of crashing). `pytest` added as a `[dev]` extra.
+- **TS (vitest, +2 → 7 tests)**: the **approve-gate regression** (catalog run `awaiting_approval` →
+  `draft_upload` proposed → `setActionStatus('approved')`) + customer-ops reversible boss-message.
+
+All green: `pytest` 9 passed; vitest agent-repository 7 passed.
+
+## 2026-06-27 — Agent service: dual model-provider seam (Claude prod / OpenRouter dev) (ADR-0007)
+
+Added a one-flag provider seam so dev can run on cheap models (Gemini/GPT via OpenRouter, using keys we
+already have) while prod stays on Claude — **without** adopting any new agent framework. Only the model
+adapter forks; orchestrator, skills, tools, bus, and the panel are untouched/agnostic.
+
+- `config.py`: `MODEL_PROVIDER` = `anthropic` (default) | `openrouter`; provider-aware `require_env`
+  (checks the right key) + provider-specific cheap default model (`claude-haiku-4-5` /
+  `google/gemini-2.0-flash-001`); `OPENROUTER_API_KEY` / `OPENROUTER_BASE_URL`.
+- `tools.py`: refactored to **one plain-Python source of truth**. The same functions are surfaced as
+  `BETA_TOOLS` (anthropic `beta_tool`) **and** `OPENAI_TOOLS` (function-schemas **auto-derived** from
+  each signature+docstring via `inspect` — no per-backend schema duplication/drift). `IMPL` = the plain
+  callables both loops execute.
+- `runner.py`: `run_agent(*, system, tool_names, task, ctx)` → branches on `MODEL_PROVIDER`. Anthropic
+  path = `tool_runner` (unchanged). OpenRouter path = a manual OpenAI-format call→tool→call loop
+  (capped at 8 iters, tool errors fed back to the model). Both append reasoning to the same transcript.
+- `orchestrator.py`: passes tool **names** (provider-agnostic) instead of fn objects.
+- `pyproject.toml`: + `openai>=1.40` (lazy-imported; only used on the OpenRouter path).
+
+**Verified LIVE** (OpenRouter → `google/gemini-2.5-flash`, full 8-run round): all tools fire
+(`place_ad`/`set_group_buy_coupon`/`list`/`delist`/`get_*` applied), the **human gate fired**
+(catalog → `draft_upload=proposed`, run `awaiting_approval`), tree parented, transcripts written.
+Two dev-skew findings + fixes: (1) the `gemini-2.0-flash-001` default 404'd → default is now
+`google/gemini-2.5-flash`; (2) Gemini drafted the boss-message in text without calling
+`send_customer_message` → hardened the `customer_ops` task + skill to force the tool call (re-tested:
+fires correctly). `beta_tool(fn)` confirmed valid as a functional call. **dev≠prod skew** stands —
+test on Gemini, run a final Claude pass before the demo.
+
+## 2026-06-27 — Agent service Phase 3: catalog + customer-ops + the one human gate (ADR-0007)
+
+Extended the agent team to the **full loop** `数分 → 决策 → 投广 → 团购 → 运营(上下架) → 用户运营 → Monitor → 数分'`.
+
+- **运营 (catalog)** agent (`skills/catalog.md`): `list_style` / `delist_style` (existing styles, auto +
+  reversible) and the **gated `propose_listing`** — when a demand gap has no internal match the agent
+  **cannot fabricate the design**, so it writes `agent_actions.status='proposed'` (risk irreversible)
+  and its run finalizes as **`awaiting_approval`**. This is the **one human gate** (ADR-0007 §4).
+- **用户运营 (customer_ops)** agent (`skills/customer_ops.md`): reads a new grounded **customer roster**
+  (`GET /api/agent/customers`, booking history, most-lapsed first) via `get_customer_intelligence`, then
+  `send_customer_message` (boss-message, auto + reversible).
+- **Tools** (`tools.py`): added `get_customer_intelligence`, `list_style`, `delist_style`,
+  `propose_listing`, `send_customer_message`; `RunContext.awaiting_approval` drives the gated finalize.
+- **Approval write-path (TS, panel only):** `approveAgentActionAction` (proposed→approved) +
+  `rejectAgentActionAction` (→undone) in `agent-actions.ts`; `AgentRunDetailClient` now renders
+  **Approve/Reject** for `proposed` actions (+ a gate note) and an approved/rejected label.
+- **Seed:** `agent-seed.ts` gains a catalog run (gated proposal, `awaiting_approval`) + a customer-ops
+  run so `npm run seed:agents` shows the full loop **incl. the gate cold — no API key needed.**
+- **Deferred to Phase 3b:** actual publish-on-approve into `merchant_style` + the in-context surfaces
+  (投广/价格config/老板msg). Phase 3 actions stay panel-level `agent_actions` (same fidelity as Phase 1/2
+  place_ad/coupon); rendering on real pages touches the concurrent style + messages WIP — separate pass.
+
+Verification: `py_compile` of `nailed_agents/*.py` OK; 7 skill files present; `tsc --noEmit` clean on all
+Phase 3 TS files. Live `tool_runner` run still pending an `ANTHROPIC_API_KEY`.
+
+## 2026-06-27 — Agent service Phase 2: close the loop (团购 + Monitor) (ADR-0007)
+
+Extended the Python agent service from the 3-agent chain to the **full closed loop**:
+`数分 → 决策 → 投广 → 团购 → Monitor → 数分'` — all tool-call loops, additive (no substrate change).
+
+- **决策** now emits **two** action intents (an 投广 `place_ad` + a 团购 `set_group_buy_coupon`); skill +
+  orchestrator task updated. The two operators each pick up their own segment.
+- **团购** agent wired (`skills/coupon.md` + orchestrator step) using the existing `set_group_buy_coupon`
+  tool — undoable `agent_actions` row, surfaces on the price-config page.
+- **Monitor** agent wired (`skills/monitor.md` + step, read-only `get_merchant_insights`). Hard guardrail
+  in the skill: **never invents lift % — records baseline + observation window when no before/after exists.**
+- **Loop closure:** Monitor re-dispatches a short `数分'` re-baseline run **parented to itself**
+  (deterministic, not recursive); runs are parented end-to-end so the panel renders the loop as a tree.
+- No new tools / migration / seed change. README + ADR-0007 §status/phasing updated.
+
+Verification: `py_compile` of `nailed_agents/*.py` OK; all 5 skill files present. Live run still pending
+(needs `ANTHROPIC_API_KEY` + `pip install -U -e .` + dev server) — verifying Phase 1+2 together.
+
+## 2026-06-27 — Agent service → tool-call loops + skills (ADR-0007)
+
+Refactored the Phase 1 Python service from a hardcoded JSON chain to **genuine Claude tool-call loops**
+(the mentor's steer), without adopting the heavy Claude Agent SDK / Claude Code harness.
+
+- Each agent now runs a loop via the Anthropic SDK's **`tool_runner` (beta)** + **`@beta_tool`** functions
+  (`agent-service/nailed_agents/tools.py`: `get_merchant_insights`, `place_ad`, `set_group_buy_coupon`).
+  Tools record their own transcript steps + write `agent_actions`; `runner.py` captures reasoning.
+- Each agent's **process is a "skill" file we own** (`agent-service/skills/{insight,decision,ad}.md`,
+  loaded as the system prompt) — **not** the `.claude/skills` feature (which is on the repo ban-list).
+- The **outer** 数分→决策→投广 sequence stays deterministic Python; `bus.start_run`/`finish_run` bracket
+  each run so the loop's tools write actions against a live run id.
+- agent-seed `tools` allow-lists renamed to the new snake_case tool names (re-seed optional — cosmetic;
+  the orchestrator passes tool fns directly).
+- ADR-0007 §1 updated (tool-call loop via `tool_runner`; skills = our own files).
+
+Verification: Python compiles (`py_compile`); TS (agent-seed) typecheck clean. Live run not executed
+here (needs `ANTHROPIC_API_KEY` + `pip install -e .` + dev server) — see agent-service/README.
+
+## 2026-06-27 — Agent team Phase 1: substrate + panel (ADR-0007)
+
+The TS half of Phase 1 — the observability substrate the (next) Python agent service writes to and
+the merchant panel reads from. No agent reasoning yet; that's the Python service (next step).
+
+What changed:
+- **Migration `0022_agent_orchestration.sql`** — `agents` (agents-as-data: slug/name/role/instructions/
+  tools/version), `agent_runs` (targeted run + jsonb `transcript` thinking-chain + `parent_run_id`
+  loop), `agent_actions` (type/risk/status/payload, the undo ramp). Server-only RLS. **Manual apply.**
+- **Domain + seam:** `src/domain/agents.ts` (Agent, AgentRunView, AgentAction, TranscriptStep);
+  `AgentRepository` (memory + supabase) wired into the bundle (ADR-0004) — read methods
+  (`listAgents`/`listRuns`/`getRun`) + `setActionStatus` (one-click undo).
+- **Server actions:** `src/lib/actions/agent-actions.ts` (`listAgentsAction`, `listAgentRunsAction`,
+  `getAgentRunAction`, `undoAgentActionAction`).
+- **Panel:** `/merchant/agents` (team cards + recent runs) + `/merchant/agents/runs/[id]` (thinking
+  chain `reasoning ⇄ tool ⇄ action` + actions with undo). Path helpers `getMerchantAgentsPath` /
+  `getMerchantAgentRunPath`. CSS added. (Nav entry-point deferred — reachable by URL for now.)
+- **Seed:** `src/mock/agent-seed.ts` (8 agent definitions + a demo loop: 数分→决策→投广+团购→Monitor,
+  tied to the intelligence-seed anchors 8265/8284/8281) used by the memory repo and by
+  `scripts/seed-agents.ts` (`npm run seed:agents`, idempotent: upsert agents, replace `input.seed`
+  runs).
+
+- **Briefing endpoint** `GET /api/agent/briefing` — reuses `getMerchantInsightsAction` so the Python
+  service reads grounded numbers (never re-derives metrics — ADR-0006 guardrail).
+- **Python agent service** (`agent-service/`, full Python on the Anthropic Claude SDK): `config` (reuses
+  repo-root `.env.local`, needs `ANTHROPIC_API_KEY`), `bus` (Supabase I/O + briefing fetch), `runner`
+  (Claude call + JSON parse), `orchestrator` (the 数分→决策→投广 chain writing `agent_runs`/`agent_actions`,
+  parented to close the loop). Run: `python -m nailed_agents`. Supabase is the only TS↔Python seam
+  (plus the briefing read); `.venv`/`__pycache__` already gitignored.
+- **Entry point:** an agent-team card on the merchant **Me** page, between 款式图册 and 美甲师状态
+  (`getMerchantAgentsPath`).
+
+Verification: agent repo test 5/5; profile page test 2/2; typecheck clean for all new files; Python
+compiles (`py_compile`); bundle change safe (`memory-repositories.test` green). (Pre-existing suite
+failures are the concurrent style/trending localization WIP — not this layer.)
+
+Next (Phase 2): close the loop — Monitor (lift, re-dispatch 数分) + the 团购 chain + the in-context
+surfaces (投广页面 below gallery / 价格config / 老板msg auto-send). See
+`docs/plans/2026-06-27-merchant-agent-team.md`.
+
 ## 2026-06-08 — Fix editor preview drift (card $88 vs detail $93)
 
 What changed:

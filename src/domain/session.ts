@@ -56,7 +56,9 @@ const merchantPaths = {
   messages: '/merchant/messages',
   profile: '/merchant/profile',
   messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`,
-  styleDetail: (id: string) => `/merchant/styles/${id}/review`
+  styleDetail: (id: string) => `/merchant/styles/${id}/review`,
+  agents: '/merchant/agents',
+  agentRun: (id: string) => `/merchant/agents/runs/${id}`
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
@@ -237,6 +239,15 @@ export function getMerchantProfilePath(): string {
 /** The merchant's own view of a published style (the library review/editor page for that style). */
 export function getMerchantStylePath(id: string): string {
   return merchantPaths.styleDetail(id);
+}
+
+/** The agent-team panel (ADR-0007) + per-run thinking-chain view. */
+export function getMerchantAgentsPath(): string {
+  return merchantPaths.agents;
+}
+
+export function getMerchantAgentRunPath(id: string): string {
+  return merchantPaths.agentRun(id);
 }
 
 export function getCustomerTryOnPath(styleId?: string): string {
