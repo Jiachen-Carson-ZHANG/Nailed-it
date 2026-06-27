@@ -5196,6 +5196,7 @@ button.xhs-card-shape {
   font-size: var(--text-sm);
   color: var(--color-muted);
   margin: 0;
+  display: block;
 }
 
 .trending-panel-toggle {

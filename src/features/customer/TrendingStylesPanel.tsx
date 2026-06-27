@@ -114,10 +114,9 @@ export function TrendingStylesPanel() {
         className="trending-panel-toggle"
         aria-expanded={expanded}
         aria-controls="trending-panel-body"
-        aria-labelledby="trending-panel-title"
         onClick={() => setExpanded((v) => !v)}
       >
-        <p className="trending-panel-subtitle">AI自动识别抓取近期热门款式</p>
+        <span className="trending-panel-subtitle">AI自动识别抓取近期热门款式</span>
         <svg
           className="trending-panel-chevron"
           aria-hidden="true"
@@ -131,7 +130,7 @@ export function TrendingStylesPanel() {
           <polyline points="5,7 10,13 15,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
       </button>
-      <div id="trending-panel-body" className="trending-list" hidden={!expanded}>
+      <div id="trending-panel-body" className="trending-list" style={expanded ? undefined : { display: 'none' }}>
         {STATIC_TRENDING.map((style) => (
           <TrendingRow key={style.rank} style={style} />
         ))}
