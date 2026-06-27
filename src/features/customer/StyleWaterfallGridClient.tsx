@@ -14,14 +14,14 @@ type StyleWaterfallGridClientProps = {
   styles: NailStyleCard[];
   /** styleId → personalized reason chip, from the ranking function (Melissa's feed). */
   reasonByStyleId?: Record<string, string>;
+  searchQuery: string;
 };
 
-export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientProps) {
+export function StyleWaterfallGridClient({ styles, searchQuery }: StyleWaterfallGridClientProps) {
   const { t, language } = useLanguage();
   const [showSaved, setShowSaved] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const { savedIds } = useSavedStyles();
 
   const filterGroups = useMemo(() => {
@@ -101,22 +101,6 @@ export function StyleWaterfallGridClient({ styles }: StyleWaterfallGridClientPro
 
   return (
     <section className="xhs-feed" aria-label={t('feed.aria')}>
-      <div className="feed-search">
-        <div className="feed-search-wrap">
-          <svg className="feed-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <circle cx="8.5" cy="8.5" r="5.25" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="12.5" y1="12.5" x2="16.5" y2="16.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('feed.searchPlaceholder')}
-            aria-label={t('feed.searchPlaceholder')}
-          />
-        </div>
-      </div>
-
       {filterGroups.length > 0 ? (
         <div className="feed-filter">
           <div className="feed-filter-bar" role="group" aria-label={t('feed.filterAria')}>
