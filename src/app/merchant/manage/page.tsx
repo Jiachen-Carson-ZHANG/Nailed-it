@@ -20,6 +20,7 @@ import {
 } from '@/lib/actions/merchant-pricing-actions';
 import { mergeMerchantPricingIntoDefaults } from '@/features/merchant/merge-merchant-pricing-settings';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
+import { GroupbuyPanel } from '@/features/merchant/GroupbuyPanel';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, loadCurrency, saveCurrency, type Currency } from '@/data/currency-store';
 import {
   getMerchantCurrencyAction,
@@ -197,34 +198,15 @@ function SubGroup({ label, children }: { label: string; children: ReactNode }) {
 
 function SidebarGroupHeader({
   label,
-  expanded,
   active,
-  expandLabel,
-  collapseLabel,
-  onToggleExpand,
   onSelect,
 }: {
   label: string;
-  expanded: boolean;
   active: boolean;
-  expandLabel: string;
-  collapseLabel: string;
-  onToggleExpand: () => void;
   onSelect: () => void;
 }) {
   return (
-    <div
-      className={`manage-sidebar-group-header${active ? ' manage-sidebar-group-header-active' : ''}`}
-      aria-expanded={expanded}
-    >
-      <button
-        type="button"
-        className={`manage-sidebar-group-chevron${expanded ? ' manage-sidebar-group-chevron-expanded' : ''}`}
-        onClick={onToggleExpand}
-        aria-label={expanded ? collapseLabel : expandLabel}
-      >
-        ▶
-      </button>
+    <div className={`manage-sidebar-group-header${active ? ' manage-sidebar-group-header-active' : ''}`}>
       <button type="button" className="manage-sidebar-group-label" onClick={onSelect}>
         {label}
       </button>
@@ -272,15 +254,6 @@ function SidebarTopItem({
   );
 }
 
-function GroupbuyPlaceholderPanel({ language }: { language: 'zh-CN' | 'en' }) {
-  const copy = manageCopy[language];
-  return (
-    <div className="manage-panel-content">
-      <h2 className="manage-panel-title">{copy.groupbuyTitle}</h2>
-      <p className="helper-copy">{copy.groupbuyPlaceholder}</p>
-    </div>
-  );
-}
 
 // ── Panel: 基础服务 ───────────────────────────────────────────────────────────
 function BasicPanel({
@@ -621,7 +594,7 @@ export default function MerchantManagePage() {
   const copy = manageCopy[language];
   const [settings, setSettings] = useState<GlossaryEntrySettings[]>([]);
   const [activePanel, setActivePanel] = useState<PanelId>('basic');
-  const [priceListExpanded, setPriceListExpanded] = useState(true);
+
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
   const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
@@ -737,28 +710,19 @@ export default function MerchantManagePage() {
           <div className="manage-sidebar-group">
             <SidebarGroupHeader
               label={copy.sidebar.priceList}
-              expanded={priceListExpanded}
               active={activePanel === 'preview'}
-              expandLabel={copy.expandPriceList}
-              collapseLabel={copy.collapsePriceList}
-              onToggleExpand={() => setPriceListExpanded((expanded) => !expanded)}
-              onSelect={() => {
-                setActivePanel('preview');
-                setPriceListExpanded(true);
-              }}
+              onSelect={() => setActivePanel('preview')}
             />
-            {priceListExpanded ? (
-              <div role="group" aria-label={copy.sidebar.priceList}>
-                {PRICE_LIST_SUB_ITEMS.map((panelId) => (
-                  <SidebarSubItem
-                    key={panelId}
-                    label={copy.panels[panelId]}
-                    active={activePanel === panelId}
-                    onClick={() => setActivePanel(panelId)}
-                  />
-                ))}
-              </div>
-            ) : null}
+            <div role="group" aria-label={copy.sidebar.priceList}>
+              {PRICE_LIST_SUB_ITEMS.map((panelId) => (
+                <SidebarSubItem
+                  key={panelId}
+                  label={copy.panels[panelId]}
+                  active={activePanel === panelId}
+                  onClick={() => setActivePanel(panelId)}
+                />
+              ))}
+            </div>
           </div>
           <SidebarTopItem
             label={copy.sidebar.groupbuy}
@@ -776,7 +740,7 @@ export default function MerchantManagePage() {
           {activePanel === 'preview'   && (
             <PreviewPanel settingsById={settingsById} dirty={dirty} onSave={handleSave} currency={currency} language={language} />
           )}
-          {activePanel === 'groupbuy'  && <GroupbuyPlaceholderPanel language={language} />}
+          {activePanel === 'groupbuy'  && <GroupbuyPanel language={language} />}
         </div>
       </div>
       <Toast message={toastMessage} />
