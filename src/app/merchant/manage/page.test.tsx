@@ -40,7 +40,7 @@ describe('MerchantManagePage', () => {
     const priceInput = await screen.findByLabelText(/基础护理服务 单价/i);
     fireEvent.change(priceInput, { target: { value: '12' } });
 
-    fireEvent.click(screen.getByRole('button', { name: '确认预览' }));
+    fireEvent.click(screen.getByRole('button', { name: '价目表' }));
     fireEvent.click(screen.getByRole('button', { name: /保存价格表/i }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(/价格表已更新/i);
@@ -51,7 +51,8 @@ describe('MerchantManagePage', () => {
 
     expect(screen.queryByText('Pricing and team')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Basic services' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preview and confirm' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Price list' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Group buying' })).toBeInTheDocument();
     expect(await screen.findByLabelText(/Basic manicure service price/i)).toBeInTheDocument();
   });
 });
