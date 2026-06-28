@@ -47,7 +47,10 @@ function buildFiller(spec: FillerSpec, imgOffset: number): SeededRecord[] {
     const id = `style-${spec.prefix}-${i + 1}`;
     const title = `${spec.brand} ${labels[0]} #${i + 1}`;
     const localized: LocalizedText = { 'zh-CN': `${labels[0]}${spec.brand}${i + 1}`, en: title };
-    const imageUrl = placeholderImage(imgOffset + i);
+    // Placeholder image (hero pic stand-in). The `#id` fragment makes the stored media path unique
+    // (media_asset has a unique (bucket, path) constraint; dupes across fillers would collide) while
+    // the browser drops the fragment → the same image still renders. Swap the base URL for real pics.
+    const imageUrl = `${placeholderImage(imgOffset + i)}#${id}`;
     const previewPriceCents = 6800 + ((i * 700) % 7000); // ~SGD 68–138, varied
     return {
       id,

@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2026-06-27 — Demo-safe: Supabase filler backfill + 1000-row read cap fix
+
+Made the deployed (Supabase) demo actually match the design, and fixed a silent undercount the
+preflight surfaced.
+
+- **Filler backfill (#2):** `scripts/backfill-filler-merchants.ts` (`npm run backfill:fillers`) upserts
+  ONLY the 4 filler merchants + media + published styles (narrow, idempotent — not the broad
+  `seed:supabase`). Filler image paths get a `#<id>` fragment so each is unique (media_asset has a
+  unique (bucket, path) constraint; placeholder reuse would collide) while the same image renders.
+  Live now: 5 merchants, multi-merchant feed + cross-merchant platform-hot (韩系 across 3 shops).
+- **CRITICAL read-cap fix:** `supabase/analytics-repository.ts` `listByMerchant`/`listByCustomer` did a
+  single `.select('*')` → capped at PostgREST's ~1000 rows. With 1485 seeded events the read model was
+  **truncated**, undercounting every metric (金属感 read as *down* 11-vs-16; 8284 as 6 try-ons). Now
+  paginates with `.range()` past the cap. After the fix: 金属感 up 463-vs-198, 8284 try 10 (flagged),
+  preflight all-green.
+
+Preflight (`npm run preflight`) now PASSES on live Supabase. Note: 暗黑 supply is 0 (8281 unpublished) —
+the gap holds (arguably cleaner); the "1款在售" wording in the agent seed/docs is the last stale bit.
+
 ## 2026-06-27 — Audit fixes: merchant-scoped insights/matching + demo preflight
 
 Addressed the validate-audit High finding that multi-merchant fillers would corrupt single-merchant

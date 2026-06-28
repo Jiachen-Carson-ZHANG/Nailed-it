@@ -59,6 +59,28 @@ function newEventToPayload(e: NewAnalyticsEvent): Record<string, unknown> {
   return payload;
 }
 
+const PAGE_SIZE = 1000; // PostgREST caps a single response at ~1000 rows — paginate past it.
+
+/** Fetch ALL rows for a column filter, paging past the 1000-row cap. The intelligence read model
+ *  computes over the full event history (ADR-0006); a silent 1000-row truncation undercounts every
+ *  metric once a merchant accumulates >1000 events. */
+async function listAllByColumn(column: 'merchant_id' | 'customer_id', value: string): Promise<AnalyticsEvent[]> {
+  const out: AnalyticsEvent[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await getServiceClient()
+      .from('analytics_events')
+      .select('*')
+      .eq(column, value)
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`AnalyticsRepository read (${column}) failed: ${error.message}`);
+    const rows = (data ?? []) as AnalyticsEventRow[];
+    out.push(...rows.map(rowToAnalyticsEvent));
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 export function createSupabaseAnalyticsRepository(): AnalyticsRepository {
   return {
     async record(event: NewAnalyticsEvent): Promise<void> {
@@ -71,27 +93,11 @@ export function createSupabaseAnalyticsRepository(): AnalyticsRepository {
     },
 
     async listByMerchant(merchantId: string): Promise<AnalyticsEvent[]> {
-      const { data, error } = await getServiceClient()
-        .from('analytics_events')
-        .select('*')
-        .eq('merchant_id', merchantId)
-        .order('created_at', { ascending: true });
-      if (error) {
-        throw new Error(`AnalyticsRepository.listByMerchant failed: ${error.message}`);
-      }
-      return (data as AnalyticsEventRow[]).map(rowToAnalyticsEvent);
+      return listAllByColumn('merchant_id', merchantId);
     },
 
     async listByCustomer(customerId: string): Promise<AnalyticsEvent[]> {
-      const { data, error } = await getServiceClient()
-        .from('analytics_events')
-        .select('*')
-        .eq('customer_id', customerId)
-        .order('created_at', { ascending: true });
-      if (error) {
-        throw new Error(`AnalyticsRepository.listByCustomer failed: ${error.message}`);
-      }
-      return (data as AnalyticsEventRow[]).map(rowToAnalyticsEvent);
+      return listAllByColumn('customer_id', customerId);
     },
   };
 }
