@@ -5,7 +5,7 @@ const enMessages = {
   'profile.language.zh': 'Chinese',
   'profile.language.en': 'English',
   'layout.openProfile': 'Open profile',
-  'layout.newNailDesign': 'New nail design',
+  'layout.newNailDesign': 'Skin Match',
   'booking.steps.upload': 'Upload',
   'booking.steps.result': 'Style result',
   'booking.steps.quote': 'Booking',
@@ -177,6 +177,18 @@ const enMessages = {
   'feed.emptyTrendingTitle': 'No styles yet',
   'feed.emptyTrendingBody': 'No trending styles right now — check back soon.',
   'profile.bookingCountSuffix': 'bookings',
+  'handMatch.title': 'Skin Match',
+  'handMatch.uploadPrompt': 'Upload a photo of your hand',
+  'handMatch.uploadSubtitle': 'AI finds the best nail styles for your skin tone',
+  'handMatch.analyzing': 'Analysing your skin tone…',
+  'handMatch.skinSummaryTitle': 'Your Skin Tone',
+  'handMatch.recommendedPalettes': 'Recommended palettes',
+  'handMatch.recommendedShapes': 'Recommended shapes',
+  'handMatch.viewDetail': 'View Details',
+  'handMatch.retry': 'Try Again',
+  'handMatch.errorInvalidImage': 'Please upload a clear photo of your hand',
+  'handMatch.errorNoStyles': 'No matching styles found, please try again later',
+  'handMatch.errorGeneric': 'Something went wrong, please try again',
 } satisfies UiMessages;
 
 export default enMessages;
