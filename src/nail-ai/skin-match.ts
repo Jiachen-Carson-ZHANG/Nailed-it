@@ -141,7 +141,7 @@ export async function rankStylesForSkin(
   const apiKey = env.ARK_API_KEY;
   if (!apiKey) throw new SkinMatchError('missing_config', 'ARK_API_KEY is required for skin match.');
 
-  const model = env.ARK_VISION_MODEL ?? defaultSkinMatchModel;
+  const model = env.ARK_TEXT_MODEL ?? env.ARK_TRENDING_MODEL ?? env.ARK_VISION_MODEL ?? defaultSkinMatchModel;
 
   let data: unknown;
   try {

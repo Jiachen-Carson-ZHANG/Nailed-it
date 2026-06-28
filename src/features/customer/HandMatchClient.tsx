@@ -49,9 +49,10 @@ export function HandMatchClient() {
       if (!res.ok) {
         const code = typeof data.code === 'string' ? data.code : 'unknown';
         const message =
-          code === 'invalid_hand_image' ? t('handMatch.errorInvalidImage') :
-          code === 'no_candidates'      ? t('handMatch.errorNoStyles') :
-                                          t('handMatch.errorGeneric');
+          code === 'invalid_hand_image'  ? t('handMatch.errorInvalidImage') :
+          code === 'no_candidates'       ? t('handMatch.errorNoStyles') :
+          code === 'no_matching_styles'  ? t('handMatch.errorNoStyles') :
+                                           t('handMatch.errorGeneric');
         setState({ kind: 'error', code, message });
         return;
       }
@@ -124,7 +125,7 @@ export function HandMatchClient() {
 function IdleView({ title, subtitle, onUpload }: { title: string; subtitle: string; onUpload: () => void }) {
   return (
     <div className="hand-match-idle">
-      <div className="hand-match-upload-slot" role="button" tabIndex={0} onClick={onUpload} onKeyDown={(e) => e.key === 'Enter' && onUpload()}>
+      <div className="hand-match-upload-slot" role="button" tabIndex={0} onClick={onUpload} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onUpload()}>
         <span className="hand-match-upload-icon" aria-hidden="true">🤚</span>
         <p className="hand-match-upload-title">{title}</p>
         <p className="hand-match-upload-subtitle">{subtitle}</p>

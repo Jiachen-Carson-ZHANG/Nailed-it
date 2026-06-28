@@ -67,6 +67,13 @@ export async function POST(request: Request) {
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
 
+    if (recommendations.length === 0) {
+      return NextResponse.json(
+        { error: '未能找到匹配款式', code: 'no_matching_styles' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ skinProfile, recommendations });
   } catch (error) {
     if (error instanceof SkinMatchError) {
@@ -91,6 +98,11 @@ function parseRequestBody(value: unknown): SkinMatchRequest {
 
   if (!imageBase64) throw new Error('imageBase64 is required.');
   if (!supportedMimeTypes.has(mimeType)) throw new Error('mimeType must be PNG, JPEG, WEBP, HEIC, or HEIF.');
+
+  const MAX_BASE64_CHARS = 12_000_000; // ~9 MB raw
+  if (imageBase64.length > MAX_BASE64_CHARS) {
+    throw new Error('Image is too large. Please upload a photo under 9 MB.');
+  }
 
   return { imageBase64, mimeType };
 }
