@@ -4,7 +4,7 @@ import { useCallback, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import type { UserRole } from '@/domain/nail';
 import {
-  getCustomerBookingPath,
+  getCustomerHandMatchPath,
   getCustomerProfilePath,
   getMerchantProfilePath,
   getMockSession
@@ -52,7 +52,7 @@ export function MobileLayout({
   const rightSlot = (
     <>
       {role === 'customer' && newNailDesignLabel ? (
-        <ResetLink aria-label={newNailDesignLabel} className="top-bar-cta" href={getCustomerBookingPath()}>
+        <ResetLink aria-label={newNailDesignLabel} className="top-bar-cta" href={getCustomerHandMatchPath()}>
           <span aria-hidden="true">＋ </span>
           {newNailDesignLabel}
         </ResetLink>
