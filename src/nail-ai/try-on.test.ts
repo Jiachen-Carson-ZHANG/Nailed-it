@@ -7,7 +7,7 @@ const { extractImageFromArkGeneration, runTryOn } = TryOnModule;
 describe('runTryOn', () => {
   it('requires ARK_API_KEY when try-on runs', async () => {
     await expect(
-      runTryOn('hand', 'image/jpeg', 'style', 'image/jpeg', { NODE_ENV: 'test' } as NodeJS.ProcessEnv)
+      runTryOn('hand', 'image/jpeg', 'style', 'image/jpeg', '', { NODE_ENV: 'test' } as NodeJS.ProcessEnv)
     ).rejects.toMatchObject({ code: 'missing_config' } satisfies Partial<TryOnErrorType>);
   });
 });

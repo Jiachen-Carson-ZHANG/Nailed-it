@@ -17,7 +17,9 @@ const STATIC_TRENDING: AITrendingStyle[] = [
   {
     rank: 1,
     nameCn: '日晒感生物凝胶渐变甲',
-    nameEn: 'Sun-kissed Bio Gel Gradient Nails',
+    name: 'Sun-kissed Bio Gel Gradient Nails',
+    description: '',
+    tags: [],
     searchLinks: [
       { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2' },
       { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%97%A5%E6%99%92%E6%84%9F%E6%B8%90%E5%8F%98%E7%94%B2' },
@@ -28,7 +30,9 @@ const STATIC_TRENDING: AITrendingStyle[] = [
   {
     rank: 2,
     nameCn: '幻彩海玻璃碎封装甲',
-    nameEn: 'Iridescent Sea Glass Encapsulated Nails',
+    name: 'Iridescent Sea Glass Encapsulated Nails',
+    description: '',
+    tags: [],
     searchLinks: [
       { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=sea+glass+encapsulated+nails' },
       { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%B5%B7%E7%8E%BB%E7%92%83%E7%A2%8E%E5%B0%81%E8%A3%85%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%B5%B7%E7%8E%BB%E7%92%83%E7%A2%8E%E5%B0%81%E8%A3%85%E7%94%B2' },
@@ -39,7 +43,9 @@ const STATIC_TRENDING: AITrendingStyle[] = [
   {
     rank: 3,
     nameCn: '温变迷你棋盘手印甲',
-    nameEn: 'Thermochromic Mini Checkerboard Handprint Nails',
+    name: 'Thermochromic Mini Checkerboard Handprint Nails',
+    description: '',
+    tags: [],
     searchLinks: [
       { platform: 'Pinterest', label: 'Pinterest', url: 'https://www.pinterest.com/search/pins/?q=checkerboard+thermochromic+nail+art' },
       { platform: 'Xiaohongshu', label: '小红书', url: 'https://www.xiaohongshu.com/search_result?keyword=%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2', appUrl: 'xhsdiscover://search/result?keyword=%E6%B8%A9%E5%8F%98%E6%A3%8B%E7%9B%98%E7%94%B2' },
