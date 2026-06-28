@@ -131,7 +131,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
         alerts: ['金属感款 8284 高意向低转化（本周试戴多、预约少）'],
       },
       transcript: [
-        { kind: 'reasoning', text: '读取本周 getMerchantInsights：金属感搜索上升，8284 试戴多但预约少；暗黑搜索 21 次仅 1 款在售。' },
+        { kind: 'reasoning', text: '读取本周 getMerchantInsights：金属感搜索上升，8284 试戴多但预约少；暗黑搜索 21 次、库内供给不足。' },
         { kind: 'tool_call', tool: 'getMerchantInsights', input: { rangeDays: 7 }, output: { trendingUp: ['金属感'], lowConversion: [LOW_CONVERSION_ID], gap: '暗黑' } },
         { kind: 'reasoning', text: '产出简报：建议对低转化的金属感款做团购券提价/降价测试，对暗黑缺口提醒上架。' },
       ],
@@ -224,7 +224,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
       input: { briefingRunId: insightRunId },
       output: { note: '暗黑缺口库内无匹配款式 → 提醒商家上架（待批准）。' },
       transcript: [
-        { kind: 'reasoning', text: '暗黑搜索 21 次但在售仅 1 款，且库内无可直接上架的匹配款式 → 无法自行生成设计图。' },
+        { kind: 'reasoning', text: '暗黑搜索 21 次但库内供给不足，无可直接上架的匹配款式 → 无法自行生成设计图。' },
         { kind: 'tool_call', tool: 'propose_listing', input: { gapTag: '暗黑', reason: '高搜索低供给，外部热门但库内无匹配' }, output: { proposed: true } },
         { kind: 'action', actionType: 'draft_upload', status: 'proposed', summary: '提醒上架（待商家批准）：暗黑 缺口 — 高搜索低供给，库内无匹配' },
       ],

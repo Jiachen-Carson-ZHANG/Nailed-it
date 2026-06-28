@@ -13,7 +13,7 @@
 //   - 金属感 demand rising (this week ≫ last week)
 //   - low conversion: 8284 «鎏金奢华» — many try-ons, ~1 booking
 //   - top converter:  8265 «极光法式碎钻» (裸色 + 法式风)
-//   - catalog gap:    暗黑 — high search demand, exactly 1 published style (8281)
+//   - catalog gap:    暗黑 — high search demand, under-supplied (≤1 published style; 8281)
 
 import type { Customer, NewAnalyticsEvent } from '@/domain/analytics';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
@@ -98,7 +98,7 @@ export function generateSeedEvents(now: string | number | Date = Date.now()): Ne
     plan.forEach(([eventType, styleId], i) => push({ eventType, customerId, styleId, createdAt: at(baseDay + i * 0.6) }));
 
   // ----- Aggregate demand (anonymous volume) -----
-  // 暗黑 catalog gap: 21 searches across the fortnight; only 1 published 暗黑 style exists (8281).
+  // 暗黑 catalog gap: 21 searches across the fortnight; 暗黑 supply is thin (≤1 published 暗黑 style live).
   spread(21, 0.5, 13, (i, d) => push({ eventType: 'search_submitted', customerId: vol(i), query: '暗黑', createdAt: at(d) }));
   // 金属感 rising: previous week ≪ this week.
   spread(15, 8, 13, (i, d) => push({ eventType: 'search_submitted', customerId: vol(i), query: '金属感', createdAt: at(d) }));
