@@ -47,7 +47,7 @@ describe('ChatRoom style attachment', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Attach a style' }));
-    expect(screen.getByText(/No saved styles yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/cart is empty/i)).toBeInTheDocument();
   });
 
   it('keeps the paperclip decorative (no attach button) when onAttachStyle is absent', () => {

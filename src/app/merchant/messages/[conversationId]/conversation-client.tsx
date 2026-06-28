@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { getMerchantMessagesPath } from '@/domain/session';
-import type { Conversation } from '@/domain/nail';
+import type { ChatMessage, Conversation } from '@/domain/nail';
 import { ChatRoom, type ChatAppointment } from '@/features/messages/ChatRoom';
 import { CustomerIntelPanel } from '@/features/merchant/CustomerIntelPanel';
-import { AgentActionInline } from '@/features/merchant/AgentActionInline';
 import { useLanguage } from '@/i18n/context';
 import { getMerchantConversationAction, sendMerchantMessageAction } from '@/lib/actions/conversation-actions';
 import { getCustomerIntelligenceAction } from '@/lib/actions/customer-intel-actions';
+import { listAgentActionsAction } from '@/lib/actions/agent-actions';
 import type { AppLanguage } from '@/i18n/types';
 import Link from 'next/link';
 
@@ -37,6 +37,7 @@ function fmtTime(iso: string, language: AppLanguage): string {
 
 export function MerchantConversationClient({ conversationId }: MerchantConversationClientProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [apptCtx, setApptCtx] = useState<RawAppointment | null>(null);
   const [loading, setLoading] = useState(true);
   const { language, t } = useLanguage();
@@ -53,6 +54,24 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
           getCustomerIntelligenceAction(c.participantName)
             .then((intel) => active && setApptCtx(intel?.appointmentContext ?? null))
             .catch(() => {/* no appointment card */});
+          // 用户运营 agent messages to this customer → render as real boss bubbles in the thread
+          // (ADR-0007 Phase 3b). Source of truth is the agent_action; shown with an "AI 代发" marker.
+          listAgentActionsAction(['send_customer_message'])
+            .then((actions) => {
+              if (!active) return;
+              setAiMessages(
+                actions
+                  .filter((a) => a.payload?.customerName === c.participantName)
+                  .map((a) => ({
+                    id: `ai-${a.id}`,
+                    author: 'me' as const,
+                    aiSent: true,
+                    body: String(a.payload?.body ?? ''),
+                    sentAt: fmtTime(a.createdAt, language),
+                  })),
+              );
+            })
+            .catch(() => {/* no AI messages */});
         }
       })
       .catch(() => {
@@ -92,12 +111,15 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
       }
     : null;
 
-  return conversation ? (
+  const mergedConversation: Conversation | null = conversation
+    ? { ...conversation, messages: [...conversation.messages, ...aiMessages] }
+    : null;
+
+  return mergedConversation ? (
     <>
-      <ChatRoom conversation={conversation} onSend={handleSend} viewerRole="merchant" appointment={appointment} />
-      <AgentActionInline types={['send_customer_message']} filterCustomerName={conversation.participantName} />
+      <ChatRoom conversation={mergedConversation} onSend={handleSend} viewerRole="merchant" appointment={appointment} />
       <CustomerIntelPanel
-        customerName={conversation.participantName}
+        customerName={mergedConversation.participantName}
         conversationId={conversationId}
         onRecommendSent={setConversation}
       />

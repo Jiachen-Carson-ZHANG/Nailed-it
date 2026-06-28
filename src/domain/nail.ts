@@ -186,6 +186,9 @@ export type ChatMessage = {
   body: string;
   sentAt: string;
   attachment?: MessageAttachment;
+  /** True when the 用户运营 agent sent this as the boss on the merchant's behalf (ADR-0007) — the
+   *  thread shows an "AI 代发" marker so the merchant knows it was auto-sent. */
+  aiSent?: boolean;
 };
 
 export type MessageAuthorRole = UserRole | 'system';

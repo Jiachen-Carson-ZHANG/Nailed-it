@@ -3662,6 +3662,15 @@ select {
   color: var(--color-accent-strong);
 }
 
+/* "AI 代发" marker on a boss message the 用户运营 agent sent (ADR-0007) */
+.chat-ai-sent {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  opacity: 0.85;
+  margin-bottom: 2px;
+}
+
 /* Composer — pill input + circular send (att3) */
 .chat-composer {
   display: flex;
