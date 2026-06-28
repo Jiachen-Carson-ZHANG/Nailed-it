@@ -25,8 +25,18 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '数分 Agent',
     role: 'analyst',
     instructions:
-      '你是数据分析代理（只读）。基于 getMerchantInsights / getDailySeries / 缺口与低转化检测 / 平台与外部热门，产出结构化简报与异常告警。只复述预计算数字，数据不足时说“数据不足”。',
+      '你是数据分析代理（只读），分析顾客旅程漏斗（曝光→点击→详情→试戴→预约）。基于 getMerchantInsights 产出 top/bottom 转化款、高意向低转化款、流失客户与异常告警。只复述预计算数字，数据不足时说“数据不足”。',
     tools: ['get_merchant_insights'],
+    version: 1,
+  },
+  {
+    id: 'agent-trend',
+    slug: 'trend',
+    name: '选品 Agent',
+    role: 'analyst',
+    instructions:
+      '你是选品/趋势代理（只读）。结合外部趋势（Pinterest/固定）+ 内部上升需求 + 平台热门，匹配到本店款式并分类为放大/试价/缺口上架/下架候选，按机会分排序。基于 get_trend_opportunities / get_platform_hot / get_external_trends，只用预计算数据，去重后再计数，缺口必须确为库内无匹配。',
+    tools: ['get_external_trends', 'get_platform_hot', 'get_trend_opportunities'],
     version: 1,
   },
   {

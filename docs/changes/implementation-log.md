@@ -1,5 +1,27 @@
 # Implementation Log
 
+## 2026-06-27 — 选品 (trend) agent end-to-end + Pinterest source (ADR-0007)
+
+Confirmed the 数分/选品 split and built 选品 as a real agent — **tools defined in Python** (the agent is
+the only consumer; only internal grounded metrics still come from the TS read model, ADR-0006).
+
+- **Pinterest research** (live): Trends API `GET /trends/keywords/{region}/top/{trend_type}` with
+  WoW/MoM/YoY growth; **app-only `client_credentials` token** (no user redirect) from app_id+secret;
+  but **no China region** (US/UK/CA + ~30) → Western keywords, likely `ads:read`. So Pinterest = live
+  capability; the CN fixture = matching tone.
+- **`trends_source.py`** — `TREND_SOURCE` seam: `fixture` (CN-flavored, default) | `pinterest` (live,
+  degrades to fixture on error). Config adds `PINTEREST_APP_ID/SECRET/REGION`, `TREND_SOURCE`.
+- **`trend_logic.py`** — Python port of the tested TS reference (`platform_hot`, `trend_opportunities`:
+  collect→dedup→match tag-overlap→classify amplify/price_test/gap/prune→rank).
+- **Tools (Python):** `get_external_trends`, `get_platform_hot`, `get_trend_opportunities` (read-only).
+  TS adds `/api/agent/styles` (published styles cross-merchant) → `bus.fetch_styles` for matching.
+- **Agent wiring:** `agentSlugs += 'trend'`; `AGENT_DEFINITIONS` 选品 row; `skills/trend.md`; orchestrator
+  step **数分 → 选品 → 决策** (决策 now consumes briefing + the ranked opportunities). Re-seeded → 9 agents.
+
+Decisions stay live in the agent runtime — 选品 produces a ranked menu; 决策 chooses. Verification:
+py_compile + import/logic smoke; tsc clean; 32 intelligence/agent tests pass. Pinterest live token
+untested until the key is placed in `.env.local`.
+
 ## 2026-06-27 — Synthetic demo data: distributional generator + multi-merchant (design spec)
 
 Rebuilt the demo dataset so the data is **reproducible yet organic** (sampled, not hand-set) and

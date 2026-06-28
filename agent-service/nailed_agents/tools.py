@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 from anthropic import beta_tool
 
-from . import bus
+from . import bus, trend_logic, trends_source
 
 __all__ = [
     "RunContext",
@@ -130,6 +130,41 @@ def get_customer_intelligence() -> str:
         {"kind": "tool_call", "tool": "get_customer_intelligence", "input": {}, "output": customers}
     )
     return json.dumps(customers, ensure_ascii=False)
+
+
+def get_external_trends() -> str:
+    """Return external/platform nail trends (each: label + tags). Source is fixture (CN-flavored) or
+    live Pinterest per TREND_SOURCE. Use to spot what's trending to match against the catalog — never
+    invent trends."""
+    ctx = _ctx()
+    trends = trends_source.get_external_trends()
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_external_trends", "input": {}, "output": trends})
+    return json.dumps(trends, ensure_ascii=False)
+
+
+def get_platform_hot() -> str:
+    """Return 平台热门: cross-merchant tag popularity (merchantCount + styleCount) over every published
+    style on the platform. Use to spot tags the platform is hot on that this shop under-stocks."""
+    ctx = _ctx()
+    styles = bus.fetch_styles().get("styles", [])
+    hot = trend_logic.platform_hot(styles)
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_platform_hot", "input": {}, "output": hot})
+    return json.dumps(hot, ensure_ascii=False)
+
+
+def get_trend_opportunities(range_days: int = 7) -> str:
+    """Return ranked trend opportunities — external trends + internal-rising demand, matched to the
+    catalog and classified (amplify / price_test / gap) + a prune list. The precise menu 决策 acts on.
+    Pre-computed from grounded reads; use as-is, never invent."""
+    ctx = _ctx()
+    insights = bus.fetch_briefing(range_days).get("insights", {})
+    styles = bus.fetch_styles().get("styles", [])
+    external = trends_source.get_external_trends()
+    report = trend_logic.trend_opportunities(external, insights, styles)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_trend_opportunities", "input": {"rangeDays": range_days}, "output": report}
+    )
+    return json.dumps(report, ensure_ascii=False)
 
 
 def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
@@ -245,6 +280,9 @@ def send_customer_message(customer_name: str, body: str, style_id: str = "") -> 
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
     get_customer_intelligence,
+    get_external_trends,
+    get_platform_hot,
+    get_trend_opportunities,
     place_ad,
     set_group_buy_coupon,
     list_style,

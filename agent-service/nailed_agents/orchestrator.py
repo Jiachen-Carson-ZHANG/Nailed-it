@@ -1,4 +1,4 @@
-"""Phase 3 round — the full team loop: 数分 → 决策 → 投广 → 团购 → 运营(上下架) → 用户运营 → Monitor → 数分'.
+"""Full team loop: 数分 → 选品 → 决策 → 投广 → 团购 → 运营(上下架) → 用户运营 → Monitor → 数分'.
 
 Each step runs as a Claude tool-call loop (tool_runner) with its own skill (process prompt) + tool
 allow-list. The OUTER sequence is deterministic Python (a fixed, demo-predictable process); INSIDE
@@ -13,7 +13,7 @@ from pathlib import Path
 from . import bus, config, runner, tools
 
 _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
-_CHAIN = ("insight", "decision", "ad", "coupon", "catalog", "customer_ops", "monitor")
+_CHAIN = ("insight", "trend", "decision", "ad", "coupon", "catalog", "customer_ops", "monitor")
 
 
 def _skill(slug: str, fallback: str) -> str:
@@ -55,11 +55,23 @@ def run_round(range_days: int = 7) -> dict[str, str]:
         task=f"分析最近 {range_days} 天的门店数据并产出简报。先调用 get_merchant_insights 获取数据，再给出 headline、alerts、focusStyleIds。",
     )
 
-    # ── 2) 决策: decide BOTH a 投广 and a 团购 action from the briefing ──
+    # ── 2) 选品: trend & opportunity — external + internal-rising + platform-hot → match → rank ──
+    trend_run, trend_report = _step(
+        "trend", trigger="event", parent=insight_run, input={"briefingRunId": insight_run},
+        tool_names=["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
+        task="产出本周优先级选品机会清单：先调用 get_trend_opportunities，必要时用 get_platform_hot / get_external_trends 佐证；给出按机会分排序的 amplify / price_test / gap / prune 机会。",
+    )
+
+    # ── 3) 决策: decide BOTH a 投广 and a 团购 action from the briefing + the 选品 opportunities ──
     decision_run, decision = _step(
-        "decision", trigger="event", parent=insight_run, input={"briefingRunId": insight_run},
+        "decision", trigger="event", parent=trend_run,
+        input={"briefingRunId": insight_run, "trendRunId": trend_run},
         tool_names=["get_merchant_insights"],
-        task=f"基于以下简报，决定两个精确动作：一个投广 place_ad（款式 id + 漏斗位 + 预算分），一个团购 set_group_buy_coupon（款式 id + 券后价分）。\n\n{briefing}",
+        task=(
+            "基于以下简报与选品机会，决定两个精确动作：一个投广 place_ad（款式 id + 漏斗位 + 预算分），"
+            "一个团购 set_group_buy_coupon（款式 id + 券后价分）。\n\n简报：\n"
+            f"{briefing}\n\n选品机会：\n{trend_report}"
+        ),
     )
 
     # ── 3) 投广: execute the ad action via place_ad ──
@@ -104,7 +116,7 @@ def run_round(range_days: int = 7) -> dict[str, str]:
         task=f"动作落地后重新基线：调用 get_merchant_insights 读取最近 {range_days} 天数据，给出更新后的 headline 与需重点观测的款式。",
     )
 
-    runs = {"insight": insight_run, "decision": decision_run, "ad": ad_run,
+    runs = {"insight": insight_run, "trend": trend_run, "decision": decision_run, "ad": ad_run,
             "coupon": coupon_run, "catalog": catalog_run, "customer_ops": customer_ops_run,
             "monitor": monitor_run, "rebaseline": loop_run}
     print("round complete — " + " ".join(f"{k}={v}" for k, v in runs.items()))

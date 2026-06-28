@@ -33,6 +33,16 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 APP_URL = os.environ.get("NAILED_APP_URL", "http://localhost:3000")
 MERCHANT_ID = os.environ.get("NAILED_MERCHANT_ID", "merchant-nailed-it")
 
+# 选品 external-trend source (one flag — same agent either way):
+#   "fixture"   (default): authored CN-flavored trends (deterministic, no key) — see trends fixture.
+#   "pinterest" (live):    Pinterest Trends API. Needs PINTEREST_APP_ID + PINTEREST_APP_SECRET.
+#                          NOTE: Pinterest Trends has NO China region (US/UK/CA + ~30) → Western trends.
+TREND_SOURCE = os.environ.get("TREND_SOURCE", "fixture").strip().lower()
+PINTEREST_APP_ID = os.environ.get("PINTEREST_APP_ID", "")
+PINTEREST_APP_SECRET = os.environ.get("PINTEREST_APP_SECRET", "")
+PINTEREST_REGION = os.environ.get("PINTEREST_REGION", "US")
+PINTEREST_BASE_URL = os.environ.get("PINTEREST_BASE_URL", "https://api.pinterest.com/v5")
+
 # Model id. Provider-specific default; override with AGENT_MODEL.
 #   openrouter → google/gemini-2.5-flash (cheap, supports tool-calling; or openai/gpt-4o-mini)
 #   anthropic  → claude-haiku-4-5 (cheap; set claude-opus-4-8 / claude-sonnet-4-6 if using Anthropic)
@@ -55,6 +65,9 @@ def require_env() -> None:
         checks.append(("OPENROUTER_API_KEY", OPENROUTER_API_KEY))
     else:
         raise SystemExit(f"Unknown MODEL_PROVIDER '{MODEL_PROVIDER}' — use 'anthropic' or 'openrouter'.")
+
+    if TREND_SOURCE == "pinterest":
+        checks += [("PINTEREST_APP_ID", PINTEREST_APP_ID), ("PINTEREST_APP_SECRET", PINTEREST_APP_SECRET)]
 
     missing = [name for name, val in checks if not val]
     if missing:

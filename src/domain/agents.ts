@@ -5,6 +5,7 @@
 export const agentSlugs = [
   'orchestrator',
   'insight',
+  'trend',
   'decision',
   'ad',
   'coupon',

@@ -38,6 +38,14 @@ def fetch_customers() -> dict[str, Any]:
     return resp.json()
 
 
+def fetch_styles() -> dict[str, Any]:
+    """Published styles across all merchants (id/title/merchantId/tags) for the 选品 agent's catalog
+    matching + platform-hot. Grounded supply data from the TS read model."""
+    resp = httpx.get(f"{config.APP_URL}/api/agent/styles", timeout=30.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def agents_by_slug(sb: Client) -> dict[str, dict[str, Any]]:
     rows = sb.table("agents").select("*").execute().data or []
     return {r["slug"]: r for r in rows}
