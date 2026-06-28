@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2026-06-27 — Audit fixes: merchant-scoped insights/matching + demo preflight
+
+Addressed the validate-audit High finding that multi-merchant fillers would corrupt single-merchant
+intelligence:
+
+- **Merchant-scoped supply (#3):** `getMerchantInsightsAction` now reads the merchant's OWN published
+  styles (`merchantStyles.listByMerchant` + `status==='published'`), not all-merchant `listPublished`
+  — so a filler shop's 暗黑 supply can no longer hide the hero's catalog gap. The 选品 tool likewise
+  matches opportunities against **hero-only** styles (`get_trend_opportunities` filters by
+  `MERCHANT_ID`); `get_platform_hot` stays cross-merchant by design.
+- **Preflight (#5):** `scripts/preflight-demo.ts` (`npm run preflight`) hits the running app's agent
+  endpoints and prints PASS/FAIL on the demo-critical bands (merchant/style counts, 暗黑 gap, 金属感
+  rising, 8284 low-conv, 8265 top, platform-hot). First run confirmed the audit live: Supabase has no
+  fillers, 金属感 reads down (stale wall-clock window), 暗黑 supply 0.
+
+Still open (operational): re-run `seed:intelligence` before demo (#1); seed fillers to Supabase for
+multi-merchant/platform-hot (#2); decide 暗黑 (republish 8281 vs document supply 0) (#5); refresh
+`current-state.md` persona count (#6).
+
 ## 2026-06-27 — 选品 (trend) agent end-to-end + Pinterest source (ADR-0007)
 
 Confirmed the 数分/选品 split and built 选品 as a real agent — **tools defined in Python** (the agent is

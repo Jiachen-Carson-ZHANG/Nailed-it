@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 from anthropic import beta_tool
 
-from . import bus, trend_logic, trends_source
+from . import bus, config, trend_logic, trends_source
 
 __all__ = [
     "RunContext",
@@ -158,9 +158,12 @@ def get_trend_opportunities(range_days: int = 7) -> str:
     Pre-computed from grounded reads; use as-is, never invent."""
     ctx = _ctx()
     insights = bus.fetch_briefing(range_days).get("insights", {})
-    styles = bus.fetch_styles().get("styles", [])
+    all_styles = bus.fetch_styles().get("styles", [])
+    # Match opportunities against THIS merchant's own catalog only — a gap must be a gap in OUR
+    # catalog, not hidden by a filler shop's supply. (platform_hot stays cross-merchant.)
+    hero_styles = [s for s in all_styles if s.get("merchantId") == config.MERCHANT_ID]
     external = trends_source.get_external_trends()
-    report = trend_logic.trend_opportunities(external, insights, styles)
+    report = trend_logic.trend_opportunities(external, insights, hero_styles)
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "get_trend_opportunities", "input": {"rangeDays": range_days}, "output": report}
     )
