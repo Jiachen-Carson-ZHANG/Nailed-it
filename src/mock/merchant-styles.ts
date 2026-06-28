@@ -4,6 +4,7 @@ import { effectiveDurationMin } from '@/domain/catalog';
 import { catalogItems } from './catalog';
 import { demoMerchantId } from './merchants';
 import { styleDefinitions } from './styles';
+import { fillerMerchantStyles } from './filler-merchant-styles';
 
 const SEEDED_AT = '2026-05-01T00:00:00.000Z';
 const defaultStyleItem = catalogItems.find((item) => item.id === 'basic_manicure_service');
@@ -18,7 +19,7 @@ type SeededMerchantStyleRecord = MerchantStyleRecord & {
   descriptionLocalized: LocalizedText;
 };
 
-export const mockMerchantStyles: SeededMerchantStyleRecord[] = styleDefinitions.map((style) => {
+const heroMerchantStyles: SeededMerchantStyleRecord[] = styleDefinitions.map((style) => {
   return {
     id: style.id,
     merchantId: demoMerchantId,
@@ -53,3 +54,7 @@ export const mockMerchantStyles: SeededMerchantStyleRecord[] = styleDefinitions.
     },
   };
 });
+
+// Hero (Melissa) + 4 filler shops → the multi-merchant customer feed. listPublished() returns every
+// published style across merchants, so the fillers surface in the feed + power 平台热门 automatically.
+export const mockMerchantStyles: SeededMerchantStyleRecord[] = [...heroMerchantStyles, ...fillerMerchantStyles];

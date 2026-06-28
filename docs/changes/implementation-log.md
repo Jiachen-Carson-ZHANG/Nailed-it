@@ -1,5 +1,38 @@
 # Implementation Log
 
+## 2026-06-27 — Synthetic demo data: distributional generator + multi-merchant (design spec)
+
+Rebuilt the demo dataset so the data is **reproducible yet organic** (sampled, not hand-set) and
+**multi-merchant**, per `docs/plans/2026-06-27-synthetic-demo-data.md`. Decision-making stays **live in
+the agent runtime** — we engineer *situations*, not verdicts.
+
+- **`src/mock/prng.ts`** — seeded PRNG (`mulberry32`) + samplers (beta/poisson/binomial/weighted). No
+  deps; `Math.random` intentionally avoided. 6 tests.
+- **`src/mock/style-latents.ts`** — per-style latent funnel params (Beta rates, Poisson exposure)
+  encoding the §3 scenarios (winner / low-conv / under-exposed gem / declining star / vanity trap /
+  dead). Scenarios override; the rest use a realistic prior.
+- **`src/mock/intelligence-seed.ts`** — per-style funnel now **sampled** from latents via the PRNG
+  (impressions ~ Poisson → Bernoulli chain → click/detail/try/book/save) instead of fixed counts; 40
+  volume personas. Searches + named journeys kept. The locked narrative now holds as **bands** (all 9
+  `intelligence-seed.test.ts` assertions pass on sampled data); tuned 2 latents in the band-loop.
+- **Multi-merchant:** `merchants.ts` → 5 shops; `filler-merchant-styles.ts` → 72 published filler
+  styles (placeholder images = hero pics, swap when real pics land; authored tags). `listPublished()`
+  surfaces them → the customer feed is multi-merchant (enables cross-merchant ads).
+- **选品 inputs:** `src/domain/intelligence/trends.ts` `getTrendOpportunities` (collect → dedup → match
+  tag-overlap → classify → rank) + `getPlatformHotTags` (real cross-merchant 平台热门, no mock);
+  `src/mock/external-trends.ts` fixture (swap to live Pinterest later). Tests for both.
+
+Verification: tsc clean; 58 mock/intelligence tests pass.
+
+## 2026-06-27 — Boss-message rendered in-thread + red build fix
+
+- **Boss-message real:** the 用户运营 agent's `send_customer_message` now renders as a real `me` bubble
+  in the merchant thread with an **🤖 AI 代发** marker (`ChatMessage.aiSent`), merged from the
+  `agent_action` (source of truth); removed the redundant inline card on the thread.
+- **Red build fix:** repaired a stale rename from the 2026-06-21 homepage commit that broke `tsc` on
+  `StyleWaterfallGridClient` (`titleLocalized`→`title`), `TrendingStylesPanel` (`nameEn`→`name` +
+  missing fields; obsolete fetch-test → static), and `try-on.test` (env arg position). Build green.
+
 ## 2026-06-27 — Agent audit follow-up: OpenRouter default, guarded actions (ADR-0007)
 
 Post-audit correction to the Phase 3/3b agent work:

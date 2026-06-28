@@ -19,8 +19,12 @@ import type { Customer, NewAnalyticsEvent } from '@/domain/analytics';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
 import { demoMerchantId } from './merchants';
 import { demoCustomerId, mockCustomers } from './customers';
+import { createRng } from './prng';
+import { latentFor } from './style-latents';
 
 const DAY = 86_400_000;
+// Fixed seed → the sampled funnel is identical every run (reproducible demo), yet organic (§0/§2).
+const SEED = 0x9e3779b9;
 
 export const TOP_CONVERTER_ID = 'style-melissa-img-8265'; // 裸色 + 法式风
 export const LOW_CONVERSION_ID = 'style-melissa-img-8284'; // 金属感
@@ -29,7 +33,6 @@ export const GAP_STYLE_ID = 'style-melissa-img-8281'; // the one published 暗�
 export const AMY_CUSTOMER_ID = 'cust-amy';
 export const RACHEL_CUSTOMER_ID = 'cust-rachel';
 
-const METALLIC_POOL = ['style-melissa-img-8282', 'style-melissa-img-8273', 'style-melissa-img-8274'];
 const MELISSA_NUDE_FRENCH = [TOP_CONVERTER_ID, 'style-melissa-img-8249', 'style-melissa-img-8275', 'style-melissa-img-8266'];
 const AMY_METALLIC = [LOW_CONVERSION_ID, 'style-melissa-img-8282']; // 金属感 / 辣妹风
 const RACHEL_SWEET = ['style-melissa-img-8254', 'style-melissa-img-8277', 'style-melissa-img-8261']; // 甜美 / 可爱
@@ -59,11 +62,12 @@ const namedPersonas: Customer[] = [
   { id: RACHEL_CUSTOMER_ID, merchantId: demoMerchantId, handle: 'rachel', name: 'Rachel Goh', avatarUrl: null, personaNote: '甜美 / 可爱 · budget ~SGD 70' },
 ];
 
-const volumePersonas: Customer[] = ['v1', 'v2', 'v3'].map((v, i) => ({
-  id: `cust-${v}`,
+// ~40 anonymous volume personas — statistical mass for the sampled per-nail funnel (no threads).
+const volumePersonas: Customer[] = Array.from({ length: 40 }, (_, i) => ({
+  id: `cust-v${i + 1}`,
   merchantId: demoMerchantId,
   handle: null,
-  name: `访客${'ABC'[i]}`,
+  name: `访客${i + 1}`,
   avatarUrl: null,
   personaNote: 'Seeded anonymous demand.',
 }));
@@ -99,13 +103,8 @@ export function generateSeedEvents(now: string | number | Date = Date.now()): Ne
   // 金属感 rising: previous week ≪ this week.
   spread(15, 8, 13, (i, d) => push({ eventType: 'search_submitted', customerId: vol(i), query: '金属感', createdAt: at(d) }));
   spread(20, 0.5, 6.5, (i, d) => push({ eventType: 'search_submitted', customerId: vol(i), query: '金属感', createdAt: at(d) }));
-  spread(10, 8, 13, (i, d) => push({ eventType: 'style_card_click', customerId: vol(i), styleId: METALLIC_POOL[i % METALLIC_POOL.length], createdAt: at(d) }));
-  // Low conversion: 8284 «鎏金奢华» — bulk try-ons (this week) + the single booking.
-  spread(26, 0.3, 7.3, (i, d) => push({ eventType: 'try_on_completed', customerId: vol(i), styleId: LOW_CONVERSION_ID, createdAt: at(d) }));
-  push({ eventType: 'booking_confirmed', customerId: vol(0), styleId: LOW_CONVERSION_ID, metadata: { price: 120 }, createdAt: at(2) });
-  // Top converter: 8265 «极光法式碎钻» — 8 try-ons, 6 bookings.
-  spread(8, 0.5, 10, (i, d) => push({ eventType: 'try_on_completed', customerId: vol(i), styleId: TOP_CONVERTER_ID, createdAt: at(d) }));
-  spread(6, 0.6, 9, (i, d) => push({ eventType: 'booking_confirmed', customerId: vol(i), styleId: TOP_CONVERTER_ID, metadata: { price: 95 }, createdAt: at(d) }));
+  // Per-style funnels (8284 low-conv, 8265 top, gem, dead, etc.) are SAMPLED from latents below —
+  // not hand-set counts — so the per-nail data is organic + not obvious (§2/§3).
 
   // ----- Melissa: 裸色 / 法式风, budget ~80 -----
   interactions(demoCustomerId, [
@@ -142,30 +141,38 @@ export function generateSeedEvents(now: string | number | Date = Date.now()): Ne
   ], 0.6);
   push({ eventType: 'booking_confirmed', customerId: RACHEL_CUSTOMER_ID, styleId: RACHEL_SWEET[0], metadata: { price: 70 }, createdAt: at(2.5) });
 
-  // ----- Additive top-of-funnel (ADR-0006 addendum 2026-06-08) -----
-  // The outcome events above (try-ons, bookings, searches) carry the narrative but no upstream
-  // discovery, so the journey funnel was inverted (0 impressions, try-ons ≫ clicks). Layer
-  // monotonic 曝光 ≥ 点击 ≥ 详情 above each style's existing try-ons so 曝光→点击→详情→试戴→预约
-  // is a true funnel both per-style and in aggregate. Nothing above is changed; this only adds
-  // discovery signal, current-week-weighted (spread 0.3..9 ⇒ ~77% inside the 7-day window).
-  const upstreamFunnel: Array<[styleId: string, impressions: number, clicks: number, details: number]> = [
-    [LOW_CONVERSION_ID, 130, 70, 38],            // 鎏金奢华 — heavy interest, cliff at booking
-    [TOP_CONVERTER_ID, 40, 20, 12],              // 极光法式碎钻 — converts all the way down
-    ['style-melissa-img-8282', 20, 9, 3],        // 清冷冰蓝冷光甲
-    ['style-melissa-img-8254', 14, 6, 2],        // 奶咖拼图
-    [GAP_STYLE_ID, 26, 9, 4],                    // 千禧迷幻克罗心 (暗黑) — searched a lot
-    ['style-melissa-img-8273', 22, 7, 3],        // 梦幻马卡龙
-    ['style-melissa-img-8274', 20, 6, 2],        // 碎冰玫瑰猫眼
-    ['style-melissa-img-8249', 10, 2, 1],        // 薄荷青法式
-    ['style-melissa-img-8275', 10, 2, 1],        // 碎钻冰花法式
-    ['style-melissa-img-8266', 8, 2, 0],         // 温柔奶茶果冻
-    ['style-melissa-img-8277', 8, 1, 0],         // 焦糖布丁布丁狗
-    ['style-melissa-img-8261', 8, 1, 0],         // 极光甜心
-  ];
-  for (const [styleId, impressions, clicks, details] of upstreamFunnel) {
-    spread(impressions, 0.3, 9, (i, d) => push({ eventType: 'style_impression', customerId: vol(i), styleId, createdAt: at(d) }));
-    spread(clicks, 0.3, 9, (i, d) => push({ eventType: 'style_card_click', customerId: vol(i), styleId, createdAt: at(d) }));
-    spread(details, 0.3, 9, (i, d) => push({ eventType: 'style_detail_view', customerId: vol(i), styleId, createdAt: at(d) }));
+  // ----- Per-style sampled funnel (design spec 2026-06-27 §2/§7) -----
+  // Each hero style's funnel is drawn from its latents via the seeded PRNG: impressions ~ Poisson(λ),
+  // then a Bernoulli chain impression→click→detail→try-on→booking (+ save off click). The chain
+  // guarantees 曝光≥点击≥详情≥试戴≥预约 per style and in aggregate; the latents encode the scenarios
+  // (§3) — winner / low-conversion / gem / declining / vanity / dead — so the data is organic, not
+  // hand-set. Named-user outcome events above ride on top of this discovery base.
+  const rng = createRng(SEED);
+  const volPick = () => VOL[rng.int(0, VOL.length - 1)];
+  const dayFor = (ramp?: 'up' | 'down') => (ramp === 'down' ? 3 + rng.next() * 10 : 0.3 + rng.next() * 9);
+
+  for (const style of seedStyleFixtures) {
+    const L = latentFor(style.id);
+    const ctr = rng.beta(L.ctr[0], L.ctr[1]);
+    const detailR = rng.beta(L.detailR[0], L.detailR[1]);
+    const tryR = rng.beta(L.tryR[0], L.tryR[1]);
+    const cvr = rng.beta(L.cvr[0], L.cvr[1]);
+    const savR = rng.beta(L.savR[0], L.savR[1]);
+    const impressions = rng.poisson(L.lambda);
+    for (let j = 0; j < impressions; j += 1) {
+      const cust = volPick();
+      const createdAt = at(dayFor(L.ramp));
+      push({ eventType: 'style_impression', customerId: cust, styleId: style.id, createdAt });
+      if (rng.next() >= ctr) continue;
+      push({ eventType: 'style_card_click', customerId: cust, styleId: style.id, createdAt });
+      if (rng.next() < savR) push({ eventType: 'style_save', customerId: cust, styleId: style.id, createdAt });
+      if (rng.next() >= detailR) continue;
+      push({ eventType: 'style_detail_view', customerId: cust, styleId: style.id, createdAt });
+      if (rng.next() >= tryR) continue;
+      push({ eventType: 'try_on_completed', customerId: cust, styleId: style.id, createdAt });
+      if (rng.next() >= cvr) continue;
+      push({ eventType: 'booking_confirmed', customerId: cust, styleId: style.id, metadata: { price: L.price ?? 85 }, createdAt });
+    }
   }
 
   return events;
