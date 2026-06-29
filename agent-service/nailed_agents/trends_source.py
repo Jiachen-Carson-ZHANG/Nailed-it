@@ -30,17 +30,27 @@ _token: str | None = None
 
 
 def _pinterest_token() -> str:
-    """App-only token via the OAuth client_credentials grant (no user redirect). Cached per process."""
+    """Get a bearer token, cached per process. Preference order:
+      1. refresh_token grant (user-authorized; the only path that reaches /trends) → fresh access token
+      2. a directly-supplied PINTEREST_ACCESS_TOKEN
+      3. client_credentials (app-only; mints a token but 401s on /trends — last resort)."""
     global _token
     if _token:
         return _token
     creds = base64.b64encode(
         f"{config.PINTEREST_APP_ID}:{config.PINTEREST_APP_SECRET}".encode()
     ).decode()
+    if config.PINTEREST_REFRESH_TOKEN:
+        data = {"grant_type": "refresh_token", "refresh_token": config.PINTEREST_REFRESH_TOKEN}
+    elif config.PINTEREST_ACCESS_TOKEN:
+        _token = config.PINTEREST_ACCESS_TOKEN
+        return _token
+    else:
+        data = {"grant_type": "client_credentials", "scope": "ads:read"}
     resp = httpx.post(
         f"{config.PINTEREST_BASE_URL}/oauth/token",
         headers={"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"},
-        data={"grant_type": "client_credentials", "scope": "ads:read"},
+        data=data,
         timeout=20.0,
     )
     resp.raise_for_status()

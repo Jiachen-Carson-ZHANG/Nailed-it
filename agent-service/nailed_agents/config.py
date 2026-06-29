@@ -42,6 +42,12 @@ PINTEREST_APP_ID = os.environ.get("PINTEREST_APP_ID", "")
 PINTEREST_APP_SECRET = os.environ.get("PINTEREST_APP_SECRET", "")
 PINTEREST_REGION = os.environ.get("PINTEREST_REGION", "US")
 PINTEREST_BASE_URL = os.environ.get("PINTEREST_BASE_URL", "https://api.pinterest.com/v5")
+# Trends needs a USER-authorized token (ads:read on an ad account) — app-only client_credentials gets
+# a token but 401s on /trends. Get a refresh token once via `npm run pinterest:auth`; we mint a fresh
+# access token from it each run (continuous refresh, ~60-day). Falls back to client_credentials.
+PINTEREST_REFRESH_TOKEN = os.environ.get("PINTEREST_REFRESH_TOKEN", "")
+PINTEREST_ACCESS_TOKEN = os.environ.get("PINTEREST_ACCESS_TOKEN", "")
+PINTEREST_REDIRECT_URI = os.environ.get("PINTEREST_REDIRECT_URI", "https://localhost/")
 
 # Model id. Provider-specific default; override with AGENT_MODEL.
 #   openrouter → google/gemini-2.5-flash (cheap, supports tool-calling; or openai/gpt-4o-mini)

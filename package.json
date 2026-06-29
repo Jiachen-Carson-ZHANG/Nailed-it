@@ -16,7 +16,8 @@
     "seed:intelligence": "tsx scripts/seed-intelligence.ts",
     "seed:agents": "tsx scripts/seed-agents.ts",
     "backfill:fillers": "tsx scripts/backfill-filler-merchants.ts",
-    "preflight": "tsx scripts/preflight-demo.ts"
+    "preflight": "tsx scripts/preflight-demo.ts",
+    "pinterest:auth": "tsx scripts/pinterest-auth.ts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
