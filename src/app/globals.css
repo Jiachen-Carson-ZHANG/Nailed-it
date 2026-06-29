@@ -2863,11 +2863,393 @@ select {
   margin-top: var(--space-1);
 }
 
-.groupbuy-add-btn:hover,
+.groupbuy-add-btn:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
 .groupbuy-add-btn:focus-visible {
   background: var(--color-accent-soft);
   color: var(--color-accent-strong);
+  box-shadow: 0 0 0 3px rgba(236, 93, 123, 0.18);
   outline: none;
+}
+
+/* Groupbuy draft status */
+.groupbuy-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  margin-left: var(--space-2);
+  padding: 0.15rem var(--space-2);
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  border-radius: var(--radius-pill);
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--color-warning);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* ── Groupbuy Wizard ──────────────────────────────────────────────────────── */
+.groupbuy-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.groupbuy-wizard-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 -0.25rem;
+  padding: var(--space-2) 0.25rem var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 248, 247, 0.94);
+  backdrop-filter: blur(12px);
+}
+
+.groupbuy-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-accent-strong);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.groupbuy-back-btn:hover {
+  border-color: rgba(236, 93, 123, 0.28);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.groupbuy-back-btn:focus-visible {
+  border-color: rgba(236, 93, 123, 0.45);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 3px rgba(236, 93, 123, 0.18);
+  outline: none;
+}
+
+.groupbuy-step-tabs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.groupbuy-step-tabs button {
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.groupbuy-step-tabs button:hover {
+  color: var(--color-text);
+}
+
+.groupbuy-step-tabs button:focus-visible {
+  border-color: rgba(236, 93, 123, 0.45);
+  color: var(--color-text);
+  box-shadow: 0 0 0 3px rgba(236, 93, 123, 0.18);
+  outline: none;
+}
+
+.groupbuy-step-tabs button[aria-selected='true'] {
+  border-color: rgba(236, 93, 123, 0.24);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.groupbuy-step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.groupbuy-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupbuy-field > span {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.groupbuy-field input,
+.groupbuy-form-section input[type='date'],
+.groupbuy-form-section input[type='datetime-local'],
+.groupbuy-form-section input[type='number'],
+.groupbuy-service-row input[type='number'] {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  padding: 0.55rem 0.65rem;
+  font-size: var(--text-sm);
+}
+
+.groupbuy-field input:focus-visible,
+.groupbuy-form-section input:focus-visible,
+.groupbuy-service-row input:focus-visible {
+  border-color: rgba(236, 93, 123, 0.45);
+  box-shadow: 0 0 0 3px rgba(236, 93, 123, 0.14);
+  outline: none;
+}
+
+.groupbuy-service-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.groupbuy-service-accordion,
+.groupbuy-form-section fieldset {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-strong);
+  overflow: hidden;
+}
+
+.groupbuy-service-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupbuy-service-accordion-header:hover {
+  background: rgba(236, 93, 123, 0.04);
+}
+
+.groupbuy-service-accordion-header:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(236, 93, 123, 0.35);
+}
+
+.groupbuy-service-accordion-chevron {
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.6rem;
+}
+
+.groupbuy-service-accordion-body {
+  padding: 0 0.65rem 0.55rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.groupbuy-service-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.groupbuy-service-accordion-body .groupbuy-service-row:first-child {
+  border-top: none;
+}
+
+.groupbuy-service-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.groupbuy-service-row label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupbuy-service-row input[type='checkbox'],
+.groupbuy-form-section input[type='radio'] {
+  flex: 0 0 auto;
+  accent-color: var(--color-accent);
+}
+
+.groupbuy-service-row input[type='number'] {
+  grid-column: 1 / -1;
+}
+
+.groupbuy-service-row:has(input:checked) {
+  color: var(--color-accent-strong);
+}
+
+.groupbuy-original-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(236, 93, 123, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(236, 93, 123, 0.08);
+  color: var(--color-accent-strong);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.groupbuy-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupbuy-form-section fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.groupbuy-form-section legend {
+  padding: 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.groupbuy-form-section label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.groupbuy-form-section label:has(input[type='number']) {
+  flex-wrap: wrap;
+}
+
+.groupbuy-form-section label input[type='number'] {
+  max-width: 6rem;
+}
+
+.groupbuy-date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.groupbuy-error,
+.groupbuy-helper-text {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.groupbuy-error {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.groupbuy-helper-text {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(236, 93, 123, 0.08);
+  color: var(--color-muted);
+}
+
+.groupbuy-wizard-footer,
+.groupbuy-back-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.groupbuy-wizard-footer {
+  position: sticky;
+  bottom: 0;
+  margin: var(--space-2) -0.25rem 0;
+  padding: var(--space-3) 0.25rem 0;
+  border-top: 1px solid var(--color-border);
+  background: rgba(255, 248, 247, 0.94);
+  backdrop-filter: blur(12px);
+}
+
+.groupbuy-back-dialog-actions {
+  align-items: stretch;
+}
+
+.groupbuy-back-dialog-actions .button {
+  flex: 1 1 100%;
+}
+
+@media (max-width: 24rem) {
+  .groupbuy-wizard-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .groupbuy-date-range {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Preview table ────────────────────────────────────────────────────────── */

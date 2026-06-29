@@ -1,6 +1,17 @@
 'use client';
 
-type GroupDeal = {
+import { useEffect, useState } from 'react';
+import { glossaryById } from '@/data/glossary';
+import type { GlossaryEntrySettings } from '@/data/glossary-settings-store';
+import type { GroupbuyDeal } from '@/domain/groupbuy';
+import {
+  listGroupbuyDeals,
+  publishGroupbuyDeal,
+  saveGroupbuyDraft,
+} from '@/lib/repositories/local/groupbuy-repository';
+import { GroupbuyWizard } from '@/features/merchant/GroupbuyWizard';
+
+type GroupDealCard = {
   id: string;
   title: string;
   elements: string[];
@@ -8,9 +19,16 @@ type GroupDeal = {
   originalPrice: number;
   purchaseCount: number;
   redemptionCount: number;
+  status?: GroupbuyDeal['status'];
 };
 
-const mockDeals: GroupDeal[] = [
+type GroupbuyPanelProps = {
+  language: 'zh-CN' | 'en';
+  currency: string;
+  settingsById: Map<string, GlossaryEntrySettings>;
+};
+
+const mockDeals: GroupDealCard[] = [
   {
     id: 'deal-001',
     title: '韩系裸粉猫眼通勤款',
@@ -78,6 +96,7 @@ const copy = {
     addBtn: '+ 添加团购',
     purchaseCount: '购买次数 ',
     redemptionCount: '核销次数 ',
+    draftStatus: '草稿',
   },
   en: {
     aiHeader: 'AI assistant',
@@ -87,11 +106,80 @@ const copy = {
     addBtn: '+ Add deal',
     purchaseCount: 'Purchases: ',
     redemptionCount: 'Redeemed: ',
+    draftStatus: 'Draft',
   },
 } as const;
 
-export function GroupbuyPanel({ language }: { language: 'zh-CN' | 'en' }) {
+function catalogItemName(catalogItemId: string, language: 'zh-CN' | 'en'): string {
+  const entry = glossaryById.get(catalogItemId);
+  if (!entry) return catalogItemId;
+  return language === 'zh-CN' ? entry.name_zh : entry.name_en;
+}
+
+function toLocalDealCard(deal: GroupbuyDeal, language: 'zh-CN' | 'en'): GroupDealCard {
+  return {
+    id: deal.id,
+    title: deal.title,
+    elements: deal.serviceSelections
+      .filter((selection) => selection.enabled)
+      .map((selection) => catalogItemName(selection.catalogItemId, language)),
+    price: deal.dealPrice ?? deal.originalPrice,
+    originalPrice: deal.originalPrice,
+    purchaseCount: 0,
+    redemptionCount: 0,
+    status: deal.status,
+  };
+}
+
+function mergeSavedDeal(savedDeal: GroupbuyDeal, persistedDeals: GroupbuyDeal[], currentDeals: GroupbuyDeal[]) {
+  const seen = new Set<string>();
+  return [savedDeal, ...persistedDeals, ...currentDeals].filter((deal) => {
+    if (seen.has(deal.id)) return false;
+    seen.add(deal.id);
+    return true;
+  });
+}
+
+function formatListPrice(currency: string, price: number) {
+  return `${currency} ${price}`;
+}
+
+export function GroupbuyPanel({ language, currency, settingsById }: GroupbuyPanelProps) {
   const t = copy[language];
+  const [mode, setMode] = useState<'list' | 'create'>('list');
+  const [localDeals, setLocalDeals] = useState<GroupbuyDeal[]>([]);
+
+  function refreshLocalDeals() {
+    setLocalDeals(listGroupbuyDeals());
+  }
+
+  useEffect(() => {
+    refreshLocalDeals();
+  }, []);
+
+  function finishWithSavedDeal(saveDeal: (deal: GroupbuyDeal) => GroupbuyDeal, deal: GroupbuyDeal) {
+    const savedDeal = saveDeal(deal);
+    const persistedDeals = listGroupbuyDeals();
+    setLocalDeals((currentDeals) => mergeSavedDeal(savedDeal, persistedDeals, currentDeals));
+    setMode('list');
+  }
+
+  if (mode === 'create') {
+    return (
+      <div className="manage-panel-content groupbuy-panel">
+        <GroupbuyWizard
+          language={language}
+          currency={currency}
+          settingsById={settingsById}
+          onCancel={() => setMode('list')}
+          onSaveDraft={(deal) => finishWithSavedDeal(saveGroupbuyDraft, deal)}
+          onPublish={(deal) => finishWithSavedDeal(publishGroupbuyDeal, deal)}
+        />
+      </div>
+    );
+  }
+
+  const deals = [...localDeals.map((deal) => toLocalDealCard(deal, language)), ...mockDeals];
 
   return (
     <div className="manage-panel-content groupbuy-panel">
@@ -102,9 +190,9 @@ export function GroupbuyPanel({ language }: { language: 'zh-CN' | 'en' }) {
           {aiSuggestions.map((sug) => (
             <li key={sug.id} className="groupbuy-ai-suggestion">
               <span className="groupbuy-ai-text">{sug.text}</span>
-              <a href="#" className="button button-primary button-compact groupbuy-ai-cta">
+              <button type="button" className="button button-primary button-compact groupbuy-ai-cta">
                 {t.aiCta}
-              </a>
+              </button>
             </li>
           ))}
         </ul>
@@ -113,34 +201,39 @@ export function GroupbuyPanel({ language }: { language: 'zh-CN' | 'en' }) {
       {/* ── Deal List ── */}
       <div className="manage-section-heading">{t.listHeader}</div>
       <div className="groupbuy-deal-list">
-        {mockDeals.map((deal) => (
+        {deals.map((deal) => (
           <div key={deal.id} className="groupbuy-deal-card">
             <div className="groupbuy-deal-body">
-              <p className="groupbuy-deal-title">{deal.title}</p>
+              <p className="groupbuy-deal-title">
+                {deal.title}
+                {deal.status === 'draft' ? (
+                  <span className="groupbuy-status-pill">{t.draftStatus}</span>
+                ) : null}
+              </p>
               <div className="groupbuy-deal-elements">
                 {deal.elements.map((el) => (
                   <span key={el} className="groupbuy-element-tag">{el}</span>
                 ))}
               </div>
               <div className="groupbuy-deal-price-row">
-                <span className="groupbuy-deal-price">¥{deal.price}</span>
-                <span className="groupbuy-deal-original">¥{deal.originalPrice}</span>
+                <span className="groupbuy-deal-price">{formatListPrice(currency, deal.price)}</span>
+                <span className="groupbuy-deal-original">{formatListPrice(currency, deal.originalPrice)}</span>
               </div>
               <div className="groupbuy-deal-meta">
                 <span>{t.purchaseCount}{deal.purchaseCount}</span>
                 <span>{t.redemptionCount}{deal.redemptionCount}</span>
               </div>
             </div>
-            <a href="#" className="button button-primary button-compact groupbuy-deal-cta">
+            <button type="button" className="button button-primary button-compact groupbuy-deal-cta">
               {t.viewBtn}
-            </a>
+            </button>
           </div>
         ))}
 
         {/* ── Add Deal Button ── */}
-        <a href="#" className="groupbuy-add-btn">
+        <button type="button" className="groupbuy-add-btn" onClick={() => setMode('create')}>
           {t.addBtn}
-        </a>
+        </button>
       </div>
     </div>
   );

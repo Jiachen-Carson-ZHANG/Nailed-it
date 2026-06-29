@@ -740,7 +740,9 @@ export default function MerchantManagePage() {
           {activePanel === 'preview'   && (
             <PreviewPanel settingsById={settingsById} dirty={dirty} onSave={handleSave} currency={currency} language={language} />
           )}
-          {activePanel === 'groupbuy'  && <GroupbuyPanel language={language} />}
+          {activePanel === 'groupbuy'  && (
+            <GroupbuyPanel language={language} currency={currency} settingsById={settingsById} />
+          )}
         </div>
       </div>
       <Toast message={toastMessage} />

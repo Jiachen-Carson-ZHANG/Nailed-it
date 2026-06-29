@@ -1,9 +1,10 @@
 'use client';
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
+import { clearGroupbuyDealsForTests } from '@/lib/repositories/local/groupbuy-repository';
 import MerchantManagePage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/components/ui/Toast', () => ({
 describe('MerchantManagePage', () => {
   beforeEach(() => {
     resetRepositoriesForTests();
+    clearGroupbuyDealsForTests();
   });
 
   function renderManagePage(language: 'zh-CN' | 'en' = 'zh-CN') {
@@ -26,6 +28,32 @@ describe('MerchantManagePage', () => {
         <MerchantManagePage />
       </LanguageProvider>
     );
+  }
+
+  async function openAddGroupbuyWizard() {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
+  }
+
+  function getServiceGroupsContainer() {
+    const stepPanel = screen.getByText('服务内容').closest('.groupbuy-step-panel');
+    const container = stepPanel?.querySelector('.groupbuy-service-groups');
+    if (!container) {
+      throw new Error('Service groups container not found');
+    }
+    return container as HTMLElement;
+  }
+
+  function expandServiceGroup(groupLabel: string) {
+    const container = getServiceGroupsContainer();
+    fireEvent.click(within(container).getByRole('button', { name: groupLabel }));
+  }
+
+  function selectBasicManicureService() {
+    expandServiceGroup('基础服务');
+    fireEvent.click(screen.getByLabelText(/基础护理服务/));
   }
 
   it('renders the pricing panels and saves changes to the DB', async () => {
@@ -54,5 +82,158 @@ describe('MerchantManagePage', () => {
     expect(screen.getByRole('button', { name: 'Price list' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Group buying' })).toBeInTheDocument();
     expect(await screen.findByLabelText(/Basic manicure service price/i)).toBeInTheDocument();
+  });
+
+  it('opens the add groupbuy wizard from the groupbuy panel', async () => {
+    await openAddGroupbuyWizard();
+
+    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '团购内容' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '价格时间' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByLabelText('团购名称')).toBeInTheDocument();
+    expect(screen.getByText('服务内容')).toBeInTheDocument();
+  });
+
+  it('keeps service groups collapsed by default and expands on click', async () => {
+    await openAddGroupbuyWizard();
+    const serviceGroups = getServiceGroupsContainer();
+
+    expect(screen.queryByLabelText(/基础护理服务/)).not.toBeInTheDocument();
+    expect(within(serviceGroups).getByRole('button', { name: '基础服务' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+
+    expandServiceGroup('基础服务');
+
+    expect(within(serviceGroups).getByRole('button', { name: '基础服务' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(screen.getByLabelText(/基础护理服务/)).toBeInTheDocument();
+  });
+
+  it('opens only one service group at a time', async () => {
+    await openAddGroupbuyWizard();
+    const serviceGroups = getServiceGroupsContainer();
+
+    expandServiceGroup('基础服务');
+    expect(screen.getByLabelText(/基础护理服务/)).toBeInTheDocument();
+
+    expandServiceGroup('卸甲');
+    expect(screen.queryByLabelText(/基础护理服务/)).not.toBeInTheDocument();
+    expect(within(serviceGroups).getByRole('button', { name: '基础服务' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    expect(within(serviceGroups).getByRole('button', { name: '卸甲' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+  });
+
+  it('hides unpriced service rows in the groupbuy wizard', async () => {
+    await openAddGroupbuyWizard();
+
+    expect(screen.queryByText('未定价')).not.toBeInTheDocument();
+
+    expandServiceGroup('基础服务');
+    expect(screen.queryByText('未定价')).not.toBeInTheDocument();
+  });
+
+  it('validates groupbuy name before moving to price and time', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
+    fireEvent.change(screen.getByLabelText('团购名称'), {
+      target: { value: '超过二十个字的团购名称会被拦截因为真的太长了' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+
+    expect(screen.getByText('团购名称不能超过20个字')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '团购内容' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '价格时间' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('validates groupbuy name before saving a draft', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(screen.getByText('请输入团购名称')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '团购内容' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('团购名称')).toBeInTheDocument();
+  });
+
+  it('keeps an invalid draft in the wizard when saving from the back dialog', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
+    fireEvent.change(screen.getByLabelText('团购名称'), {
+      target: { value: '超过二十个字的团购名称会被拦截因为真的太长了' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿暂不发布' }));
+
+    expect(screen.getByText('团购名称不能超过20个字')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.queryByText('超过二十个字的团购名称会被拦截因为真的太长了')).not.toBeInTheDocument();
+  });
+
+  it('saves a local groupbuy draft and returns it to the list', async () => {
+    await openAddGroupbuyWizard();
+    fireEvent.change(screen.getByLabelText('团购名称'), { target: { value: '猫眼通勤团购' } });
+    selectBasicManicureService();
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('猫眼通勤团购')).toBeInTheDocument();
+    expect(screen.getByText('草稿')).toBeInTheDocument();
+    expect(screen.getByText('基础护理服务')).toBeInTheDocument();
+    expect(screen.queryByText('basic_manicure_service')).not.toBeInTheDocument();
+  });
+
+  it('publishes a local groupbuy when price is lower than original price', async () => {
+    await openAddGroupbuyWizard();
+    fireEvent.change(screen.getByLabelText('团购名称'), { target: { value: '猫眼通勤团购' } });
+    selectBasicManicureService();
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.change(screen.getByLabelText('设置价格'), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: '发布' }));
+
+    expect(await screen.findByText('猫眼通勤团购')).toBeInTheDocument();
+    expect(screen.queryByText('草稿')).not.toBeInTheDocument();
+  });
+
+  it('requires publish price to be lower than original price', async () => {
+    await openAddGroupbuyWizard();
+    fireEvent.change(screen.getByLabelText('团购名称'), { target: { value: '猫眼通勤团购' } });
+    selectBasicManicureService();
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.change(screen.getByLabelText('设置价格'), { target: { value: '999' } });
+    fireEvent.click(screen.getByRole('button', { name: '发布' }));
+
+    expect(screen.getByText('团购价格必须小于当前服务原价')).toBeInTheDocument();
+  });
+
+  it('asks whether to save a dirty draft before returning', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
+    fireEvent.change(screen.getByLabelText('团购名称'), { target: { value: '猫眼通勤团购' } });
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+
+    expect(screen.getByText('是否保存草稿？')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存草稿暂不发布' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '放弃' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '继续编辑' })).toBeInTheDocument();
   });
 });
