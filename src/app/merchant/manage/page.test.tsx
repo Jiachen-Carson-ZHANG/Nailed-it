@@ -193,10 +193,10 @@ describe('MerchantManagePage', () => {
     selectBasicManicureService();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
-    expect(await screen.findByText('猫眼通勤团购')).toBeInTheDocument();
-    expect(screen.getByText('草稿')).toBeInTheDocument();
-    expect(screen.getByText('基础护理服务')).toBeInTheDocument();
-    expect(screen.queryByText('basic_manicure_service')).not.toBeInTheDocument();
+    const newCard = (await screen.findByText('猫眼通勤团购')).closest('.groupbuy-deal-card')!;
+    expect(within(newCard).getByText('草稿')).toBeInTheDocument();
+    expect(within(newCard).getByText('基础护理服务')).toBeInTheDocument();
+    expect(within(newCard).queryByText('basic_manicure_service')).not.toBeInTheDocument();
   });
 
   it('publishes a local groupbuy when price is lower than original price', async () => {
@@ -235,5 +235,118 @@ describe('MerchantManagePage', () => {
     expect(screen.getByRole('button', { name: '保存草稿暂不发布' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '放弃' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '继续编辑' })).toBeInTheDocument();
+  });
+
+  function getDealListContainer() {
+    const list = document.querySelector('.groupbuy-deal-list');
+    if (!list) throw new Error('.groupbuy-deal-list not found');
+    return list as HTMLElement;
+  }
+
+  function openFirstDealDetail() {
+    const dealList = getDealListContainer();
+    const viewButtons = within(dealList).getAllByRole('button', { name: '查看' });
+    fireEvent.click(viewButtons[0]);
+  }
+
+  it('opens detail view when clicking 查看 on a mock deal', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+
+    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '修改' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下架' })).toBeInTheDocument();
+  });
+
+  it('shows service content accordion in detail view collapsed by default', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+
+    const serviceAccordion = screen.getByRole('button', { name: /服务内容/ });
+    expect(serviceAccordion).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('expands service content accordion and shows enabled items', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+
+    fireEvent.click(screen.getByRole('button', { name: /服务内容/ }));
+
+    expect(screen.getByRole('button', { name: /服务内容/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('基础护理服务')).toBeInTheDocument();
+  });
+
+  it('returns from detail to list when clicking 返回', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+
+    expect(screen.getByRole('button', { name: '+ 添加团购' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '修改' })).not.toBeInTheDocument();
+  });
+
+  it('copies a deal and shows the copy as a draft in the list', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+    fireEvent.click(screen.getByRole('button', { name: '复制' }));
+
+    expect(screen.getByRole('button', { name: '+ 添加团购' })).toBeInTheDocument();
+    const draftPills = screen.getAllByText('草稿');
+    expect(draftPills.length).toBeGreaterThan(0);
+    expect(screen.getByText(/副本/)).toBeInTheDocument();
+  });
+
+  it('unlists a deal and shows 已下架 in the list', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+    fireEvent.click(screen.getByRole('button', { name: '下架' }));
+
+    expect(screen.getByRole('button', { name: '上架' })).toBeInTheDocument();
+    expect(screen.getAllByText('已下架').length).toBeGreaterThan(0);
+  });
+
+  it('relists a deal after unlisting it', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+    fireEvent.click(screen.getByRole('button', { name: '下架' }));
+    fireEvent.click(screen.getByRole('button', { name: '上架' }));
+
+    expect(screen.getByRole('button', { name: '下架' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '上架' })).not.toBeInTheDocument();
+  });
+
+  it('enters edit mode with prefilled data when clicking 修改', async () => {
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+    openFirstDealDetail();
+    fireEvent.click(screen.getByRole('button', { name: '修改' }));
+
+    expect(screen.getByRole('tab', { name: '团购内容' })).toBeInTheDocument();
+    const nameInput = screen.getByLabelText('团购名称') as HTMLInputElement;
+    expect(nameInput.value).not.toBe('');
   });
 });

@@ -2893,6 +2893,149 @@ select {
   white-space: nowrap;
 }
 
+/* ── Groupbuy status pill — unlisted ─────────────────────────────────────── */
+.groupbuy-status-pill--unlisted {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: rgba(100, 116, 139, 0.08);
+  color: var(--color-muted);
+}
+
+/* ── Groupbuy Detail ──────────────────────────────────────────────────────── */
+.groupbuy-detail-title-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.groupbuy-detail-heading {
+  font-weight: 600;
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupbuy-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupbuy-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.groupbuy-detail-accordions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.groupbuy-detail-accordion {
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+}
+
+.groupbuy-detail-accordion:last-child {
+  border-bottom: none;
+}
+
+.groupbuy-detail-accordion-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+
+.groupbuy-detail-accordion-summary {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.groupbuy-detail-accordion-body {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupbuy-detail-field-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.groupbuy-detail-field-row > span:first-child {
+  color: var(--color-muted);
+}
+
+.groupbuy-detail-field-value {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.groupbuy-detail-service-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.groupbuy-detail-service-group + .groupbuy-detail-service-group {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.groupbuy-detail-service-group-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.groupbuy-detail-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  padding: 0.1rem 0;
+}
+
+.groupbuy-detail-service-qty {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  background: var(--color-surface-2, rgba(0,0,0,0.04));
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.groupbuy-detail-empty {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.groupbuy-detail-footer {
+  border-top: 1px solid var(--color-border);
+}
+
 /* ── Groupbuy Wizard ──────────────────────────────────────────────────────── */
 .groupbuy-wizard {
   display: flex;

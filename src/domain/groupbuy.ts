@@ -1,4 +1,4 @@
-export type GroupbuyStatus = 'draft' | 'published';
+export type GroupbuyStatus = 'draft' | 'published' | 'unlisted';
 
 export type GroupbuyServiceSelection = {
   catalogItemId: string;
@@ -133,7 +133,7 @@ export function isValidGroupbuyDeal(value: unknown): value is GroupbuyDeal {
   return (
     typeof row.id === 'string' &&
     typeof row.title === 'string' &&
-    (row.status === 'draft' || row.status === 'published') &&
+    (row.status === 'draft' || row.status === 'published' || row.status === 'unlisted') &&
     Array.isArray(row.serviceSelections) &&
     row.serviceSelections.every(isGroupbuyServiceSelection) &&
     isNonNegativeFiniteNumber(row.originalPrice) &&

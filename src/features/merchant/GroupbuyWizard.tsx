@@ -8,31 +8,23 @@ import { glossaryById } from '@/data/glossary';
 import { calculateGroupbuyOriginalPrice } from '@/domain/groupbuy-pricing';
 import type { GroupbuyDeal, GroupbuyServiceSelection } from '@/domain/groupbuy';
 import { createDefaultGroupbuyDraft } from '@/domain/groupbuy';
+import { SERVICE_GROUPS } from '@/domain/groupbuy-service-groups';
+import type { ServiceGroupId } from '@/domain/groupbuy-service-groups';
 
 type GroupbuyWizardProps = {
   language: 'zh-CN' | 'en';
   currency: string;
   settingsById: Map<string, GlossaryEntrySettings>;
+  initialDeal?: GroupbuyDeal;
   onCancel: () => void;
   onSaveDraft: (deal: GroupbuyDeal) => void;
   onPublish: (deal: GroupbuyDeal) => void;
 };
 
-type ServiceGroupId = (typeof SERVICE_GROUPS)[number]['id'];
-
 function isPricedItem(id: string, settingsById: Map<string, GlossaryEntrySettings>): boolean {
   const setting = settingsById.get(id);
   return !!setting && setting.enabled && setting.price > 0;
 }
-
-const SERVICE_GROUPS = [
-  { id: 'base', label: '基础服务', ids: ['basic_manicure_service'], quantity: false },
-  { id: 'removal', label: '卸甲', ids: ['removal_basic_gel', 'removal_extension', 'removal_with_rhinestone'], quantity: false },
-  { id: 'extension', label: '建构/延长', ids: ['nail_tip_full_cover', 'nail_tip_half_cover', 'nail_tip_shallow_cover', 'builder_gel'], quantity: false },
-  { id: 'color', label: '颜色效果', ids: ['color_split', 'solid_color', 'gradient', 'aura_blush', 'ink_wash', 'jelly_translucent', 'cat_eye', 'glitter', 'matte_top', 'magnetic_special_effect'], quantity: true },
-  { id: 'art', label: '艺术效果', ids: ['french_tip_basic', 'french_tip_special', 'hand_paint_simple', 'hand_paint_medium', 'hand_paint_complex', 'line_art', 'pattern_art', '3d_art'], quantity: true },
-  { id: 'deco', label: '装饰效果', ids: ['sticker', 'rhinestone_small', 'rhinestone_large', 'rhinestone_heavy', 'pearl', 'metal_charm', 'bow_charm', 'chain_charm', 'shell_piece', 'foil_piece', 'chrome_powder', 'aurora_powder', 'pearl_powder'], quantity: true },
-] as const;
 
 function itemName(id: string, language: 'zh-CN' | 'en'): string {
   const entry = glossaryById.get(id);
@@ -44,12 +36,13 @@ export function GroupbuyWizard({
   language,
   currency,
   settingsById,
+  initialDeal,
   onCancel,
   onSaveDraft,
   onPublish,
 }: GroupbuyWizardProps) {
   const [step, setStep] = useState<'content' | 'pricing'>('content');
-  const [draft, setDraft] = useState<GroupbuyDeal>(() => createDefaultGroupbuyDraft());
+  const [draft, setDraft] = useState<GroupbuyDeal>(() => initialDeal ?? createDefaultGroupbuyDraft());
   const [nameError, setNameError] = useState('');
   const [priceError, setPriceError] = useState('');
   const [confirmBack, setConfirmBack] = useState(false);
