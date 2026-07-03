@@ -68,6 +68,8 @@ def _run_anthropic(system: str, tool_names: list[str], task: str, ctx: tools.Run
 def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int) -> str:
     client = _openai()
     schemas = [tools.OPENAI_TOOLS[n] for n in tool_names]
+    allowed = {n: tools.IMPL[n] for n in tool_names}  # ONLY these execute — a model may hallucinate an
+    # off-allow-list tool name; we must NOT run it (its side effect would fire before any eval flags it).
     messages: list[dict] = [
         {"role": "system", "content": system},
         {"role": "user", "content": task},
@@ -93,11 +95,21 @@ def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.Ru
             ],
         })
         for tc in msg.tool_calls:
-            impl = tools.IMPL.get(tc.function.name)
+            name = tc.function.name
+            impl = allowed.get(name)  # allow-list only — off-list names resolve to None → never executed
             try:
                 args = json.loads(tc.function.arguments or "{}")
-                result = impl(**args) if impl else f"error: unknown tool {tc.function.name}"
-            except Exception as e:  # surface tool errors back to the model instead of crashing the loop
-                result = f"error: {e}"
+            except json.JSONDecodeError:
+                args = {"_raw": tc.function.arguments}
+            # record the ATTEMPT (name + args) before executing, so invalid calls are visible even when
+            # the tool body raises before appending its own transcript step (tool-call-correctness gate).
+            if impl is None:
+                result, status, err = f"error: tool '{name}' not in allow-list", "error", "off_allowlist"
+            else:
+                try:
+                    result, status, err = impl(**args), "ok", None
+                except Exception as e:  # surface tool errors back to the model instead of crashing the loop
+                    result, status, err = f"error: {e}", "error", str(e)
+            ctx.tool_attempts.append({"tool": name, "args": args, "status": status, "error": err})
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
     return final_text

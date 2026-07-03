@@ -51,16 +51,14 @@ describe('merchant style service', () => {
       service.upload({
         merchantId: 'merchant-1',
         title: 'Design',
-        mimeType: 'image/gif',
         bytes: new Uint8Array([1]),
       }),
-    ).rejects.toThrow('unsupported_image_type');
+    ).rejects.toThrow('invalid_image_content');
 
     await expect(
       service.upload({
         merchantId: 'merchant-1',
         title: 'Design',
-        mimeType: 'image/jpeg',
         bytes: new Uint8Array(10 * 1024 * 1024 + 1),
       }),
     ).rejects.toThrow('image_too_large');
@@ -73,8 +71,7 @@ describe('merchant style service', () => {
     const record = await service.upload({
       merchantId: 'merchant-1',
       title: 'New design',
-      mimeType: 'image/webp',
-        bytes: new TextEncoder().encode('RIFF0000WEBP'),
+      bytes: new TextEncoder().encode('RIFF0000WEBP'),
     });
 
     expect(record.status).toBe('processing');
@@ -89,7 +86,6 @@ describe('merchant style service', () => {
     const draft = await service.upload({
       merchantId: 'merchant-1',
       title: 'Untitled design',
-      mimeType: 'image/jpeg',
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
     });
 
@@ -126,7 +122,6 @@ describe('merchant style service', () => {
     const draft = await service.upload({
       merchantId: 'merchant-1',
       title: 'Untitled design',
-      mimeType: 'image/jpeg',
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
     });
 
@@ -145,7 +140,6 @@ describe('merchant style service', () => {
     const draft = await service.upload({
       merchantId: 'merchant-1',
       title: 'New design',
-      mimeType: 'image/jpeg',
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
     });
     await service.failAnalysis('merchant-1', draft.id);
@@ -201,7 +195,6 @@ describe('merchant style service', () => {
     const draft = await service.upload({
       merchantId: 'merchant-1',
       title: 'New design',
-      mimeType: 'image/jpeg',
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
     });
     await service.failAnalysis('merchant-1', draft.id);
@@ -233,7 +226,6 @@ describe('merchant style service', () => {
     const draft = await service.upload({
       merchantId: 'merchant-1',
       title: 'Untitled design',
-      mimeType: 'image/jpeg',
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
     });
 

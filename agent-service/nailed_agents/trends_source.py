@@ -1,16 +1,18 @@
 """External-trend source for the 选品 agent (design spec §4). One seam, two sources via TREND_SOURCE:
 
   - "fixture"   (default): authored CN-flavored trends — deterministic, no key, matches the CN catalog.
-  - "pinterest" (live):    Pinterest Trends API (app-only client_credentials token). NOTE: Pinterest
-                           Trends has NO China region (US/UK/CA + ~30) → Western keywords; they rarely
-                           overlap the CN catalog tags, so live mode mostly surfaces gaps. Use fixture
-                           for CN-relevant matching; pinterest to prove live ingestion.
+  - "pinterest" (live):    Pinterest Trends API (user-authorized token). NOTE: regions are Western only
+                           (US, GB+IE, CA, AU+NZ, DE, FR, …) — NO China/Asia. Scoped to interest=beauty
+                           so keywords are nail-domain, but they're English and rarely overlap the CN
+                           catalog tags, so live mode mostly surfaces gaps. Use fixture for CN-relevant
+                           matching; pinterest to prove live ingestion of a real external trend signal.
 
 Returns a list of {"label": str, "tags": [str, ...]} either way — the shape the trend logic consumes.
 """
 from __future__ import annotations
 
 import base64
+import math
 from typing import Any
 
 import httpx
@@ -58,14 +60,33 @@ def _pinterest_token() -> str:
     return _token
 
 
-def _fetch_pinterest(limit: int = 8) -> list[dict[str, Any]]:
-    """GET /trends/keywords/{region}/top/{trend_type}. Response field names vary by API version, so we
-    extract the keyword defensively. Each keyword → one trend with itself as the tag."""
+def _strength_from_growth(mom: float | None) -> float:
+    """Pinterest month-over-month growth % → [0.3, 1.0] trend strength. Log-scaled because growth spans
+    ~1%–6500% (a linear map would saturate). mom 10→0.55, 100→0.70, 1000→0.85, 6500→0.97. Flat/declining
+    → floor 0.3; missing → 0.6 (neutral, == the fixture's implicit default in trend_opportunities)."""
+    if mom is None:
+        return 0.6
+    if mom <= 0:
+        return 0.3
+    return max(0.3, min(1.0, 0.4 + 0.15 * math.log10(mom)))
+
+
+_VALID_TREND_TYPES = ("growing", "monthly", "seasonal", "yearly")
+
+
+def _fetch_pinterest(limit: int = 8, trend_type: str = "growing") -> list[dict[str, Any]]:
+    """GET /trends/keywords/{region}/top/{trend_type}, scoped to an interest category (PINTEREST_INTERESTS,
+    default "beauty") — without the interests filter the endpoint returns generic pop-culture noise
+    (TV shows, holidays); beauty-scoped, ~21/25 keywords are nail-domain. trend_type is the time window
+    (growing=fastest risers now, monthly, seasonal=current-season spikes, yearly); unknown → growing.
+    Each row carries growth % (pct_growth_wow/mom/yoy) which we keep as `growth` + fold MoM into a
+    `strength` the ranker uses. Field names vary by API version, so we extract defensively."""
+    tt = trend_type if trend_type in _VALID_TREND_TYPES else "growing"
     tok = _pinterest_token()
     resp = httpx.get(
-        f"{config.PINTEREST_BASE_URL}/trends/keywords/{config.PINTEREST_REGION}/top/growing",
+        f"{config.PINTEREST_BASE_URL}/trends/keywords/{config.PINTEREST_REGION}/top/{tt}",
         headers={"Authorization": f"Bearer {tok}"},
-        params={"limit": limit},
+        params={"limit": limit, "interests": config.PINTEREST_INTERESTS},
         timeout=20.0,
     )
     resp.raise_for_status()
@@ -73,18 +94,29 @@ def _fetch_pinterest(limit: int = 8) -> list[dict[str, Any]]:
     rows = data.get("trends") or data.get("items") or data.get("data") or []
     out: list[dict[str, Any]] = []
     for row in rows[:limit]:
-        kw = row.get("keyword") or row.get("term") or row.get("name") if isinstance(row, dict) else str(row)
+        if not isinstance(row, dict):
+            out.append({"label": str(row), "tags": [str(row)]})
+            continue
+        kw = row.get("keyword") or row.get("term") or row.get("name")
         if not kw:
             continue
-        out.append({"label": kw, "tags": [t for t in str(kw).split() if t]})
+        growth = {"wow": row.get("pct_growth_wow"), "mom": row.get("pct_growth_mom"), "yoy": row.get("pct_growth_yoy")}
+        out.append({
+            "label": kw,
+            "tags": [t for t in str(kw).split() if t],
+            "strength": round(_strength_from_growth(growth["mom"]), 2),
+            "growth": growth,
+        })
     return out or FIXTURE
 
 
-def get_external_trends() -> list[dict[str, Any]]:
-    """The 选品 agent's external trends. Degrades to the fixture on any Pinterest error (never blocks)."""
+def get_external_trends(trend_type: str | None = None) -> list[dict[str, Any]]:
+    """The 选品 agent's external trends. trend_type picks the Pinterest window (defaults to
+    PINTEREST_TREND_TYPE; ignored for the fixture source). Degrades to the fixture on any Pinterest
+    error (never blocks)."""
     if config.TREND_SOURCE == "pinterest":
         try:
-            return _fetch_pinterest()
+            return _fetch_pinterest(trend_type=trend_type or config.PINTEREST_TREND_TYPE)
         except Exception:
             return FIXTURE  # degrade — live ingestion must never break the round
     return FIXTURE

@@ -59,10 +59,10 @@ describe('intelligence demo seed → read model narrative', () => {
     }
   });
 
-  it('surfaces 暗黑 as the honest catalog gap (high demand, exactly 1 published style)', () => {
+  it('surfaces 暗黑 as the honest catalog gap (high demand, ≤1 published style)', () => {
     const gap = insights.catalogGaps.find((g) => g.label === '暗黑');
     expect(gap).toBeDefined();
-    expect(gap!.matchingActiveStyles).toBe(1);
+    expect(gap!.matchingActiveStyles).toBeLessThanOrEqual(1);
     expect(gap!.searchCount).toBeGreaterThanOrEqual(10);
     // 金属感 is in demand but well-supplied → must NOT be a gap.
     expect(insights.catalogGaps.some((g) => g.label === '金属感')).toBe(false);

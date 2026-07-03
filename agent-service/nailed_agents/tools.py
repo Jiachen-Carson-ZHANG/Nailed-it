@@ -45,6 +45,10 @@ class RunContext:
     range_days: int = 7
     transcript: list[dict[str, Any]] = field(default_factory=list)
     awaiting_approval: bool = False
+    # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
+    # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
+    # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
+    tool_attempts: list[dict[str, Any]] = field(default_factory=list)
 
 
 _current: ContextVar[RunContext] = ContextVar("nailed_agent_run")
@@ -132,13 +136,17 @@ def get_customer_intelligence() -> str:
     return json.dumps(customers, ensure_ascii=False)
 
 
-def get_external_trends() -> str:
-    """Return external/platform nail trends (each: label + tags). Source is fixture (CN-flavored) or
-    live Pinterest per TREND_SOURCE. Use to spot what's trending to match against the catalog — never
-    invent trends."""
+def get_external_trends(trend_type: str = "growing") -> str:
+    """Return external/platform nail trends (each: label + tags; live Pinterest rows also carry growth %
+    — wow/mom/yoy — and a momentum-derived strength). Source is fixture (CN-flavored) or live Pinterest
+    per TREND_SOURCE. trend_type picks the Pinterest window: 'growing' (fastest risers now), 'monthly',
+    'seasonal' (current-season/holiday spikes — good for salons), 'yearly'. Ignored for the fixture
+    source. Use to spot what's trending to match against the catalog — never invent trends."""
     ctx = _ctx()
-    trends = trends_source.get_external_trends()
-    ctx.transcript.append({"kind": "tool_call", "tool": "get_external_trends", "input": {}, "output": trends})
+    trends = trends_source.get_external_trends(trend_type)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_external_trends", "input": {"trendType": trend_type}, "output": trends}
+    )
     return json.dumps(trends, ensure_ascii=False)
 
 
@@ -152,20 +160,53 @@ def get_platform_hot() -> str:
     return json.dumps(hot, ensure_ascii=False)
 
 
-def get_trend_opportunities(range_days: int = 7) -> str:
-    """Return ranked trend opportunities — external trends + internal-rising demand, matched to the
-    catalog and classified (amplify / price_test / gap) + a prune list. The precise menu 决策 acts on.
-    Pre-computed from grounded reads; use as-is, never invent."""
+def _trend_report(range_days: int, trend_type: str) -> dict:
+    """Shared 选品 report builder — external + internal trends matched to THIS merchant's catalog and
+    classified (amplify/price_test/gap) + a prune list. Applies MATCH_MODE (concept matcher or tag
+    fallback) and attaches matchMeta. BOTH get_trend_opportunities and get_catalog_actions call this, so
+    their prune/gap decisions can never diverge in concept mode (audit)."""
     ctx = _ctx()
     insights = bus.fetch_briefing(range_days).get("insights", {})
-    all_styles = bus.fetch_styles().get("styles", [])
-    # Match opportunities against THIS merchant's own catalog only — a gap must be a gap in OUR
-    # catalog, not hidden by a filler shop's supply. (platform_hot stays cross-merchant.)
-    hero_styles = [s for s in all_styles if s.get("merchantId") == config.MERCHANT_ID]
-    external = trends_source.get_external_trends()
-    report = trend_logic.trend_opportunities(external, insights, hero_styles)
+    # Match against THIS merchant's own catalog only — a gap must be a gap in OUR catalog, not hidden by a
+    # filler shop's supply. (platform_hot stays cross-merchant.)
+    hero = [s for s in bus.fetch_styles().get("styles", []) if s.get("merchantId") == config.MERCHANT_ID]
+    external = trends_source.get_external_trends(trend_type)
+    match_fn = None
+    if config.MATCH_MODE == "concept":  # VLM-concept embed+rerank; degrades to tag-overlap per-trend on error
+        from . import matching
+        match_fn = matching.make_match_fn(sb=ctx.sb, merchant_id=config.MERCHANT_ID)
+    report = trend_logic.trend_opportunities(external, insights, hero, match_fn=match_fn)
+    # match transparency (concept-powered vs actually tag-fallback)
+    opps = report.get("opportunities", [])
+    meta: dict[str, Any] = {
+        "matchModeRequested": config.MATCH_MODE,
+        "conceptScored": sum(1 for o in opps if o.get("matchSource") == "concept"),
+        "tagFallback": sum(1 for o in opps if o.get("matchSource") == "tag"),
+    }
+    if match_fn is not None:
+        loaded = getattr(match_fn, "concepts_loaded", 0)
+        meta["conceptsLoaded"] = loaded
+        fb = getattr(match_fn, "fallbacks", [])
+        if loaded == 0:
+            meta["fallbackReason"] = "no style_concept rows (not enriched) → tag-overlap"
+        elif fb:
+            meta["fallbackReasons"] = fb[:5]
+    report["matchMeta"] = meta
+    return report
+
+
+def get_trend_opportunities(range_days: int = 7, trend_type: str = "growing") -> str:
+    """Return ranked trend opportunities — external trends + internal-rising demand, matched to the
+    catalog and classified (amplify / price_test / gap) + a prune list. The precise menu 决策 acts on.
+    trend_type picks the external (Pinterest) window: 'growing' (default, fastest risers now), 'monthly',
+    'seasonal' (current-season/holiday spikes), 'yearly'. Pre-computed from grounded reads; use as-is,
+    never invent."""
+    ctx = _ctx()
+    report = _trend_report(range_days, trend_type)
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "get_trend_opportunities", "input": {"rangeDays": range_days}, "output": report}
+        {"kind": "tool_call", "tool": "get_trend_opportunities",
+         "input": {"rangeDays": range_days, "trendType": trend_type, "matchMeta": report["matchMeta"]},
+         "output": report}
     )
     return json.dumps(report, ensure_ascii=False)
 
@@ -258,15 +299,15 @@ def propose_listing(gap_tag: str, reason: str) -> str:
     return f"Listing proposed for gap '{gap_tag}' (awaiting merchant approval — you cannot list it yourself)."
 
 
-def send_customer_message(customer_name: str, body: str, style_id: str = "") -> str:
-    """Send a re-engagement / acquisition message to a customer as the boss (老板), with an AI note and
-    an optional recommended-style card. Reversible — the merchant can retract it. customer_name: from
-    the roster; body: the message text; style_id: optional style to attach as a card."""
+def send_customer_message(customer_name: str, body: str) -> str:
+    """Send a re-engagement / acquisition message to a customer as the boss (老板), with an AI note.
+    Reversible — the merchant can retract it. customer_name: from the roster; body: the message text.
+    No style-card attachment: there is no grounded per-customer recommendation source yet, so we don't let
+    the model invent a style id — add a grounded recommendation tool before re-introducing style_id."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
     body = _clean_text(body, field="body")
-    style_id = _clean_style_id(style_id, required=False)
-    payload = {"customerName": customer_name, "body": body, "styleId": style_id or None}
+    payload = {"customerName": customer_name, "body": body}
     bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload)
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "send_customer_message", "input": payload, "output": {"sent": True}}
@@ -280,12 +321,32 @@ def send_customer_message(customer_name: str, body: str, style_id: str = "") -> 
 
 # ── registries: ONE list of functions → two backend representations + the executable impls ───────
 
+def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str:
+    """Grounded catalog candidates — styles to DELIST (long-term low-conversion & not on any rising trend)
+    + gap tags to PROPOSE. Uses the SAME shared report builder as 选品 (so prune/gap match the trend agent,
+    incl. MATCH_MODE=concept); ACT on these, do NOT re-judge delist decisions from raw metrics.
+    Returns {delist:[{styleId,title,reason}], propose:[{tag,reason}], matchMeta}."""
+    ctx = _ctx()
+    report = _trend_report(range_days, trend_type)
+    out = {
+        "delist": report.get("prune", []),
+        "propose": [{"tag": o["trendLabel"], "reason": o["reason"]}
+                    for o in report.get("opportunities", []) if o.get("action") == "gap"],
+        "matchMeta": report.get("matchMeta"),
+    }
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_catalog_actions", "input": {"rangeDays": range_days}, "output": out}
+    )
+    return json.dumps(out, ensure_ascii=False)
+
+
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
     get_customer_intelligence,
     get_external_trends,
     get_platform_hot,
     get_trend_opportunities,
+    get_catalog_actions,
     place_ad,
     set_group_buy_coupon,
     list_style,

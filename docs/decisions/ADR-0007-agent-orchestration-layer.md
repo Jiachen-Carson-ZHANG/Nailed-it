@@ -1,6 +1,6 @@
 # ADR 0007: Merchant Operations Agent Team — Python multi-agent over Nailed-it's data substrate
 
-**Status:** Proposed (revised 2026-06-27 after the 0626 semifinal design meetings)
+**Status:** Accepted (2026-07-02) — Phases 1–3b built (see the resolution note below); **open:** deployment trigger + true business-side-effect entities. Originally Proposed, revised 2026-06-27 after the 0626 semifinal design meetings.
 **Date:** 2026-06-26 · revised 2026-06-27
 **Depends on:** ADR-0006 (intelligence layer), ADR-0004 (repository seam)
 **Supersedes the framework choice in this ADR's earlier drafts:** custom in-process TS runtime → CC/Codex + skills → **now a Python multi-agent tool-call service, defaulting to OpenRouter through the OpenAI-compatible SDK** (see Alternatives).

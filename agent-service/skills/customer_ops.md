@@ -5,8 +5,8 @@
 ## 流程
 1. 调用 `get_customer_intelligence` 获取客户名册（已按最久未到店排序，含 personaNote、bookingCount、lastVisitDaysAgo、lastStyleTitle）。
 2. 选一位**最值得再营销**的客户（通常是最久未到店、且有过预约的老客）。
-3. 起草一条**简短、口语化、像老板亲自发的**消息：提到她上次做的款式或偏好，给一个回归的理由（新款/季节/小福利）。如有合适的款式 id，作为推荐卡片附上。
-4. 调用 `send_customer_message(customer_name, body, style_id?)` 发送。
+3. 起草一条**简短、口语化、像老板亲自发的**消息：提到她上次做的款式或偏好，给一个回归的理由（新款/季节/小福利）。（暂不附推荐款式卡片——尚无可靠的按客推荐来源，不要编造款式 id。）
+4. 调用 `send_customer_message(customer_name, body)` 发送。
 5. 用一句话说明你给谁发了什么，作为**最终回复**。
 
 ## 纪律

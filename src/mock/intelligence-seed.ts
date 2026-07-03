@@ -13,7 +13,7 @@
 //   - 金属感 demand rising (this week ≫ last week)
 //   - low conversion: 8284 «鎏金奢华» — many try-ons, ~1 booking
 //   - top converter:  8265 «极光法式碎钻» (裸色 + 法式风)
-//   - catalog gap:    暗黑 — high search demand, under-supplied (≤1 published style; 8281)
+//   - catalog gap:    暗黑 — high search demand, under-supplied (≤1 published style; live can be 0)
 
 import type { Customer, NewAnalyticsEvent } from '@/domain/analytics';
 import type { StyleDiscoveryFacet } from '@/domain/nail';
@@ -28,8 +28,6 @@ const SEED = 0x9e3779b9;
 
 export const TOP_CONVERTER_ID = 'style-melissa-img-8265'; // 裸色 + 法式风
 export const LOW_CONVERSION_ID = 'style-melissa-img-8284'; // 金属感
-export const GAP_STYLE_ID = 'style-melissa-img-8281'; // the one published 暗黑 style
-
 export const AMY_CUSTOMER_ID = 'cust-amy';
 export const RACHEL_CUSTOMER_ID = 'cust-rachel';
 
@@ -48,7 +46,6 @@ export const seedStyleFixtures: { id: string; title: string; discoveryFacets: St
   { id: 'style-melissa-img-8282', title: '清冷冰蓝冷光甲', discoveryFacets: facets('纯色', '蓝色', '银色', '棺材形 / 梯形', '超长甲', '亮面', '金属感', '中等', '辣妹风', '贵气', '派对风') },
   { id: 'style-melissa-img-8273', title: '梦幻马卡龙', discoveryFacets: facets('纯色', '透色', '裸色', '粉色', '白色', '黄色', '多色', '银色', '杏仁形', '中长甲', '果冻感', '亮面', '金属感', '中等', '甜美', '韩系', 'Y2K', '可爱', '日常通勤') },
   { id: 'style-melissa-img-8274', title: '碎冰玫瑰猫眼', discoveryFacets: facets('纯色', '裸色', '银色', '白色', '杏仁形', '长甲', '亮面', '金属感', '闪亮感', '中等', '甜美', '清冷感', '日常通勤', '贵气') },
-  { id: 'style-melissa-img-8281', title: '千禧迷幻克罗心', discoveryFacets: facets('纯色', '透色', '裸色', '红色', '棺材形 / 梯形', '长甲', '透感', '果冻感', '亮面', '简单', '辣妹风', 'Y2K', '可爱', '暗黑') },
   { id: 'style-melissa-img-8249', title: '薄荷青法式', discoveryFacets: facets('透色', '裸色', '绿色', '白色', '方圆形', '短甲', '果冻感', '亮面', '简单', '甜美', '可爱', '法式风', '日常通勤', '韩系') },
   { id: 'style-melissa-img-8275', title: '碎钻冰花法式', discoveryFacets: facets('透色', '裸色', '白色', '银色', '杏仁形', '中长甲', '果冻感', '亮面', '闪亮感', '中等', '韩系', '法式风', '清冷感', '新娘风', '日常通勤') },
   { id: 'style-melissa-img-8266', title: '温柔奶茶果冻', discoveryFacets: facets('纯色', '透色', '粉色', '裸色', '椭圆形', '中长甲', '亮面', '果冻感', '简单', '甜美', '极简', '清冷感', '日常通勤') },

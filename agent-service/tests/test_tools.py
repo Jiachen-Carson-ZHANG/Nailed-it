@@ -22,16 +22,19 @@ def test_openai_schema_types_and_required():
 def test_openai_schema_optional_params_excluded_from_required():
     # range_days has a default → optional
     assert tools.OPENAI_TOOLS["get_merchant_insights"]["function"]["parameters"]["required"] == []
-    # style_id has a default → optional; the others required
     send = tools.OPENAI_TOOLS["send_customer_message"]["function"]["parameters"]
     assert set(send["required"]) == {"customer_name", "body"}
-    assert "style_id" in send["properties"]
+    assert "style_id" not in send["properties"]  # removed — no grounded recommendation source (audit)
 
 
-def test_registries_cover_the_same_eight_tools():
+def test_registries_cover_the_same_tools():
     expected = {
         "get_merchant_insights", "get_customer_intelligence", "place_ad", "set_group_buy_coupon",
         "list_style", "delist_style", "propose_listing", "send_customer_message",
+        # 选品 (trend) read tools
+        "get_external_trends", "get_platform_hot", "get_trend_opportunities",
+        # 运营 (catalog) grounded-candidates read tool
+        "get_catalog_actions",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected

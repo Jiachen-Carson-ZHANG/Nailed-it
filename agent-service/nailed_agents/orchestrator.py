@@ -91,15 +91,15 @@ def run_round(range_days: int = 7) -> dict[str, str]:
     # ── 5) 运营(上下架): act on 数分's gap/stale signals — list/delist existing, or PROPOSE a gated 上架-new ──
     catalog_run, _ = _step(
         "catalog", trigger="event", parent=insight_run, input={"briefingRunId": insight_run},
-        tool_names=["get_merchant_insights", "list_style", "delist_style", "propose_listing"],
-        task=f"基于以下简报的品类缺口与无效款式调整在售款式：库内有匹配就 list/delist；缺口在库内无匹配款式则 propose_listing（待批准，不要假装已上架）。\n\n{briefing}",
+        tool_names=["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
+        task="先调用 get_catalog_actions 获取已计算好的下架/上架候选；对 delist[] 中每个款调用 delist_style，对 propose[] 中每个缺口调用 propose_listing（待批准，不要假装已上架）。只执行清单里的候选，不要自行从原始指标重新判断该下架谁。",
     )
 
     # ── 6) 用户运营: read the grounded roster, draft a boss-message, send it to the most-lapsed customer ──
     customer_ops_run, _ = _step(
         "customer_ops", trigger="event", parent=insight_run, input={"source": "roster"},
         tool_names=["get_customer_intelligence", "send_customer_message"],
-        task="第一步必须调用 get_customer_intelligence 读取客户名册；挑一位最值得再营销的老客；最后**必须调用 send_customer_message 真正发送**（以老板身份、简短回归消息、可附推荐款式 id）。不要只在文字里描述消息——必须落地为一次 send_customer_message 工具调用。",
+        task="第一步必须调用 get_customer_intelligence 读取客户名册；挑一位最值得再营销的老客；最后**必须调用 send_customer_message 真正发送**（以老板身份、简短回归消息）。不要只在文字里描述消息——必须落地为一次 send_customer_message 工具调用。",
     )
 
     # ── 7) Monitor: read-only, baseline/measure lift on the acted styles (parented to the ad action) ──

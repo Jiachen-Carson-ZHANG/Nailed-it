@@ -1,5 +1,25 @@
 # Implementation Log
 
+## 2026-07-02 — Demo analytics reset + 暗黑 gap wording
+
+What changed:
+- `npm run seed:intelligence` now resets all `analytics_events` for the demo merchant before inserting
+  fresh backdated seed history. This is deliberate for the final demo: old rehearsal clicks/searches can
+  otherwise make the rolling "this week vs previous week" trend stale. Use `-- --preserve-live-events`
+  only when intentionally keeping non-seed captured events.
+- The `暗黑` gap story is normalized to the actual business rule: high demand + **≤1 active matching
+  style**. Live Supabase currently has `style-melissa-img-8281` archived, so the gap can honestly be
+  supply `0`. The seed fixture no longer treats 8281 as a published style, and the regression asserts
+  `matchingActiveStyles <= 1`.
+
+Aligned assumptions:
+- Pre-demo runbook should be: `npm run seed:intelligence`, `npm run seed:agents`, then `npm run preflight`.
+- The older synthetic plan doc may still contain historical wording; `current-state.md` is the source of
+  truth for current behavior.
+
+Verification:
+- `npm run test -- src/mock/intelligence-seed.test.ts src/domain/intelligence/insights.test.ts`
+
 ## 2026-06-27 — Demo-safe: Supabase filler backfill + 1000-row read cap fix
 
 Made the deployed (Supabase) demo actually match the design, and fixed a silent undercount the
@@ -1145,3 +1165,298 @@ Aligned assumptions:
 
 Verification:
 - `npm test -- src/i18n/messages/ui/messages.test.ts src/app/merchant/messages/page.test.tsx src/app/merchant/styles/[id]/review/page.test.tsx src/app/customer/profile/page.test.tsx` — all passed.
+
+## 2026-06-30 — Pinterest live Trends verified + nail-scoped (选品)
+
+What changed:
+- Verified the user-OAuth path end-to-end: refresh token → fresh access token → live `/v5/trends/keywords/{region}/top/growing`.
+- Found `PINTEREST_REGION=KR` is rejected — Pinterest Trends has **no Asia coverage**. Valid regions are
+  Western only (US, GB+IE, CA, AU+NZ, DE, FR, IT, ES, BR, MX, …). Switched demo region to `US`.
+- Found the unscoped endpoint returns generic pop-culture trends (TV shows, holidays). Added
+  `PINTEREST_INTERESTS` (default `beauty`) → ~21/25 keywords are nail-domain (e.g. "4th of july nails
+  french tip", +6500% MoM). Wired `interests` into `_fetch_pinterest`.
+- Corrected the stale "~30 regions incl Asia" notes in `config.py` / `trends_source.py`.
+- Updated `tests/test_tools.py` registry test (8 → 11 tools; the 3 选品 read tools were missing).
+
+Aligned assumptions:
+- Pinterest live = proof of real external-trend ingestion. English beauty keywords don't tag-match the
+  CN catalog, so live mode surfaces "gap" opportunities; CN fixture remains the source for catalog-matching
+  demo value. The `TREND_SOURCE` seam keeps both.
+- Response carries `pct_growth_wow/mom/yoy` + weekly `time_series` — not yet consumed (kept `{label, tags}`).
+
+Verification:
+- `cd agent-service && .venv/bin/python -m pytest -q` — 10 passed.
+- Live fetch via `trends_source.get_external_trends()` returns nail-domain US trends (TREND_SOURCE=pinterest).
+
+## 2026-06-30 — 选品 momentum: Pinterest growth % → trend strength → ranking
+
+What changed:
+- `trends_source._fetch_pinterest` now keeps each row's `growth` (pct_growth_wow/mom/yoy) and folds MoM
+  into a `strength` via `_strength_from_growth` (log-scaled [0.3,1.0]; growth spans 1%–6500%).
+- `trend_logic.trend_opportunities`: external trends use their own momentum-derived strength (was a flat
+  0.6); `growth` carried into each opportunity. `score = strength × fit × 0.5` now ranks by momentum.
+  Fixture/internal trends have no growth → strength defaults 0.6 (prior behavior unchanged).
+- Skill + `get_external_trends` docstring tell the agent to justify with growth %.
+
+Verification:
+- `.venv/bin/python -m pytest -q` — 10 passed.
+- Live round (provider=openrouter, source=pinterest, US/beauty): 8 external gaps carried growth; ranked
+  "4th of july nails french tip" (MoM +6500%, score 0.150) above the +2500% ones (0.140).
+
+Open finding (NOT changed): internal demandTrends are per-tag → 21 internal price_test opportunities
+flood the round and bury the external signal. Pre-existing trend_logic behavior; worth a follow-up
+(cap/threshold internal trends) but out of scope for the Pinterest work.
+
+## 2026-06-30 — 选品 agent picks the Pinterest trend window (trend_type tool param)
+
+What changed:
+- `get_external_trends(trend_type)` and `get_trend_opportunities(range_days, trend_type)` now take an
+  optional `trend_type` — the agent selects the window at runtime: growing (default), monthly,
+  seasonal (current-season/holiday spikes), yearly. Auto-derived OpenAI/beta schemas expose it as optional.
+- `trends_source._fetch_pinterest(trend_type)` hits `/top/{trend_type}`; unknown → growing. Added
+  `config.PINTEREST_TREND_TYPE` (default when the agent omits it). Skill tells the agent to prefer
+  `seasonal` near holidays.
+
+Verification:
+- `.venv/bin/python -m pytest -q` — 10 passed; schema shows trend_type optional on both tools.
+- Live: growing vs seasonal return different windows (US/beauty).
+
+## 2026-06-30 — 选品 flood fix (internal trends de-flooded + price_test made style-level)
+
+Problem: a 选品 round produced ~21 near-identical price_test rows that buried the real signal. Two causes:
+(1) every "up" demand tag became its own trend — even 银色 at +1 count (+0.2%); (2) the classify rule
+"any trend touching a high-interest-low-conversion style → price_test" let one over-tagged style (8284,
+which carries almost every tag) stamp price_test onto nearly every trend.
+
+Fix (trend_logic.py, the LIVE Python path):
+- Internal demand → trend only if it rose ≥5% wk/wk (delta/previous), then cap to the top 6 by delta.
+- Removed the per-trend price_test branch; trends now classify amplify (matched) / gap (no match).
+- price_test is now STYLE-level: one opportunity per highInterestLowConversion style (score 0.30,
+  ranks between amplify ~0.20 and gap ~0.145).
+
+Result (live, US/beauty Pinterest): 29 → 15 opportunities — 1 price_test (8284), 6 amplify (meaningful
+risers), 8 external gaps (momentum-ordered). Agent final answer reads as a clean priority list.
+
+Divergence: src/domain/intelligence/trends.ts (a TESTED REFERENCE, not wired into any UI/route — only
+re-exported + unit-tested) now lags this logic. Decide separately: mirror the change into TS + its test,
+or retire the TS reference. Residual (for the vector-matching step): single-tag internal trends still
+match every style carrying that tag (fit=1.0), so amplify rows list many style ids — semantic/composite
+matching will refine this.
+
+## 2026-07-01 — 选品 concept matching (VLM + Cohere hybrid retrieve/rerank) [ADR-0008]
+
+Why: tag-overlap matching was broken on real inventory (missed 珠光法式银月钻 for "法式"; false-matched a
+non-chrome style on its 金属感 tag). See spike + ADR-0008. Pinterest can't supply trend images, so the
+trend side is text; represent nails as VLM concepts and match keyword→concept.
+
+What changed (agent-service, all behind MATCH_MODE=tag|concept, default tag):
+- Migration `0023_style_concept.sql`: pgvector + `style_concept` (concept_json, concept_text, embedding
+  vector(1024), source_media_asset_id). MANUAL apply.
+- `config.py`: MATCH_MODE, ENRICH_VLM_MODEL, COHERE_API_KEY/BASE_URL/EMBED_MODEL/RERANK_MODEL, EMBED_DIM,
+  MATCH_TOP_K, MATCH_THRESHOLD; require_env checks COHERE_API_KEY when MATCH_MODE=concept.
+- `cohere_client.py`: embed + rerank via httpx (no SDK dep).
+- `enrich.py`: idempotent CLI — hero style photo → VLM concept (OpenRouter) → concept_text → Cohere embed
+  → upsert style_concept. `python -m nailed_agents.enrich [--force]`.
+- `matching.py`: `make_match_fn` → embed keyword → in-Python cosine top-k over cached vectors → Cohere
+  rerank → threshold; returns None on error/empty → tag fallback. (In-Python cosine at hero scale ~32;
+  hnsw index + an RPC is the scale path.)
+- `trend_logic.trend_opportunities(..., match_fn=None)` — pure; concept score (rerank 0..1) becomes `fit`;
+  tag-overlap when match_fn is None.
+- `tools.get_trend_opportunities` builds the matcher when MATCH_MODE=concept.
+- Tests: `tests/test_trend_logic.py` (flood fixes + matcher injection vs tag fallback). Suite: 16 passed.
+
+Runbook to enable live: apply 0023 in Supabase → add COHERE_API_KEY to .env.local →
+`cd agent-service && .venv/bin/python -m nailed_agents.enrich` → set MATCH_MODE=concept → run a 选品 round.
+
+## 2026-07-01 — Model selection eval → Google embed + Cohere rerank (ADR-0008)
+
+Chose the embed/rerank models by measured ability (not preference; cost excluded). Harness: 32 hero
+concepts (VLM-captioned), 12-query bilingual gold set (visual/color/occasion, graded 0/1/2), ranking all
+32 per query. Metrics: Recall@5/10, MRR, nDCG (embed); P@1, MRR, nDCG@5/10 (rerank).
+
+Results:
+- Embedding — **google/gemini-embedding-001** won decisively: R@5 0.76, R@10 0.91, MRR 0.92, nDCG@10 0.88
+  vs cohere embed-multilingual-v3.0 (0.53/0.78/0.79/0.67), OpenAI-3-small (0.56/0.68/0.88/0.66),
+  OpenAI-3-large (0.50/0.72/0.72/0.63). +0.18 weighted, beyond gold noise.
+- Rerank — **cohere/rerank-multilingual-v3.5** (P@1 0.83, MRR 0.92, nDCG@5 0.77) chosen over LLM-judges:
+  gpt-4o P@1 0.92 / MRR 0.96 (higher by ~1 query = within noise) but slow + token-cost + nondeterministic;
+  gemini-2.5-flash 0.83/0.89/0.82. Cohere is one fast deterministic call/round → picked on operations.
+
+Wiring:
+- New `embeddings.py` (EMBED_PROVIDER=google|cohere|openrouter; google via generativeai embedContent,
+  taskType RETRIEVAL_DOCUMENT/QUERY, outputDimensionality 1024). `enrich.py` + `matching.py` use it;
+  rerank stays `cohere_client`. config: EMBED_PROVIDER (default google), GEMINI_API_KEY, EMBED_MODEL;
+  require_env checks the embed provider's key + COHERE_API_KEY when MATCH_MODE=concept.
+- `cohere_client._post`: bounded 429/5xx retry with backoff (honours Retry-After) — trial rerank is 10/min.
+
+Free-tier note: Cohere trial = 1000 calls/mo, rerank 10/min (fine for demo, not production; commercial
+banned → paid key later). Google embed free tier 100 RPM / 1000 RPD is ample. Tests: 16 passed.
+
+## 2026-07-02 — ADR-0009 (synthetic demo data) + synthetic plan doc refreshed
+
+- Promoted the synthetic-data approach to a reviewable decision record: `docs/decisions/ADR-0009-synthetic-demo-data.md`
+  (two-determinisms: seeded data, live decisions; Beta/Poisson/Binomial funnel; planted ambiguous scenarios;
+  band-verification; dataset doubles as the agent-eval test set).
+- Refreshed the plan doc `docs/plans/2026-06-27-synthetic-demo-data.md` (Draft→IMPLEMENTED, §0.5 deltas):
+  暗黑 = 0-stock gap (not "≈1"; no planted 8281), scripts shipped, ADR-0008 concept matching noted.
+- OPEN DESIGN ITEM: **platform-hot (pop-style) signal is a placeholder** (`get_platform_hot` = cross-merchant
+  tag-count). Real signal should be more sophisticated — neither raw booking/click nor tag-count — TBD.
+
+## 2026-07-02 — ADR-0010 (evaluation methodology) + docs/eval/ consolidation
+
+- Wrote `docs/decisions/ADR-0010-evaluation-methodology.md`: locks the eval approach as a decision (GB/T
+  45288.2 loop; two separate suites — RAG=IR metrics vs multi-agent=capability matrix; benchmark shortlist+
+  corroborate then own task eval decides; mixed test sources; 4/4-stability + grounding gates; noise-floor
+  honesty; transcript closed-loop). Detailed reports stay standalone (not absorbed into the ADR).
+- Consolidated the 3 eval docs from docs/plans/ → **docs/eval/** (trend-matching-design, trend-matching-eval-
+  report, multiagent-eval-framework) + `docs/eval/README.md` index. Cross-refs in ADR-0008/0009 + memory updated.
+
+## 2026-07-02 — Eval audit response (9 findings)
+
+Addressed audit findings on the eval/matching work:
+- #1 Persisted the RAG eval harness into the repo: `agent-service/eval/` (concepts.json, eval.py,
+  caption_catalog.py, real_pinterest_check.py, README) so the report is replayable; fixed the report's
+  reproducibility paths (scratchpad→agent-service/eval). pytest scoped to `tests/` (eval/ = scripts).
+- #2 ADR-0010 + framework: **tool-call correctness is now a third BLOCKING gate** (=100% on core; agent
+  auto-executes actions → wrong tool/target as dangerous as hallucination). Framework thresholds made
+  concrete (工具100% / 幻觉0 / 4-4≥90%), replacing X/Y/Z placeholders.
+- #3 Concept cache versioning: `style_concept.pipeline_version` (migration 0023 + idempotent ALTER);
+  enrich staleness now keys on (media asset, model, PIPELINE_VERSION) — model/prompt/schema changes force re-enrich.
+- #4 Match transparency: `get_trend_opportunities` output + transcript now carry `matchMeta`
+  (matchModeRequested, conceptScored/tagFallback counts, conceptsLoaded, fallbackReason[s]) — a demo can't
+  silently look concept-powered while running on tags. Per-opportunity `matchSource` (concept|tag).
+- #5 Auditable "why": matcher returns concept_text with each match; surfaced as `matchWhy` per opportunity.
+- #6 ADR-0006 addendum: reseed semantics (prod accumulates; `npm run seed:intelligence` resets by default,
+  `--preserve-live-events` keeps live).
+- #7 ADR-0007 status Proposed→Accepted (Phases 1–3b built; deployment trigger + real side-effect entities open).
+- #9 Fixed stale doc pointers in code (config/enrich/cohere_client/embeddings/matching → docs/eval/).
+- Regression tests added (matchSource/matchWhy). Suite: 18 passed.
+Not done (honest): #8 the agent eval HARNESS is still unbuilt — the framework is the spec; building it is follow-on.
+
+## 2026-07-02 — Pre-landing review fixes (3 informational)
+
+- eval.py: llm_judge now constructs the OpenRouter client lazily inside rank() (no-key smoke test no longer crashes at build).
+- embeddings._openrouter: requests `dimensions=EMBED_DIM` (1024) + fails loud if the model returns another dim
+  → EMBED_PROVIDER=openrouter can't violate the vector(1024) contract.
+- Docs synced to implemented contract: ADR-0008 (staleness key = media+model+pipeline_version), current-state
+  (Google embed default + Cohere rerank + matchSource/why), design-doc status+§Provider/model marked SUPERSEDED
+  → Google embed. Suite: 18 passed.
+
+## 2026-07-02 — Agent eval Phase A (harness) built
+
+- Tool-attempt recorder: `RunContext.tool_attempts` + `runner._run_openrouter` records every attempted
+  tool call (name/args/ok|error) around execution — so invalid-arg attempts are visible to the eval, not
+  inferred from "a tool body ran" (audit refinement #2).
+- `agent-service/eval/agents_eval.py`: per-agent scenarios (trend/8284, customer_ops/lapsed, catalog/dead)
+  over stubbed bus fixtures; scores tool-call correctness + per-agent expectation (read→opportunity,
+  action→captured agent_action); structured decision signatures for the Phase-B 4/4 compare. Deterministic
+  (TREND_SOURCE=fixture, MATCH_MODE=tag). All 3 pass; 18 unit tests green.
+- Finding: catalog agent over-delisted (killed low-conversion 8284 alongside dead 8277) → Phase B needs
+  negative assertions + decision-validity. Phase B = N-run stability + narrow grounding; Phase C = LLM-judge.
+
+## 2026-07-02 — Agent eval Phase B (stability + negative assertions + grounding)
+
+agents_eval.py now scores 5 blocking gates over N runs (default 4): tool-call correctness (attempt
+recorder), scenario expectation (all N), negative assertion (forbidden action/target must not occur),
+narrow grounding (cited style-ids must trace to fixture/tool output), 4/4 stability (structured decision
+signature identical across runs — prose/free-text excluded, kind-aware so an empty action run is `()`).
+
+Findings on the current agents (base model google/gemini-2.5-flash), n=3 smoke:
+- trend/8284: all gates pass (deterministic tool output).
+- customer_ops/lapsed: core decision stable + correct + forbidden-send avoided; MINOR instability — the
+  agent inconsistently attaches a recommended style (styleId varies).
+- catalog/dead-8277: sharper prompt FIXED the over-delist (negative assertion passes), but the agent is
+  UNRELIABLE — delists 8277 only ~1/3, often no-ops → fails expectation + stability. Candidate fixes:
+  prompt tuning or a stronger tool-calling base model (BFCL: Claude family tops function calling; the
+  MODEL_PROVIDER seam supports the swap). The harness "FAILURES" verdict is correct — the gate reveals
+  the agent isn't demo-ready, which is the point.
+Phase C (next): LLM-judge for open-ended quality (briefing/message) with blind + human spot-check.
+
+## 2026-07-02 — Agent-eval pre-landing review (1 critical + 6)
+
+- CRITICAL runner allow-list enforcement: `_run_openrouter` now executes only `{n: IMPL[n] for n in
+  tool_names}` — an off-allow-list tool name resolves to None → recorded as `off_allowlist` error, NEVER
+  executed (previously any IMPL tool ran, side effect before the gate). Test added (test_runner).
+- Harness: signature signs the EXPECTED opportunity (not opps[0]); tool-call gate adds target-exists
+  (style_id ∈ fixture styles, customer_name ∈ roster) — caught a hallucinated styleId=456; expectation/
+  forbid compare the explicit target FIELD per action_type (no payload-substring false positives); forced
+  MODEL_PROVIDER=openrouter (recorder only covers that loop); local OPENROUTER_API_KEY check instead of
+  require_env (bus is stubbed → no Supabase). npm `eval:agents` + `eval:matching` added.
+- Tests: recorder asserted for success / invalid-arg / off-allow-list. Suite: 19 passed.
+- Findings (unchanged direction): catalog over-conservative now → never delists (prompt over-corrected);
+  customer_ops attaches a bogus style id → agent-quality work, not harness.
+
+## 2026-07-02 — Agent eval pre-landing #3 (2 critical) → ALL GATES GREEN
+
+- CRITICAL send_customer_message: optional style_id now validated against the merchant's PUBLISHED styles
+  (bus.fetch_styles) before write — raises style_id_not_in_catalog on a hallucinated id (caught the eval's 456).
+- CRITICAL catalog grounded (option A): new read tool `get_catalog_actions` returns the deterministic prune
+  (delist) + gap (propose) candidates (same trend_logic used by 选品). Catalog agent + skill + orchestrator
+  now EXECUTE that list instead of re-judging raw metrics. 8284 (high-interest-low-conv, on the 金属感 trend)
+  is excluded from prune → never delisted; 8277 (dead) is the delist candidate. Registry now 12 tools.
+- Harness: exact target equality (canonical full names/ids — "Rachel" no longer passes for "Rachel Goh");
+  grounding scan now includes reasoning-transcript text; catalog scenario uses get_catalog_actions; README
+  updated to Phase A+B / 5 gates / npm run eval:agents.
+- RESULT: `npm run eval:agents -- --n 4` → **ALL BLOCKING GATES PASS** (trend, customer_ops, catalog all
+  4/4 stable, correct, grounded, no forbidden action). Unit suite: 19 passed.
+
+## 2026-07-02 — Agent eval pre-landing #4 (1 critical) → reproducibly green
+
+Correction: the prior "ALL GATES GREEN" was FLAKY — customer_ops intermittently hallucinated a style_id
+(9001/456); the tool rejected it (prod-safe) but the tool-call gate then failed. Fixes:
+- CRITICAL: removed `style_id` from `send_customer_message` entirely (no grounded per-customer recommendation
+  source exists → don't let the model invent a card). Skill + orchestrator task + schema test updated.
+  customer_ops is now reproducibly stable (signature = (send_customer_message, customerName)).
+- Shared report builder `_trend_report(range_days, trend_type)` — get_trend_opportunities AND
+  get_catalog_actions both call it, applying MATCH_MODE (concept matcher) + matchMeta, so catalog prune/gap
+  can't diverge from the trend agent in concept mode.
+- Docs synced to the actual, reproduced status (this log + multiagent-eval-framework).
+- Verified: `pytest` 19 passed; `eval:agents --n 4` → ALL BLOCKING GATES PASS (trend, customer_ops, catalog
+  each 4/4). Reproduced twice.
+
+## 2026-07-02 — Agent eval Phase C (LLM-judge quality + 问题闭环)
+
+- `agents_eval.py --judge` (non-blocking): blind multi-judge MOS (1-5; gemini-2.5-flash + gpt-4o) on the
+  open-ended output over 准确性/完整性/实用性/安全性; avg <3.5 or judge spread ≥1.5 → ⚑ human-review. Judges
+  see only task+output (blind). Kept OFF the blocking verdict (quality ≠ gate).
+- 问题闭环: blocking-gate failures (or low MOS) appended to `eval/regressions.jsonl` (gitignored) as
+  regression seeds to grow the scenario set. Live `agent_runs.transcript` mining is the remaining extension.
+- npm `eval:agents -- --n 4 --judge`. Smoke (--n 1 --judge): all gates pass; MOS trend/customer_ops ~4.5,
+  catalog 5.0; 19 unit tests pass.
+Agent eval now Phase A+B+C: 5 blocking gates + non-blocking quality + failure-seeded closed loop.
+
+## 2026-07-02 — seed sync to fixed tool contract (agent-seed.ts)
+
+`npm run seed:agents` wrote stale definitions/runs. Synced src/mock/agent-seed.ts to the live Python surface:
+- catalog def tools: ['list_style','delist_style','draft_upload'] → ['get_catalog_actions','list_style',
+  'delist_style','propose_listing'] (draft_upload is an ACTION type, not a tool); instruction now describes
+  the grounded get_catalog_actions flow; seeded catalog transcript prepends a get_catalog_actions call.
+- customer_ops: removed the "推荐款式小卡片" from the instruction; seeded run drops styleId from the
+  send_customer_message tool_call + action payload (now customerName+body only) + card mentions.
+Typecheck (tsc --noEmit) clean.
+
+## 2026-07-02 — Phase C audit cleanup (judge robustness + closed-loop)
+
+- Judge parse/infra failure no longer mixes with real scores: strict validation (overall ∈ 1..5), errors
+  stored per-judge separately, MOS averages ONLY valid scores (was: fabricated 0 → false 2.5 avg + false
+  regression). Added `response_format=json_object` → gemini-2.5-flash now returns valid JSON reliably.
+- 问题闭环 persists ANY human-review flag (disagreement-only / judge-error), not just blocking failures.
+- Regression records are now replayable seeds: task, fixture snapshot, final output, captured actions,
+  tool_attempts, tool_bad/forbid_hit/ungrounded, raw judge outputs+errors, and a suggested failure category
+  (tool_call/expectation/negative_assertion/grounding/stability/quality/judge_infra).
+- ADR-0010 updated: RAG eval + agent eval A+B+C are BUILT; open items = live transcript mining, scenario
+  growth, numeric grounding, judge calibration.
+- Note: the earlier seed-staleness finding was already fixed (verified) before this audit.
+- Verified: 19 tests; `eval:agents --n 1 --judge` → all gates pass, both judges valid (4/5/5), no false flags.
+
+## 2026-07-02 — Phase C audit #2 (rep-run + tests + doc drift)
+
+- Regression seeds now capture the REPRESENTATIVE (first-failing) run, not always run 0: `evaluate` picks
+  `rep` = first run failing a per-run gate (else run 0) + records `rep_index` and all `run_signatures`;
+  the judge scores `rep`'s output; `_log_regression` writes `rep`'s final/actions/tool_attempts. Fixes the
+  case where run 3/4 hallucinated but the seed showed a clean run.
+- Phase C unit coverage: `tests/test_agents_eval.py` (network-free, fake OpenAI + tmp regression file) —
+  quality_judge parses valid scores + isolates judge errors (not averaged as 0) + rejects out-of-range
+  overall; _log_regression writes a rich replayable record with the right category + rep_index. Suite: 22 passed.
+- Doc drift fixed: harness docstring + README → "Phase A + B + C"; README regression line → "any human-review
+  flag (incl. disagreement/judge-error) → replayable seed". Also fixed a datetime.utcnow() deprecation.

@@ -2,11 +2,11 @@
 // Single source of truth: the memory repo seeds from AGENT_DEFINITIONS; scripts/seed-agents.ts
 // writes the same definitions + generated runs into Supabase so the /merchant/agents panel and the
 // Python service share them. Demo content is tied to the intelligence-seed anchors so the agent
-// story matches the rest of the demo (金属感 8284 low-conversion, 暗黑 8281 gap, 8265 top converter).
+// story matches the rest of the demo (金属感 8284 low-conversion, 暗黑 supply gap, 8265 top converter).
 
 import type { Agent, NewAgentRun } from '@/domain/agents';
 import { demoMerchantId } from '@/mock/merchants';
-import { LOW_CONVERSION_ID, GAP_STYLE_ID, TOP_CONVERTER_ID } from '@/mock/intelligence-seed';
+import { LOW_CONVERSION_ID, TOP_CONVERTER_ID } from '@/mock/intelligence-seed';
 
 export const AGENT_DEFINITIONS: Agent[] = [
   {
@@ -75,8 +75,8 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '运营 Agent（上下架）',
     role: 'operator',
     instructions:
-      '你是款式运营代理。检测到品类缺口时提醒商家上架或基于现有拆解流程生成草稿；下架长期无效款式。可逆。',
-    tools: ['list_style', 'delist_style', 'draft_upload'],
+      '你是款式运营代理。先调用 get_catalog_actions 获取已计算好的下架/上架候选，执行 delist_style / propose_listing；不自行从原始指标重新判断。可逆。',
+    tools: ['get_catalog_actions', 'list_style', 'delist_style', 'propose_listing'],
     version: 1,
   },
   {
@@ -85,7 +85,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '用户运营 Agent',
     role: 'operator',
     instructions:
-      '你是用户运营代理。基于 getCustomerIntelligence 起草获客/复购消息，在老板消息页面以“老板”身份发送，并附 AI 说明与推荐款式小卡片。可逆。',
+      '你是用户运营代理。基于 getCustomerIntelligence 起草获客/复购消息，在老板消息页面以“老板”身份发送，并附 AI 说明。可逆。',
     tools: ['send_customer_message'],
     version: 1,
   },
@@ -224,7 +224,8 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
       input: { briefingRunId: insightRunId },
       output: { note: '暗黑缺口库内无匹配款式 → 提醒商家上架（待批准）。' },
       transcript: [
-        { kind: 'reasoning', text: '暗黑搜索 21 次但库内供给不足，无可直接上架的匹配款式 → 无法自行生成设计图。' },
+        { kind: 'reasoning', text: '调用 get_catalog_actions 获取候选：无可下架款；暗黑为库内无匹配的缺口 → 提醒上架。' },
+        { kind: 'tool_call', tool: 'get_catalog_actions', input: { rangeDays: 7 }, output: { delist: [], propose: [{ tag: '暗黑', reason: '外部热门但库内无匹配' }] } },
         { kind: 'tool_call', tool: 'propose_listing', input: { gapTag: '暗黑', reason: '高搜索低供给，外部热门但库内无匹配' }, output: { proposed: true } },
         { kind: 'action', actionType: 'draft_upload', status: 'proposed', summary: '提醒上架（待商家批准）：暗黑 缺口 — 高搜索低供给，库内无匹配' },
       ],
@@ -250,10 +251,10 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
       parentRunId: insightRunId,
       status: 'completed',
       input: { source: 'roster' },
-      output: { note: '向最久未回访的老客发回归消息（以老板身份），附推荐款式。' },
+      output: { note: '向最久未回访的老客发回归消息（以老板身份）。' },
       transcript: [
-        { kind: 'reasoning', text: '名册中 Melissa Tan 上次做 8265 裸色法式，间隔较久 → 以老板口吻邀约回归，附 8265 推荐卡片。' },
-        { kind: 'tool_call', tool: 'send_customer_message', input: { customerName: 'Melissa Tan', styleId: TOP_CONVERTER_ID }, output: { sent: true } },
+        { kind: 'reasoning', text: '名册中 Melissa Tan 上次做 8265 裸色法式，间隔较久 → 以老板口吻邀约回归。' },
+        { kind: 'tool_call', tool: 'send_customer_message', input: { customerName: 'Melissa Tan' }, output: { sent: true } },
         { kind: 'action', actionType: 'send_customer_message', status: 'applied', summary: '发送消息（以老板身份）：→ Melissa Tan' },
       ],
       startedAt: iso(2 * DAY - 21_000),
@@ -265,7 +266,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
           type: 'send_customer_message',
           risk: 'reversible',
           status: 'applied',
-          payload: { customerName: 'Melissa Tan', body: '好久没见啦～你上次的裸色法式很衬你，这周新到一批同系列，要不要再约一次？', styleId: TOP_CONVERTER_ID },
+          payload: { customerName: 'Melissa Tan', body: '好久没见啦～你上次的裸色法式很衬你，这周新到一批同系列，要不要再约一次？' },
           createdAt: iso(2 * DAY - 22_000),
         },
       ],

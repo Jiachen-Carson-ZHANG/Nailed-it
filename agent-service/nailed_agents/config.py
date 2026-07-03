@@ -35,12 +35,24 @@ MERCHANT_ID = os.environ.get("NAILED_MERCHANT_ID", "merchant-nailed-it")
 
 # 选品 external-trend source (one flag — same agent either way):
 #   "fixture"   (default): authored CN-flavored trends (deterministic, no key) — see trends fixture.
-#   "pinterest" (live):    Pinterest Trends API. Needs PINTEREST_APP_ID + PINTEREST_APP_SECRET.
-#                          NOTE: Pinterest Trends has NO China region (US/UK/CA + ~30) → Western trends.
+#   "pinterest" (live):    Pinterest Trends API. Needs PINTEREST_APP_ID + PINTEREST_APP_SECRET + a
+#                          user-authorized refresh token. NOTE: regions are Western only (US, GB+IE,
+#                          CA, AU+NZ, DE, FR, …) — NO China/Asia. Scoped to interest=beauty (nail-domain).
 TREND_SOURCE = os.environ.get("TREND_SOURCE", "fixture").strip().lower()
 PINTEREST_APP_ID = os.environ.get("PINTEREST_APP_ID", "")
 PINTEREST_APP_SECRET = os.environ.get("PINTEREST_APP_SECRET", "")
 PINTEREST_REGION = os.environ.get("PINTEREST_REGION", "US")
+# Scope live trends to a Pinterest interest category — without it, top/growing returns generic
+# pop-culture noise (TV shows, holidays). "beauty" is the closest to nails (no dedicated nail interest);
+# ~21/25 beauty trends are nail-domain. Valid: animals, architecture, art, beauty, childrens_fashion,
+# design, diy_and_crafts, education, electronics, entertainment, event_planning, finance,
+# food_and_drinks, gardening, health, home_decor, mens_fashion, parenting, quotes, sport, travel,
+# vehicles, wedding, womens_fashion.
+PINTEREST_INTERESTS = os.environ.get("PINTEREST_INTERESTS", "beauty")
+# Default trend window when the agent doesn't pick one. The 选品 agent can override per call via the
+# tool's trend_type arg. Valid: growing (fastest risers now), monthly, seasonal (current-season spikes),
+# yearly. Seasonal suits salons (holiday/wedding spikes).
+PINTEREST_TREND_TYPE = os.environ.get("PINTEREST_TREND_TYPE", "growing")
 PINTEREST_BASE_URL = os.environ.get("PINTEREST_BASE_URL", "https://api.pinterest.com/v5")
 # Trends needs a USER-authorized token (ads:read on an ad account) — app-only client_credentials gets
 # a token but 401s on /trends. Get a refresh token once via `npm run pinterest:auth`; we mint a fresh
@@ -58,6 +70,41 @@ _DEFAULT_MODEL = {
 }
 AGENT_MODEL = os.environ.get("AGENT_MODEL") or _DEFAULT_MODEL.get(MODEL_PROVIDER, "google/gemini-2.5-flash")
 
+# 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
+#   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).
+#   "concept" (opt-in):  VLM concept per style (cached in style_concept) → Cohere embed → pgvector top-k
+#                        → Cohere rerank → threshold. Accurate + cross-lingual. Needs COHERE_API_KEY.
+MATCH_MODE = os.environ.get("MATCH_MODE", "tag").strip().lower()
+# Enrichment VLM runs on OpenRouter (multimodal) regardless of MODEL_PROVIDER.
+ENRICH_VLM_MODEL = os.environ.get("ENRICH_VLM_MODEL", "google/gemini-2.5-flash")
+
+# Embedding provider — chosen by eval 2026-07-01 (see docs/eval/2026-07-01-trend-matching-design.md):
+# google/gemini-embedding-001 won cross-lingual recall+ranking decisively (R@10 0.91 vs Cohere 0.78 /
+# OpenAI-3-large 0.72). google|cohere|openrouter. Rerank stays Cohere (won on latency/determinism at
+# tied quality). EMBED_DIM 1024 fits the style_concept.embedding column across providers.
+EMBED_PROVIDER = os.environ.get("EMBED_PROVIDER", "google").strip().lower()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+EMBED_DIM = 1024
+_DEFAULT_EMBED_MODEL = {
+    "google": "gemini-embedding-001",
+    "cohere": "embed-multilingual-v3.0",
+    "openrouter": "openai/text-embedding-3-large",
+}
+EMBED_MODEL = os.environ.get("EMBED_MODEL") or _DEFAULT_EMBED_MODEL.get(EMBED_PROVIDER, "gemini-embedding-001")
+
+# Cohere rerank (the reranker; also the embedder when EMBED_PROVIDER=cohere).
+COHERE_API_KEY = os.environ.get("COHERE_API_KEY", "")
+COHERE_BASE_URL = os.environ.get("COHERE_BASE_URL", "https://api.cohere.com/v2")
+COHERE_EMBED_MODEL = os.environ.get("COHERE_EMBED_MODEL", "embed-multilingual-v3.0")  # used iff EMBED_PROVIDER=cohere
+COHERE_RERANK_MODEL = os.environ.get("COHERE_RERANK_MODEL", "rerank-multilingual-v3.5")
+MATCH_TOP_K = int(os.environ.get("MATCH_TOP_K", "15"))          # pgvector recall before rerank
+MATCH_THRESHOLD = float(os.environ.get("MATCH_THRESHOLD", "0.3"))  # min rerank score to count as a match
+
+# key needed for the selected embed provider (rerank always needs Cohere in concept mode)
+_EMBED_PROVIDER_KEY = {"google": ("GEMINI_API_KEY", GEMINI_API_KEY),
+                       "cohere": ("COHERE_API_KEY", COHERE_API_KEY),
+                       "openrouter": ("OPENROUTER_API_KEY", OPENROUTER_API_KEY)}
+
 
 def require_env() -> None:
     """Validate the env for the selected provider (Supabase always; the chosen model key)."""
@@ -74,6 +121,9 @@ def require_env() -> None:
 
     if TREND_SOURCE == "pinterest":
         checks += [("PINTEREST_APP_ID", PINTEREST_APP_ID), ("PINTEREST_APP_SECRET", PINTEREST_APP_SECRET)]
+    if MATCH_MODE == "concept":
+        checks.append(("COHERE_API_KEY", COHERE_API_KEY))  # rerank
+        checks.append(_EMBED_PROVIDER_KEY.get(EMBED_PROVIDER, ("EMBED_PROVIDER", "")))  # embed
 
     missing = [name for name, val in checks if not val]
     if missing:

@@ -65,11 +65,6 @@ export const STYLE_LATENTS: Record<string, StyleLatent> = {
     lambda: 60, ctr: [3, 8], detailR: [3, 4], tryR: [2.5, 7], cvr: [1, 6], savR: [2, 10],
     ramp: 'up', price: 90, scenario: 'metallic-bg',
   },
-  // 暗黑 — the gap is on SUPPLY (1 style) + search demand, not the funnel. Thin, ordinary funnel.
-  'style-melissa-img-8281': {
-    lambda: 40, ctr: [2.5, 9], detailR: [3, 4], tryR: [2.5, 7], cvr: [2, 8], savR: [2, 12],
-    price: 80, scenario: 'gap-supply',
-  },
   // Under-exposed gem — low exposure, high cvr (≈ .58). Few try-ons (<3) so it slips past the
   // "top converter" volume guard, but its quality-per-try is a signal for the agent to catch.
   'style-melissa-img-8275': {

@@ -1,6 +1,8 @@
 // Seed the intelligence layer demo dataset (ADR-0006, Phase C) into Supabase: the persona
 // `customers` + a backdated ~2-week `analytics_events` history. Idempotent — upserts customers and
-// replaces only the seeded events (session_id like 'seed-%'), preserving any live-captured events.
+// resets the demo merchant's analytics_events by default so old rehearsal clicks/searches cannot make
+// the rolling "this week vs last week" story stale. Pass --preserve-live-events only when you
+// intentionally want to keep non-seed captured events and replace seed rows in place.
 // Standalone service-role client (the app client imports `server-only`, which throws under node —
 // same reason as seed-supabase.ts / check-db-gates.ts).
 //
@@ -16,6 +18,7 @@ import WebSocketImpl from 'ws';
 import { createClient } from '@supabase/supabase-js';
 import { seedCustomers, generateSeedEvents } from '../src/mock/intelligence-seed';
 import type { Customer, NewAnalyticsEvent } from '../src/domain/analytics';
+import { demoMerchantId } from '../src/mock/merchants';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,6 +30,7 @@ if (typeof globalThis.WebSocket === 'undefined') {
   (globalThis as { WebSocket?: unknown }).WebSocket = WebSocketImpl;
 }
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+const preserveLiveEvents = process.argv.includes('--preserve-live-events');
 
 const customerRow = (c: Customer) => ({
   id: c.id,
@@ -59,9 +63,17 @@ async function main() {
   if (upserted.error) throw new Error(`customers upsert failed: ${upserted.error.message}`);
   console.log(`✓ upserted ${customers.length} customers`);
 
-  const cleared = await db.from('analytics_events').delete().like('session_id', 'seed-%');
-  if (cleared.error) throw new Error(`clearing seeded events failed: ${cleared.error.message}`);
-  console.log('✓ cleared prior seeded events (live events preserved)');
+  if (preserveLiveEvents) {
+    const bySource = await db.from('analytics_events').delete().eq('event_source', 'seed');
+    if (bySource.error) throw new Error(`clearing seed-source events failed: ${bySource.error.message}`);
+    const bySession = await db.from('analytics_events').delete().like('session_id', 'seed-%');
+    if (bySession.error) throw new Error(`clearing seed-session events failed: ${bySession.error.message}`);
+    console.log('✓ cleared prior seeded events (live events preserved by flag)');
+  } else {
+    const cleared = await db.from('analytics_events').delete().eq('merchant_id', demoMerchantId);
+    if (cleared.error) throw new Error(`clearing demo merchant events failed: ${cleared.error.message}`);
+    console.log(`✓ cleared all prior analytics_events for ${demoMerchantId}`);
+  }
 
   const events = generateSeedEvents(Date.now()).map(eventRow);
   const inserted = await db.from('analytics_events').insert(events);

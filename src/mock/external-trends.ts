@@ -5,7 +5,7 @@ import type { ExternalTrend } from '@/domain/intelligence/trends';
 
 export const externalTrends: ExternalTrend[] = [
   { label: '金属感', tags: ['金属感', '镜面', '银色'] }, // matches 8284 (low-conv) → price-test signal
-  { label: '暗黑', tags: ['暗黑', 'Y2K', '黑色'] }, // hero understocks (≈1 style) → gap → propose 上架
+  { label: '暗黑', tags: ['暗黑', 'Y2K', '黑色'] }, // hero understocks (≤1 active style) → gap → propose 上架
   { label: '镜面猫眼', tags: ['镜面', '猫眼', '金属感'] }, // fillers carry it, hero thin → opportunity
   { label: '法式裸色', tags: ['法式风', '裸色', '清冷感'] }, // matches the hero winner 8265 → amplify
   { label: '甜美奶茶', tags: ['甜美', '奶茶', '可爱'] }, // sweet-tooth segment
