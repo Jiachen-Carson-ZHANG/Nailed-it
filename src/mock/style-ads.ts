@@ -1,4 +1,10 @@
 import type { StyleAdCenterSnapshot, StyleAdSummary, StyleAdView } from '@/domain/style-ad';
+import {
+  DEFAULT_CUSTOM_AUDIENCE,
+  DEFAULT_DURATION_DAYS,
+  DEFAULT_TARGET_EXPOSURE,
+  DEFAULT_TARGET_ROI,
+} from '@/domain/style-ad';
 import { demoMerchantId } from './merchants';
 import { styleDefinitions } from './styles';
 
@@ -62,8 +68,14 @@ export function getMockStyleAdView(styleId: string): StyleAdView | null {
       styleTitle: active.styleTitle,
       styleImageUrl: active.styleImageUrl,
       status: active.status,
-      dailyBudgetCents: active.dailyBudgetCents,
+      promotionGoal: 'homepage_exposure',
+      targetExposure: DEFAULT_TARGET_EXPOSURE,
+      targetRoi: DEFAULT_TARGET_ROI,
+      startAt: null,
       durationDays: 14,
+      audienceMode: 'smart',
+      customAudience: { ...DEFAULT_CUSTOM_AUDIENCE, preferenceTags: [] },
+      dailyBudgetCents: active.dailyBudgetCents,
       notes: '',
       updatedAt: active.updatedAt,
     };
@@ -78,8 +90,14 @@ export function getMockStyleAdView(styleId: string): StyleAdView | null {
     styleTitle: style.title,
     styleImageUrl: style.imageUrl,
     status: 'draft',
+    promotionGoal: 'homepage_exposure',
+    targetExposure: DEFAULT_TARGET_EXPOSURE,
+    targetRoi: DEFAULT_TARGET_ROI,
+    startAt: null,
+    durationDays: DEFAULT_DURATION_DAYS,
+    audienceMode: 'smart',
+    customAudience: { ...DEFAULT_CUSTOM_AUDIENCE, preferenceTags: [] },
     dailyBudgetCents: null,
-    durationDays: null,
     notes: '',
     updatedAt: SEEDED_AT,
   };

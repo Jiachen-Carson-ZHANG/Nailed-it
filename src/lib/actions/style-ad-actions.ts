@@ -1,6 +1,21 @@
 'use server';
 
-import type { StyleAdCenterSnapshot, StyleAdView } from '@/domain/style-ad';
+import type {
+  StyleAdCenterSnapshot,
+  StyleAdView,
+  PromotionGoal,
+  AudienceMode,
+  StyleAdCustomAudience,
+} from '@/domain/style-ad';
+import {
+  DEFAULT_TARGET_EXPOSURE,
+  DEFAULT_TARGET_ROI,
+  DEFAULT_DURATION_DAYS,
+  DEFAULT_CUSTOM_AUDIENCE,
+  clampTargetExposure,
+  clampDurationDays,
+  normalizeCustomAudience,
+} from '@/domain/style-ad';
 import type { MerchantStyleView } from '@/domain/merchant-style';
 import { createMerchantStyleService } from '@/lib/services/merchant-style-service';
 import { createQuoteService } from '@/lib/services/quote-service';
@@ -19,8 +34,14 @@ type StyleAdCampaignRow = {
   merchant_id: string;
   merchant_style_id: string;
   status: StyleAdView['status'];
+  promotion_goal: PromotionGoal;
+  target_exposure: number;
+  target_roi: number;
+  start_at: string | null;
   daily_budget_cents: number | null;
   duration_days: number | null;
+  audience_mode: AudienceMode;
+  custom_audience: StyleAdCustomAudience | Record<string, unknown> | null;
   notes: string | null;
   impressions: number;
   clicks: number;
@@ -31,8 +52,14 @@ type StyleAdCampaignRow = {
 
 type LaunchStyleAdInput = {
   styleId: string;
-  dailyBudgetCents?: number;
+  promotionGoal?: PromotionGoal;
+  targetExposure?: number;
+  targetRoi?: number;
+  startAt?: string | null;
   durationDays?: number;
+  audienceMode?: AudienceMode;
+  customAudience?: StyleAdCustomAudience;
+  dailyBudgetCents?: number;
   notes?: string;
 };
 
@@ -87,8 +114,14 @@ async function upsertCampaignRow(input: Required<LaunchStyleAdInput>): Promise<v
         merchant_id: demoMerchantId,
         merchant_style_id: input.styleId,
         status: 'active',
+        promotion_goal: input.promotionGoal,
+        target_exposure: input.targetExposure,
+        target_roi: input.targetRoi,
+        start_at: input.startAt,
         daily_budget_cents: input.dailyBudgetCents,
         duration_days: input.durationDays,
+        audience_mode: input.audienceMode,
+        custom_audience: input.customAudience,
         notes: input.notes,
         updated_at: now,
       },
@@ -110,8 +143,14 @@ function campaignToView(style: MerchantStyleView | null, campaign: StyleAdCampai
     styleTitle: style.title,
     styleImageUrl: style.imageUrl,
     status: campaign?.status ?? 'draft',
+    promotionGoal: campaign?.promotion_goal ?? 'homepage_exposure',
+    targetExposure: campaign?.target_exposure ?? DEFAULT_TARGET_EXPOSURE,
+    targetRoi: Number(campaign?.target_roi ?? DEFAULT_TARGET_ROI),
+    startAt: campaign?.start_at ?? null,
+    durationDays: campaign?.duration_days ?? DEFAULT_DURATION_DAYS,
+    audienceMode: campaign?.audience_mode ?? 'smart',
+    customAudience: normalizeCustomAudience(campaign?.custom_audience),
     dailyBudgetCents: campaign?.daily_budget_cents ?? null,
-    durationDays: campaign?.duration_days ?? null,
     notes: campaign?.notes ?? '',
     updatedAt: campaign?.updated_at ?? style.updatedAt,
   };
@@ -176,8 +215,14 @@ export async function getStyleAdAction(styleId: string): Promise<StyleAdView | n
 export async function launchStyleAdAction(input: LaunchStyleAdInput): Promise<StyleAdView> {
   const payload: Required<LaunchStyleAdInput> = {
     styleId: input.styleId,
+    promotionGoal: input.promotionGoal ?? 'homepage_exposure',
+    targetExposure: clampTargetExposure(input.targetExposure ?? DEFAULT_TARGET_EXPOSURE),
+    targetRoi: input.targetRoi ?? DEFAULT_TARGET_ROI,
+    startAt: input.startAt ?? null,
+    durationDays: clampDurationDays(input.durationDays ?? DEFAULT_DURATION_DAYS),
+    audienceMode: input.audienceMode ?? 'smart',
+    customAudience: normalizeCustomAudience(input.customAudience ?? DEFAULT_CUSTOM_AUDIENCE),
     dailyBudgetCents: input.dailyBudgetCents ?? 3500,
-    durationDays: input.durationDays ?? 7,
     notes: input.notes ?? '',
   };
 
@@ -196,8 +241,14 @@ export async function launchStyleAdAction(input: LaunchStyleAdInput): Promise<St
   return {
     ...structuredClone(view),
     status: 'active',
-    dailyBudgetCents: payload.dailyBudgetCents,
+    promotionGoal: payload.promotionGoal,
+    targetExposure: payload.targetExposure,
+    targetRoi: payload.targetRoi,
+    startAt: payload.startAt,
     durationDays: payload.durationDays,
+    audienceMode: payload.audienceMode,
+    customAudience: payload.customAudience,
+    dailyBudgetCents: payload.dailyBudgetCents,
     notes: payload.notes,
   };
 }

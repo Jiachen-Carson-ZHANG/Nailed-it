@@ -20,6 +20,7 @@ import {
 import type { BookingConversationThread } from '../src/domain/nail';
 import { mockMerchantStyles } from '../src/mock/merchant-styles';
 import { mockStyleAdCampaigns } from '../src/mock/style-ads';
+import { DEFAULT_TARGET_EXPOSURE, DEFAULT_TARGET_ROI, DEFAULT_CUSTOM_AUDIENCE } from '../src/domain/style-ad';
 
 // Standalone client for the seed script — does not import the server-only-guarded
 // app client (src/lib/db/client.ts), which throws under plain node.
@@ -235,6 +236,12 @@ async function seedStyleAdCampaigns(): Promise<number> {
     merchant_id: demoMerchantId,
     merchant_style_id: campaign.styleId,
     status: campaign.status,
+    promotion_goal: 'homepage_exposure',
+    target_exposure: DEFAULT_TARGET_EXPOSURE,
+    target_roi: DEFAULT_TARGET_ROI,
+    start_at: null,
+    audience_mode: 'smart',
+    custom_audience: DEFAULT_CUSTOM_AUDIENCE,
     daily_budget_cents: campaign.dailyBudgetCents,
     duration_days: 14,
     impressions: campaign.impressions,

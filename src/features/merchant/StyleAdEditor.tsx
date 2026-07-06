@@ -2,13 +2,26 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { StyleAdView } from '@/domain/style-ad';
+import type { PromotionGoal, StyleAdView } from '@/domain/style-ad';
+import {
+  DEFAULT_TARGET_EXPOSURE,
+  DEFAULT_TARGET_ROI,
+  clampTargetExposure,
+  exposureTargetPresets,
+  isExposurePreset,
+  MAX_TARGET_EXPOSURE,
+  MAX_TARGET_ROI,
+  MIN_TARGET_EXPOSURE,
+  MIN_TARGET_ROI,
+} from '@/domain/style-ad';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useLanguage } from '@/i18n/context';
 import { getStyleAdAction, launchStyleAdAction } from '@/lib/actions/style-ad-actions';
-
-type PromotionGoal = 'homepage_exposure' | 'booking_conversion';
-type PromotionAudience = 'smart' | 'custom';
+import {
+  defaultPromotionSettingsValue,
+  StyleAdPromotionSettings,
+  type StyleAdPromotionSettingsValue,
+} from '@/features/merchant/StyleAdPromotionSettings';
 
 const adEditorCopy = {
   'zh-CN': {
@@ -23,18 +36,12 @@ const adEditorCopy = {
     goalHomepageHint: '提升款式在主页和发现页的展示次数',
     goalBooking: '预约转化',
     goalBookingHint: '把曝光导向详情页和预约动作',
-    settingsTitle: '推广设置',
-    startTime: '开始时间',
-    startNow: '立即开始',
-    duration: '持续时间',
-    duration7Days: '7 天',
-    audience: '受众人群',
-    audienceSmart: '智能推荐',
-    audienceSmartHint: '系统会在全部人群中自动选择更可能点击和预约的用户',
-    audienceCustom: '自定义人群',
-    audienceCustomHint: '自定义人群设置即将上线',
+    targetExposure: '目标曝光量',
+    targetExposureCustom: '自定义',
+    targetExposureRange: '1,000 - 1,000,000',
+    targetRoi: '目标 ROI',
     estimateHomepage: (n: number) => `预计曝光提升 ${n.toLocaleString()}`,
-    estimateBooking: (n: number) => `预计预约转化提升 ${n.toLocaleString()}`,
+    estimateBooking: (roi: number) => `目标 ROI ${roi.toFixed(1)}×`,
     payLabel: '推广预算',
     launch: '一键投广',
     launching: '正在投广…',
@@ -57,18 +64,12 @@ const adEditorCopy = {
     goalHomepageHint: 'Lift impressions on the home feed and discovery surfaces',
     goalBooking: 'Booking conversion',
     goalBookingHint: 'Drive detail views and booking actions from exposure',
-    settingsTitle: 'Promotion settings',
-    startTime: 'Start time',
-    startNow: 'Start now',
-    duration: 'Duration',
-    duration7Days: '7 days',
-    audience: 'Audience',
-    audienceSmart: 'Smart recommendation',
-    audienceSmartHint: 'The system picks users most likely to click and book',
-    audienceCustom: 'Custom audience',
-    audienceCustomHint: 'Custom audience controls are coming soon',
+    targetExposure: 'Target impressions',
+    targetExposureCustom: 'Custom',
+    targetExposureRange: '1,000 - 1,000,000',
+    targetRoi: 'Target ROI',
     estimateHomepage: (n: number) => `Estimated exposure lift ${n.toLocaleString()}`,
-    estimateBooking: (n: number) => `Estimated booking lift ${n.toLocaleString()}`,
+    estimateBooking: (roi: number) => `Target ROI ${roi.toFixed(1)}×`,
     payLabel: 'Campaign budget',
     launch: 'Launch campaign',
     launching: 'Launching…',
@@ -107,7 +108,13 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
   const [ad, setAd] = useState<StyleAdView | null>(null);
   const [loading, setLoading] = useState(true);
   const [goal, setGoal] = useState<PromotionGoal>('homepage_exposure');
-  const [audience, setAudience] = useState<PromotionAudience>('smart');
+  const [targetExposure, setTargetExposure] = useState(DEFAULT_TARGET_EXPOSURE);
+  const [exposureCustom, setExposureCustom] = useState(false);
+  const [customExposureInput, setCustomExposureInput] = useState(String(DEFAULT_TARGET_EXPOSURE));
+  const [targetRoi, setTargetRoi] = useState(DEFAULT_TARGET_ROI);
+  const [promotionSettings, setPromotionSettings] = useState<StyleAdPromotionSettingsValue>(
+    defaultPromotionSettingsValue,
+  );
   const [message, setMessage] = useState('');
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
@@ -115,21 +122,30 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
   useEffect(() => {
     setLoadFailed(false);
     getStyleAdAction(styleId)
-      .then(setAd)
+      .then((loaded) => {
+        setAd(loaded);
+        if (!loaded) return;
+        setGoal(loaded.promotionGoal);
+        setTargetExposure(loaded.targetExposure);
+        const custom = !isExposurePreset(loaded.targetExposure);
+        setExposureCustom(custom);
+        setCustomExposureInput(String(loaded.targetExposure));
+        setTargetRoi(loaded.targetRoi);
+        setPromotionSettings({
+          startAt: loaded.startAt,
+          durationDays: loaded.durationDays,
+          audienceMode: loaded.audienceMode,
+          customAudience: loaded.customAudience,
+        });
+      })
       .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [styleId]);
 
-  const estimate = useMemo(() => {
-    if (goal === 'homepage_exposure') return 2000;
-    return 12;
-  }, [goal]);
-
-  const estimateText = goal === 'homepage_exposure'
-    ? copy.estimateHomepage(estimate)
-    : copy.estimateBooking(estimate);
-
-  const audienceHint = audience === 'smart' ? copy.audienceSmartHint : copy.audienceCustomHint;
+  const estimateText = useMemo(() => {
+    if (goal === 'homepage_exposure') return copy.estimateHomepage(targetExposure);
+    return copy.estimateBooking(targetRoi);
+  }, [copy, goal, targetExposure, targetRoi]);
 
   if (loading) {
     return <p className="helper-copy">{copy.loading}</p>;
@@ -157,10 +173,22 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
     try {
       const launched = await launchStyleAdAction({
         styleId: ad.styleId,
+        promotionGoal: goal,
+        targetExposure,
+        targetRoi,
+        startAt: promotionSettings.startAt,
+        durationDays: promotionSettings.durationDays,
+        audienceMode: promotionSettings.audienceMode,
+        customAudience: promotionSettings.customAudience,
         dailyBudgetCents: ad.dailyBudgetCents ?? 3500,
-        durationDays: ad.durationDays ?? 7,
       });
       setAd(launched);
+      setPromotionSettings({
+        startAt: launched.startAt,
+        durationDays: launched.durationDays,
+        audienceMode: launched.audienceMode,
+        customAudience: launched.customAudience,
+      });
       setMessage(copy.launchSuccess);
     } catch {
       setMessage(copy.launchError);
@@ -206,50 +234,96 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
             <span className="helper-copy">{copy.goalBookingHint}</span>
           </button>
         </div>
-      </section>
 
-      <section aria-labelledby="style-ad-settings-title" className="style-ad-section detail-surface">
-        <h2 className="style-ad-section-title" id="style-ad-settings-title">{copy.settingsTitle}</h2>
-
-        <button className="style-ad-setting-row" type="button">
-          <span className="style-ad-setting-label">{copy.startTime}</span>
-          <span className="style-ad-setting-value">
-            {copy.startNow}
-            <span aria-hidden className="style-ad-setting-caret">›</span>
-          </span>
-        </button>
-
-        <button className="style-ad-setting-row" type="button">
-          <span className="style-ad-setting-label">{copy.duration}</span>
-          <span className="style-ad-setting-value">
-            {copy.duration7Days}
-            <span aria-hidden className="style-ad-setting-caret">›</span>
-          </span>
-        </button>
-
-        <div className="style-ad-audience-block">
-          <p className="style-ad-setting-label">{copy.audience}</p>
-          <div className="style-ad-audience-toggle" role="group" aria-label={copy.audience}>
-            <button
-              aria-pressed={audience === 'smart'}
-              className={`style-ad-audience-option${audience === 'smart' ? ' style-ad-audience-option-on' : ''}`}
-              type="button"
-              onClick={() => setAudience('smart')}
-            >
-              {copy.audienceSmart}
-            </button>
-            <button
-              aria-pressed={audience === 'custom'}
-              className={`style-ad-audience-option${audience === 'custom' ? ' style-ad-audience-option-on' : ''}`}
-              type="button"
-              onClick={() => setAudience('custom')}
-            >
-              {copy.audienceCustom}
-            </button>
+        {goal === 'homepage_exposure' ? (
+          <div className="style-ad-goal-target">
+            <p className="style-ad-setting-label">{copy.targetExposure}</p>
+            <div className="style-ad-exposure-presets" role="group" aria-label={copy.targetExposure}>
+              {exposureTargetPresets.map((preset) => (
+                <button
+                  key={preset}
+                  aria-pressed={!exposureCustom && targetExposure === preset}
+                  className={`style-ad-exposure-preset${!exposureCustom && targetExposure === preset ? ' style-ad-exposure-preset-on' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    setExposureCustom(false);
+                    setTargetExposure(preset);
+                  }}
+                >
+                  {preset.toLocaleString()}
+                </button>
+              ))}
+              <button
+                aria-pressed={exposureCustom}
+                className={`style-ad-exposure-preset${exposureCustom ? ' style-ad-exposure-preset-on' : ''}`}
+                type="button"
+                onClick={() => {
+                  setExposureCustom(true);
+                  setCustomExposureInput(String(targetExposure));
+                }}
+              >
+                {copy.targetExposureCustom}
+              </button>
+            </div>
+            {exposureCustom ? (
+              <label className="style-ad-exposure-custom">
+                <span className="sr-only">{copy.targetExposure}</span>
+                <input
+                  aria-describedby="style-ad-exposure-range-hint"
+                  className="style-ad-exposure-custom-input"
+                  inputMode="numeric"
+                  max={MAX_TARGET_EXPOSURE}
+                  min={MIN_TARGET_EXPOSURE}
+                  step={1}
+                  type="number"
+                  value={customExposureInput}
+                  onBlur={() => {
+                    const parsed = Number(customExposureInput);
+                    const clamped = clampTargetExposure(Number.isFinite(parsed) ? parsed : MIN_TARGET_EXPOSURE);
+                    setTargetExposure(clamped);
+                    setCustomExposureInput(String(clamped));
+                  }}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setCustomExposureInput(raw);
+                    const parsed = Number(raw);
+                    if (raw !== '' && Number.isInteger(parsed)) {
+                      setTargetExposure(clampTargetExposure(parsed));
+                    }
+                  }}
+                />
+                <span className="helper-copy" id="style-ad-exposure-range-hint">{copy.targetExposureRange}</span>
+              </label>
+            ) : null}
           </div>
-          <p className="helper-copy style-ad-audience-hint">{audienceHint}</p>
-        </div>
+        ) : (
+          <div className="style-ad-goal-target">
+            <div className="style-ad-roi-header">
+              <p className="style-ad-setting-label">{copy.targetRoi}</p>
+              <strong className="style-ad-roi-value">{targetRoi.toFixed(1)}×</strong>
+            </div>
+            <input
+              aria-label={copy.targetRoi}
+              className="style-ad-roi-slider"
+              max={MAX_TARGET_ROI}
+              min={MIN_TARGET_ROI}
+              step={0.1}
+              type="range"
+              value={targetRoi}
+              onChange={(event) => setTargetRoi(Number(event.target.value))}
+            />
+            <div aria-hidden className="style-ad-roi-scale">
+              <span>{MIN_TARGET_ROI.toFixed(1)}</span>
+              <span>{MAX_TARGET_ROI.toFixed(1)}</span>
+            </div>
+          </div>
+        )}
       </section>
+
+      <StyleAdPromotionSettings
+        value={promotionSettings}
+        onChange={setPromotionSettings}
+      />
 
       {message ? <p className="helper-copy" role="status">{message}</p> : null}
 

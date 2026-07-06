@@ -23,7 +23,7 @@ describe('StyleAdEditorPageClient', () => {
     expect(screen.getByText('Start time')).toBeInTheDocument();
     expect(screen.getByText('Start now')).toBeInTheDocument();
     expect(screen.getByText('Duration')).toBeInTheDocument();
-    expect(screen.getByText('7 days')).toBeInTheDocument();
+    expect(screen.getByText('14 days')).toBeInTheDocument();
     expect(screen.getByText('Audience')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /smart recommendation/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /custom audience/i })).toHaveAttribute('aria-pressed', 'false');
