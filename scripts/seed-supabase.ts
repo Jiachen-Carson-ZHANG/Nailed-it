@@ -19,6 +19,8 @@ import {
 } from '../src/mock/interval-bookings';
 import type { BookingConversationThread } from '../src/domain/nail';
 import { mockMerchantStyles } from '../src/mock/merchant-styles';
+import { mockStyleAdCampaigns } from '../src/mock/style-ads';
+import { DEFAULT_TARGET_EXPOSURE, DEFAULT_TARGET_ROI, DEFAULT_CUSTOM_AUDIENCE } from '../src/domain/style-ad';
 
 // Standalone client for the seed script — does not import the server-only-guarded
 // app client (src/lib/db/client.ts), which throws under plain node.
@@ -228,6 +230,33 @@ async function seedMerchantStyles(): Promise<{ media: number; styles: number }> 
   return { media: mediaRows.length, styles: styleRows.length };
 }
 
+async function seedStyleAdCampaigns(): Promise<number> {
+  const rows = mockStyleAdCampaigns.map((campaign) => ({
+    id: campaign.id,
+    merchant_id: demoMerchantId,
+    merchant_style_id: campaign.styleId,
+    status: campaign.status,
+    promotion_goal: 'homepage_exposure',
+    target_exposure: DEFAULT_TARGET_EXPOSURE,
+    target_roi: DEFAULT_TARGET_ROI,
+    start_at: null,
+    audience_mode: 'smart',
+    custom_audience: DEFAULT_CUSTOM_AUDIENCE,
+    daily_budget_cents: campaign.dailyBudgetCents,
+    duration_days: 14,
+    impressions: campaign.impressions,
+    clicks: campaign.clicks,
+    bookings: campaign.bookings,
+    spend_cents: campaign.spendCents,
+    updated_at: campaign.updatedAt,
+  }));
+  const { error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .upsert(rows, { onConflict: 'merchant_id,merchant_style_id' });
+  if (error) throw new Error(`seed style_ad_campaign failed: ${error.message}`);
+  return rows.length;
+}
+
 async function seedWorkingPlans(): Promise<number> {
   const rows = mockWorkingPlans.map((p) => ({
     technician_id: p.technicianId,
@@ -389,6 +418,7 @@ async function main(): Promise<void> {
   const intervalResult = await seedIntervalBookings();
   const staffDurationCount = await seedStaffItemDurations();
   const merchantStyleResult = await seedMerchantStyles();
+  const styleAdCampaignCount = await seedStyleAdCampaigns();
   const merchantPricingCount = await seedMerchantPricing();
 
   console.log(`technicians:          ${techCount}`);
@@ -406,6 +436,7 @@ async function main(): Promise<void> {
   console.log(`staff_item_duration:  ${staffDurationCount}`);
   console.log(`media_asset:          ${merchantStyleResult.media}`);
   console.log(`merchant_style:       ${merchantStyleResult.styles}`);
+  console.log(`style_ad_campaign:    ${styleAdCampaignCount}`);
   console.log(`merchant_pricing:     ${merchantPricingCount}`);
   console.log('Done.');
 }

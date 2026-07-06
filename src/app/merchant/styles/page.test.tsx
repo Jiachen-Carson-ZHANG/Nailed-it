@@ -32,6 +32,7 @@ describe('MerchantStylesPage', () => {
     renderPage();
 
     expect(screen.getByRole('heading', { name: /style library/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /ad center/i })).toHaveAttribute('href', '/merchant/ads');
     expect(screen.getByLabelText(/upload a new design/i)).toBeInTheDocument();
     expect(screen.getByText('＋')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /style title/i })).not.toBeInTheDocument();
@@ -43,6 +44,13 @@ describe('MerchantStylesPage', () => {
       'href',
       expect.stringMatching(/^\/merchant\/styles\/.+\/review$/),
     );
+    expect(screen.getAllByRole('link', { name: /^promoting$/i })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: expect.stringContaining('/merchant/styles/rose-cat-eye/ads') }),
+        expect.objectContaining({ href: expect.stringContaining('/merchant/styles/soft-french/ads') }),
+      ]),
+    );
+    expect(screen.getAllByRole('link', { name: /^promote$/i }).length).toBeGreaterThan(0);
   });
 
   it('uploads a selected image and navigates immediately to its review route', async () => {
