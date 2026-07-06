@@ -12,6 +12,7 @@ import {
   listMerchantStylesAction,
   uploadMerchantStyleAction,
 } from '@/lib/actions/merchant-style-actions';
+import { listActiveStyleAdIdsAction } from '@/lib/actions/style-ad-actions';
 import { readFileAsBase64 } from '@/lib/file-utils';
 
 const libraryFlashKey = 'merchant-style-library-flash';
@@ -29,6 +30,8 @@ const libraryCopy = {
     notPriced: '尚未定价',
     loadError: '无法加载款式库。',
     uploadError: '上传失败。',
+    promote: '推广',
+    promoting: '推广中',
   },
   en: {
     uploadAria: 'Upload a new design',
@@ -42,6 +45,8 @@ const libraryCopy = {
     notPriced: 'Not priced yet',
     loadError: 'Unable to load the style library.',
     uploadError: 'Upload failed.',
+    promote: 'Promote',
+    promoting: 'Promoting',
   },
 } as const;
 
@@ -71,13 +76,19 @@ export function MerchantStyleLibrary() {
     { key: 'archived', label: copy.archived },
   ];
   const [styles, setStyles] = useState<MerchantStyleView[]>([]);
+  const [activeAdStyleIds, setActiveAdStyleIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<LibraryTab>('published');
   const [message, setMessage] = useState('');
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const refresh = useCallback(async () => {
-    setStyles(await listMerchantStylesAction());
+    const [nextStyles, activeIds] = await Promise.all([
+      listMerchantStylesAction(),
+      listActiveStyleAdIdsAction(),
+    ]);
+    setStyles(nextStyles);
+    setActiveAdStyleIds(new Set(activeIds));
   }, []);
 
   useEffect(() => {
@@ -212,6 +223,7 @@ export function MerchantStyleLibrary() {
           {visible.map((style) => {
             const isPublished = style.status === 'published';
             const isArchived = style.status === 'archived';
+            const isPromoting = activeAdStyleIds.has(style.id);
             const imageUrl = style.imageUrl.trim();
             return (
               <article className="merchant-style-management-card" key={style.id}>
@@ -223,14 +235,26 @@ export function MerchantStyleLibrary() {
                   </div>
                   <div className="merchant-style-card-actions">
                     <Link
-                      className="button button-secondary button-default"
+                      className="button button-secondary button-compact"
                       href={`/merchant/styles/${style.id}/review`}
                     >
                       {isPublished ? t('common.edit') : isArchived ? t('common.view') : t('common.edit')}
                     </Link>
                     {isPublished ? (
+                      <Link
+                        className={
+                          isPromoting
+                            ? 'button button-secondary button-compact merchant-style-promote-active'
+                            : 'button button-primary button-compact'
+                        }
+                        href={`/merchant/styles/${style.id}/ads`}
+                      >
+                        {isPromoting ? copy.promoting : copy.promote}
+                      </Link>
+                    ) : null}
+                    {isPublished ? (
                       <button
-                        className="button button-ghost button-default"
+                        className="button button-ghost button-compact"
                         disabled={isPending}
                         type="button"
                         onClick={() => archive(style.id)}
@@ -240,7 +264,7 @@ export function MerchantStyleLibrary() {
                     ) : null}
                     {!isPublished ? (
                       <button
-                        className="button button-ghost button-default merchant-style-delete"
+                        className="button button-ghost button-compact merchant-style-delete"
                         disabled={isPending}
                         type="button"
                         onClick={() => remove(style.id)}

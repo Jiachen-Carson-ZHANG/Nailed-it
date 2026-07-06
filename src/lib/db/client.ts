@@ -16,6 +16,15 @@ export function hasSupabaseEnv(): boolean {
   );
 }
 
+/** True when server actions should read/write Supabase instead of in-memory mocks. */
+export function usesSupabaseBackend(): boolean {
+  return (
+    hasSupabaseEnv() &&
+    process.env.NODE_ENV !== 'test' &&
+    !process.env.VITEST
+  );
+}
+
 let _serviceClient: SupabaseClient | null = null;
 
 export function getServiceClient(): SupabaseClient {
