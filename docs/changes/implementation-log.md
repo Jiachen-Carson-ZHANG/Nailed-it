@@ -1647,3 +1647,24 @@ Followed up the deferred Phase-6 contrast item as a global design-token addition
     `GroupbuyDeal` is unchanged, so the localStorage path + panels still work (rewire is Phase 0b).
   - Tests: action-entity-contract (4) + memory groupbuy repo (3). Migration is applied manually (the demo DB
     lacked the ad tables → `style_ad_campaign` ALTER guarded).
+
+## 2026-07-06 — Phase 1 decision brain (pure, `src/domain/decision/`)
+
+The PM spec (`美甲款式运营决策分析`) made real as pure, testable modules. Per ADR-0012 §5 the brain is
+**advisory**: it returns scores + a candidate lever + machine signal tags — no prose, no final verdict; the
+agent synthesizes across styles + briefing + capacity + the cap.
+- `economics.ts` (T1): contribution / revenue-per-hour / **profit-per-hour** / break-even coupon. Cost model
+  fix — variable cost is an ABSOLUTE amount fixed from the normal price (so break-even is a real floor, not
+  the degenerate 0 a %-of-price cost would give); platform fee is % of the transaction. Cents throughout.
+- `funnel.ts` (T2): CTR/detail/save/try-on/booking/completion rates → PM-weighted **Demand** & **Conversion**
+  scores (each rate normalized against a tunable target). Divide-by-zero safe.
+- `capacity.ts` (T3): next-week utilization band + **fragment-fit** (largest free gap ≥ style duration) via
+  pure interval math over working plans (breaks removed) minus resolved busy intervals — a 150-min style is
+  not recommended into 45-min gaps. The action layer resolves tz/bookings/blocks to minutes (keeps it pure).
+- `decision.ts` (T4): the 4 scores (Business-Value is batch-relative per PM) + the quadrant rule engine →
+  `ad | coupon | display_only | skip` with signal tags + a suggested coupon price. Gates: ad needs
+  profitable+converting+underexposed+util≤85%+fits; coupon needs interested-but-stuck+util≤70%+fits+above
+  the profit-per-hour floor; else display_only (real interest, can't justify spend) or skip.
+- Tests: economics (6) + funnel (4) + capacity (4) + decision-quadrants (5) = 19. tsc clean.
+- Not yet wired: the read-model action that fetches real data → these functions, and the agent/tools that
+  consume the output — that is Phase 2 (which also sets the action↔entity linkage from 0a).
