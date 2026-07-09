@@ -194,7 +194,8 @@ export interface AgentRepository {
 export interface GroupbuyRepository {
   listByMerchant(merchantId: string): Promise<GroupbuyDealRecord[]>;
   getByIdForMerchant(id: string, merchantId: string): Promise<GroupbuyDealRecord | null>;
-  /** Upsert a draft or published deal (its items are replaced atomically). */
+  /** Upsert a draft or published deal, replacing its items. NOTE: the supabase impl does deal-upsert +
+   *  item delete/insert as separate calls (not yet transactional) — a Postgres RPC is the Phase-2 fix. */
   save(record: GroupbuyDealRecord): Promise<GroupbuyDealRecord>;
   /** Move a deal along its lifecycle (draft→published→unlisted→relist); null if not found or illegal. */
   setStatus(id: string, merchantId: string, status: GroupbuyStatus): Promise<GroupbuyDealRecord | null>;

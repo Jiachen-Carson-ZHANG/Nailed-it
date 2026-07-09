@@ -25,8 +25,10 @@ export type StyleDecisionInput = {
   economics: StyleEconomics;
   funnel: FunnelScores;
   fitsCapacity: boolean; // this style's duration fits a next-week gap (capacity.fitsStyle)
-  adRoiTarget: number;
 };
+// Phase-2 ad gate (not yet modelled): expected ROAS >= the merchant's ROI target and expected incremental
+// profit > 0, plus MEASURED underexposure (impressions/share vs peers). Today the ad candidate fires on
+// scores + capacity + fit, and the `underexposed` signal is a proxy ("economics say amplify"), not measured.
 
 export type DecisionContext = {
   capacityBand: CapacityBand; // merchant-level, shared across styles

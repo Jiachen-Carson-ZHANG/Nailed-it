@@ -11,7 +11,7 @@ const interestedNotConverting: FunnelCounts = { impressions: 1000, clicks: 120, 
 const cold: FunnelCounts = { impressions: 1000, clicks: 8, detailViews: 4, saves: 1, tryOns: 1, bookings: 0, completedOrders: 0 };
 
 const input = (funnel: FunnelCounts): StyleDecisionInput => ({
-  styleId: 's', styleTitle: '款', economics: econ, funnel: computeFunnelScores(funnel), fitsCapacity: true, adRoiTarget: 2,
+  styleId: 's', styleTitle: '款', economics: econ, funnel: computeFunnelScores(funnel), fitsCapacity: true,
 });
 const ctx = (utilPct: number, band: DecisionContext['capacityBand']): DecisionContext => ({
   capacityBand: band, capacityUtilizationPct: utilPct, minProfitPerHourCents: 1000,

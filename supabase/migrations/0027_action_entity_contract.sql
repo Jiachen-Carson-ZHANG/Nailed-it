@@ -34,7 +34,7 @@ end $$;
 --    snapshot so historical deals don't change meaning if the merchant currency changes (audit).
 create table if not exists public.groupbuy_deal (
   id                text primary key,
-  merchant_id       text not null,
+  merchant_id       text not null references public.merchant(id) on delete cascade,
   title             text not null default '',
   status            text not null default 'draft'
                       check (status in ('draft', 'published', 'unlisted')),

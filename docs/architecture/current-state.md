@@ -1,10 +1,18 @@
 # Architecture: Current State
 
-Last updated: 2026-06-27
+Last updated: 2026-07-06
 
 ## Stack
 
 Next.js App Router, TypeScript, mobile-first shell (`MobileLayout` + `TopBar` + `BottomTabBar`). Operational booking, messaging, pricing, scheduling, and merchant-style data use Supabase behind a repository seam. The booking draft remains in per-tab `sessionStorage`. AI calls run server-side through API routes or server actions.
+
+## Recent additions (2026-07-06)
+
+Additive to the subsystems below; see the ADRs for detail.
+- **Merchant 今日 home (ADR-0011).** Tab-1 (`/merchant/calendar`) is the agent-first ops home: one deterministic read model (`src/domain/merchant-home.ts` + `getMerchantTodayHomeAction`, compute-on-read, per-field failure isolation) driving a stat strip / needs-you feed / technician roll + a reasoning drill-down sheet (`AgentRunSheet`). The full calendar moved to `/merchant/calendar/schedule`.
+- **StyleAd ad campaigns (merged from `main`).** A 投广中心 at `/merchant/ads` + per-style editor at `/merchant/styles/[id]/ads`; entity `src/domain/style-ad.ts` (status draft→active→paused→ended, promotion goal, ROI/exposure targets, audience, schedule); migrations `0022_style_ad_campaign` + `0023_style_ad_campaign_goal`/`0024_style_ad_exposure_range`/`0025_style_ad_promotion_settings`. Merchant-authored today; agent-proposed drafts land in Phase 2.
+- **Agent action↔entity contract (ADR-0012, migration `0027`).** `agent_actions` gains a polymorphic forward link (`entity_type`/`entity_id`); `style_ad_campaign` + new `groupbuy_deal` carry `source_run_id`. Group-buy moved off browser `localStorage` into `groupbuy_deal` + relational `groupbuy_deal_item` behind a new `GroupbuyRepository` seam (`src/domain/action-entity-contract.ts` holds the status state machine). Schema/repo only so far — the TS `AgentAction` fields, entity-aware undo, and the group-buy UI rewire are Phase 2.
+- **Decision brain (ADR-0012 Phase 1, `src/domain/decision/`).** Pure, advisory per-style analysis: `economics` → `funnel` → `capacity` (utilization + fragment-fit) → `decision` (4 scores + rule engine → `ad|coupon|display_only|skip` + signal tags). Deterministic; the agent synthesizes/narrates. Not yet wired to a read-model action or the tools (Phase 2).
 
 ## Entry points
 
