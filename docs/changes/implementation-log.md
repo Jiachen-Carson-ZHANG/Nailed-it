@@ -1694,7 +1694,12 @@ agent synthesizes across styles + briefing + capacity + the cap.
   DRAFT via the repo seam with `sourceRunId` → return it. The Python tool calls this then writes the
   agent_action with `entityId = deal.id` (the forward link); the merchant reviews/publishes in 团购管理.
   +2 tests (memory bundle).
-- Verified: tsc clean, 7 new tests. Remaining Slice B (Python, model/DB-dependent, done together): `bus.write_action`
-  entity_type/entity_id params → API routes (`/api/agent/decisions`, `/api/agent/propose-groupbuy`) → tools.py
-  wiring + `get_style_business_decisions` + StyleAd draft propose + un-force orchestrator/decision.md, then
-  eval (Slice D) + entity-aware undo & `source_run_id` follow-up migration (Slice C).
+- Verified: tsc clean, 7 new tests.
+- **Plumbing landed (additive, verified):** `bus.write_action` now takes optional `entity_type`/`entity_id`
+  (kwargs — existing calls unaffected, pytest 22 still green); API routes `/api/agent/decisions` (GET the
+  decision read model) + `/api/agent/propose-groupbuy` (POST → `proposeGroupbuyDealAction`) expose the brain
+  + propose path to the Python agent.
+- **Remaining Phase 2 (coupled behavior chunk — needs a model/pytest/eval run to verify, done together):**
+  `tools.py` wiring (call the routes; `set_group_buy_coupon`→propose semantics; new `get_style_business_decisions`;
+  StyleAd draft propose) + un-force `orchestrator.py`/`decision.md` to allow `skip` + eval skip/propose
+  scenarios (Slice D) + TS entity-aware undo & the `source_run_id` follow-up migration (Slice C).

@@ -102,14 +102,22 @@ def write_action(
     payload: dict[str, Any],
     risk: str = "reversible",
     status: str = "applied",
+    entity_type: str | None = None,
+    entity_id: str | None = None,
 ) -> None:
-    sb.table("agent_actions").insert(
-        {
-            "run_id": run_id,
-            "merchant_id": config.MERCHANT_ID,
-            "type": action_type,
-            "risk": risk,
-            "status": status,
-            "payload": payload,
-        }
-    ).execute()
+    # entity_type/entity_id are the ADR-0012 forward link to the real object this action produced
+    # (a style_ad or groupbuy_deal created via the TS routes). Omitted keys stay NULL for actions
+    # that create no entity (e.g. a message) and for pre-contract callers.
+    row: dict[str, Any] = {
+        "run_id": run_id,
+        "merchant_id": config.MERCHANT_ID,
+        "type": action_type,
+        "risk": risk,
+        "status": status,
+        "payload": payload,
+    }
+    if entity_type is not None:
+        row["entity_type"] = entity_type
+    if entity_id is not None:
+        row["entity_id"] = entity_id
+    sb.table("agent_actions").insert(row).execute()
