@@ -77,7 +77,9 @@ class Scenario:
     briefing: dict = field(default_factory=dict)
     styles: list = field(default_factory=lambda: list(_STYLES))
     customers: list = field(default_factory=list)
-    expect: dict = field(default_factory=dict)   # {'kind':'opportunity'|'action', ...}
+    decisions: dict = field(default_factory=dict)  # the decision brain's output (ADR-0012)
+    # {'kind':'opportunity'|'action'|'no_action'} — 'no_action' asserts the agent correctly did NOTHING
+    expect: dict = field(default_factory=dict)
     forbid: list[dict] = field(default_factory=list)  # [{'action_type','target'}] must NOT occur
 
 
@@ -105,20 +107,37 @@ SCENARIOS = [
         expect={"kind": "action", "action_type": "delist_style", "target": "style-melissa-img-8277"},
         forbid=[{"action_type": "delist_style", "target": "style-melissa-img-8284"}],  # high-interest low-conv → keep
     ),
+    # ADR-0012: the executor must be able to DO NOTHING. When next week is full and the economics are weak,
+    # the decision says skip — the 投广 agent must not call place_ad just because it has the tool.
+    Scenario(
+        id="ad/full-capacity-skip", slug="ad",
+        tools=["place_ad"],
+        task=(
+            "根据以下决策处理投广：若决策中包含投广动作，调用 place_ad（top_funnel/lower_funnel/mid_funnel + 预算分）"
+            "落地它；**若决策未选择投广，则不要调用任何工具**，直接说明本轮不投广。只处理投广那段：\n\n"
+            "本轮不采取投广：下周产能利用率 91%（full），候选款利润/小时低于店铺均值，"
+            "放大曝光只会挤占本已紧张的产能，且买来的流量接不住。"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        expect={"kind": "no_action"},
+        forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
+    ),
 ]
 
 
 @contextlib.contextmanager
 def _stub_bus(scn: Scenario, captured: list[dict]):
-    orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action)
+    orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action, bus.fetch_decisions)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
+    bus.fetch_decisions = lambda: scn.decisions                             # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     try:
         yield
     finally:
-        bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action = orig
+        (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers,
+         bus.write_action, bus.fetch_decisions) = orig
 
 
 def _skill(slug: str) -> str:
@@ -192,13 +211,18 @@ def _run_once(scn: Scenario) -> dict:
             return f"ungrounded {_ARG_CUSTOMER}={cn}"
         return ""
     bad = [(a["tool"], _bad(a)) for a in ctx.tool_attempts if _bad(a)]
-    tool_ok = bool(ctx.tool_attempts) and not bad
+    e = scn.expect
+    # ADR-0012: doing nothing is a first-class outcome. A correct skip makes ZERO tool calls, so
+    # "no tool calls" is success here — not the failure it is for an action scenario.
+    expects_no_action = e.get("kind") == "no_action"
+    tool_ok = (not bad) if expects_no_action else (bool(ctx.tool_attempts) and not bad)
     tool_bad = "" if tool_ok else (f"{bad[0][0]}: {bad[0][1]}" if bad else "no tool calls")
     # expectation — compare the EXPLICIT target field by action type (not a payload substring)
-    e = scn.expect
     if e.get("kind") == "opportunity":
         exp_ok = any(o.get("action") == e["action"] and e["target"] in o.get("matchedStyleIds", [])
                      for o in _opp_report(ctx).get("opportunities", []))
+    elif expects_no_action:
+        exp_ok = not captured  # the agent must not have written ANY action
     else:
         exp_ok = any(a.get("action_type") == e["action_type"] and _action_target(a).strip() == e["target"] for a in captured)
     # negative assertion (forbidden action/target must not occur) — field-scoped, exact equality

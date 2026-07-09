@@ -30,6 +30,16 @@ def fetch_briefing(range_days: int = 7) -> dict[str, Any]:
     return resp.json()
 
 
+def fetch_decisions() -> dict[str, Any]:
+    """The 决策 agent's grounded per-style decision input (ADR-0012 decision brain): each published style's
+    economics + demand/conversion scores + next-week capacity fit + the lever the numbers point toward
+    (ad/coupon/display_only/skip) with signal tags, plus the shared capacity band. Deterministic — the agent
+    SYNTHESISES across it + the briefing/trends, and never re-derives the numbers."""
+    resp = httpx.get(f"{config.APP_URL}/api/agent/decisions", timeout=30.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def fetch_customers() -> dict[str, Any]:
     """Grounded customer roster (booking history, most-lapsed first) for the 用户运营 agent — same
     guardrail as the briefing: pre-computed substrate, never invented in Python."""

@@ -62,30 +62,42 @@ def run_round(range_days: int = 7) -> dict[str, str]:
         task="产出本周优先级选品机会清单：先调用 get_trend_opportunities，必要时用 get_platform_hot / get_external_trends 佐证；给出按机会分排序的 amplify / price_test / gap / prune 机会。",
     )
 
-    # ── 3) 决策: decide BOTH a 投广 and a 团购 action from the briefing + the 选品 opportunities ──
+    # ── 3) 决策: consume the deterministic decision brain, synthesise across signals → 0..N actions.
+    #        "Do nothing" is a first-class outcome (ADR-0012) — the old "exactly two actions" quota is gone.
     decision_run, decision = _step(
         "decision", trigger="event", parent=trend_run,
         input={"briefingRunId": insight_run, "trendRunId": trend_run},
-        tool_names=["get_merchant_insights"],
+        tool_names=["get_style_business_decisions", "get_merchant_insights"],
         task=(
-            "基于以下简报与选品机会，决定两个精确动作：一个投广 place_ad（款式 id + 漏斗位 + 预算分），"
-            "一个团购 set_group_buy_coupon（款式 id + 券后价分）。\n\n简报：\n"
+            "先调用 get_style_business_decisions 读取决策大脑对每款的经营分析（利润/小时、需求分、转化分、"
+            "下周产能与 fitsCapacity、候选动作与信号标签、全店产能档位）。再结合下面的简报与选品机会，"
+            "综合判断本轮应采取的动作组合：可以是 0 个、1 个或多个（投广 place_ad / 团购 set_group_buy_coupon）。"
+            "下周产能紧张时不要用低价团购占用产能；接不住（fitsCapacity=false）的款不要放大。"
+            "若没有款式值得动作，明确说明本轮不采取投广/团购。\n\n简报：\n"
             f"{briefing}\n\n选品机会：\n{trend_report}"
         ),
     )
 
-    # ── 3) 投广: execute the ad action via place_ad ──
+    # ── 4) 投广: land the ad action IF the decision chose one; skipping is allowed ──
     ad_run, _ = _step(
         "ad", trigger="event", parent=decision_run, input={"decisionRunId": decision_run},
         tool_names=["place_ad"],
-        task=f"根据以下决策执行投广，调用 place_ad（top_funnel/lower_funnel/mid_funnel + 预算分）。只落地投广那段：\n\n{decision}",
+        task=(
+            "根据以下决策处理投广：若决策中包含投广动作，调用 place_ad（top_funnel/lower_funnel/mid_funnel + 预算分）"
+            "落地它；**若决策未选择投广，则不要调用任何工具**，直接说明本轮不投广。只处理投广那段：\n\n"
+            f"{decision}"
+        ),
     )
 
-    # ── 4) 团购: execute the coupon action via set_group_buy_coupon ──
+    # ── 5) 团购: land the coupon action IF the decision chose one; skipping is allowed ──
     coupon_run, _ = _step(
         "coupon", trigger="event", parent=decision_run, input={"decisionRunId": decision_run},
         tool_names=["set_group_buy_coupon"],
-        task=f"根据以下决策执行团购，调用 set_group_buy_coupon（券后价分）。只落地团购那段：\n\n{decision}",
+        task=(
+            "根据以下决策处理团购：若决策中包含团购动作，调用 set_group_buy_coupon（券后价分）落地它；"
+            "**若决策未选择团购，则不要调用任何工具**，直接说明本轮不做团购。只处理团购那段：\n\n"
+            f"{decision}"
+        ),
     )
 
     # ── 5) 运营(上下架): act on 数分's gap/stale signals — list/delist existing, or PROPOSE a gated 上架-new ──

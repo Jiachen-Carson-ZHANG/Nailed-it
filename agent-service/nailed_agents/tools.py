@@ -343,8 +343,23 @@ def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str
     return json.dumps(out, ensure_ascii=False)
 
 
+def get_style_business_decisions() -> str:
+    """Grounded per-style business decisions (ADR-0012 decision brain). For each published style: its
+    economics (profit/hour, margin), demand + conversion scores, next-week capacity fit, and the lever the
+    numbers point toward — place_ad / set_group_buy_coupon / display_only / skip — with machine signal tags,
+    plus the shared next-week capacity band. These are ADVISORY: SYNTHESISE across them + the briefing +
+    选品 trends to choose the actual actions; do NOT re-derive the numbers. Doing nothing (skip) is valid."""
+    ctx = _ctx()
+    data = bus.fetch_decisions()
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_style_business_decisions", "input": {}, "output": data}
+    )
+    return json.dumps(data, ensure_ascii=False)
+
+
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
+    get_style_business_decisions,
     get_customer_intelligence,
     get_external_trends,
     get_platform_hot,

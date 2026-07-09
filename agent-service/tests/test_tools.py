@@ -35,6 +35,8 @@ def test_registries_cover_the_same_tools():
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
         # 运营 (catalog) grounded-candidates read tool
         "get_catalog_actions",
+        # 决策 (ADR-0012) grounded decision-brain read tool
+        "get_style_business_decisions",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected

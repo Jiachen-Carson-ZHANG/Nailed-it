@@ -1713,3 +1713,26 @@ emits booking *events*, and `mockIntervalBookings` are historical → a live tes
   never across the break, no per-tech overlap (respects the `booking_no_overlap` constraint), reproducible ids.
 - Folded into `npm run seed:intelligence` — one command now seeds funnel + capacity together (cleared/reinserted
   by the `capseed-%` id prefix). Documented in the synthetic-data doc (§9b). 4 generator tests; tsc clean.
+
+## 2026-07-06 — Phase 2 B2/C/D: the agent consumes the brain and may do nothing
+
+The behavioural half of ADR-0012 — the 决策 agent stops being a two-action quota machine.
+- **B2 (the agent reads the brain).** `bus.fetch_decisions()` → `GET /api/agent/decisions`; new read tool
+  `get_style_business_decisions` (auto-registered into IMPL/BETA_TOOLS/OPENAI_TOOLS via `_FUNCTIONS`).
+  `skills/decision.md` rewritten: the brain is **advisory**, the agent **synthesises** across it + briefing +
+  选品 + capacity and picks **0..N** actions; capacity-first (don't discount a full week, don't amplify what
+  the week can't absorb); "本轮不采取投广/团购" is an explicit, valid conclusion.
+- **Un-forced the orchestrator.** The 决策 step gets the brain tool and no longer demands "两个精确动作";
+  the 投广/团购 executor steps are told to call **no tool at all** when the decision didn't choose them.
+- **D (eval).** `Scenario` gains `decisions` (+ `bus.fetch_decisions` stub) and a `no_action` expectation:
+  a correct skip makes **zero tool calls**, so `tool_ok` now treats that as success (previously "no tool
+  calls" was always a failure — which would have marked every correct skip as broken). New regression
+  `ad/full-capacity-skip`: given a decision to skip (91% utilization, weak profit/hour), the 投广 agent must
+  not call `place_ad`. `forbid` still guards against acting anyway.
+- **C (migration).** `0028_style_ad_source_run.sql` — idempotently adds `style_ad_campaign.source_run_id`
+  for databases that apply the ad tables *after* `0027` (whose ALTER is guarded and won't re-run).
+- Verified: pytest 22 green (registry-parity test updated), all service modules + the eval compile, tsc clean.
+- **Tail (needs a model + seeded DB to verify end-to-end):** the entity rewire — `set_group_buy_coupon` should
+  call `/api/agent/propose-groupbuy` and write the action with `entity_type='groupbuy_deal'`/`entity_id`
+  (status `proposed`) instead of an applied log row; `place_ad` likewise → a `StyleAd` draft (needs a
+  `proposeStyleAdAction` + route, and the ad tables applied); plus TS entity-aware undo.
