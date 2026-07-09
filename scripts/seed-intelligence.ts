@@ -19,6 +19,17 @@ import { createClient } from '@supabase/supabase-js';
 import { seedCustomers, generateSeedEvents } from '../src/mock/intelligence-seed';
 import type { Customer, NewAnalyticsEvent } from '../src/domain/analytics';
 import { demoMerchantId } from '../src/mock/merchants';
+import { mockTechnicians } from '../src/mock/technicians';
+import { mockMerchantStyles } from '../src/mock/merchant-styles';
+import { generateRollingBookings, type SeedStyle } from '../src/mock/capacity-booking-seed';
+
+const DAY_MS = 86_400_000;
+const SGT_OFFSET_MS = 8 * 3_600_000; // +08:00 demo merchant
+
+/** Next 7 local dates (YYYY-MM-DD, +08:00) from now — the capacity window the decision brain reads. */
+function nextWeekDates(nowMs: number): string[] {
+  return Array.from({ length: 7 }, (_, i) => new Date(nowMs + i * DAY_MS + SGT_OFFSET_MS).toISOString().slice(0, 10));
+}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -82,6 +93,29 @@ async function main() {
 
   const { count } = await db.from('analytics_events').select('*', { count: 'exact', head: true });
   console.log(`analytics_events total now: ${count}`);
+
+  // Fresh interval bookings for the NEXT 7 DAYS so the decision brain's capacity gate is real (not a stale,
+  // 100%-idle week). Rolling from now; reproducible (seeded). Cleared + reinserted each run by the id prefix.
+  const technicianIds = mockTechnicians.filter((t) => t.merchantId === demoMerchantId && t.active).map((t) => t.id);
+  const styles: SeedStyle[] = mockMerchantStyles
+    .filter((s) => typeof s.previewDurationMin === 'number' && s.previewDurationMin > 0)
+    .map((s) => ({ title: s.title, durationMin: s.previewDurationMin as number }));
+  const bookings = generateRollingBookings({
+    dates: nextWeekDates(Date.now()),
+    technicianIds,
+    merchantId: demoMerchantId,
+    styles,
+  });
+  const clearedBookings = await db.from('booking').delete().like('id', 'capseed-%');
+  if (clearedBookings.error) throw new Error(`clearing seeded bookings failed: ${clearedBookings.error.message}`);
+  const bookingRows = bookings.map((b) => ({
+    id: b.id, merchant_id: b.merchantId, technician_id: b.technicianId, customer_name: b.customerName,
+    style_title: b.styleTitle, style_image_url: b.styleImageUrl, start_at: b.startAt, end_at: b.endAt,
+    duration_min: b.durationMin, status: b.status, notes: 'seed:capacity',
+  }));
+  const insertedBookings = await db.from('booking').insert(bookingRows);
+  if (insertedBookings.error) throw new Error(`booking insert failed: ${insertedBookings.error.message}`);
+  console.log(`✓ inserted ${bookingRows.length} rolling next-7-day bookings (capacity)`);
 }
 
 main().catch((e) => {

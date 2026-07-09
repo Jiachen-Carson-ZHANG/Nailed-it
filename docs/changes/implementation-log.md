@@ -1703,3 +1703,13 @@ agent synthesizes across styles + briefing + capacity + the cap.
   `tools.py` wiring (call the routes; `set_group_buy_coupon`→propose semantics; new `get_style_business_decisions`;
   StyleAd draft propose) + un-force `orchestrator.py`/`decision.md` to allow `skip` + eval skip/propose
   scenarios (Slice D) + TS entity-aware undo & the `source_run_id` follow-up migration (Slice C).
+
+## 2026-07-06 — synthetic capacity data (rolling next-week bookings)
+
+The decision brain's capacity gate needs real interval bookings in the next 7 days; the funnel seed only
+emits booking *events*, and `mockIntervalBookings` are historical → a live test read the salon as 100% idle.
+- `src/mock/capacity-booking-seed.ts` — pure `generateRollingBookings` (seeded PRNG): fills `today..+6` with
+  a realistic partial load (per-tech fill varies → utilization + fragment gaps differ), inside working hours,
+  never across the break, no per-tech overlap (respects the `booking_no_overlap` constraint), reproducible ids.
+- Folded into `npm run seed:intelligence` — one command now seeds funnel + capacity together (cleared/reinserted
+  by the `capseed-%` id prefix). Documented in the synthetic-data doc (§9b). 4 generator tests; tsc clean.
