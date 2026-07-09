@@ -54,6 +54,10 @@ export type AgentAction = {
   status: ActionStatus;
   payload: Record<string, unknown>;
   createdAt: string;
+  /** The real commercial object this action produced (ADR-0012 Phase 2). Null on pre-contract rows and
+   *  actions that create no entity (e.g. a message). `entityType` mirrors migration 0027's check. */
+  entityType?: 'style_ad' | 'groupbuy_deal' | null;
+  entityId?: string | null;
 };
 
 /** One step in a run's thinking chain (the diagram's reasoning ⇄ tool ⇄ action). */

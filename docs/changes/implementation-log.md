@@ -1668,3 +1668,18 @@ agent synthesizes across styles + briefing + capacity + the cap.
 - Tests: economics (6) + funnel (4) + capacity (4) + decision-quadrants (5) = 19. tsc clean.
 - Not yet wired: the read-model action that fetches real data → these functions, and the agent/tools that
   consume the output — that is Phase 2 (which also sets the action↔entity linkage from 0a).
+
+## 2026-07-06 — Phase 2 slice A (TS contract + read model)
+
+- **A1 (contract):** `AgentAction` gains `entityType`/`entityId` (mirrors migration 0027); supabase agent
+  repo maps the new columns. Memory seed leaves them null. Type-only import avoids a domain cycle.
+- **A2 (read model):** `src/domain/decision/aggregate.ts` (pure) — `funnelCountsByStyle` (event log →
+  per-style counts; completions joined from the completed-booking set, so completionRate is real) +
+  `bookingsToBusyIntervals` (bookings are already merchant-local → capacity intervals). +2 tests.
+  `src/lib/actions/decision-actions.ts` — `getStyleBusinessDecisionsAction`: fetch published/priced styles +
+  analytics + bookings + working plans + techs → aggregate → capacity once (shared band + largest gap,
+  per-style fit = gap ≥ duration) → `decideStyles` → `{ decisions, capacity, errors }`. Per-field try/catch
+  like the 今日 read model; merchant tz + coupon floor are demo constants (envelope wiring later).
+- Verified: tsc clean; decision suite 21 tests. Remaining Phase 2: Python tools (`propose_ad`/`propose_groupbuy`
+  write entities + set linkage) + un-force orchestrator/decision.md (allow skip) + `get_style_business_decisions`
+  tool + entity-aware undo (TS) + eval skip/propose scenarios + the `source_run_id` follow-up migration.

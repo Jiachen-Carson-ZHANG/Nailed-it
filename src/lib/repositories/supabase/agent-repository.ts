@@ -33,6 +33,8 @@ interface ActionRow {
   status: string;
   payload: Record<string, unknown> | null;
   created_at: string;
+  entity_type: string | null;
+  entity_id: string | null;
 }
 
 interface RunRow {
@@ -73,6 +75,8 @@ function rowToAction(r: ActionRow): AgentAction {
     status: r.status as ActionStatus,
     payload: r.payload ?? {},
     createdAt: r.created_at,
+    entityType: (r.entity_type as AgentAction['entityType']) ?? null,
+    entityId: r.entity_id ?? null,
   };
 }
 
