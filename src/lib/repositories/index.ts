@@ -17,7 +17,7 @@ import { createMemoryMerchantStyleRepository } from './memory/merchant-style-rep
 import { createMemoryAnalyticsRepository } from './memory/analytics-repository';
 import { createMemoryCustomerRepository } from './memory/customer-repository';
 import { createMemoryAgentRepository } from './memory/agent-repository';
-import { hasSupabaseEnv } from '@/lib/db/client';
+import { usesSupabaseBackend } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
 export function createMemoryRepositoryBundle(): RepositoryBundle {
@@ -48,11 +48,7 @@ let _bundle: RepositoryBundle | null = null;
 
 export function getRepositories(): RepositoryBundle {
   if (_bundle === null) {
-    const useSupabase =
-      hasSupabaseEnv() &&
-      process.env.NODE_ENV !== 'test' &&
-      !process.env.VITEST;
-    _bundle = useSupabase ? createSupabaseRepositoryBundle() : createMemoryRepositoryBundle();
+    _bundle = usesSupabaseBackend() ? createSupabaseRepositoryBundle() : createMemoryRepositoryBundle();
   }
   return _bundle;
 }

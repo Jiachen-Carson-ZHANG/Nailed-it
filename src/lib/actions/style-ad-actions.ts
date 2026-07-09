@@ -1,0 +1,254 @@
+'use server';
+
+import type {
+  StyleAdCenterSnapshot,
+  StyleAdView,
+  PromotionGoal,
+  AudienceMode,
+  StyleAdCustomAudience,
+} from '@/domain/style-ad';
+import {
+  DEFAULT_TARGET_EXPOSURE,
+  DEFAULT_TARGET_ROI,
+  DEFAULT_DURATION_DAYS,
+  DEFAULT_CUSTOM_AUDIENCE,
+  clampTargetExposure,
+  clampDurationDays,
+  normalizeCustomAudience,
+} from '@/domain/style-ad';
+import type { MerchantStyleView } from '@/domain/merchant-style';
+import { createMerchantStyleService } from '@/lib/services/merchant-style-service';
+import { createQuoteService } from '@/lib/services/quote-service';
+import { getRepositories } from '@/lib/repositories';
+import { usesSupabaseBackend, getServiceClient } from '@/lib/db/client';
+import { getStyleMediaStorage } from '@/lib/storage';
+import { demoMerchantId } from '@/mock/merchants';
+import {
+  getMockStyleAdView,
+  mockActiveStyleAdIds,
+  mockStyleAdCenterSnapshot,
+} from '@/mock/style-ads';
+
+type StyleAdCampaignRow = {
+  id: string;
+  merchant_id: string;
+  merchant_style_id: string;
+  status: StyleAdView['status'];
+  promotion_goal: PromotionGoal;
+  target_exposure: number;
+  target_roi: number;
+  start_at: string | null;
+  daily_budget_cents: number | null;
+  duration_days: number | null;
+  audience_mode: AudienceMode;
+  custom_audience: StyleAdCustomAudience | Record<string, unknown> | null;
+  notes: string | null;
+  impressions: number;
+  clicks: number;
+  bookings: number;
+  spend_cents: number;
+  updated_at: string;
+};
+
+type LaunchStyleAdInput = {
+  styleId: string;
+  promotionGoal?: PromotionGoal;
+  targetExposure?: number;
+  targetRoi?: number;
+  startAt?: string | null;
+  durationDays?: number;
+  audienceMode?: AudienceMode;
+  customAudience?: StyleAdCustomAudience;
+  dailyBudgetCents?: number;
+  notes?: string;
+};
+
+function getMerchantStyleService() {
+  const repos = getRepositories();
+  return createMerchantStyleService(repos.merchantStyles, getStyleMediaStorage(), createQuoteService(repos));
+}
+
+function isMissingStyleAdTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String((error as { code?: string }).code) : '';
+  const message = 'message' in error ? String((error as { message?: string }).message) : '';
+  if (code === '42P01' || code === 'PGRST205') return true;
+  return /style_ad_campaign/i.test(message)
+    && /(does not exist|schema cache|could not find the table)/i.test(message);
+}
+
+async function listCampaignRows(): Promise<StyleAdCampaignRow[]> {
+  const { data, error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .select('*')
+    .eq('merchant_id', demoMerchantId)
+    .order('updated_at', { ascending: false });
+  if (error) {
+    if (isMissingStyleAdTableError(error)) return [];
+    throw new Error(`StyleAdCampaign.list failed: ${error.message}`);
+  }
+  return (data ?? []) as StyleAdCampaignRow[];
+}
+
+async function getCampaignRow(styleId: string): Promise<StyleAdCampaignRow | null> {
+  const { data, error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .select('*')
+    .eq('merchant_id', demoMerchantId)
+    .eq('merchant_style_id', styleId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingStyleAdTableError(error)) return null;
+    throw new Error(`StyleAdCampaign.get failed: ${error.message}`);
+  }
+  return data as StyleAdCampaignRow | null;
+}
+
+async function upsertCampaignRow(input: Required<LaunchStyleAdInput>): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .upsert(
+      {
+        id: `ad-${input.styleId}`,
+        merchant_id: demoMerchantId,
+        merchant_style_id: input.styleId,
+        status: 'active',
+        promotion_goal: input.promotionGoal,
+        target_exposure: input.targetExposure,
+        target_roi: input.targetRoi,
+        start_at: input.startAt,
+        daily_budget_cents: input.dailyBudgetCents,
+        duration_days: input.durationDays,
+        audience_mode: input.audienceMode,
+        custom_audience: input.customAudience,
+        notes: input.notes,
+        updated_at: now,
+      },
+      { onConflict: 'merchant_id,merchant_style_id' },
+    );
+  if (error) {
+    if (isMissingStyleAdTableError(error)) {
+      throw new Error('style_ad_campaign_table_missing');
+    }
+    throw new Error(`StyleAdCampaign.launch failed: ${error.message}`);
+  }
+}
+
+function campaignToView(style: MerchantStyleView | null, campaign: StyleAdCampaignRow | null): StyleAdView | null {
+  if (!style || style.status !== 'published') return null;
+  return {
+    id: campaign?.id ?? `ad-draft-${style.id}`,
+    styleId: style.id,
+    styleTitle: style.title,
+    styleImageUrl: style.imageUrl,
+    status: campaign?.status ?? 'draft',
+    promotionGoal: campaign?.promotion_goal ?? 'homepage_exposure',
+    targetExposure: campaign?.target_exposure ?? DEFAULT_TARGET_EXPOSURE,
+    targetRoi: Number(campaign?.target_roi ?? DEFAULT_TARGET_ROI),
+    startAt: campaign?.start_at ?? null,
+    durationDays: campaign?.duration_days ?? DEFAULT_DURATION_DAYS,
+    audienceMode: campaign?.audience_mode ?? 'smart',
+    customAudience: normalizeCustomAudience(campaign?.custom_audience),
+    dailyBudgetCents: campaign?.daily_budget_cents ?? null,
+    notes: campaign?.notes ?? '',
+    updatedAt: campaign?.updated_at ?? style.updatedAt,
+  };
+}
+
+export async function listActiveStyleAdIdsAction(): Promise<string[]> {
+  if (usesSupabaseBackend()) {
+    const rows = await listCampaignRows();
+    return rows.filter((row) => row.status === 'active').map((row) => row.merchant_style_id);
+  }
+  return [...mockActiveStyleAdIds];
+}
+
+export async function getStyleAdCenterSnapshotAction(): Promise<StyleAdCenterSnapshot> {
+  if (usesSupabaseBackend()) {
+    const [styles, campaigns] = await Promise.all([
+      getMerchantStyleService().listMerchant(demoMerchantId),
+      listCampaignRows(),
+    ]);
+    const styleById = new Map(styles.map((style) => [style.id, style]));
+    const summaries = campaigns.flatMap((campaign) => {
+      const style = styleById.get(campaign.merchant_style_id);
+      if (!style || style.status !== 'published') return [];
+      return [{
+        id: campaign.id,
+        styleId: style.id,
+        styleTitle: style.title,
+        styleImageUrl: style.imageUrl,
+        status: campaign.status,
+        dailyBudgetCents: campaign.daily_budget_cents,
+        impressions: campaign.impressions,
+        clicks: campaign.clicks,
+        bookings: campaign.bookings,
+        spendCents: campaign.spend_cents,
+        updatedAt: campaign.updated_at,
+      }];
+    });
+    return {
+      activeCampaigns: summaries.filter((row) => row.status === 'active').length,
+      totalImpressions: summaries.reduce((sum, row) => sum + row.impressions, 0),
+      totalClicks: summaries.reduce((sum, row) => sum + row.clicks, 0),
+      totalBookings: summaries.reduce((sum, row) => sum + row.bookings, 0),
+      totalSpendCents: summaries.reduce((sum, row) => sum + row.spendCents, 0),
+      campaigns: summaries,
+    };
+  }
+  return structuredClone(mockStyleAdCenterSnapshot);
+}
+
+export async function getStyleAdAction(styleId: string): Promise<StyleAdView | null> {
+  if (usesSupabaseBackend()) {
+    const [style, campaign] = await Promise.all([
+      getMerchantStyleService().getMerchant(demoMerchantId, styleId),
+      getCampaignRow(styleId),
+    ]);
+    return campaignToView(style, campaign);
+  }
+  const view = getMockStyleAdView(styleId);
+  return view ? structuredClone(view) : null;
+}
+
+export async function launchStyleAdAction(input: LaunchStyleAdInput): Promise<StyleAdView> {
+  const payload: Required<LaunchStyleAdInput> = {
+    styleId: input.styleId,
+    promotionGoal: input.promotionGoal ?? 'homepage_exposure',
+    targetExposure: clampTargetExposure(input.targetExposure ?? DEFAULT_TARGET_EXPOSURE),
+    targetRoi: input.targetRoi ?? DEFAULT_TARGET_ROI,
+    startAt: input.startAt ?? null,
+    durationDays: clampDurationDays(input.durationDays ?? DEFAULT_DURATION_DAYS),
+    audienceMode: input.audienceMode ?? 'smart',
+    customAudience: normalizeCustomAudience(input.customAudience ?? DEFAULT_CUSTOM_AUDIENCE),
+    dailyBudgetCents: input.dailyBudgetCents ?? 3500,
+    notes: input.notes ?? '',
+  };
+
+  if (usesSupabaseBackend()) {
+    const style = await getMerchantStyleService().getMerchant(demoMerchantId, payload.styleId);
+    if (!style || style.status !== 'published') throw new Error('merchant_style_not_publishable_for_ads');
+    await upsertCampaignRow(payload);
+    const campaign = await getCampaignRow(payload.styleId);
+    const view = campaignToView(style, campaign);
+    if (!view) throw new Error('style_ad_not_found_after_launch');
+    return view;
+  }
+
+  const view = getMockStyleAdView(payload.styleId);
+  if (!view) throw new Error('merchant_style_not_publishable_for_ads');
+  return {
+    ...structuredClone(view),
+    status: 'active',
+    promotionGoal: payload.promotionGoal,
+    targetExposure: payload.targetExposure,
+    targetRoi: payload.targetRoi,
+    startAt: payload.startAt,
+    durationDays: payload.durationDays,
+    audienceMode: payload.audienceMode,
+    customAudience: payload.customAudience,
+    dailyBudgetCents: payload.dailyBudgetCents,
+    notes: payload.notes,
+  };
+}
