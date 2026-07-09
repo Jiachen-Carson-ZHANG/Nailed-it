@@ -14,6 +14,7 @@ import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booki
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import type { AnalyticsEvent, Customer, NewAnalyticsEvent } from '@/domain/analytics';
 import type { Agent, AgentAction, AgentActionType, AgentRunView, ActionStatus } from '@/domain/agents';
+import type { GroupbuyDealRecord, GroupbuyStatus } from '@/domain/groupbuy';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -188,6 +189,17 @@ export interface AgentRepository {
   ): Promise<AgentAction[]>;
 }
 
+/** Group-buy deals (ADR-0012 Phase 0a) — merchant-scoped, relational catalog items, real persistence
+ *  (was browser localStorage). Status transitions are validated against action-entity-contract. */
+export interface GroupbuyRepository {
+  listByMerchant(merchantId: string): Promise<GroupbuyDealRecord[]>;
+  getByIdForMerchant(id: string, merchantId: string): Promise<GroupbuyDealRecord | null>;
+  /** Upsert a draft or published deal (its items are replaced atomically). */
+  save(record: GroupbuyDealRecord): Promise<GroupbuyDealRecord>;
+  /** Move a deal along its lifecycle (draft→published→unlisted→relist); null if not found or illegal. */
+  setStatus(id: string, merchantId: string, status: GroupbuyStatus): Promise<GroupbuyDealRecord | null>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -205,4 +217,5 @@ export interface RepositoryBundle {
   analytics: AnalyticsRepository;
   customers: CustomerRepository;
   agents: AgentRepository;
+  groupbuy: GroupbuyRepository;
 }

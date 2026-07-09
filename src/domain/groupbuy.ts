@@ -28,6 +28,24 @@ export type GroupbuyDeal = {
   updatedAt: string;
 };
 
+/** Repository-facing record: the UI-facing GroupbuyDeal plus the fields the persistence layer owns —
+ *  merchant scope, a currency snapshot (audit: historical deals keep their meaning), and the run that
+ *  proposed it (null = merchant-authored). The bare GroupbuyDeal stays the UI/wizard shape. */
+export type GroupbuyDealRecord = GroupbuyDeal & {
+  merchantId: string;
+  currency: string;
+  sourceRunId: string | null;
+};
+
+export function toGroupbuyRecord(
+  deal: GroupbuyDeal,
+  merchantId: string,
+  currency = 'SGD',
+  sourceRunId: string | null = null,
+): GroupbuyDealRecord {
+  return { ...deal, merchantId, currency, sourceRunId };
+}
+
 export function createDefaultGroupbuyDraft(now = new Date()): GroupbuyDeal {
   const timestamp = now.toISOString();
   return {

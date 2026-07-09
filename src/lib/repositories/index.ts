@@ -17,6 +17,7 @@ import { createMemoryMerchantStyleRepository } from './memory/merchant-style-rep
 import { createMemoryAnalyticsRepository } from './memory/analytics-repository';
 import { createMemoryCustomerRepository } from './memory/customer-repository';
 import { createMemoryAgentRepository } from './memory/agent-repository';
+import { createMemoryGroupbuyRepository } from './memory/groupbuy-repository';
 import { usesSupabaseBackend } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
@@ -41,6 +42,7 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     analytics: createMemoryAnalyticsRepository(),
     customers: createMemoryCustomerRepository(),
     agents: createMemoryAgentRepository(),
+    groupbuy: createMemoryGroupbuyRepository(),
   };
 }
 

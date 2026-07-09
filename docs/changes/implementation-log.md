@@ -1625,3 +1625,25 @@ Followed up the deferred Phase-6 contrast item as a global design-token addition
 - Verified: tsc clean; 38/38 on the touched suites; full suite 24 failed / 472 passed — **failure count
   unchanged from baseline (no regression)**, +7 passing from new/updated tests; `/merchant/calendar` 200 on
   a clean dev server.
+
+## 2026-07-06 — merged origin/main + ADR-0012 accepted + Phase 0a (action↔entity contract)
+
+- Reconciled `feat/persistence-p0` with `origin/main` (was 4 behind / 16 ahead): pulled in the **StyleAd
+  ad-campaign subsystem** (center `/merchant/ads` + per-style editor, migrations 0022–0025). One conflict
+  (`repositories/index.ts`); renumbered the colliding `0023_style_concept → 0026`. tsc clean, no test
+  regression. Consequence: the 投广 UI + ad entity already exist — remaining work is linkage + brain + 团购.
+- ADR-0012 accepted: **brain = per-style advisory tool, agent = multi-tool loop + cross-signal synthesis,
+  no single tool returns "the answer."** Ads: auto-launch within the merchant cap (withdrawable daily-drip),
+  gate above. Entity linkage + relational groupbuy items + state machine + eval + currency snapshot folded in.
+- **Phase 0a (schema/repos/state-machine, no UI behavior change):**
+  - Migration `0027_action_entity_contract.sql`: `agent_actions` gains `entity_type`+`entity_id` (polymorphic
+    forward link); `style_ad_campaign` gains `source_run_id` (guarded — the ad tables aren't on every DB);
+    new `groupbuy_deal` (cents + currency snapshot, JSONB policy fields, `source_run_id`) + relational
+    `groupbuy_deal_item` (FK catalog_item, quantity, position — mirrors `merchant_style_item`). Idempotent.
+  - `domain/action-entity-contract.ts`: legal entity transitions + the coarse entity→action-status mirror.
+  - `GroupbuyRepository` seam: interface + memory impl (seeded from the demo deals, merchant-scoped,
+    transitions validated) + supabase impl (record ↔ deal+items, cents conversion) + both bundles wired.
+    Domain gains a `GroupbuyDealRecord` wrapper (merchantId/currency/sourceRunId) — the UI-facing
+    `GroupbuyDeal` is unchanged, so the localStorage path + panels still work (rewire is Phase 0b).
+  - Tests: action-entity-contract (4) + memory groupbuy repo (3). Migration is applied manually (the demo DB
+    lacked the ad tables → `style_ad_campaign` ALTER guarded).
