@@ -1,6 +1,6 @@
 # ADR-0012 — Agent action contract (proposals + real entities) + deterministic decision brain
 
-Status: Proposed · 2026-07-06
+Status: Accepted · 2026-07-06
 
 ## Context
 
@@ -35,30 +35,43 @@ Fix the **action contract boundary first**, then add the deterministic brain, th
    The agent tools become `propose_ad` / `propose_groupbuy` (write the entity in a proposed/draft state),
    not an applied `agent_actions` log row that pretends the effect happened.
 
-2. **Auto-apply within a merchant budget envelope** (not a per-action gate, not raw no-guardrail). The
-   merchant sets policy once in 投广管理: weekly ad-spend cap · default ROI target · max per-ad budget
-   (coupons: min profit-per-hour floor · max discount %). The agent **auto-applies inside the envelope**
-   (closed-loop autonomy) and **proposes when it would exceed it**. Control is policy, not nagging; the
-   merchant's money is never spent past a cap they set.
+2. **Auto-launch within a merchant budget envelope; gate above it.** The merchant sets policy once in
+   投广中心: weekly ad-spend cap · default ROI target · max per-campaign budget (coupons: min profit-per-hour
+   floor · max discount %). **Inside the cap → the agent auto-launches** the `StyleAd` (active) — safe
+   because ad spend is a **daily drip** (`dailyBudgetCents × days`) and **withdrawable** (StyleAd already
+   has pause/stop), so worst-case loss is bounded and stoppable going forward. **Above the cap → it proposes
+   a draft** the merchant launches in the center. Coupons follow the same logic (reversible → auto-publish
+   inside the floor, propose outside). Control is policy, not per-action nagging; money is never spent past
+   a cap the merchant set.
 
 3. **The agent may do nothing.** Remove the "exactly two actions" force from `orchestrator.py` +
    `decision.md`. The decision output is per style: `ad | coupon | display_only | skip`.
 
-4. **Deterministic decision brain** (`styleBusinessDecision` read model, compute-on-read per ADR-0006/0011).
-   Pure, testable: **economics** (contribution profit, revenue/hour, profit/hour, break-even coupon price),
-   **funnel** scores from `analytics_events`, **capacity** from the *full* scheduling kernel (working plans,
-   breaks, blocked time, cancelled-booking exclusion, staff duration overrides, style duration, timezone,
-   **fragment-fit**), the **4 scores** (Business Value / Demand / Conversion / Capacity-Fit), and the rule
-   engine → per-style recommendation + reason + expected impact + risk. The 决策 agent **consumes** this
-   output for narrative and to fire tools; it never re-derives the math (numbers are computed, not guessed).
+4. **The decision brain is a per-style advisory TOOL, not the decider.** `styleBusinessDecision`
+   (compute-on-read, ADR-0006/0011) is pure and testable: **economics** (contribution profit, revenue/hour,
+   profit/hour, break-even coupon price), **funnel** scores from `analytics_events`, **capacity** from the
+   *full* scheduling kernel (working plans, breaks, blocked time, cancelled-booking exclusion, staff duration
+   overrides, style duration, timezone, **fragment-fit**), the **4 scores**, and a rule engine → per-style
+   `{economics, scores, the lever the economics point toward, expected impact, risk}`. It answers *"is THIS
+   style worth amplifying/discounting, and how"* — it does **not** conclude what to do. Numbers are computed,
+   never LLM-guessed.
 
-5. **Cost model.** `contribution = price − variable_cost − platform_fee`, with
+5. **The agent is a multi-tool loop + cross-signal synthesis — that is its entire value.** A single LLM call
+   is not an agent; a deterministic rule is not an agent. The agent is real only because it **loops over
+   tools** (the brain-tool + 数分 briefing + 选品 trends + monitor's actual lift, across many styles) and
+   answers the question **no single tool holds**: *given this week's cap, alerts, capacity conflicts between
+   styles competing for the same technician-hours, and what last round taught it — which styles to act on,
+   in what order, within budget.* Design rule that keeps the loop non-cosmetic: **no single tool returns
+   "the answer."** The brain is deliberately per-style and advisory; the portfolio/timing/allocation decision
+   requires synthesis. Fixed stages (insight→trend→decide→execute→monitor), free tool choice within a stage.
+
+6. **Cost model.** `contribution = price − variable_cost − platform_fee`, with
    `variable_cost = price × VARIABLE_COST_RATE` (config, ~0.15, optional per-style override) and
    `platform_fee = price × PLATFORM_FEE_RATE` (config, flagged assumption). No `payment_fee` (payment is
    off-spec). A flat % is accurate enough for ranking, which is all the decision needs; nail economics is
    dominated by time, not material.
 
-6. **Entity-aware reversibility.** Undo/stop acts on the real entity (stop the `ad`, unlist the
+7. **Entity-aware reversibility.** Undo/stop acts on the real entity (stop the `StyleAd`, unlist the
    `groupbuy_deal`) transactionally with the `agent_actions` status, and stays honest: already-spent ad
    budget and already-sent messages are not "undoable" (ADR-0011).
 
@@ -66,7 +79,9 @@ Fix the **action contract boundary first**, then add the deterministic brain, th
 
 - Model the real commercial object, not a log of intentions; the UI and controls are functions of it.
 - The merchant controls the money through policy guardrails set once, not per-action friction.
-- Deterministic math + LLM narrative; the agent decides *whether/what to say*, not *what the numbers are*.
+- Determinism lives in the **tools** (grounded facts); the **decision** lives in the agent's multi-tool
+  synthesis. **No single tool returns "the answer"** — else it's a rule with a narrator, not an agent. A
+  single LLM call is not an agent; a deterministic rule is not an agent; the tool-loop is what earns the name.
 - Doing nothing is a first-class outcome.
 
 ## Alternatives considered
@@ -91,6 +106,41 @@ moves off `localStorage` (a data migration for any existing local drafts is out 
 `orchestrator.py` + `decision.md` rewritten; a new 投广管理 tab; money must use merchant currency; the global
 `.button-compact` (36px) needs to reach 44px. Real 美团 ad spend/ROAS is **simulated** until a platform ad
 API exists; `PLATFORM_FEE_RATE` is an assumption until confirmed.
+
+## Amendments (2026-07-06 — post-merge with `origin/main` + audit)
+
+Merging `origin/main` revealed a **StyleAd ad-campaign subsystem already shipped** (center `/merchant/ads` +
+per-style editor + entity + migrations 0023–0025). This supersedes parts of the Decision above:
+
+- **Ride the existing entities; do not build a parallel `ad` table.** Decision §1's "ad entity" is satisfied
+  by `StyleAd` (status `draft→active→paused→ended`, targets, budget, spend). 团购 still needs its own move
+  off `localStorage` — mirror StyleAd's repo/table pattern.
+- **Ads already have a merchant gate** (draft → *launch* → active) plus pause/stop. This makes Decision §2
+  concrete and safe: **inside the cap the agent auto-launches** (bounded, withdrawable daily-drip spend);
+  **above the cap it proposes a draft** the merchant launches in the center. The built lifecycle *is* the
+  gate — no new gate needed.
+- **Action ↔ entity linkage (audit High).** `agent_actions` today has no entity reference. Add
+  `entity_type` + `entity_id` (or a typed payload contract) on `agent_actions`, and `source_run_id` on
+  `StyleAd` / `GroupbuyDeal`, so undo / monitor / surfaces can find the real object. Undo acts transactionally
+  on the entity (pause the `StyleAd`, unlist the `GroupbuyDeal`), not just the action status.
+- **Group-buy items go relational (audit High).** Add `groupbuy_deal_item` (FK `catalog_item`, quantity,
+  position), mirroring `merchant_style_item`; keep JSONB only for policy fields (availability windows). Also
+  strengthen `groupbuy.ts` date/time validation (end>start, sale window, weekday, working-hours overlap).
+- **State machine (audit Medium).** Define the exact map between `StyleAd.status` / `groupbuy_deal.status`
+  and `agent_actions.status` (proposed / approved / applied / undone) before implementation.
+- **Capacity duration policy (audit Medium).** `quoteService` duration varies by technician; the decision
+  brain must pick one policy (merchant-default duration, or best-fit-technician duration) for fragment-fit.
+- **Eval (audit Medium).** Add non-action (`skip` / `display_only`) scenarios and `propose_*` target-field
+  grounding to `agent-service/eval/agents_eval.py` (which currently fails on "no tool calls").
+- **Currency snapshot (audit Medium).** Store cents **plus** currency on ad/deal/policy at decision time so
+  historical actions don't change meaning if the merchant currency changes.
+- **Phase 0 split (audit High).** 0a schema/repos/state-machine → 0b linkage with no UI behavior change →
+  Phase 1 deterministic brain → Phase 2 tools/orchestrator. Avoids new tools relying on LLM judgment before
+  the PM math exists.
+
+**Accepted 2026-07-06** after the division-of-labor brainstorm resolved the agent ↔ brain boundary
+(Decision §5: brain = advisory tool, agent = tool-loop + synthesis, no single tool returns the answer) and
+the ad-spend model (Decision §2: auto-launch within cap + withdrawable, gate above).
 
 ## References
 
