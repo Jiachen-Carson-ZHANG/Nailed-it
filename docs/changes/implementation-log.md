@@ -1683,3 +1683,18 @@ agent synthesizes across styles + briefing + capacity + the cap.
 - Verified: tsc clean; decision suite 21 tests. Remaining Phase 2: Python tools (`propose_ad`/`propose_groupbuy`
   write entities + set linkage) + un-force orchestrator/decision.md (allow skip) + `get_style_business_decisions`
   tool + entity-aware undo (TS) + eval skip/propose scenarios + the `source_run_id` follow-up migration.
+
+## 2026-07-06 — Phase 2 slice B (TS): group-buy terms parser + propose path
+
+- `domain/groupbuy-validation.ts` (pure, audit #4): one `validateGroupbuyDeal` parser (end>start, discount ≤
+  original, sale window, low-peak availability HH:mm ranges, positive quantity; `requirePublishable` adds
+  title + ≥1 service). Shared by the propose path (draft-level) + the wizard (publishable) so an
+  agent-created deal can't persist nonsense. +5 tests.
+- `actions/groupbuy-actions.ts` — `proposeGroupbuyDealAction(deal, sourceRunId)`: validate → persist a real
+  DRAFT via the repo seam with `sourceRunId` → return it. The Python tool calls this then writes the
+  agent_action with `entityId = deal.id` (the forward link); the merchant reviews/publishes in 团购管理.
+  +2 tests (memory bundle).
+- Verified: tsc clean, 7 new tests. Remaining Slice B (Python, model/DB-dependent, done together): `bus.write_action`
+  entity_type/entity_id params → API routes (`/api/agent/decisions`, `/api/agent/propose-groupbuy`) → tools.py
+  wiring + `get_style_business_decisions` + StyleAd draft propose + un-force orchestrator/decision.md, then
+  eval (Slice D) + entity-aware undo & `source_run_id` follow-up migration (Slice C).
