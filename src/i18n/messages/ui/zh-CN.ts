@@ -310,7 +310,7 @@ const zhCNMessages = {
   'nav.customer.booking': '预约',
   'nav.customer.messages': '消息',
   'nav.customer.profile': '我的',
-  'nav.merchant.calendar': '日历',
+  'nav.merchant.calendar': '今日',
   'nav.merchant.manage': '管理',
   'nav.merchant.messages': '消息',
   'nav.merchant.profile': '我的',

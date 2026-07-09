@@ -151,7 +151,9 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
             {run.actions.map((a) => {
               const isApproved = a.status === 'approved' || approved.has(a.id);
               const isRejected = rejected.has(a.id) || (a.status === 'undone' && a.risk === 'irreversible');
-              const isProposed = !isApproved && !isRejected && (a.status === 'proposed' || a.risk === 'irreversible');
+              // The approve/reject gate is the *proposed* state only — never `risk` (an applied irreversible
+              // action like a sent message is done, not a pending gate). Risk decides undo eligibility below.
+              const isProposed = !isApproved && !isRejected && a.status === 'proposed';
               const isUndone = a.status === 'undone' || undone.has(a.id);
               return (
                 <li key={a.id} className="agent-action-row">

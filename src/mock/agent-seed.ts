@@ -264,7 +264,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
           runId: customerOpsRunId,
           merchantId: demoMerchantId,
           type: 'send_customer_message',
-          risk: 'reversible',
+          risk: 'irreversible', // a sent message can't be un-sent → view-only, no undo (matches tools.py)
           status: 'applied',
           payload: { customerName: 'Melissa Tan', body: '好久没见啦～你上次的裸色法式很衬你，这周新到一批同系列，要不要再约一次？' },
           createdAt: iso(2 * DAY - 22_000),

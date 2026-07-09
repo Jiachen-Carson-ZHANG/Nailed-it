@@ -301,14 +301,17 @@ def propose_listing(gap_tag: str, reason: str) -> str:
 
 def send_customer_message(customer_name: str, body: str) -> str:
     """Send a re-engagement / acquisition message to a customer as the boss (老板), with an AI note.
-    Reversible — the merchant can retract it. customer_name: from the roster; body: the message text.
+    IRREVERSIBLE — once sent, a message cannot be un-sent, so the UI must not offer an undo (it shows
+    view-only). customer_name: from the roster; body: the message text.
     No style-card attachment: there is no grounded per-customer recommendation source yet, so we don't let
     the model invent a style id — add a grounded recommendation tool before re-introducing style_id."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
     body = _clean_text(body, field="body")
     payload = {"customerName": customer_name, "body": body}
-    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload)
+    bus.write_action(
+        ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
+    )
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "send_customer_message", "input": payload, "output": {"sent": True}}
     )
@@ -316,7 +319,7 @@ def send_customer_message(customer_name: str, body: str) -> str:
         {"kind": "action", "actionType": "send_customer_message", "status": "applied",
          "summary": f"发送消息（以老板身份）：→ {customer_name}"}
     )
-    return f"Message sent to {customer_name} as boss (reversible)."
+    return f"Message sent to {customer_name} as boss (irreversible — cannot be un-sent)."
 
 
 # ── registries: ONE list of functions → two backend representations + the executable impls ───────

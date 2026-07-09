@@ -40,7 +40,8 @@ describe('memory AgentRepository', () => {
   it('setActionStatus undoes a reversible action (panel one-click undo)', async () => {
     const repo = mk();
     const runs = await repo.listRuns(demoMerchantId);
-    const action = runs.flatMap((r) => r.actions)[0];
+    // Pick a genuinely reversible applied action — an irreversible one (e.g. a sent message) must NOT undo.
+    const action = runs.flatMap((r) => r.actions).find((a) => a.status === 'applied' && a.risk === 'reversible')!;
     expect(action.status).toBe('applied');
 
     const updated = await repo.setActionStatus(action.id, demoMerchantId, 'undone');
@@ -48,6 +49,14 @@ describe('memory AgentRepository', () => {
 
     const after = await repo.getRun(action.runId);
     expect(after?.actions.find((a) => a.id === action.id)?.status).toBe('undone');
+  });
+
+  it('refuses to undo an irreversible applied action (a sent message cannot be un-sent)', async () => {
+    const repo = mk();
+    const runs = await repo.listRuns(demoMerchantId);
+    const msg = runs.flatMap((r) => r.actions).find((a) => a.type === 'send_customer_message')!;
+    expect(msg.risk).toBe('irreversible');
+    expect(await repo.setActionStatus(msg.id, demoMerchantId, 'undone')).toBeNull();
   });
 
   it('surfaces the gated 上架 proposal and approves it (the one human gate, ADR-0007 §4)', async () => {
@@ -77,11 +86,11 @@ describe('memory AgentRepository', () => {
     expect(await repo.setActionStatus(proposal.id, demoMerchantId, 'applied')).toBeNull();
   });
 
-  it('customer-ops run carries a reversible boss-message action', async () => {
+  it('customer-ops run carries an irreversible boss-message action (a sent message cannot be un-sent)', async () => {
     const runs = await mk().listRuns(demoMerchantId);
     const co = runs.find((r) => r.agentSlug === 'customer_ops');
     expect(co?.actions[0]?.type).toBe('send_customer_message');
-    expect(co?.actions[0]?.risk).toBe('reversible');
+    expect(co?.actions[0]?.risk).toBe('irreversible');
   });
 
   it('listActions filters by type + status for the in-context surfaces', async () => {

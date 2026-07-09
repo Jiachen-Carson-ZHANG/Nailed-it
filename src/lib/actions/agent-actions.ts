@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { getRepositories } from '@/lib/repositories';
 import { demoMerchantId } from '@/mock/merchants';
-import { agentActionTypes, type Agent, type AgentAction, type AgentActionType, type AgentRunView } from '@/domain/agents';
+import { agentActionTypes, deriveRunDetail, type Agent, type AgentAction, type AgentActionType, type AgentRunDetail, type AgentRunView } from '@/domain/agents';
 
 /** The agent team definitions for the panel. */
 export async function listAgentsAction(): Promise<Agent[]> {
@@ -19,6 +19,13 @@ export async function listAgentRunsAction(): Promise<AgentRunView[]> {
 
 export async function getAgentRunAction(id: string): Promise<AgentRunView | null> {
   return getRepositories().agents.getRun(id);
+}
+
+/** A run + its upstream/downstream lineage — powers the 今日 home reasoning drill-down (Phase 3). One
+ *  read (listRuns returns full views) fed to the pure `deriveRunDetail`; lineage stays deterministic. */
+export async function getAgentRunDetailAction(runId: string): Promise<AgentRunDetail | null> {
+  const runs = await getRepositories().agents.listRuns(demoMerchantId);
+  return deriveRunDetail(runId, runs);
 }
 
 /** One-click undo for a reversible action (ADR-0007). Flips status → 'undone'. */

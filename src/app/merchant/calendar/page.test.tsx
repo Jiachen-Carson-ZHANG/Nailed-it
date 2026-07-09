@@ -1,14 +1,16 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import { resetRepositoriesForTests } from '@/lib/repositories';
-import { createBookingAction } from '@/lib/actions/booking-actions';
 import {
   merchantEntryHintPendingKey,
   merchantEntryHintSeenKey
 } from '@/lib/merchant-entry-hint';
-import { mockAIResult } from '@/mock/ai';
-import MerchantCalendarPage from './page';
+import MerchantHomePage from './page';
+
+// /merchant/calendar is now the 今日 agent-ops home (renders <TodayHome/> + the first-run entry hint).
+// The full calendar behavior lives in ./schedule/page.test.tsx. The home's compute is unit-tested in
+// src/domain/merchant-home.test.ts; here we cover the page shell + the onboarding hint.
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/merchant/calendar',
@@ -24,11 +26,11 @@ vi.mock('@/components/ui/Toast', () => ({
   Toast: ({ message }: { message: string }) => (message ? <div role="status">{message}</div> : null)
 }));
 
-describe('MerchantCalendarPage', () => {
+describe('MerchantHomePage (今日 home)', () => {
   async function renderPage(language: 'zh-CN' | 'en' = 'en') {
     render(
       <LanguageProvider initialLanguage={language} role="merchant">
-        <MerchantCalendarPage />
+        <MerchantHomePage />
       </LanguageProvider>
     );
     await act(async () => {
@@ -40,8 +42,6 @@ describe('MerchantCalendarPage', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-06T12:00:00Z'));
     window.localStorage.clear();
-    // The calendar now reads bookings from the repository-backed booking service; reset the
-    // in-memory bundle so each test starts from the derived demo seed (booking-001..004).
     resetRepositoriesForTests();
   });
 
@@ -49,18 +49,12 @@ describe('MerchantCalendarPage', () => {
     vi.useRealTimers();
   });
 
-  it('shows the live current date button and month view by default', async () => {
+  it('renders the 今日 home (agent-first), not the calendar heading', async () => {
     await renderPage();
 
-    expect(
-      screen.getByRole('heading', { name: /appointment calendar/i })
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole('button', { name: '2026/06/06' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /month/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /day/i })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('region', { name: /june 2026 — spots left per day/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /sat, 6 jun/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^today$/i })).toBeInTheDocument();
+    // The full calendar heading must not be on the home anymore — it moved to /schedule.
+    expect(screen.queryByRole('heading', { name: /appointment calendar/i })).not.toBeInTheDocument();
   });
 
   it('shows the onboarding hint once after arriving from the landing merchant entry', async () => {
@@ -83,97 +77,5 @@ describe('MerchantCalendarPage', () => {
       screen.queryByText('欢迎入驻！新手商家请先前往下方管理页面设置并保存价目表哦～')
     ).not.toBeInTheDocument();
     expect(window.localStorage.getItem(merchantEntryHintPendingKey)).toBeNull();
-  });
-
-  it('does not render the top subtitle in either language', async () => {
-    await renderPage('en');
-    expect(screen.queryByText('Your daily schedule.')).not.toBeInTheDocument();
-
-    render(
-      <LanguageProvider initialLanguage="zh-CN" role="merchant">
-        <MerchantCalendarPage />
-      </LanguageProvider>
-    );
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-    expect(screen.queryByText('每日排期一览')).not.toBeInTheDocument();
-  });
-
-  it('switches to the day view for the selected calendar date', async () => {
-    await renderPage();
-
-    fireEvent.change(screen.getByLabelText(/choose calendar date/i), {
-      target: { value: '2026-05-24' }
-    });
-    fireEvent.click(screen.getByRole('button', { name: /24 may, \d+ spots left/i }));
-    fireEvent.click(screen.getByRole('tab', { name: /day/i }));
-
-    expect(
-      screen.getByRole('heading', { name: /sun.*24 may.*\d+ spots left/i })
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /11:00 · zoe wong/i })).toHaveAttribute(
-      'href',
-      '/merchant/booking/booking-003'
-    );
-    expect(screen.queryByRole('region', { name: /may 2026 — spots left per day/i })).not.toBeInTheDocument();
-  });
-
-  it('changes the visible month and day schedule when the date input changes', async () => {
-    await renderPage();
-
-    fireEvent.change(screen.getByLabelText(/choose calendar date/i), {
-      target: { value: '2026-05-23' }
-    });
-
-    expect(screen.getByRole('button', { name: '2026/05/23' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /may 2026 — spots left per day/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: /day/i }));
-
-    expect(
-      screen.getByRole('heading', { name: /sat.*23 may.*\d+ spots left/i })
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /14:00 · melissa tan/i })).toHaveAttribute(
-      'href',
-      '/merchant/booking/booking-001'
-    );
-  });
-
-  it('shows the empty state for a live date with no bookings', async () => {
-    await renderPage();
-
-    fireEvent.click(screen.getByRole('tab', { name: /day/i }));
-
-    expect(
-      screen.getByRole('heading', { name: /sat.*6 jun.*\d+ spots left/i })
-    ).toBeInTheDocument();
-    expect(screen.getByText(/no bookings yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /·/i })).not.toBeInTheDocument();
-  });
-
-  it('shows a newly created booking once it is written through the booking service', async () => {
-    // tech-anna is free on 2026-05-23 (her seed booking is on 05-24) and opens at 11:00; create-time
-    // availability enforces working hours. Identity is server-derived to the demo customer (Melissa).
-    await createBookingAction({
-      technicianId: 'tech-anna',
-      recognition: mockAIResult,
-      styleTitle: 'Custom AI reference',
-      styleImageUrl: '',
-      date: '2026-05-23',
-      time: '11:00',
-      notes: 'from confirm flow'
-    });
-
-    await renderPage();
-
-    fireEvent.change(screen.getByLabelText(/choose calendar date/i), {
-      target: { value: '2026-05-23' }
-    });
-    fireEvent.click(screen.getByRole('button', { name: /23 may, \d+ spots left/i }));
-    fireEvent.click(screen.getByRole('tab', { name: /day/i }));
-
-    const schedule = screen.getByRole('region', { name: /schedule for 2026-05-23/i });
-    expect(within(schedule).getByRole('link', { name: /11:00 · melissa tan/i })).toBeInTheDocument();
   });
 });

@@ -127,7 +127,7 @@ const enMessages = {
   'nav.customer.booking': 'Book',
   'nav.customer.messages': 'Messages',
   'nav.customer.profile': 'Me',
-  'nav.merchant.calendar': 'Calendar',
+  'nav.merchant.calendar': 'Today',
   'nav.merchant.manage': 'Manage',
   'nav.merchant.messages': 'Messages',
   'nav.merchant.profile': 'Me',

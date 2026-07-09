@@ -89,3 +89,25 @@ export type NewAgentAction = Omit<AgentAction, 'id'> & { id?: string };
 export function isAgentSlug(value: string): value is AgentSlug {
   return (agentSlugs as readonly string[]).includes(value);
 }
+
+// ── run lineage (the 今日 home reasoning drill-down, Phase 3) ─────────────────────
+
+/** A lightweight reference to a related run — what the lineage chips render (no transcript). */
+export type RunRef = { id: string; agentName: string; agentSlug: AgentSlug; status: RunStatus };
+
+/** A run with its upstream (who spawned it) + downstream (who it spawned) — the drill-down's lineage. */
+export type AgentRunDetail = { run: AgentRunView; parent: RunRef | null; children: RunRef[] };
+
+function toRunRef(r: AgentRunView): RunRef {
+  return { id: r.id, agentName: r.agentName, agentSlug: r.agentSlug, status: r.status };
+}
+
+/** Pure: from the full run list, resolve one run + its parent + its children. Deterministic → testable.
+ *  The I/O shell (getAgentRunDetailAction) just supplies `allRuns`. */
+export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRunDetail | null {
+  const run = allRuns.find((r) => r.id === runId);
+  if (!run) return null;
+  const parent = run.parentRunId ? allRuns.find((r) => r.id === run.parentRunId) ?? null : null;
+  const children = allRuns.filter((r) => r.parentRunId === runId);
+  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef) };
+}

@@ -1460,3 +1460,168 @@ Typecheck (tsc --noEmit) clean.
   overall; _log_regression writes a rich replayable record with the right category + rep_index. Suite: 22 passed.
 - Doc drift fixed: harness docstring + README → "Phase A + B + C"; README regression line → "any human-review
   flag (incl. disagreement/judge-error) → replayable seed". Also fixed a datetime.utcnow() deprecation.
+
+## 2026-07-05 — Merchant 今日 home, Phase 1 (shell)
+
+- New agent-first merchant home per DESIGN.md → "Merchant Agent Home". Phase 1 = static shell only:
+  `src/app/merchant/today/page.tsx` + `today.module.css` (CSS module, tokens from globals.css `:root`).
+  5 zones: structured stat strip (营收/今日单/新客), 需要关注 hero (pending pin + horizontal done-roll),
+  per-technician roll (the single calendar entry), 常驻 2×2. Current look = color left-stripe + emoji +
+  44px controls (chip-only + line-icon migration parked in DESIGN.md backlog).
+- Two isolated new files — no existing code touched, reachable at `/merchant/today`, verified rendering
+  in-app with no console errors. Tab flip (日历→今日) + live data (Phases 2–5) still to come.
+
+## 2026-07-06 — 今日 home: audit corrections + route reuse
+
+- Backend-contract audit verified against code: action controls were ahead of backend
+  (`setActionStatus` only does `approved`/`undone` — no stop/unlist API), group-buy is browser
+  localStorage (coupon actions are records, not live deals), the calendar uses `mockTechnicians` + a
+  UTC `todayIso()`, and the plan doc conflicted with DESIGN.md. Fixed: DESIGN.md's Reversibility-Honest
+  rule rewritten to real capability (draft → 批准/拒绝; every applied → 查看). stop/unlist + DB group-buy +
+  tz-safe today + the Python reversibility-flag fix → backlog. Plan doc got a "DESIGN.md is canonical" banner.
+- Routing (reuse `/merchant/calendar`, no home-path/entry-hint churn): home extracted into
+  `src/features/merchant/TodayHome.tsx` (+ `.module.css`); `/merchant/calendar` renders it (entry-hint
+  kept); the full calendar split to `/merchant/calendar/schedule` (reached via the tech roll's 完整日历 →);
+  tab 1 relabeled 日历→今日 (i18n zh/en) + home icon; scratch `/merchant/today` removed. Both routes 200,
+  no console errors.
+- Adopted for Phase 2: one read model `getMerchantTodayHomeAction()` (per-field try/catch → deterministic
+  + independent-failure) driving `TodayHome`; per-tech from `technician-repository` + interval bookings +
+  merchant timezone (not the mock/UTC calendar path).
+
+## 2026-07-06 — 今日 home, Phase 2 (read model + live data)
+
+- ADR-0011: one read model `getMerchantTodayHomeAction()` drives the home. Pure, deterministic compute in
+  `src/domain/merchant-home.ts` (compute-on-read, merchant tz): `computeHomeStats` (rolling-7d revenue +
+  delta, new-salon → null/"暂无对比", today orders, new customers), `computeTechnicianDay` (busy/free +
+  load + next appt, inactive excluded), `controlCapabilities` (backend-honest: draft → 批准/拒绝, else 查看),
+  `splitActions` (proposed → pin, applied <48h → roll). 12 unit tests pass (`merchant-home.test.ts`).
+- `src/lib/actions/merchant-home-actions.ts`: fetches bookings once (feeds stats + techs) + agent actions
+  by status + technicians + agents, each in its own try/catch so a broken zone can't blank the page.
+- `TodayHome` consumes the read model: real stat strip / pending pin (批准/拒绝 wired to the existing
+  approve/reject server actions, optimistic) / done roll / technician roll, per-zone loading/empty/error +
+  an 8s timeout so a hung source degrades to the error state (no infinite spinner).
+- Verified: `/merchant/calendar` 200, no console errors, tsc clean for the new source (only a stale `.next`
+  cache entry for the removed /today route, cleared). Local Supabase is unreachable, so the running demo
+  shows the timeout→error/empty states; the wiring is proven by the passing compute tests.
+
+## 2026-07-06 — 今日 home, Phase 2 audit remediation
+
+Second audit pass on the read model, each finding verified against source before fixing:
+- **Route split left tests red (High):** the old `/merchant/calendar` calendar-behavior tests still
+  asserted the calendar UI, which now renders on `/merchant/calendar/schedule`. Moved those 6 cases to
+  `schedule/page.test.tsx` (repointed import + pathname); slimmed `calendar/page.test.tsx` to the home
+  shell + the onboarding hint (compute is covered by `merchant-home.test.ts`). 26/26 green.
+- **Draft-upload title broken for the real payload (High):** `propose_listing` writes `{ gapTag, reason }`,
+  but the title read `styleTitle`/`styleId` → "上架建议 ·" with an empty suffix. Title now uses `gapTag`
+  (styleTitle/styleId kept as defensive fallbacks); added a payload-shape regression test.
+- **Inert controls (High):** the 4 常驻 tiles now link to their real routes (styles / insights / agents /
+  manage) — no dead tiles. The drill-down affordances (pin 查看, 查看全部, recent-card 查看推理) are removed
+  (not shown inert) until Phase 3 builds the reasoning sheet; recent cards are static info cards for now.
+- **Optimistic approve/reject could hide a failed action (Medium):** `act()` now reloads on a `null`
+  return (stale/invalid transition), not only on a thrown error.
+- **Fake reversibility at the source (Medium):** `send_customer_message` was tagged `reversible` and its
+  docstring claimed "the merchant can retract it" — a sent message cannot be un-sent. Fixed at the Python
+  source (`risk="irreversible"`), which makes the existing `AgentActionInline` / `AgentRunDetailClient`
+  undo controls (gated on `risk === 'reversible'`) correctly hide. Open decision (not silently changed):
+  `place_ad` / `set_group_buy_coupon` are "stoppable in concept" but have no stop/unlist API yet — their
+  reversibility labels + the panel's undo UX stay as-is pending that call.
+- **UI quality (Low):** dropped negative letter-spacing (`.titlebar h1`, `.statN`) and the pointer/hover
+  affordance on the now-static pin + recent cards; labelled the two horizontal rolls (`role="list"` +
+  aria-label). Roving-tabindex / keyboard scroll remain a Phase-6 a11y item.
+- Pre-existing suite failures (24, in customer-booking / styles-review / landing / insights) are unrelated:
+  none import `merchant-home`/`TodayHome`, and their causes are domain copy/seed drift from the branch's
+  mid-development state — not this change.
+
+## 2026-07-06 — 今日 home, Phase 3 (reasoning drill-down sheet)
+
+DESIGN.md "Two-Depth Disclosure" made real: a card's face → a bottom sheet with WHY + lineage.
+- `deriveRunDetail(runId, allRuns)` (pure, in `domain/agents.ts`): resolves a run + its parent (who
+  triggered it, via `parentRunId`) + its children (who it spawned). Deterministic → 4 unit tests
+  (`agents.test.ts`). New types `RunRef` / `AgentRunDetail`.
+- `getAgentRunDetailAction(runId)`: thin I/O shell — one `listRuns(demoMerchantId)` (full views) fed to
+  `deriveRunDetail`. Lineage logic stays out of the client.
+- `AgentRunSheet.tsx` (+ `.module.css`): reuses the shared `BottomSheet` and the global `agent-chain*`
+  classes (matches the `/merchant/agents` run detail). Shows agent + status, output headline, 上下游
+  lineage (parent ↑ / children ↓ as links to the full run page), the 推理链路 transcript, and a
+  "查看完整记录 →" link. Read-only by design — approve/reject stay on the pin (single source of that
+  optimistic state); the sheet is the "view" depth. Own loading / not-found states.
+- `HomeActionView` gained `runId` (from `toActionView`) so a card knows which run to open.
+- `TodayHome`: the de-clicked affordances from the Phase-2 remediation are now backed — the pin's 查看
+  and the recent (done) cards open the sheet; recent cards are buttons again with the 查看推理 → cue and
+  their hover/focus affordance restored.
+- Verified: `/merchant/calendar` 200, home renders, tsc clean, 26/26 domain+route tests pass, no runtime
+  errors (only RSC error-boundary scaffolding in the SSR HTML). Local Supabase unreachable → the sheet
+  shows its not-found state until runs are seeded; lineage correctness is proven by the compute tests.
+
+## 2026-07-06 — 今日 home, Phase 5 (real technician `off`) + Phase 6 (a11y polish)
+
+Phase 5 — technician roll `off` is now real, not inferred from `active=false`:
+- `computeTechnicianDay` takes the scheduling kernel's `workingPlans` (`domain/scheduling.ts`, the same
+  source the booking availability grid uses). A technician with no plan covering today's weekday →
+  `off` / 今日未排班. Weekday is derived from the merchant-tz `todayKey`. Busy/free unchanged.
+  `merchant-home-actions` now fetches `repos.workingPlans.list()` alongside technicians (one `Promise.all`).
+  Seed check: `mockWorkingPlans` has anna on TUE–SUN only, so she reads `off` on Mondays — a real 3-state
+  roll. New unit test covers the off case; existing tech tests updated to the new signature (27 pass).
+- Blocked-time (partial-window training/leave) stays in the full calendar — it doesn't map to a single
+  coarse card state (ADR-0011 update).
+
+Phase 6 — a11y:
+- Fixed a `role="list"` / `role="listitem"` anti-pattern from the Phase-2 remediation: `listitem` on a
+  `<button>`/`<Link>` strips its native role. The two rolls are now `role="group"` + aria-label, and the
+  cards keep their native button/link semantics. Technician links got a structured aria-label
+  (`name · state · nextLabel`).
+- `:focus-visible` rings on every interactive card (`.acard` already had one; added `.tcard`, `.lcard`,
+  `.btn`). A `prefers-reduced-motion` block drops the hover-lift transforms/transitions.
+- Verified: `/merchant/calendar` 200, tsc clean, 27/27 domain+route tests pass.
+
+## 2026-07-06 — chip contrast fix (WCAG AA) via ink tokens
+
+Followed up the deferred Phase-6 contrast item as a global design-token addition (not a home-local fork):
+- The colored state chips were sub-AA at 10px bold — success `#2e8b6c`/`#e4f3ec` = 3.65:1, busy
+  `#c73963`/`#ffe4eb` = 4.18:1, amber `#d97706`/`#fdecd2` = **2.75:1**; accent link text `#ec5d7b` on white
+  = 3.27:1 (AA-normal needs 4.5:1).
+- Added three AA-safe **ink tokens** to `globals.css`: `--color-success-ink #217a5c`,
+  `--color-warning-ink #9a5b00`, `--color-accent-ink #b32e57` — the darker text shade for a hue sitting as
+  small text on its own soft tint. Base success/warning/accent are unchanged (still used for fills/icons),
+  so no existing screen changed appearance; the inks are a primitive others can adopt.
+- Home (`TodayHome.module.css`) + sheet (`AgentRunSheet.module.css`) chips now use the ink tokens; accent
+  link text (`.cardGo`, `.more`, sheet `.full`) uses the existing `--color-accent-strong` (5.01:1). New
+  ratios: success ink on tint 4.58:1 / on white 5.25:1; warning ink on tint 4.68:1; accent ink on tint
+  5.09:1 — all ≥ AA.
+- Verified on a clean dev server (the long-running :3100 was wedged, 500ing every route incl. untouched
+  `/`): `/merchant/calendar` 200, home renders, all three ink hexes live in the served `layout.css`, tsc
+  clean, 27/27 tests pass. All ratios re-checked programmatically (WCAG relative-luminance).
+- Self-audit (verifying the pass, not just asserting it) caught **two element-level fails the first pass
+  missed**, now fixed: the primary **批准** button was white on `--color-accent #ec5d7b` = 3.27:1 →
+  switched its fill to `--color-accent-strong #c73963` (white on it = 5.01:1); the technician **avatar
+  initial** was accent-strong on accent-soft = 4.18:1 → `--color-accent-ink` (5.09:1). Also removed a dead
+  `t.all` copy key orphaned when 查看全部 was dropped in the Phase-2 remediation.
+- **App-wide finding (not fixed — flagged):** the global `.button-primary` (used on other screens, e.g.
+  the agent run detail) has the same white-on-`#ec5d7b` = 3.27:1 issue. Left to the shared-token follow-up
+  rather than scope-creeping this change into other screens.
+
+## 2026-07-06 — audit round 2 remediation (6 findings, all verified against source)
+
+- **[Critical] Reversibility regression I introduced.** Making `send_customer_message` irreversible exposed
+  a latent bug in `AgentRunDetailClient.tsx:154`: `isProposed` fired on any `risk==='irreversible'`, so an
+  *applied* sent message showed Approve/Reject. Fixed — the gate is now `status==='proposed'` only; risk
+  decides undo eligibility separately.
+- **[Critical] Fix hadn't reached the demo.** The Python tool wrote `irreversible`, but the in-memory seed
+  (`agent-seed.ts:267`) + its test still said `reversible`, so the running demo still offered Undo for a
+  sent message. Seed → `irreversible`; test updated; added a regression test that `setActionStatus(...,
+  'undone')` returns null for the message. Live `agent_actions` rows with `type='send_customer_message'`
+  still need a one-time backfill to `risk='irreversible'` when Supabase is reachable (manual migration).
+- **[Issue] Merchant scoping.** `merchant-home-actions` now filters technicians by `demoMerchantId`
+  (`list()` is not merchant-scoped yet — repo backlog); plans match by tech id, so none leak across merchants.
+- **[Issue] Busy semantics.** `computeTechnicianDay` marked a tech busy for *any* later appointment. Now
+  `busy` = *currently inside* an appointment interval `[start, start+duration)` (uses `quote.duration`, 60m
+  fallback); a later appointment is `free` with a `next` label — matches DESIGN.md "空闲 = free now / between".
+- **[Issue] i18n.** The 常驻 tiles, the "今日 N 单" load text, **and** the technician status label (which
+  the domain used to emit as hardcoded Chinese) rendered Chinese in English mode. Fixed at the root:
+  `TechnicianDayCard` now carries a **structured** `label` (`serving`/`next`/`done`/`idle`/`off`) and the
+  component formats it from the per-language copy; tiles + load moved into the copy object too.
+- **[Issue] Sheet payloads.** `AgentRunSheet` now truncates long tool-payload JSON (140 chars) with the full
+  record one tap away; run detail is unchanged.
+- Verified: tsc clean; 38/38 on the touched suites; full suite 24 failed / 472 passed — **failure count
+  unchanged from baseline (no regression)**, +7 passing from new/updated tests; `/merchant/calendar` 200 on
+  a clean dev server.

@@ -13,6 +13,12 @@
   --color-success: #2e8b6c;
   --color-warning: #d97706;
   --color-danger: #b91c1c;
+  /* AA-safe text shades for small colored labels on their soft tints (WCAG >= 4.5:1). The base
+   * success/warning/accent are for fills/icons; use these when the same hue is TEXT on a pale
+   * same-hue background (state chips) or small accent link text on white. */
+  --color-success-ink: #217a5c;
+  --color-warning-ink: #9a5b00;
+  --color-accent-ink: #b32e57;
 
   /* Shadows */
   --shadow-soft: 0 16px 40px rgba(74, 39, 55, 0.08);
