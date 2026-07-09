@@ -21,7 +21,12 @@ import type { Customer, NewAnalyticsEvent } from '../src/domain/analytics';
 import { demoMerchantId } from '../src/mock/merchants';
 import { mockTechnicians } from '../src/mock/technicians';
 import { mockMerchantStyles } from '../src/mock/merchant-styles';
-import { generateRollingBookings, type SeedStyle } from '../src/mock/capacity-booking-seed';
+import {
+  generateRollingBookings,
+  CAPACITY_SCENARIOS,
+  type CapacityScenario,
+  type SeedStyle,
+} from '../src/mock/capacity-booking-seed';
 
 const DAY_MS = 86_400_000;
 const SGT_OFFSET_MS = 8 * 3_600_000; // +08:00 demo merchant
@@ -42,6 +47,12 @@ if (typeof globalThis.WebSocket === 'undefined') {
 }
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 const preserveLiveEvents = process.argv.includes('--preserve-live-events');
+
+// Capacity scenario: how full next week is. Drives whether the decision brain's gates bite
+// (coupon gated >70% utilization, ad >85%).  --capacity=idle|busy|full   (default: idle)
+const capacityArg = (process.argv.find((a) => a.startsWith('--capacity=')) ?? '').split('=')[1];
+const capacityScenario: CapacityScenario =
+  capacityArg === 'busy' || capacityArg === 'full' ? capacityArg : 'idle';
 
 const customerRow = (c: Customer) => ({
   id: c.id,
@@ -105,6 +116,7 @@ async function main() {
     technicianIds,
     merchantId: demoMerchantId,
     styles,
+    ...CAPACITY_SCENARIOS[capacityScenario],
   });
   const clearedBookings = await db.from('booking').delete().like('id', 'capseed-%');
   if (clearedBookings.error) throw new Error(`clearing seeded bookings failed: ${clearedBookings.error.message}`);
@@ -115,7 +127,12 @@ async function main() {
   }));
   const insertedBookings = await db.from('booking').insert(bookingRows);
   if (insertedBookings.error) throw new Error(`booking insert failed: ${insertedBookings.error.message}`);
-  console.log(`✓ inserted ${bookingRows.length} rolling next-7-day bookings (capacity)`);
+  const bookedMin = bookings.reduce((sum, b) => sum + b.durationMin, 0);
+  console.log(
+    `✓ inserted ${bookingRows.length} rolling next-7-day bookings — capacity scenario "${capacityScenario}" ` +
+      `(${bookedMin} booked min across ${technicianIds.length} techs × 7 days)`,
+  );
+  console.log('  check GET /api/agent/decisions → capacity.utilizationPct (coupon gates >70%, ad >85%)');
 }
 
 main().catch((e) => {

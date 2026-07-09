@@ -50,6 +50,7 @@ function fillWindow(
   styles: SeedStyle[],
   rng: Rng,
   fillProbability: number,
+  gapMin: number,
 ): Draft[] {
   const drafts: Draft[] = [];
   let cursor = windowStart;
@@ -69,13 +70,22 @@ function fillWindow(
         durationMin: dur,
         status: 'confirmed',
       });
-      cursor += dur + GAP;
+      cursor += dur + gapMin;
     } else {
       cursor += 30; // skip a slot → leaves gaps, so fragment-fit varies
     }
   }
   return drafts;
 }
+
+/** Named capacity scenarios — the knob that makes the decision brain's gates actually bite.
+ *  coupon is gated above 70% utilization, ad above 85% (see domain/decision/decision.ts). */
+export const CAPACITY_SCENARIOS = {
+  idle: { fillProbability: 0.45, gapMin: 20 }, // ~30-40% → coupons + ads both allowed
+  busy: { fillProbability: 0.85, gapMin: 10 }, // ~70-80% → coupons gated, ads still allowed
+  full: { fillProbability: 1.0, gapMin: 0 }, //  ~90%+  → both gated: no discounting into a full week
+} as const;
+export type CapacityScenario = keyof typeof CAPACITY_SCENARIOS;
 
 export function generateRollingBookings(input: {
   dates: string[]; // next 7 local YYYY-MM-DD (merchant tz)
@@ -84,9 +94,11 @@ export function generateRollingBookings(input: {
   styles: SeedStyle[];
   seed?: number;
   fillProbability?: number; // baseline per-tech fill (default 0.5)
+  gapMin?: number; // buffer between appointments (default 15) — smaller packs the week tighter
 }): BookingSeedRow[] {
   const rng = createRng(input.seed ?? 20_260_709);
   const baseFill = input.fillProbability ?? 0.5;
+  const gapMin = input.gapMin ?? GAP;
   const styles = input.styles.length > 0 ? input.styles : [{ title: '法式', durationMin: 60 }];
 
   const drafts: Draft[] = [];
@@ -94,8 +106,8 @@ export function generateRollingBookings(input: {
     input.technicianIds.forEach((techId, ti) => {
       // Vary the load so utilization + gaps differ across techs/days (0.55x .. 1.05x of baseline).
       const fill = baseFill * (0.55 + 0.25 * ((ti + di) % 3));
-      drafts.push(...fillWindow(OPEN, BREAK_START, date, techId, input.merchantId, styles, rng, fill));
-      drafts.push(...fillWindow(BREAK_END, CLOSE, date, techId, input.merchantId, styles, rng, fill));
+      drafts.push(...fillWindow(OPEN, BREAK_START, date, techId, input.merchantId, styles, rng, fill, gapMin));
+      drafts.push(...fillWindow(BREAK_END, CLOSE, date, techId, input.merchantId, styles, rng, fill, gapMin));
     });
   });
 

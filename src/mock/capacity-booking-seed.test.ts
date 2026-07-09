@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRollingBookings } from './capacity-booking-seed';
+import { generateRollingBookings, CAPACITY_SCENARIOS } from './capacity-booking-seed';
 
 const dates = ['2026-07-09', '2026-07-10', '2026-07-11'];
 const technicianIds = ['tech-mei', 'tech-lina', 'tech-anna'];
@@ -48,5 +48,16 @@ describe('generateRollingBookings', () => {
     const again = generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, fillProbability: 0.8 });
     expect(again.map((r) => r.id)).toEqual(rows.map((r) => r.id));
     expect(new Set(rows.map((r) => r.startAt.slice(0, 10)))).toEqual(new Set(dates));
+  });
+
+  it('capacity scenarios produce strictly increasing load (idle < busy < full)', () => {
+    const bookedMin = (s: keyof typeof CAPACITY_SCENARIOS) =>
+      generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, ...CAPACITY_SCENARIOS[s] })
+        .reduce((sum, r) => sum + r.durationMin, 0);
+    const idle = bookedMin('idle');
+    const busy = bookedMin('busy');
+    const full = bookedMin('full');
+    expect(idle).toBeLessThan(busy);
+    expect(busy).toBeLessThan(full);
   });
 });
