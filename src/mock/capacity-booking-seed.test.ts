@@ -11,7 +11,7 @@ const toMin = (iso: string): number => {
 };
 
 describe('generateRollingBookings', () => {
-  const rows = generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, fillProbability: 0.8 });
+  const rows = generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, targetUtilization: 0.8 });
 
   it('produces a realistic partial load (not empty, not fully packed)', () => {
     expect(rows.length).toBeGreaterThan(0);
@@ -45,7 +45,7 @@ describe('generateRollingBookings', () => {
   });
 
   it('is reproducible (same seed → identical ids) and only uses the passed dates', () => {
-    const again = generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, fillProbability: 0.8 });
+    const again = generateRollingBookings({ dates, technicianIds, merchantId: 'm', styles, targetUtilization: 0.8 });
     expect(again.map((r) => r.id)).toEqual(rows.map((r) => r.id));
     expect(new Set(rows.map((r) => r.startAt.slice(0, 10)))).toEqual(new Set(dates));
   });
