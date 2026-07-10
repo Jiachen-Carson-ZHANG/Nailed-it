@@ -1,6 +1,6 @@
 # ADR-0013 — Dynamic orchestration, cross-round memory, and a real feedback loop
 
-Status: **Accepted** (2026-07-10 — P0+P1 implemented; P2 memory / P3 revision pending) · Builds on ADR-0007, ADR-0012
+Status: **Accepted** (2026-07-10 P0+P1 · 2026-07-11 P2+P3 implemented — live round pending migration 0030 + OpenRouter credits) · Builds on ADR-0007, ADR-0012
 
 ## Context
 
@@ -168,6 +168,25 @@ bounded to one attempt, run finalizes `failed` visibly).
   parallel (all started the same second), semantic lineage intact (trend→insight, decision→trend,
   executors→decision), and P0 cut pending 上架建议 from 25+ to exactly 5 (cap) with older rounds
   superseded.
+
+## Amendments (2026-07-11 — P2+P3 implementation)
+
+- **Blackboard writes are deterministic** (deviation from the §2 draft): lanes conclude → the Python
+  orchestrator writes `blackboard[slug] = conclusion`; agents get a read-only `read_blackboard` tool.
+  LLM write access added nothing but write-conflict surface.
+- **Revision is monitor-held, not orchestrator-mediated**: `RevisionPort` is injected only into the
+  monitor's RunContext (same pattern as the orchestrator-only `RoundState`); its re-dispatch parents to
+  the monitor run and bypasses the one-per-agent rule under its own bounds (one revision per action,
+  `MAX_REVISIONS_PER_ROUND = 2`, only reversible entity-backed place_ad / set_group_buy_coupon in
+  applied/proposed state).
+- **Bright-line revision thresholds** in the monitor skill (flash-tier lanes need arithmetic spelled
+  out): revise only if (a) clicks ≥ 50 with zero bookings, or (b) daily budget > ¥100 AND measured
+  spend-per-booking > ¥200 — with a worked division example. Before this, the monitor flaked in both
+  directions (trigger-happy on healthy ads / arithmetic miss on overspenders); after, both eval
+  scenarios ran 2/2 stable.
+- **Verification status**: pytest 36/36 (revision guardrails, memory upsert shape, registry parity).
+  Eval: monitor scenarios 2/2 stable; orchestrator scenarios were 2/2 stable pre-credit-exhaustion —
+  the full-suite rerun + live P2/P3 round are blocked on OpenRouter credits and migration `0030`.
 
 ## References
 

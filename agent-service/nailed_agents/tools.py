@@ -15,6 +15,7 @@ import inspect
 import json
 import re
 import typing
+from datetime import datetime, timedelta, timezone
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -52,6 +53,11 @@ class RunContext:
     # ADR-0013 P1: set ONLY on the orchestrator's context — the RoundState the dispatch tools drive.
     # None for every lane agent, so a hallucinated dispatch from a non-orchestrator run is refused.
     round: Any = None
+    # ADR-0013 P2: the agent_rounds row this run belongs to (None = 0030 unapplied / eval).
+    round_id: str | None = None
+    # ADR-0013 P3: set ONLY on the monitor's context — the bounded revision port. None everywhere else,
+    # so no other lane can trigger a revision.
+    revision: Any = None
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
@@ -416,6 +422,106 @@ def get_style_business_decisions() -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+# ── memory + measurement tools (ADR-0013 P2) ─────────────────────────────────────────────────────
+
+_MEMORY_KINDS = {"ad_outcome", "coupon_outcome", "round_verdict"}
+
+
+def get_campaign_outcomes() -> str:
+    """Read LIVE ad-campaign metrics (impressions, clicks, bookings, spend, status, daily budget) for
+    every campaign of this merchant — the ground truth for measuring whether past ad decisions worked.
+    Read-only; these tables are the source of truth that any memory verdict must cite."""
+    ctx = _ctx()
+    rows = bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_campaign_outcomes", "input": {}, "output": rows})
+    return json.dumps(rows, ensure_ascii=False)
+
+
+def record_memory(kind: str, key: str, verdict: str, entity_id: str = "", window_days: int = 7) -> str:
+    """Record a WINDOWED VERDICT the team should remember across rounds (ADR-0013 §3) — e.g.
+    "7d 实测 ROAS 2.1，决策时估算 4.1 —— 高估约 2 倍". kind: ad_outcome | coupon_outcome | round_verdict.
+    key: stable id for what was measured (e.g. the campaign id) — re-measuring the same key REPLACES the
+    old verdict. verdict: one sentence citing measured numbers; never restate raw metric tables (they
+    live in the campaign/event tables, which always win a conflict). entity_id: the campaign/deal this
+    verdict is about (optional). Expires in 30 days."""
+    ctx = _ctx()
+    kind = _clean_text(kind, field="kind", max_chars=40)
+    if kind not in _MEMORY_KINDS:
+        raise ValueError("kind_invalid")
+    key = _clean_text(key, field="key", max_chars=120)
+    verdict = _clean_text(verdict, field="verdict", max_chars=600)
+    entity_id = str(entity_id or "").strip()
+    window_days = _bounded_int(window_days, field="window_days", maximum=90)
+
+    now = datetime.now(timezone.utc)
+    entity_type = "style_ad" if entity_id.startswith("ad-") else "groupbuy_deal" if entity_id.startswith("gb-") else None
+    row = {
+        "merchant_id": ctx.merchant_id,
+        "agent_slug": "monitor",
+        "kind": kind,
+        "key": key,
+        "content": {"verdict": verdict},
+        "entity_type": entity_type,
+        "entity_id": entity_id or None,
+        "window_start": (now - timedelta(days=window_days)).isoformat(),
+        "window_end": now.isoformat(),
+        "evidence_run_id": ctx.run_id,
+        "expires_at": (now + timedelta(days=30)).isoformat(),
+    }
+    bus.upsert_memory(ctx.sb, row)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "record_memory",
+         "input": {"kind": kind, "key": key, "verdict": verdict, "entityId": entity_id or None},
+         "output": {"recorded": True}}
+    )
+    return f"Memory recorded ({kind}/{key}) — future 决策 rounds will read this verdict."
+
+
+def get_agent_memory() -> str:
+    """Read the team's non-expired memory: windowed verdicts from past rounds (measured ad outcomes,
+    coupon outcomes, round verdicts), newest first. MEASURED verdicts outrank estimates — when memory
+    says an estimate ran hot, weigh the estimate down. Raw live metrics still come from their own
+    tables; on any conflict the live table wins."""
+    ctx = _ctx()
+    rows = bus.fetch_memory(ctx.sb, ctx.merchant_id)
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_agent_memory", "input": {}, "output": rows})
+    return json.dumps(rows, ensure_ascii=False)
+
+
+def read_blackboard() -> str:
+    """Read this round's shared blackboard: the sections upstream lanes have concluded so far
+    (briefing / opportunities / plan / executed…). Written deterministically by the orchestrator."""
+    ctx = _ctx()
+    if not ctx.round_id:
+        return json.dumps({"note": "no blackboard this round (migration 0030 not applied)"}, ensure_ascii=False)
+    board = bus.fetch_blackboard(ctx.sb, ctx.round_id)
+    ctx.transcript.append({"kind": "tool_call", "tool": "read_blackboard", "input": {}, "output": board})
+    return json.dumps(board, ensure_ascii=False)
+
+
+# ── revision edge (ADR-0013 P3) — available ONLY to the monitor run ──────────────────────────────
+
+def request_revision(action_id: str, feedback: str) -> str:
+    """Reject ONE of this round's actions and re-dispatch its executor ONCE with your feedback attached
+    (ADR-0013 §4). Use only when the measured numbers clearly contradict the action (e.g. budget far above
+    what measured ROAS supports). feedback: concrete and numeric — the executor will act on it verbatim.
+    Only reversible, entity-backed actions (place_ad / set_group_buy_coupon) can be revised; published
+    deals and sent messages cannot. The revision NEVER forks a new entity — the executor's re-run updates
+    the same campaign/deal in place."""
+    ctx = _ctx()
+    if ctx.revision is None:
+        raise ValueError("revision_not_allowed")  # only the monitor holds a RevisionPort
+    action_id = _clean_text(action_id, field="action_id", max_chars=80)
+    feedback = _clean_text(feedback, field="feedback", max_chars=600)
+    run_id, text = ctx.revision.request(action_id, feedback)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "request_revision",
+         "input": {"actionId": action_id, "feedback": feedback},
+         "output": {"revisionRunId": run_id, "summary": text[:280]}}
+    )
+    return f"Revision run {run_id} finished:\n{text[:800]}"
+
+
 # ── orchestration tools (ADR-0013 P1) — available ONLY to the orchestrator run ───────────────────
 # ctx.round is a RoundState set by orchestrator.run_round; every lane agent has round=None, so a
 # hallucinated dispatch from a non-orchestrator loop is refused before any side effect.
@@ -506,6 +612,11 @@ _FUNCTIONS: list[Callable[..., str]] = [
     send_customer_message,
     dispatch_agent,
     dispatch_many,
+    get_campaign_outcomes,
+    record_memory,
+    get_agent_memory,
+    read_blackboard,
+    request_revision,
 ]
 
 _JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}

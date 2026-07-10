@@ -81,6 +81,9 @@ class Scenario:
     # ADR-0013 P1: canned lane conclusions for orchestrator scenarios — dispatch returns these instead of
     # running a real child loop, so the eval judges the ORCHESTRATION decision, not the lanes.
     lane_results: dict = field(default_factory=dict)
+    # ADR-0013 P2/P3 monitor scenarios: canned live campaign metrics + the round's actions by id.
+    campaigns: list = field(default_factory=list)
+    actions_by_id: dict = field(default_factory=dict)
     # {'kind':'opportunity'|'action'|'no_action'|'dispatch'} — 'no_action' asserts the agent correctly did
     # NOTHING; 'dispatch' asserts who was (not) dispatched: {'must': [...], 'forbid_dispatch': [...]}
     expect: dict = field(default_factory=dict)
@@ -159,18 +162,59 @@ SCENARIOS = [
         },
         expect={"kind": "dispatch", "must": ["insight", "decision", "ad"], "forbid_dispatch": ["coupon"]},
     ),
+    # ADR-0013 P3: the monitor must revise EXACTLY the action whose measured numbers contradict it —
+    # a live campaign burning budget at measured ROAS 1.2 with the round's decision estimating 4.1.
+    Scenario(
+        id="monitor/overspending-ad-revised-once", slug="monitor",
+        tools=["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
+        task=(
+            "本轮已落地投广动作（action id: act-ad-8284，款式 style-melissa-img-8284，日预算 20000 分，"
+            "决策时估算 ROAS 4.1）。请读取实测活动数据，写入记忆结论；若实测数字明确违背该动作，"
+            "用 request_revision 修订它（feedback 要具体带数字）。"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        campaigns=[{"id": "ad-style-melissa-img-8284", "merchant_style_id": "style-melissa-img-8284",
+                    "status": "active", "daily_budget_cents": 20000, "impressions": 4000, "clicks": 120,
+                    "bookings": 2, "spend_cents": 56000}],
+        actions_by_id={"act-ad-8284": {"id": "act-ad-8284", "type": "place_ad", "risk": "reversible",
+                                        "status": "applied", "entity_id": "ad-style-melissa-img-8284",
+                                        "payload": {"styleId": "style-melissa-img-8284", "budgetCents": 20000}}},
+        expect={"kind": "revision", "must_revise": ["act-ad-8284"]},
+    ),
+    # …and must NOT revise when the measured numbers support the action (trigger-happy monitor = failure).
+    Scenario(
+        id="monitor/healthy-ad-no-revision", slug="monitor",
+        tools=["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
+        task=(
+            "本轮已落地投广动作（action id: act-ad-8265，款式 style-melissa-img-8265，日预算 5000 分，"
+            "决策时估算 ROAS 4.0）。请读取实测活动数据，写入记忆结论；仅当实测数字明确违背该动作时才修订。"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        campaigns=[{"id": "ad-style-melissa-img-8265", "merchant_style_id": "style-melissa-img-8265",
+                    "status": "active", "daily_budget_cents": 5000, "impressions": 3000, "clicks": 150,
+                    "bookings": 9, "spend_cents": 15000}],
+        actions_by_id={"act-ad-8265": {"id": "act-ad-8265", "type": "place_ad", "risk": "reversible",
+                                        "status": "applied", "entity_id": "ad-style-melissa-img-8265",
+                                        "payload": {"styleId": "style-melissa-img-8265", "budgetCents": 5000}}},
+        expect={"kind": "no_revision"},
+    ),
 ]
 
 
 @contextlib.contextmanager
 def _stub_bus(scn: Scenario, captured: list[dict]):
     orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
-            bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals)
+            bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
+            bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
     bus.fetch_decisions = lambda: scn.decisions                             # type: ignore[assignment]
     bus.expire_stale_proposals = lambda sb, **kw: 0                         # type: ignore[assignment]
+    bus.fetch_campaign_outcomes = lambda sb, m: scn.campaigns               # type: ignore[assignment]
+    bus.upsert_memory = lambda sb, row: captured.append({"action_type": "memory", "payload": row})  # type: ignore[assignment]
+    bus.fetch_action = lambda sb, action_id, merchant_id: scn.actions_by_id.get(action_id)  # type: ignore[assignment]
+    bus.supersede_action = lambda sb, action_id: None                       # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
     # eval stays offline while still exercising the real tool bodies + their action writes.
@@ -180,7 +224,8 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
         yield
     finally:
         (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
-         bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals) = orig
+         bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
+         bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action) = orig
 
 
 def _skill(slug: str) -> str:
@@ -215,6 +260,8 @@ _PROSE_KEYS = {"body", "reason", "summary", "note", "message", "text"}  # free t
 def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
     """Structured decision signature (never compares prose) — kind-aware so an empty action run is `()`,
     not the trend fallback."""
+    if scn.expect.get("kind") in ("revision", "no_revision"):  # the decision = WHICH actions were revised
+        return tuple(sorted(ctx.revision.revised_actions)) if ctx.revision else ()
     if scn.expect.get("kind") == "dispatch":  # orchestration decision = the JUDGED lanes only
         judged = set(scn.expect.get("must", [])) | set(scn.expect.get("forbid_dispatch", []))
         dispatched = set(ctx.round.dispatched) if ctx.round else set()
@@ -246,6 +293,11 @@ def _run_once(scn: Scenario) -> dict:
     ctx = tools.RunContext(sb=object(), run_id=f"eval-{scn.id}", merchant_id=_M)
     if scn.slug == "orchestrator":
         ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one
+    if scn.slug == "monitor":
+        from nailed_agents.orchestrator import RevisionPort
+        # REAL RevisionPort guardrails; the re-dispatch returns a canned conclusion.
+        ctx.revision = RevisionPort(sb=object(), merchant_id=_M, monitor_run_id=f"eval-{scn.id}",
+                                    dispatch_fn=lambda slug, task, parent: (f"run-rev-{slug}", f"{slug} 已按反馈修订"))
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
@@ -282,6 +334,13 @@ def _run_once(scn: Scenario) -> dict:
     if e.get("kind") == "dispatch":
         dispatched = set(ctx.round.dispatched) if ctx.round else set()
         exp_ok = set(e.get("must", [])) <= dispatched and not (set(e.get("forbid_dispatch", [])) & dispatched)
+    elif e.get("kind") == "revision":
+        revised = set(ctx.revision.revised_actions) if ctx.revision else set()
+        exp_ok = revised == set(e.get("must_revise", []))
+    elif e.get("kind") == "no_revision":
+        revised = set(ctx.revision.revised_actions) if ctx.revision else set()
+        wrote_memory = any(a.get("action_type") == "memory" for a in captured)
+        exp_ok = not revised and wrote_memory  # healthy metrics → record verdicts, do NOT revise
     elif e.get("kind") == "opportunity":
         exp_ok = any(o.get("action") == e["action"] and e["target"] in o.get("matchedStyleIds", [])
                      for o in _opp_report(ctx).get("opportunities", []))

@@ -96,25 +96,24 @@ def start_run(
     parent_run_id: str | None,
     input: dict[str, Any],
     started_at: str,
+    round_id: str | None = None,
 ) -> str:
     """Insert a `running` run and return its id, so the tool-call loop's action tools can write
-    agent_actions against it mid-run. Finalize with finish_run()."""
-    res = (
-        sb.table("agent_runs")
-        .insert(
-            {
-                "agent_id": agent_id,
-                "merchant_id": config.MERCHANT_ID,
-                "trigger_source": trigger_source,
-                "parent_run_id": parent_run_id,
-                "status": "running",
-                "input": input,
-                "transcript": [],
-                "started_at": started_at,
-            }
-        )
-        .execute()
-    )
+    agent_actions against it mid-run. Finalize with finish_run(). round_id groups the round's runs
+    (ADR-0013 P2); omitted when migration 0030 is unapplied so old DBs keep working."""
+    row: dict[str, Any] = {
+        "agent_id": agent_id,
+        "merchant_id": config.MERCHANT_ID,
+        "trigger_source": trigger_source,
+        "parent_run_id": parent_run_id,
+        "status": "running",
+        "input": input,
+        "transcript": [],
+        "started_at": started_at,
+    }
+    if round_id is not None:
+        row["round_id"] = round_id
+    res = sb.table("agent_runs").insert(row).execute()
     return res.data[0]["id"]
 
 
@@ -129,6 +128,92 @@ def finish_run(
     sb.table("agent_runs").update(
         {"status": status, "output": output, "transcript": transcript, "finished_at": now_iso()}
     ).eq("id", run_id).execute()
+
+
+# ── rounds + blackboard + memory (ADR-0013 P2) ───────────────────────────────────────────────────
+
+def _is_missing_table(err: Exception) -> bool:
+    msg = str(err)
+    return "PGRST205" in msg or "does not exist" in msg or "schema cache" in msg
+
+
+def start_round(sb: Client, merchant_id: str) -> str | None:
+    """Open the round row. Degrades to None when migration 0030 is unapplied — the round still runs,
+    just without blackboard/round grouping (a loud print, not a silent swallow)."""
+    try:
+        res = sb.table("agent_rounds").insert({"merchant_id": merchant_id}).execute()
+        return res.data[0]["id"]
+    except Exception as e:  # noqa: BLE001 — degrade with intent + log (observability rule)
+        if _is_missing_table(e):
+            print("WARN agent_rounds missing — apply migration 0030_agent_rounds_memory.sql (round runs without blackboard)")
+            return None
+        raise
+
+
+def finish_round(sb: Client, round_id: str, *, status: str, blackboard: dict[str, Any]) -> None:
+    sb.table("agent_rounds").update(
+        {"status": status, "blackboard": blackboard, "finished_at": now_iso()}
+    ).eq("id", round_id).execute()
+
+
+def update_blackboard(sb: Client, round_id: str, blackboard: dict[str, Any]) -> None:
+    """Full-object write — the Python orchestrator is the single writer, so no merge expression needed."""
+    sb.table("agent_rounds").update({"blackboard": blackboard}).eq("id", round_id).execute()
+
+
+def fetch_blackboard(sb: Client, round_id: str) -> dict[str, Any]:
+    res = sb.table("agent_rounds").select("blackboard").eq("id", round_id).maybe_single().execute()
+    return (res.data or {}).get("blackboard", {}) if res else {}
+
+
+def fetch_campaign_outcomes(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
+    """Live campaign metrics — the TRUTH memory verdicts must cite, never duplicate (ADR-0013 §3)."""
+    res = (
+        sb.table("style_ad_campaign")
+        .select("id, merchant_style_id, status, daily_budget_cents, impressions, clicks, bookings, spend_cents, source_run_id, updated_at")
+        .eq("merchant_id", merchant_id)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+def upsert_memory(sb: Client, row: dict[str, Any]) -> None:
+    """Re-measurement replaces the previous verdict for the same (merchant, kind, key) — no stacking."""
+    sb.table("agent_memory").upsert(row, on_conflict="merchant_id,kind,key").execute()
+
+
+def fetch_memory(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
+    """Non-expired memory rows, newest first."""
+    res = (
+        sb.table("agent_memory")
+        .select("agent_slug, kind, key, content, entity_type, entity_id, window_start, window_end, created_at")
+        .eq("merchant_id", merchant_id)
+        .or_(f"expires_at.is.null,expires_at.gt.{now_iso()}")
+        .order("created_at", desc=True)
+        .limit(40)
+        .execute()
+    )
+    return res.data or []
+
+
+def fetch_action(sb: Client, action_id: str, merchant_id: str) -> dict[str, Any] | None:
+    """One action row — the revision edge (ADR-0013 P3) must read type/risk/entity before acting."""
+    res = (
+        sb.table("agent_actions")
+        .select("id, run_id, type, risk, status, payload, entity_type, entity_id")
+        .eq("id", action_id)
+        .eq("merchant_id", merchant_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data if res else None
+
+
+def supersede_action(sb: Client, action_id: str) -> None:
+    """Mark the revised action undone (superseded) — the executor re-run writes the replacement row.
+    The entity itself is NOT touched here: the re-run's upsert (stable entity id) is the state change."""
+    sb.table("agent_actions").update({"status": "undone"}).eq("id", action_id).execute()
 
 
 def expire_stale_proposals(sb: Client, *, exclude_run_id: str) -> int:

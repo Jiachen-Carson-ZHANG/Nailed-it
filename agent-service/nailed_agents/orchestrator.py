@@ -15,6 +15,7 @@ survives as the DEFAULT PLAN in skills/orchestrator.md — deviation requires a 
 """
 from __future__ import annotations
 
+import json
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,12 +29,12 @@ _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 LANE_TOOLS: dict[str, list[str]] = {
     "insight": ["get_merchant_insights"],
     "trend": ["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
-    "decision": ["get_style_business_decisions", "get_merchant_insights"],
+    "decision": ["get_style_business_decisions", "get_merchant_insights", "get_agent_memory"],
     "ad": ["place_ad"],
     "coupon": ["set_group_buy_coupon"],
     "catalog": ["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
     "customer_ops": ["get_customer_intelligence", "send_customer_message"],
-    "monitor": ["get_merchant_insights"],
+    "monitor": ["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
 }
 
 ORCHESTRATOR_TOOLS = ["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"]
@@ -94,6 +95,49 @@ class RoundState:
         return run_id, text
 
 
+# ADR-0013 P3: which executor lane owns a revisable action type. Everything else is not revisable —
+# published deals and sent messages stay put (the entity-transition contract in the ADR).
+_REVISABLE: dict[str, str] = {"place_ad": "ad", "set_group_buy_coupon": "coupon"}
+MAX_REVISIONS_PER_ROUND = 2
+
+
+@dataclass
+class RevisionPort:
+    """The monitor's ONE bounded interaction edge: reject an action, re-dispatch its executor once with
+    feedback. Deterministic guardrails here; the LLM only decides WHETHER the numbers justify it.
+    The re-run upserts the SAME entity (stable ids) — a revision never forks a parallel entity."""
+
+    sb: Any
+    merchant_id: str
+    monitor_run_id: str
+    dispatch_fn: Callable[[str, str, str], tuple[str, str]]  # (slug, task, parent_run_id) -> (run_id, text)
+    revised_actions: set[str] = field(default_factory=set)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def request(self, action_id: str, feedback: str) -> tuple[str, str]:
+        with self._lock:
+            if action_id in self.revised_actions:
+                raise ValueError("action_already_revised")  # one revision per action per round
+            if len(self.revised_actions) >= MAX_REVISIONS_PER_ROUND:
+                raise ValueError("revision_budget_exhausted")
+            self.revised_actions.add(action_id)
+        action = bus.fetch_action(self.sb, action_id, self.merchant_id)
+        if not action:
+            raise ValueError("action_not_found")
+        slug = _REVISABLE.get(action.get("type", ""))
+        if slug is None or action.get("risk") != "reversible" or not action.get("entity_id"):
+            raise ValueError("action_not_revisable")
+        if action.get("status") not in ("applied", "proposed"):
+            raise ValueError("action_not_revisable")  # already undone/approved elsewhere
+        bus.supersede_action(self.sb, action_id)  # the re-run writes the replacement action row
+        task = (
+            "监测对你本轮的动作提出了修订要求，请按反馈重新落地（同一款式、同一实体，参数按反馈调整）。\n"
+            f"原动作 payload：{json.dumps(action.get('payload', {}), ensure_ascii=False)}\n"
+            f"监测反馈：{feedback}"
+        )
+        return self.dispatch_fn(slug, task, self.monitor_run_id)
+
+
 def _skill(slug: str, fallback: str) -> str:
     """Load the agent's process skill file we own (agent-service/skills/<slug>.md); fall back to the
     agent row's `instructions` if the file is absent."""
@@ -101,21 +145,23 @@ def _skill(slug: str, fallback: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else fallback
 
 
-def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id: str,
-              slug: str, task: str, parent_slug: str | None) -> tuple[str, str]:
-    """One dispatched lane run: open a running agent_run parented to its upstream, drive the lane's
-    tool loop with its fixed allow-list, finalize, return (run_id, final_text). Thread-safe — the
-    child sets its own RunContext contextvar inside its worker thread."""
-    parent_run = state.dispatched.get(parent_slug or "", orch_run_id)
-    if parent_slug and parent_slug in state.results:
-        # Deterministic context passing: the upstream conclusion travels verbatim, not via LLM copy.
-        task = f"{task}\n\n上游「{parent_slug}」结论：\n{state.results[parent_slug][:2500]}"
+def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
+                  slug: str, task: str, parent_run_id: str,
+                  revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
+                  input_extra: dict | None = None) -> tuple[str, str]:
+    """The lane-run core: open a running agent_run under an explicit parent, drive the lane's tool loop
+    with its fixed allow-list, finalize, return (run_id, final_text). Used by both normal dispatch and
+    the revision edge (which parents to the monitor run and bypasses the one-per-agent rule — its own
+    RevisionPort guardrails bound it instead)."""
     run_id = bus.start_run(
         sb, agent_id=agents[slug]["id"], trigger_source="event",
-        parent_run_id=parent_run, input={"parentSlug": parent_slug, "dispatchedBy": orch_run_id},
-        started_at=bus.now_iso(),
+        parent_run_id=parent_run_id, input=input_extra or {},
+        started_at=bus.now_iso(), round_id=round_id,
     )
-    ctx = tools.RunContext(sb=sb, run_id=run_id, merchant_id=config.MERCHANT_ID, range_days=range_days)
+    ctx = tools.RunContext(sb=sb, run_id=run_id, merchant_id=config.MERCHANT_ID,
+                           range_days=range_days, round_id=round_id)
+    if revision_port_factory is not None:
+        ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     text = runner.run_agent(
         system=_skill(slug, agents[slug]["instructions"]),
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
@@ -123,6 +169,33 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
     bus.finish_run(sb, run_id, output={"text": text}, transcript=ctx.transcript, status=status)
     return run_id, text
+
+
+def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id: str,
+              round_id: str | None, slug: str, task: str, parent_slug: str | None) -> tuple[str, str]:
+    """One ORCHESTRATOR-dispatched lane run: resolve the symbolic parent, append the upstream conclusion
+    verbatim (deterministic context passing, no LLM copying), and — for the monitor — arm the bounded
+    RevisionPort (ADR-0013 P3) whose re-dispatches parent to the monitor's own run."""
+    parent_run = state.dispatched.get(parent_slug or "", orch_run_id)
+    if parent_slug and parent_slug in state.results:
+        task = f"{task}\n\n上游「{parent_slug}」结论：\n{state.results[parent_slug][:2500]}"
+
+    factory = None
+    if slug == "monitor":
+        def factory(monitor_run_id: str) -> RevisionPort:
+            return RevisionPort(
+                sb=sb, merchant_id=config.MERCHANT_ID, monitor_run_id=monitor_run_id,
+                dispatch_fn=lambda rslug, rtask, parent: _run_lane_raw(
+                    sb, agents, range_days, round_id, rslug, rtask, parent,
+                    input_extra={"revisionOf": "see task", "dispatchedBy": monitor_run_id},
+                ),
+            )
+
+    return _run_lane_raw(
+        sb, agents, range_days, round_id, slug, task, parent_run,
+        revision_port_factory=factory,
+        input_extra={"parentSlug": parent_slug, "dispatchedBy": orch_run_id},
+    )
 
 
 def run_round(range_days: int = 7) -> dict[str, str]:
@@ -133,15 +206,28 @@ def run_round(range_days: int = 7) -> dict[str, str]:
     if missing:
         raise SystemExit(f"agents missing ({', '.join(sorted(missing))}) — run `npm run seed:agents` after migration 0022")
 
+    round_id = bus.start_round(sb, config.MERCHANT_ID)  # None when 0030 unapplied (degrades loudly)
     orch_run = bus.start_run(
         sb, agent_id=agents["orchestrator"]["id"], trigger_source="manual",
-        parent_run_id=None, input={"rangeDays": range_days}, started_at=bus.now_iso(),
+        parent_run_id=None, input={"rangeDays": range_days}, started_at=bus.now_iso(), round_id=round_id,
     )
     state = RoundState(dispatch_fn=None)
-    state.dispatch_fn = lambda slug, task, parent: _run_lane(sb, agents, range_days, state, orch_run, slug, task, parent)
+    blackboard: dict[str, str] = {}
+
+    def _dispatch(slug: str, task: str, parent: str | None) -> tuple[str, str]:
+        run_id, text = _run_lane(sb, agents, range_days, state, orch_run, round_id, slug, task, parent)
+        if round_id:
+            # The blackboard is the round's shared working state — written deterministically as lanes
+            # conclude, so read_blackboard shows every agent what stands so far.
+            blackboard[slug] = text[:1500]
+            bus.update_blackboard(sb, round_id, blackboard)
+        return run_id, text
+
+    state.dispatch_fn = _dispatch
 
     ctx = tools.RunContext(
-        sb=sb, run_id=orch_run, merchant_id=config.MERCHANT_ID, range_days=range_days, round=state,
+        sb=sb, run_id=orch_run, merchant_id=config.MERCHANT_ID, range_days=range_days,
+        round=state, round_id=round_id,
     )
     try:
         text = runner.run_agent(
@@ -152,10 +238,15 @@ def run_round(range_days: int = 7) -> dict[str, str]:
         )
         bus.finish_run(sb, orch_run, output={"text": text, "dispatched": dict(state.dispatched)},
                        transcript=ctx.transcript, status="completed")
+        if round_id:
+            blackboard["orchestrator"] = text[:1500]
+            bus.finish_round(sb, round_id, status="completed", blackboard=blackboard)
     except Exception:
-        # The round must never leave a forever-`running` orchestrator row — the panel polls it.
+        # The round must never leave a forever-`running` orchestrator/round row — the panel polls them.
         bus.finish_run(sb, orch_run, output={"error": "round_failed", "dispatched": dict(state.dispatched)},
                        transcript=ctx.transcript, status="failed")
+        if round_id:
+            bus.finish_round(sb, round_id, status="failed", blackboard=blackboard)
         raise
 
     runs = {"orchestrator": orch_run, **state.dispatched}

@@ -39,6 +39,8 @@ def test_registries_cover_the_same_tools():
         "get_style_business_decisions",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
+        # 监测回流 + 记忆 + 修订 (ADR-0013 P2/P3)
+        "get_campaign_outcomes", "record_memory", "get_agent_memory", "read_blackboard", "request_revision",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected
@@ -222,3 +224,91 @@ def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
     with pytest.raises(ValueError, match="duplicate_agents_in_batch"):
         tools.dispatch_many(_json.dumps([{"agent": "ad", "task": "x"}, {"agent": "ad", "task": "y"}]))
     assert ctx2_round.calls == []
+
+
+# ── ADR-0013 P2: memory tools ────────────────────────────────────────────────────────────────────
+
+def test_record_memory_upserts_a_windowed_entity_keyed_verdict(ctx, monkeypatch):
+    rows = []
+    monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: rows.append(row))
+    tools.record_memory("ad_outcome", "ad-style-1", "7 天实测 ROAS 2.1，估算 4.1 —— 高估约 2 倍", "ad-style-1", 7)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["kind"] == "ad_outcome" and r["key"] == "ad-style-1"
+    assert r["content"] == {"verdict": "7 天实测 ROAS 2.1，估算 4.1 —— 高估约 2 倍"}
+    assert r["entity_type"] == "style_ad" and r["entity_id"] == "ad-style-1"
+    assert r["evidence_run_id"] == "run-test"
+    assert r["window_start"] < r["window_end"] <= r["expires_at"]
+
+
+def test_record_memory_rejects_unknown_kind(ctx, monkeypatch):
+    monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: (_ for _ in ()).throw(AssertionError("must not write")))
+    with pytest.raises(ValueError, match="kind_invalid"):
+        tools.record_memory("raw_metrics_dump", "k", "v")
+
+
+# ── ADR-0013 P3: the revision edge ───────────────────────────────────────────────────────────────
+
+def _revision_port(actions: dict, monkeypatch, dispatched: list):
+    from nailed_agents.orchestrator import RevisionPort
+    monkeypatch.setattr(bus, "fetch_action", lambda sb, action_id, merchant_id: actions.get(action_id))
+    superseded = []
+    monkeypatch.setattr(bus, "supersede_action", lambda sb, action_id: superseded.append(action_id))
+    port = RevisionPort(
+        sb=object(), merchant_id="m-test", monitor_run_id="run-monitor",
+        dispatch_fn=lambda slug, task, parent: (dispatched.append({"slug": slug, "task": task, "parent": parent}) or ("run-rev", f"{slug} 修订完成")),
+    )
+    port.superseded = superseded
+    return port
+
+
+def test_revision_refused_outside_the_monitor(ctx):
+    with pytest.raises(ValueError, match="revision_not_allowed"):
+        tools.request_revision("act-1", "预算太高")
+
+
+def test_revision_redispatches_the_executor_once_and_supersedes_the_action(ctx, monkeypatch):
+    dispatched = []
+    port = _revision_port({
+        "act-1": {"id": "act-1", "type": "place_ad", "risk": "reversible", "status": "applied",
+                  "entity_id": "ad-style-1", "payload": {"styleId": "style-1", "budgetCents": 20000}},
+    }, monkeypatch, dispatched)
+    ctx.revision = port
+    out = tools.request_revision("act-1", "实测 ROAS 仅 1.2，日预算从 200 降到 80")
+    assert "run-rev" in out
+    assert port.superseded == ["act-1"]
+    assert dispatched[0]["slug"] == "ad" and dispatched[0]["parent"] == "run-monitor"
+    assert "日预算从 200 降到 80" in dispatched[0]["task"]
+    # second attempt on the same action is refused before anything runs
+    with pytest.raises(ValueError, match="action_already_revised"):
+        tools.request_revision("act-1", "再改一次")
+    assert len(dispatched) == 1
+
+
+def test_revision_refuses_irreversible_and_entityless_actions(ctx, monkeypatch):
+    dispatched = []
+    port = _revision_port({
+        "msg-1": {"id": "msg-1", "type": "send_customer_message", "risk": "irreversible", "status": "applied",
+                  "entity_id": None, "payload": {}},
+        "gone-1": {"id": "gone-1", "type": "place_ad", "risk": "reversible", "status": "undone",
+                   "entity_id": "ad-x", "payload": {}},
+    }, monkeypatch, dispatched)
+    ctx.revision = port
+    with pytest.raises(ValueError, match="action_not_revisable"):
+        tools.request_revision("msg-1", "撤回消息")  # a sent message cannot be unsent, let alone revised
+    with pytest.raises(ValueError, match="action_not_revisable"):
+        tools.request_revision("gone-1", "已撤销的动作不能修订")
+    assert dispatched == [] and port.superseded == []
+
+
+def test_revision_budget_caps_per_round(ctx, monkeypatch):
+    acts = {f"act-{i}": {"id": f"act-{i}", "type": "place_ad", "risk": "reversible", "status": "applied",
+                          "entity_id": f"ad-{i}", "payload": {}} for i in range(3)}
+    dispatched = []
+    port = _revision_port(acts, monkeypatch, dispatched)
+    ctx.revision = port
+    tools.request_revision("act-0", "反馈 0")
+    tools.request_revision("act-1", "反馈 1")
+    with pytest.raises(ValueError, match="revision_budget_exhausted"):
+        tools.request_revision("act-2", "反馈 2")
+    assert len(dispatched) == 2

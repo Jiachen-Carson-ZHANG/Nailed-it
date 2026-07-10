@@ -1973,3 +1973,29 @@ verified: _CHAIN gone, RoundState live, skill present, pytest 30/30. Four fragme
   are not revisable.
 - **ADR §5**: hygiene wording aligned to the implemented contract (supersede → in-run dedupe → cap) with
   the no-RPC single-writer justification recorded.
+
+## 2026-07-11 — ADR-0013 P2+P3: round blackboard, cross-round memory, bounded revision edge
+
+**P2.** Migration `0030_agent_rounds_memory.sql` (MANUAL APPLY PENDING): `agent_rounds` (blackboard jsonb)
++ `agent_memory` (windowed, entity-keyed verdicts, unique (merchant,kind,key), evidence run, expiry) +
+`agent_runs.round_id`. Python: `bus.start_round` degrades loudly to None when 0030 is unapplied; the
+orchestrator writes `blackboard[lane] = conclusion` deterministically as lanes finish; `read_blackboard`
+(read-only) for lanes. Monitor gains `get_campaign_outcomes` (live style_ad_campaign metrics — the truth)
++ `record_memory` (verdicts only, never raw metric tables); 决策 gains `get_agent_memory` and its skill
+now reads memory FIRST — measured verdicts outrank estimates.
+
+**P3.** `RevisionPort` — injected ONLY into the monitor's RunContext (mirrors the orchestrator-only
+RoundState pattern): `request_revision(action_id, feedback)` supersedes the action (undone) and re-runs
+the owning executor once, parented to the monitor run, same entity upserted in place (never forked).
+Bounds in code: one revision per action, 2 per round, only reversible entity-backed place_ad /
+set_group_buy_coupon in applied/proposed state; published deals and sent messages refuse.
+
+**Skill discipline finding:** the monitor on flash flaked in both directions until the skill got
+bright-line thresholds with a worked division example (revise iff clicks≥50∧bookings=0, or budget>¥100
+∧ spend/booking>¥200). After: `monitor/overspending-ad-revised-once` and `monitor/healthy-ad-no-revision`
+both 2/2 stable.
+
+- pytest 30 → 36 (memory row shape, kind whitelist, revision refusal outside monitor, once-per-action,
+  budget cap, irreversible/entityless refusal). Registry 20 tools.
+- BLOCKED for final verification: OpenRouter credits ran out mid-eval (402) — full-suite rerun + the
+  live P2/P3 round need a top-up + migration 0030 applied.
