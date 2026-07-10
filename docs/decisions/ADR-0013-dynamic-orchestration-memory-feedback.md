@@ -32,7 +32,9 @@ transcripts) are reused unchanged.
 
 ### 1. Orchestrator becomes an agent with dispatch tools
 
-运营助手 runs as an LLM tool-loop with `dispatch_agent(slug, task, parent_run_id)` and `read_run(run_id)`.
+运营助手 runs as an LLM tool-loop with `dispatch_agent(agent, task, parent)` and `dispatch_many`
+(parallel batch). A dispatch is synchronous and returns the child's conclusion, so no separate
+`read_run` tool is needed — the earlier draft's `read_run` was dropped in implementation.
 It reads the briefing and **decides which lanes to wake**: full capacity → skip 投广/团购; no trend
 movement → skip 选品; nothing to monitor → skip 监测. Independent dispatches run in parallel
 (选品 ∥ 数分-adjacent reads; 投广 ∥ 团购 ∥ 用户运营). Skip decisions are written to the transcript with
@@ -51,12 +53,18 @@ through prompts. The blackboard IS the round's working memory; the transcript st
 
 ### 3. Cross-round memory (监测回流, executable)
 
-New `agent_memory` table: `{id, merchant_id, agent_slug, kind, key, content jsonb, evidence_run_id,
-created_at, expires_at}`. Monitor's job changes from "write a verdict" to "write **measured outcomes**":
-per campaign/deal — impressions, clicks, bookings, spend since launch; per coupon — redemption when the
-data exists. 决策 gains `get_agent_memory` and reads last-round outcomes before deciding. Over rounds,
-**measured ROAS replaces the estimated upper bound** in `ads.ts` (the honest-limit caveat retires with
-data instead of a fabricated lift factor).
+New `agent_memory` table: `{id, merchant_id, agent_slug, kind, key, content jsonb, entity_type,
+entity_id, window_start, window_end, evidence_run_id, created_at, expires_at}`, unique on
+`(merchant_id, kind, key)` so re-measurement upserts rather than stacks.
+
+**Memory never duplicates or overrides live facts** (audit 2026-07-10 #2): raw impressions / clicks /
+bookings / spend stay sourced from `style_ad_campaign` and event tables — those are the truth. Monitor
+writes **derived verdicts over an explicit window** ("campaign ad-8274, 7d window: measured ROAS 2.1 vs
+estimate 4.1; verdict: overestimated ×2"), each row citing its entity, window, and evidence run, with an
+expiry. 决策 gains `get_agent_memory` and reads last-round verdicts before deciding; where a measured
+verdict exists it outranks the `ads.ts` estimate — the honest-limit caveat retires with data instead of
+a fabricated lift factor. A conflict between memory and a live table is resolved by the live table,
+always.
 
 ### 4. One bounded interaction edge: revision
 
@@ -65,14 +73,29 @@ re-dispatch the executor **once** with the feedback attached ("预算超出上�
 ¥80/天"). Hard bound: one revision per action per round — an adversarial check, not a negotiation loop.
 The revision run parents to the monitor run, so the ↑↓ lineage renders the interaction with zero UI work.
 
+**Entity transition contract** (audit 2026-07-10 #4) — a revision NEVER forks a parallel entity; the
+stable entity ids (`ad-<styleId>`, `gb-<styleId>`) make the executor's re-run an in-place upsert:
+
+| entity state before | revision effect on entity | old action row | new action row |
+|---|---|---|---|
+| style_ad `active` | upsert same campaign (new budget); envelope re-applies (over-cap → `draft`) | `undone` (superseded) | written by the re-run, same `entity_id` |
+| style_ad `draft` | upsert same campaign draft | `undone` (superseded) | same `entity_id` |
+| groupbuy `draft` | update the same deal via `proposeGroupbuyForStyleAction` (stable id) | `undone` (superseded) | same `entity_id` |
+| groupbuy `published` | NOT revisable — the merchant published it; monitor may only *recommend* unlist | unchanged | none |
+| any irreversible action (message sent) | NOT revisable | unchanged | none |
+
 ### 5. Proposal hygiene (the 25-条待确认 fix)
 
-- `propose_listing` dedupes by `gapTag`: an existing proposed action for the same gap is updated, not
-  duplicated.
-- A new round **supersedes** the same agent's previous `proposed` set (expired → `undone`, audit kept).
-- Merchant-configurable cap on pending proposals (default 5) joins the envelope policy alongside the ad
-  budget cap. New-listing ideas originate from weekly-cadence sources (internal hot + external trends);
-  the pending queue should never outrun that cadence.
+The implemented contract is **supersede → in-run dedupe → cap**, in that order (audit 2026-07-10 #3
+flagged the earlier "update in place" wording — this is the authoritative semantics):
+- The run's FIRST `propose_listing` expires all older-round pending proposals (`undone`, audit kept).
+- Within the run, a repeated `gapTag` is skipped (post-supersede, in-run tags are the only live set, so
+  this IS the dedupe — no cross-run update-in-place needed).
+- The count is capped at `MAX_PENDING_PROPOSALS` (default 5, merchant policy later); the tool errors
+  with `proposal_cap_reached` so the loop stops proposing.
+- No keyed-upsert RPC: the Python service is the single writer and the dispatch guardrail allows one
+  catalog run per round, so there is no concurrent-writer race to defend against. If a second writer
+  ever appears, revisit with a `(merchant_id, type, payload->>gapTag, status)` upsert.
 
 ### Schema
 
@@ -132,6 +155,10 @@ bounded to one attempt, run finalizes `failed` visibly).
   skill and eval both pin this after a flash run skipped everything.
 - **Reply protocol** in the skill: no interim prose until all dispatches are done (the OpenAI-format loop
   treats a text-only reply as the final answer).
+- **Eval layering** (audit 2026-07-10 #5): LLM eval covers what the MODEL decides (skip/dispatch
+  choices); code-enforced guarantees (dispatch budget, one-dispatch-per-agent, whitelist, batch
+  atomicity) are pytest unit tests against the real RoundState — deterministic properties don't need
+  model runs to prove.
 - **Eval**: two orchestrator scenarios drive the REAL RoundState guardrails with canned lane conclusions —
   `full-capacity-skips-spend` (must NOT dispatch ad/coupon at 91% utilization) and
   `dispatches-chosen-lanes` (ad yes / coupon no per the decision text). Signatures pin only the judged

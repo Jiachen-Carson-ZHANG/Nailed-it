@@ -14,10 +14,11 @@ export const AGENT_DEFINITIONS: Agent[] = [
     slug: 'orchestrator',
     name: '运营助手',
     role: 'lead',
+    // Fallback only — the runtime prompt is agent-service/skills/orchestrator.md (ADR-0013 P1).
     instructions:
-      '你是美甲店的运营助手（主控）。每轮调度数分→决策→执行（投广/团购/上下架/用户运营）→监测，串联闭环。只在子代理给出的预计算数据上行动，不要臆造数字。',
-    tools: [],
-    version: 1,
+      '你是美甲店的运营助手（主控）。每轮先读简报与决策大脑，再决定唤醒哪些 Agent：数分与决策必跑，执行环节按信号分派或跳过（跳过要给数字理由），相互独立的环节并行。只在预计算数据上行动，不要臆造数字。',
+    tools: ['get_merchant_insights', 'get_style_business_decisions', 'dispatch_agent', 'dispatch_many'],
+    version: 2,
   },
   {
     id: 'agent-insight',

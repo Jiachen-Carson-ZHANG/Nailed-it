@@ -1954,3 +1954,22 @@ failed, gemini-2.5-pro fixed it — `ORCHESTRATOR_MODEL` (orchestrator only) add
 - Live round: orchestrator dispatched 8 lanes with cited numbers (ROAS >3.8, exposureRatio <0.76,
   产能 33%), ad/coupon/catalog/customer_ops all started the same second (parallel), monitor last.
 - Removed: the fixed `_CHAIN` and the decorative 数分' rebaseline run (P2's memory write replaces it).
+
+## 2026-07-10 — Audit-the-audit on ADR-0013 P0/P1 + contract tightening
+
+An external audit reviewed ADR-0013 against a MID-IMPLEMENTATION snapshot: its headline claims (fixed
+_CHAIN still present, no RoundState, no orchestrator skill, pytest 2-failed) were already false at HEAD —
+verified: _CHAIN gone, RoundState live, skill present, pytest 30/30. Four fragments were right and landed:
+
+- **Seed honesty**: the orchestrator agent row still described the old fixed chain with `tools: []` —
+  updated to the dynamic-orchestration instructions + real tool list (v2), re-seeded.
+- **ADR §1**: `read_run` removed from the decision text — dispatch is synchronous and returns the child's
+  conclusion, so the tool was never needed.
+- **ADR §3 (P2 spec)**: memory must never duplicate/override live facts — raw metrics stay in
+  `style_ad_campaign`/event tables; `agent_memory` stores windowed, entity-keyed, evidence-linked
+  VERDICTS with expiry + unique (merchant, kind, key) upsert. Live tables always win conflicts.
+- **ADR §4 (P3 spec)**: revision entity-transition table added — a revision never forks a parallel
+  entity (stable ids make executor re-runs in-place upserts); published deals and irreversible actions
+  are not revisable.
+- **ADR §5**: hygiene wording aligned to the implemented contract (supersede → in-run dedupe → cap) with
+  the no-RPC single-writer justification recorded.
