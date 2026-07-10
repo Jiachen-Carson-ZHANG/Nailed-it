@@ -153,3 +153,14 @@ export type StyleAdView = {
   notes: string;
   updatedAt: string;
 };
+
+// ── Agent-proposed campaigns (ADR-0012 Phase 2) ────────────────────────────────────────────────
+// These live here, not in style-ad-actions.ts, because a 'use server' module may only export async
+// functions — exporting a const from one breaks the build.
+
+/** Per-campaign daily budget the agent may auto-launch without asking (the merchant's envelope). Above it
+ *  the campaign stays a draft for the merchant to launch in 投广中心. Becomes merchant policy later. */
+export const AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS = 5_000; // ¥50/day
+
+export type ProposeStyleAdInput = { styleId: string; dailyBudgetCents: number; sourceRunId: string | null };
+export type ProposeStyleAdResult = { id: string; status: 'draft' | 'active' };

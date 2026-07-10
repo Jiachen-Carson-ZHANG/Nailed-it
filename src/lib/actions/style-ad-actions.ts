@@ -6,12 +6,15 @@ import type {
   PromotionGoal,
   AudienceMode,
   StyleAdCustomAudience,
+  ProposeStyleAdInput,
+  ProposeStyleAdResult,
 } from '@/domain/style-ad';
 import {
   DEFAULT_TARGET_EXPOSURE,
   DEFAULT_TARGET_ROI,
   DEFAULT_DURATION_DAYS,
   DEFAULT_CUSTOM_AUDIENCE,
+  AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS,
   clampTargetExposure,
   clampDurationDays,
   normalizeCustomAudience,
@@ -251,4 +254,44 @@ export async function launchStyleAdAction(input: LaunchStyleAdInput): Promise<St
     dailyBudgetCents: payload.dailyBudgetCents,
     notes: payload.notes,
   };
+}
+
+// ── Agent-proposed campaigns (ADR-0012 Phase 2) ────────────────────────────────────────────────
+// The 投广 agent no longer writes a fire-and-forget log row: it creates a REAL StyleAd campaign linked back
+// to the run that proposed it. Envelope (ADR-0012 §2): inside the merchant's per-campaign budget cap the
+// agent auto-launches (ad spend is a withdrawable daily drip); above it the campaign stays a draft for the
+// merchant to launch from 投广中心. The caller writes the agent_action with entity_id = the returned id.
+// The cap + types live in domain/style-ad.ts — a 'use server' module may only export async functions.
+
+export async function proposeStyleAdAction(input: ProposeStyleAdInput): Promise<ProposeStyleAdResult> {
+  const id = `ad-${input.styleId}`;
+  const status: ProposeStyleAdResult['status'] =
+    input.dailyBudgetCents <= AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS ? 'active' : 'draft';
+
+  if (!usesSupabaseBackend()) return { id, status }; // memory/dev: no campaign table to write
+
+  const style = await getMerchantStyleService().getMerchant(demoMerchantId, input.styleId);
+  if (!style || style.status !== 'published') throw new Error('merchant_style_not_publishable_for_ads');
+
+  const { error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .upsert(
+      {
+        id,
+        merchant_id: demoMerchantId,
+        merchant_style_id: input.styleId,
+        status,
+        daily_budget_cents: input.dailyBudgetCents,
+        source_run_id: input.sourceRunId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+  if (error) {
+    if (isMissingStyleAdTableError(error)) {
+      throw new Error('style_ad_campaign missing — apply migrations 0022_style_ad_campaign + 0023-0025 + 0028');
+    }
+    throw new Error(`StyleAdCampaign.propose failed: ${error.message}`);
+  }
+  return { id, status };
 }

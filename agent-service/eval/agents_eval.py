@@ -127,17 +127,22 @@ SCENARIOS = [
 
 @contextlib.contextmanager
 def _stub_bus(scn: Scenario, captured: list[dict]):
-    orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action, bus.fetch_decisions)
+    orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
+            bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
     bus.fetch_decisions = lambda: scn.decisions                             # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
+    # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
+    # eval stays offline while still exercising the real tool bodies + their action writes.
+    bus.post_propose_ad = lambda style_id, *a, **k: {"ok": True, "id": f"ad-{style_id}", "status": "active"}  # type: ignore[assignment]
+    bus.post_propose_groupbuy = lambda style_id, *a, **k: {"ok": True, "deal": {"id": f"gb-{style_id}"}}       # type: ignore[assignment]
     try:
         yield
     finally:
-        (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers,
-         bus.write_action, bus.fetch_decisions) = orig
+        (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
+         bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy) = orig
 
 
 def _skill(slug: str) -> str:

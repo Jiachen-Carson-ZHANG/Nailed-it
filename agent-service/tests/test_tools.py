@@ -53,6 +53,9 @@ def ctx(monkeypatch):
                         lambda sb, **kw: writes.append(kw))
     monkeypatch.setattr(bus, "fetch_briefing", lambda range_days=7: {"insights": {"trendingUp": ["金属感"]}})
     monkeypatch.setattr(bus, "fetch_customers", lambda: {"customers": [{"name": "Amy Lim", "lastVisitDaysAgo": 40}]})
+    # place_ad / set_group_buy_coupon now create REAL entities through the TS routes (ADR-0012) — stub the hop.
+    monkeypatch.setattr(bus, "post_propose_ad", lambda style_id, *a, **k: {"ok": True, "id": f"ad-{style_id}", "status": "active"})
+    monkeypatch.setattr(bus, "post_propose_groupbuy", lambda style_id, *a, **k: {"ok": True, "deal": {"id": f"gb-{style_id}"}})
     c = tools.RunContext(sb=object(), run_id="run-test", merchant_id="m-test")
     c.writes = writes  # expose for assertions
     token = tools.use_context(c)
@@ -60,16 +63,33 @@ def ctx(monkeypatch):
     tools.reset_context(token)
 
 
-def test_place_ad_writes_reversible_action_and_two_steps(ctx):
+def test_place_ad_creates_a_real_campaign_and_links_the_action(ctx):
+    """ADR-0012: the ad tool creates a StyleAd campaign and the action links FORWARD to it (entity_type /
+    entity_id), mirroring its live state — it is no longer a fire-and-forget applied log row."""
     out = tools.place_ad("style-1", "top_funnel", 5000)
-    assert "reversible" in out
+    assert "ad-style-1" in out and "launched" in out  # budget within the auto-launch cap → active
     assert ctx.writes == [{
         "run_id": "run-test", "action_type": "place_ad",
         "payload": {"styleId": "style-1", "slot": "top_funnel", "budgetCents": 5000},
+        "status": "applied", "entity_type": "style_ad", "entity_id": "ad-style-1",
     }]
     kinds = [s["kind"] for s in ctx.transcript]
     assert kinds == ["tool_call", "action"]
     assert ctx.transcript[-1]["status"] == "applied"
+
+
+def test_set_group_buy_coupon_proposes_a_real_draft_never_pretends_it_is_live(ctx):
+    """ADR-0012: the coupon tool creates a REAL editable draft deal the merchant publishes — the action is
+    'proposed' and linked to the deal, not an 'applied' row claiming the deal already exists."""
+    out = tools.set_group_buy_coupon("style-1", 7040)
+    assert "gb-style-1" in out and "awaiting merchant publish" in out
+    assert ctx.writes == [{
+        "run_id": "run-test", "action_type": "set_group_buy_coupon",
+        "payload": {"styleId": "style-1", "priceCents": 7040},
+        "status": "proposed", "entity_type": "groupbuy_deal", "entity_id": "gb-style-1",
+    }]
+    assert [s["kind"] for s in ctx.transcript] == ["tool_call", "action"]
+    assert ctx.transcript[-1]["status"] == "proposed"
 
 
 def test_action_tools_validate_model_supplied_payloads_before_write(ctx):

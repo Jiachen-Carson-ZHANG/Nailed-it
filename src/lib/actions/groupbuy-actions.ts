@@ -2,7 +2,12 @@
 
 import { getRepositories } from '@/lib/repositories';
 import { demoMerchantId } from '@/mock/merchants';
-import { toGroupbuyRecord, type GroupbuyDeal, type GroupbuyDealRecord } from '@/domain/groupbuy';
+import {
+  createDefaultGroupbuyDraft,
+  toGroupbuyRecord,
+  type GroupbuyDeal,
+  type GroupbuyDealRecord,
+} from '@/domain/groupbuy';
 import { validateGroupbuyDeal } from '@/domain/groupbuy-validation';
 
 // ADR-0012 Phase 2. The agent proposes a real, reviewable group-buy DRAFT (not an applied log row): terms
@@ -23,4 +28,31 @@ export async function proposeGroupbuyDealAction(deal: GroupbuyDeal, sourceRunId:
   const record = toGroupbuyRecord({ ...deal, status: 'draft' }, demoMerchantId, MERCHANT_CURRENCY, sourceRunId);
   const saved = await getRepositories().groupbuy.save(record);
   return { ok: true, deal: saved };
+}
+
+/** The 团购 agent's entry point: it names a published style + a post-coupon price. We build a REAL, editable
+ *  draft from that style — its title, its current price as the original, and its authoritative catalog
+ *  breakdown as the bundled services — so the merchant sees a publishable deal in 团购管理, not a log row. */
+export async function proposeGroupbuyForStyleAction(input: {
+  styleId: string;
+  dealPriceCents: number;
+  sourceRunId: string | null;
+}): Promise<ProposeGroupbuyResult> {
+  const style = await getRepositories().merchantStyles.getByIdForMerchant(input.styleId, demoMerchantId);
+  if (!style || style.status !== 'published') return { ok: false, errors: ['style_not_published'] };
+  if (style.previewPriceCents == null) return { ok: false, errors: ['style_has_no_price'] };
+
+  const deal: GroupbuyDeal = {
+    ...createDefaultGroupbuyDraft(),
+    id: `gb-${input.styleId}`, // stable → re-proposing the same style updates its draft
+    title: `${style.title} 团购`,
+    originalPrice: style.previewPriceCents / 100,
+    dealPrice: input.dealPriceCents / 100,
+    serviceSelections: style.catalogBreakdown.map((s) => ({
+      catalogItemId: s.catalogItemId,
+      enabled: true,
+      quantity: s.quantity,
+    })),
+  };
+  return proposeGroupbuyDealAction(deal, input.sourceRunId);
 }

@@ -212,40 +212,69 @@ def get_trend_opportunities(range_days: int = 7, trend_type: str = "growing") ->
 
 
 def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
-    """Place an ad for a published style in a funnel slot. slot must be one of 'top_funnel',
-    'lower_funnel', 'mid_funnel'. budget_cents is the ad budget in cents. Reversible — the merchant
-    can undo it from the panel."""
+    """Run an ad for a published style in a funnel slot. slot must be one of 'top_funnel',
+    'lower_funnel', 'mid_funnel'. budget_cents is the daily ad budget in cents. This creates a REAL ad
+    campaign the merchant can see and stop in 投广中心 — inside the merchant's budget cap it launches
+    immediately (spend is a withdrawable daily drip); above the cap it is left as a draft for the merchant
+    to launch. Reversible: the merchant can pause or stop the campaign."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
     if not isinstance(slot, str) or slot not in _AD_SLOTS:
         raise ValueError("slot_invalid")
     budget_cents = _bounded_int(budget_cents, field="budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
+
+    result = bus.post_propose_ad(style_id, budget_cents, ctx.run_id)
+    if not result.get("ok"):
+        raise ValueError(f"propose_ad_failed: {result.get('errors')}")
+    entity_id, entity_status = result["id"], result["status"]  # 'active' | 'draft'
+    action_status = "applied" if entity_status == "active" else "proposed"
+
     payload = {"styleId": style_id, "slot": slot, "budgetCents": budget_cents}
-    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="place_ad", payload=payload)
-    ctx.transcript.append({"kind": "tool_call", "tool": "place_ad", "input": payload, "output": {"ok": True}})
-    ctx.transcript.append(
-        {"kind": "action", "actionType": "place_ad", "status": "applied",
-         "summary": f"投广：{style_id} · {slot} · 预算 {budget_cents / 100:.0f}"}
+    bus.write_action(
+        ctx.sb, run_id=ctx.run_id, action_type="place_ad", payload=payload,
+        status=action_status, entity_type="style_ad", entity_id=entity_id,
     )
-    return f"Ad placed: {style_id} in {slot} at {budget_cents} cents (reversible)."
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "place_ad", "input": payload,
+         "output": {"entityId": entity_id, "campaignStatus": entity_status}}
+    )
+    launched = entity_status == "active"
+    ctx.transcript.append(
+        {"kind": "action", "actionType": "place_ad", "status": action_status,
+         "summary": f"投广：{style_id} · {slot} · 日预算 {budget_cents / 100:.0f}"
+                    + ("（已投放，可随时暂停）" if launched else "（超出预算上限，待商家启动）")}
+    )
+    verb = "launched" if launched else "left as a draft for the merchant to launch"
+    return f"Ad campaign {entity_id} for {style_id} ({slot}, {budget_cents} cents/day) {verb}."
 
 
 def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
-    """Set a 团购券 (group-buy coupon) post-coupon price for a style, surfaced on the price-config
-    page. price_cents is the post-coupon price in cents. Reversible — the merchant can undo it."""
+    """Propose a 团购 (group-buy) deal for a published style at a post-coupon price in cents. This creates a
+    REAL, editable draft deal — built from the style's title, its current price, and its catalog services —
+    which the merchant reviews and publishes in 团购管理. It does NOT pretend the deal is already live."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
     price_cents = _bounded_int(price_cents, field="price_cents", maximum=_MAX_COUPON_PRICE_CENTS)
+
+    result = bus.post_propose_groupbuy(style_id, price_cents, ctx.run_id)
+    if not result.get("ok"):
+        raise ValueError(f"propose_groupbuy_failed: {result.get('errors')}")
+    deal_id = result["deal"]["id"]
+
     payload = {"styleId": style_id, "priceCents": price_cents}
-    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="set_group_buy_coupon", payload=payload)
-    ctx.transcript.append(
-        {"kind": "tool_call", "tool": "set_group_buy_coupon", "input": payload, "output": {"ok": True}}
+    bus.write_action(
+        ctx.sb, run_id=ctx.run_id, action_type="set_group_buy_coupon", payload=payload,
+        status="proposed", entity_type="groupbuy_deal", entity_id=deal_id,
     )
     ctx.transcript.append(
-        {"kind": "action", "actionType": "set_group_buy_coupon", "status": "applied",
-         "summary": f"团购券：{style_id} · 券后 {price_cents / 100:.0f}"}
+        {"kind": "tool_call", "tool": "set_group_buy_coupon", "input": payload,
+         "output": {"dealId": deal_id, "dealStatus": "draft"}}
     )
-    return f"Coupon set: {style_id} post-coupon {price_cents} cents (reversible)."
+    ctx.transcript.append(
+        {"kind": "action", "actionType": "set_group_buy_coupon", "status": "proposed",
+         "summary": f"团购草稿（待商家发布）：{style_id} · 券后 {price_cents / 100:.0f}"}
+    )
+    return f"Group-buy draft {deal_id} proposed for {style_id} at {price_cents} cents — awaiting merchant publish."
 
 
 def list_style(style_id: str) -> str:

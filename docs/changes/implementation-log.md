@@ -1736,3 +1736,30 @@ The behavioural half of ADR-0012 — the 决策 agent stops being a two-action q
   call `/api/agent/propose-groupbuy` and write the action with `entity_type='groupbuy_deal'`/`entity_id`
   (status `proposed`) instead of an applied log row; `place_ad` likewise → a `StyleAd` draft (needs a
   `proposeStyleAdAction` + route, and the ad tables applied); plus TS entity-aware undo.
+
+## 2026-07-06 — Phase 2 entity rewire: the executors create REAL commercial objects
+
+First live agent round proved the brain+agent half works (决策 called `get_style_business_decisions`, cited
+grounded numbers, and **overrode the brain** — it declined coupons on 8275/8273 because the 数分 briefing
+flagged them as delist candidates). But the executors still wrote applied log rows with `entity=-/-`.
+Rewired both:
+- **`set_group_buy_coupon` → a real reviewable draft.** `proposeGroupbuyForStyleAction` builds the deal from
+  the published style (title, current price as original, and its **authoritative catalog breakdown** as the
+  bundled services), validates the terms, persists via the repo seam with `source_run_id`. The tool then
+  writes the action with `status='proposed'`, `entity_type='groupbuy_deal'`, `entity_id=<deal id>`.
+  **Verified live:** `gb-style-melissa-img-8284`, ¥88 → ¥70.40, 7 relational `groupbuy_deal_item` rows.
+- **`place_ad` → a real StyleAd campaign.** `proposeStyleAdAction` upserts `style_ad_campaign` with
+  `source_run_id`. Envelope (ADR-0012 §2): daily budget ≤ `AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS` (¥50)
+  → `active` (auto-launch; spend is a withdrawable daily drip) → action `applied`; above the cap → `draft`
+  → action `proposed`, for the merchant to launch in 投广中心.
+- HTTP hops live in `bus.post_propose_ad` / `bus.post_propose_groupbuy` so the tools stay stubbable; routes
+  `/api/agent/propose-ad` + `/api/agent/propose-groupbuy` take agent-native input (styleId + cents).
+- Gotcha found: a `'use server'` module may only export async functions — the budget cap + types moved to
+  `domain/style-ad.ts`.
+- Tests now enforce the contract: `place_ad` links `entity_type='style_ad'` + status mirrors the campaign;
+  new `set_group_buy_coupon` test asserts `status='proposed'` + `entity_type='groupbuy_deal'`. pytest 23, tsc clean.
+- **Blocked for ads only:** the demo DB has no `style_ad_campaign` — the route returns a clear
+  "apply migrations 0022_style_ad_campaign + 0023-0025 + 0028" error. Coupons work end-to-end today.
+- **Still open:** `GroupbuyPanel` reads `localStorage`, so the merchant cannot yet *see* the DB-created draft
+  in 团购管理; supabase group-buy `save` is not transactional; entity-aware undo (stop the campaign / unlist
+  the deal) is not wired; ad ROAS + measured underexposure unmodelled.

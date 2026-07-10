@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { isValidGroupbuyDeal } from '@/domain/groupbuy';
-import { proposeGroupbuyDealAction } from '@/lib/actions/groupbuy-actions';
+import { proposeGroupbuyForStyleAction } from '@/lib/actions/groupbuy-actions';
 
-// The 团购 agent proposes a real reviewable DRAFT (ADR-0012 Phase 2). Body: { deal, sourceRunId }. Shape is
-// guarded here, terms are validated in the action; a valid proposal is persisted with source_run_id and its
-// id returned so the Python tool can write the agent_action forward link (entity_type='groupbuy_deal').
+// The 团购 agent proposes a real reviewable DRAFT (ADR-0012 Phase 2).
+// Body: { styleId, dealPriceCents, sourceRunId }. TS builds the deal from the published style (title,
+// original price, its authoritative catalog services) and validates the terms; the returned deal id becomes
+// the agent_action's entity_id (entity_type='groupbuy_deal'). The merchant edits/publishes it in 团购管理.
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -12,10 +12,14 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, errors: ['invalid_json'] }, { status: 400 });
   }
-  const { deal, sourceRunId } = (body ?? {}) as { deal?: unknown; sourceRunId?: unknown };
-  if (!isValidGroupbuyDeal(deal)) {
-    return NextResponse.json({ ok: false, errors: ['malformed_deal'] }, { status: 400 });
+  const { styleId, dealPriceCents, sourceRunId } = (body ?? {}) as Record<string, unknown>;
+  if (typeof styleId !== 'string' || typeof dealPriceCents !== 'number' || !Number.isFinite(dealPriceCents) || dealPriceCents <= 0) {
+    return NextResponse.json({ ok: false, errors: ['malformed_input'] }, { status: 400 });
   }
-  const result = await proposeGroupbuyDealAction(deal, typeof sourceRunId === 'string' ? sourceRunId : null);
+  const result = await proposeGroupbuyForStyleAction({
+    styleId,
+    dealPriceCents: Math.round(dealPriceCents),
+    sourceRunId: typeof sourceRunId === 'string' ? sourceRunId : null,
+  });
   return NextResponse.json(result, { status: result.ok ? 200 : 422 });
 }

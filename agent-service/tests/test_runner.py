@@ -23,6 +23,8 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     monkeypatch.setattr(config, "AGENT_MODEL", "google/gemini-2.5-flash")
     writes = []
     monkeypatch.setattr(bus, "write_action", lambda sb, **kw: writes.append(kw))
+    # place_ad now creates a REAL StyleAd campaign through the TS route (ADR-0012); stub that hop.
+    monkeypatch.setattr(bus, "post_propose_ad", lambda *a, **k: {"ok": True, "id": "ad-s-1", "status": "active"})
 
     # fake client: 1st turn → call place_ad; 2nd turn → final text, no tool_calls
     responses = iter([
@@ -40,6 +42,9 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     # the real place_ad body ran → one captured action write
     assert len(writes) == 1 and writes[0]["action_type"] == "place_ad"
     assert writes[0]["payload"] == {"styleId": "s-1", "slot": "top_funnel", "budgetCents": 5000}
+    # ADR-0012: the action links FORWARD to the real campaign it created, and mirrors its live state.
+    assert writes[0]["entity_type"] == "style_ad" and writes[0]["entity_id"] == "ad-s-1"
+    assert writes[0]["status"] == "applied"  # budget within the auto-launch cap → campaign is active
     # transcript order: tool's tool_call + action (from the body), then the final reasoning text
     assert [s["kind"] for s in ctx.transcript] == ["tool_call", "action", "reasoning"]
     # the attempt recorder logged the successful call (name + parsed args + ok), for the eval gate

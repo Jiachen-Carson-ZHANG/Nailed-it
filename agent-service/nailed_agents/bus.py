@@ -40,6 +40,33 @@ def fetch_decisions() -> dict[str, Any]:
     return resp.json()
 
 
+def post_propose_ad(style_id: str, daily_budget_cents: int, source_run_id: str) -> dict[str, Any]:
+    """Create the REAL StyleAd campaign in TS (ADR-0012 Phase 2) and get its id back for the action's
+    entity link. Returns {ok, id, status}: 'active' when the budget is inside the merchant's auto-launch
+    cap (withdrawable daily drip), else 'draft' awaiting the merchant's launch in 投广中心."""
+    resp = httpx.post(
+        f"{config.APP_URL}/api/agent/propose-ad",
+        json={"styleId": style_id, "dailyBudgetCents": daily_budget_cents, "sourceRunId": source_run_id},
+        timeout=30.0,
+    )
+    if resp.status_code >= 500:
+        resp.raise_for_status()
+    return resp.json()  # a 4xx carries {ok: false, errors: [...]} the tool surfaces to the agent
+
+
+def post_propose_groupbuy(style_id: str, deal_price_cents: int, source_run_id: str) -> dict[str, Any]:
+    """Create a REAL, editable group-buy DRAFT in TS from the published style (title, original price, its
+    catalog services) — the merchant reviews and publishes it. Returns {ok, deal:{id,...}} or {ok:false,errors}."""
+    resp = httpx.post(
+        f"{config.APP_URL}/api/agent/propose-groupbuy",
+        json={"styleId": style_id, "dealPriceCents": deal_price_cents, "sourceRunId": source_run_id},
+        timeout=30.0,
+    )
+    if resp.status_code >= 500:
+        resp.raise_for_status()
+    return resp.json()
+
+
 def fetch_customers() -> dict[str, Any]:
     """Grounded customer roster (booking history, most-lapsed first) for the 用户运营 agent — same
     guardrail as the briefing: pre-computed substrate, never invented in Python."""
