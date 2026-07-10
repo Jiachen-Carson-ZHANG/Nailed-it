@@ -288,8 +288,14 @@ export async function proposeStyleAdAction(input: ProposeStyleAdInput): Promise<
       { onConflict: 'id' },
     );
   if (error) {
+    // Check the column BEFORE the table guard: isMissingStyleAdTableError matches any message containing
+    // 'style_ad_campaign' + 'schema cache', so a missing COLUMN would otherwise be misreported as a
+    // missing TABLE. 0027's ALTER is guarded, so a DB that got the ad tables later lacks source_run_id.
+    if (/source_run_id/i.test(error.message)) {
+      throw new Error(`style_ad_campaign.source_run_id missing — apply migration 0028_style_ad_source_run.sql (${error.message})`);
+    }
     if (isMissingStyleAdTableError(error)) {
-      throw new Error('style_ad_campaign missing — apply migrations 0022_style_ad_campaign + 0023-0025 + 0028');
+      throw new Error('style_ad_campaign missing — apply migrations 0022_style_ad_campaign + 0023-0025');
     }
     throw new Error(`StyleAdCampaign.propose failed: ${error.message}`);
   }

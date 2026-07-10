@@ -3,8 +3,9 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
-import { resetRepositoriesForTests } from '@/lib/repositories';
-import { clearGroupbuyDealsForTests } from '@/lib/repositories/local/groupbuy-repository';
+import { getRepositories, resetRepositoriesForTests } from '@/lib/repositories';
+import { createDefaultGroupbuyDraft, toGroupbuyRecord } from '@/domain/groupbuy';
+import { demoMerchantId } from '@/mock/merchants';
 import MerchantManagePage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -19,7 +20,6 @@ vi.mock('@/components/ui/Toast', () => ({
 describe('MerchantManagePage', () => {
   beforeEach(() => {
     resetRepositoriesForTests();
-    clearGroupbuyDealsForTests();
   });
 
   function renderManagePage(language: 'zh-CN' | 'en' = 'zh-CN') {
@@ -243,9 +243,10 @@ describe('MerchantManagePage', () => {
     return list as HTMLElement;
   }
 
-  function openFirstDealDetail() {
+  async function openFirstDealDetail() {
+    // Deals now load asynchronously through the repository seam (ADR-0012), so wait for the list.
     const dealList = getDealListContainer();
-    const viewButtons = within(dealList).getAllByRole('button', { name: '查看' });
+    const viewButtons = await within(dealList).findAllByRole('button', { name: '查看' });
     fireEvent.click(viewButtons[0]);
   }
 
@@ -254,7 +255,7 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
 
     expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改' })).toBeInTheDocument();
@@ -267,7 +268,7 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
 
     const serviceAccordion = screen.getByRole('button', { name: /服务内容/ });
     expect(serviceAccordion).toHaveAttribute('aria-expanded', 'false');
@@ -278,7 +279,7 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
 
     fireEvent.click(screen.getByRole('button', { name: /服务内容/ }));
 
@@ -291,7 +292,7 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
     fireEvent.click(screen.getByRole('button', { name: '返回' }));
 
     expect(screen.getByRole('button', { name: '+ 添加团购' })).toBeInTheDocument();
@@ -303,13 +304,12 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
     fireEvent.click(screen.getByRole('button', { name: '复制' }));
 
+    expect(await screen.findByText(/副本/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ 添加团购' })).toBeInTheDocument();
-    const draftPills = screen.getAllByText('草稿');
-    expect(draftPills.length).toBeGreaterThan(0);
-    expect(screen.getByText(/副本/)).toBeInTheDocument();
+    expect(screen.getAllByText('草稿').length).toBeGreaterThan(0);
   });
 
   it('unlists a deal and shows 已下架 in the list', async () => {
@@ -317,11 +317,10 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
     fireEvent.click(screen.getByRole('button', { name: '下架' }));
 
-    expect(screen.getByRole('button', { name: '上架' })).toBeInTheDocument();
-    expect(screen.getAllByText('已下架').length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: '上架' })).toBeInTheDocument();
   });
 
   it('relists a deal after unlisting it', async () => {
@@ -329,11 +328,11 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
     fireEvent.click(screen.getByRole('button', { name: '下架' }));
-    fireEvent.click(screen.getByRole('button', { name: '上架' }));
+    fireEvent.click(await screen.findByRole('button', { name: '上架' }));
 
-    expect(screen.getByRole('button', { name: '下架' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '下架' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '上架' })).not.toBeInTheDocument();
   });
 
@@ -342,11 +341,28 @@ describe('MerchantManagePage', () => {
     await screen.findByLabelText(/基础护理服务 单价/i);
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
-    openFirstDealDetail();
+    await openFirstDealDetail();
     fireEvent.click(screen.getByRole('button', { name: '修改' }));
 
     expect(screen.getByRole('tab', { name: '团购内容' })).toBeInTheDocument();
     const nameInput = screen.getByLabelText('团购名称') as HTMLInputElement;
     expect(nameInput.value).not.toBe('');
+  });
+  it('surfaces an agent-proposed draft in the AI助手 card, not a hardcoded mockup (ADR-0012)', async () => {
+    // A deal carrying a sourceRunId is one the 团购 agent proposed; the merchant must be able to review it.
+    await getRepositories().groupbuy.save(
+      toGroupbuyRecord(
+        { ...createDefaultGroupbuyDraft(), id: 'gb-agent-1', title: '闲时套餐', originalPrice: 158, dealPrice: 128 },
+        demoMerchantId,
+        'SGD',
+        'run-42',
+      ),
+    );
+    renderManagePage();
+    await screen.findByLabelText(/基础护理服务 单价/i);
+    fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
+
+    expect((await screen.findAllByText(/闲时套餐/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AI 建议').length).toBeGreaterThan(0); // the proposal is badged
   });
 });

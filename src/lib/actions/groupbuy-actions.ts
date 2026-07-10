@@ -30,6 +30,69 @@ export async function proposeGroupbuyDealAction(deal: GroupbuyDeal, sourceRunId:
   return { ok: true, deal: saved };
 }
 
+// ── Merchant-facing 团购管理 (ADR-0012 Phase 2) ─────────────────────────────────────────────────
+// The panel used to read browser localStorage, so DB-created deals (including everything the agent
+// proposed) were invisible. These actions put it on the repository seam. Deals carrying a sourceRunId are
+// agent proposals awaiting the merchant's review.
+
+export async function listGroupbuyDealsAction(): Promise<GroupbuyDealRecord[]> {
+  return getRepositories().groupbuy.listByMerchant(demoMerchantId);
+}
+
+export async function getGroupbuyDealAction(id: string): Promise<GroupbuyDealRecord | null> {
+  return getRepositories().groupbuy.getByIdForMerchant(id, demoMerchantId);
+}
+
+/** Save an edited/new deal as a draft. Terms are validated at draft level (lenient). */
+export async function saveGroupbuyDraftAction(deal: GroupbuyDeal): Promise<ProposeGroupbuyResult> {
+  const check = validateGroupbuyDeal(deal, false);
+  if (!check.ok) return { ok: false, errors: check.errors };
+  const existing = await getRepositories().groupbuy.getByIdForMerchant(deal.id, demoMerchantId);
+  const record = toGroupbuyRecord(
+    { ...deal, status: 'draft', updatedAt: new Date().toISOString() },
+    demoMerchantId,
+    existing?.currency ?? MERCHANT_CURRENCY,
+    existing?.sourceRunId ?? null, // preserve the run that proposed it
+  );
+  return { ok: true, deal: await getRepositories().groupbuy.save(record) };
+}
+
+/** Publish a deal: stricter validation (title + at least one service), then the draft→published transition. */
+export async function publishGroupbuyDealAction(deal: GroupbuyDeal): Promise<ProposeGroupbuyResult> {
+  const check = validateGroupbuyDeal(deal, true);
+  if (!check.ok) return { ok: false, errors: check.errors };
+  const saved = await saveGroupbuyDraftAction(deal);
+  if (!saved.ok) return saved;
+  const published = await getRepositories().groupbuy.setStatus(deal.id, demoMerchantId, 'published');
+  if (!published) return { ok: false, errors: ['illegal_transition_to_published'] };
+  return { ok: true, deal: published };
+}
+
+/** Withdraw a live deal (published→unlisted) or bring one back (unlisted→published). */
+export async function setGroupbuyStatusAction(
+  id: string,
+  status: 'published' | 'unlisted',
+): Promise<ProposeGroupbuyResult> {
+  const updated = await getRepositories().groupbuy.setStatus(id, demoMerchantId, status);
+  if (!updated) return { ok: false, errors: ['illegal_transition'] };
+  return { ok: true, deal: updated };
+}
+
+/** Duplicate a deal as a fresh, merchant-authored draft (no sourceRunId — it is no longer the agent's). */
+export async function copyGroupbuyDealAction(deal: GroupbuyDeal): Promise<ProposeGroupbuyResult> {
+  const now = new Date().toISOString();
+  const copy: GroupbuyDeal = {
+    ...deal,
+    id: `gb-copy-${Date.now()}`,
+    title: `${deal.title} 副本`,
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const record = toGroupbuyRecord(copy, demoMerchantId, MERCHANT_CURRENCY, null);
+  return { ok: true, deal: await getRepositories().groupbuy.save(record) };
+}
+
 /** The 团购 agent's entry point: it names a published style + a post-coupon price. We build a REAL, editable
  *  draft from that style — its title, its current price as the original, and its authoritative catalog
  *  breakdown as the bundled services — so the merchant sees a publishable deal in 团购管理, not a log row. */

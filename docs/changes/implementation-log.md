@@ -1763,3 +1763,26 @@ Rewired both:
 - **Still open:** `GroupbuyPanel` reads `localStorage`, so the merchant cannot yet *see* the DB-created draft
   in 团购管理; supabase group-buy `save` is not transactional; entity-aware undo (stop the campaign / unlist
   the deal) is not wired; ad ROAS + measured underexposure unmodelled.
+
+## 2026-07-06 — 团购管理 on the repository seam: the merchant can review what the agent proposed
+
+The loop was open: the agent created a real `groupbuy_deal`, but the panel read browser `localStorage`, so
+the proposal was invisible. Closed it.
+- **Server actions** (`groupbuy-actions.ts`): `listGroupbuyDealsAction`, `getGroupbuyDealAction`,
+  `saveGroupbuyDraftAction` (draft-level validation, preserves `sourceRunId`), `publishGroupbuyDealAction`
+  (publishable validation → `draft→published` via the contract's transition guard), `setGroupbuyStatusAction`
+  (unlist/relist), `copyGroupbuyDealAction` (a copy is merchant-authored → `sourceRunId` cleared).
+- **`GroupbuyPanel`** now loads from the seam (async, with loading/empty/error states). The hardcoded
+  `aiSuggestions` mockup is gone: the **AI助手 card lists the agent's real proposals** — deals with a
+  `sourceRunId` still in `draft` — each opening the detail view; list rows carry an `AI 建议` badge.
+- **Orphan removed:** `repositories/local/groupbuy-repository.ts` (+ its test) had no consumers left after
+  the rewire; deleted rather than left as dead code.
+- **Error-message bug fixed:** `isMissingStyleAdTableError` matches any message containing `style_ad_campaign`
+  + `schema cache`, so a missing *column* was reported as a missing *table*. `proposeStyleAdAction` now checks
+  `source_run_id` first and names migration `0028`. (Probing the live DB showed the ad tables were applied all
+  along — only `0028` was missing.)
+- Tests: manage suite 22 (helpers await the async list; new regression asserts the AI card surfaces an
+  agent-proposed draft). Full suite 24 failed / 512 passed — failure count unchanged from baseline. pytest 23,
+  tsc clean.
+- **Still open:** supabase group-buy `save` is not transactional (needs an RPC); entity-aware undo; ad
+  ROAS + measured underexposure.
