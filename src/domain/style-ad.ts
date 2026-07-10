@@ -125,6 +125,8 @@ export type StyleAdSummary = {
   bookings: number;
   spendCents: number;
   updatedAt: string;
+  /** The agent run that proposed this campaign — null = merchant-authored (ADR-0012 backward link). */
+  sourceRunId: string | null;
 };
 
 export type StyleAdCenterSnapshot = {

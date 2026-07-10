@@ -53,6 +53,7 @@ type StyleAdCampaignRow = {
   bookings: number;
   spend_cents: number;
   updated_at: string;
+  source_run_id: string | null;
 };
 
 type LaunchStyleAdInput = {
@@ -191,6 +192,7 @@ export async function getStyleAdCenterSnapshotAction(): Promise<StyleAdCenterSna
         bookings: campaign.bookings,
         spendCents: campaign.spend_cents,
         updatedAt: campaign.updated_at,
+        sourceRunId: campaign.source_run_id ?? null,
       }];
     });
     return {

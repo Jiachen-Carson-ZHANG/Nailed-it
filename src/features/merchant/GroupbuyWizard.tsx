@@ -156,7 +156,7 @@ export function GroupbuyWizard({
     <div className="groupbuy-wizard">
       <div className="groupbuy-wizard-topbar">
         <button type="button" className="groupbuy-back-btn" onClick={() => (dirty ? setConfirmBack(true) : onCancel())}>
-          返回
+          ← {language === 'zh-CN' ? '返回' : 'Back'}
         </button>
         <div className="groupbuy-step-tabs" role="tablist" aria-label="添加团购步骤">
           <button type="button" role="tab" aria-selected={step === 'content'} onClick={() => setStep('content')}>

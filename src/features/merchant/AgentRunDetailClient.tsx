@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
@@ -10,9 +10,11 @@ import {
   rejectAgentActionAction,
 } from '@/lib/actions/agent-actions';
 import { getMerchantAgentsPath, getMerchantStylesPath } from '@/domain/session';
+import { actionEntityHref, actionTypeLabel, describeAction } from '@/domain/agent-transcript';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
-import type { AgentActionType, AgentRunView, TranscriptStep } from '@/domain/agents';
+import type { AgentRunView } from '@/domain/agents';
+import { TranscriptChain } from './TranscriptChain';
 
 const detailCopy = {
   'zh-CN': {
@@ -21,7 +23,6 @@ const detailCopy = {
     back: '返回团队',
     thinking: '思考链',
     actions: '执行动作',
-    output: '产出',
     undo: '撤销',
     undone: '已撤销',
     approve: '批准',
@@ -29,18 +30,8 @@ const detailCopy = {
     approved: '已批准',
     rejected: '已拒绝',
     upload: '去上架',
+    viewEntity: '查看 →',
     proposedNote: '待商家批准（库内无匹配款式，需提供图片后上架）',
-    reasoning: '推理',
-    tool: '工具',
-    action: '动作',
-    actionType: {
-      place_ad: '投广',
-      set_group_buy_coupon: '团购券',
-      list_style: '上架',
-      delist_style: '下架',
-      draft_upload: '生成草稿',
-      send_customer_message: '发送消息',
-    } as Record<AgentActionType, string>,
   },
   en: {
     loading: 'Loading run…',
@@ -48,7 +39,6 @@ const detailCopy = {
     back: 'Back to team',
     thinking: 'Thinking chain',
     actions: 'Actions',
-    output: 'Output',
     undo: 'Undo',
     undone: 'Undone',
     approve: 'Approve',
@@ -56,29 +46,14 @@ const detailCopy = {
     approved: 'Approved',
     rejected: 'Rejected',
     upload: 'Upload it',
+    viewEntity: 'View →',
     proposedNote: 'Awaiting merchant approval (no internal match — needs an image to list)',
-    reasoning: 'Reasoning',
-    tool: 'Tool',
-    action: 'Action',
-    actionType: {
-      place_ad: 'Ad',
-      set_group_buy_coupon: 'Coupon',
-      list_style: 'List',
-      delist_style: 'Delist',
-      draft_upload: 'Draft',
-      send_customer_message: 'Message',
-    } as Record<AgentActionType, string>,
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
 
-function summarize(value: unknown): string {
-  if (value == null) return '';
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+function headline(output: unknown, fallback: string): string {
+  const o = output as { headline?: string; verdict?: string } | null;
+  return o?.headline ?? o?.verdict ?? fallback;
 }
 
 export function AgentRunDetailClient({ runId }: { runId: string }) {
@@ -128,20 +103,15 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
 
   return (
     <>
+      <Link className="detail-back-link detail-back-top" href={getMerchantAgentsPath()}>← {copy.back}</Link>
       <section className="profile-hero">
         <p className="section-eyebrow">{run.agentName}</p>
-        <h1>{summarize((run.output as { headline?: string; verdict?: string })?.headline ?? (run.output as { verdict?: string })?.verdict ?? run.agentName)}</h1>
+        <h1>{headline(run.output, run.agentName)}</h1>
       </section>
 
       <section className="detail-surface" aria-label={copy.thinking}>
         <div className="detail-surface-header"><h2>{copy.thinking}</h2></div>
-        <ol className="agent-chain">
-          {run.transcript.map((step, i) => (
-            <li key={i} className={`agent-chain-step agent-chain-${step.kind}`}>
-              {renderStep(step, copy)}
-            </li>
-          ))}
-        </ol>
+        <TranscriptChain steps={run.transcript} language={language} />
       </section>
 
       {run.actions.length > 0 ? (
@@ -155,11 +125,15 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
               // action like a sent message is done, not a pending gate). Risk decides undo eligibility below.
               const isProposed = !isApproved && !isRejected && a.status === 'proposed';
               const isUndone = a.status === 'undone' || undone.has(a.id);
+              const entityHref = actionEntityHref(a);
               return (
                 <li key={a.id} className="agent-action-row">
                   <div className="agent-action-body">
-                    <span className={`agent-action-type agent-action-${a.type}`}>{copy.actionType[a.type]}</span>
-                    <span className="agent-action-payload">{summarize(a.payload)}</span>
+                    <span className={`agent-action-type agent-action-${a.type}`}>{actionTypeLabel(a.type, language)}</span>
+                    <span className="agent-action-payload">
+                      {describeAction(a.type, a.payload, language)}
+                      {entityHref ? <> <Link className="agent-action-entity-link" href={entityHref}>{copy.viewEntity}</Link></> : null}
+                    </span>
                     {isProposed ? <span className="agent-action-gate-note">{copy.proposedNote}</span> : null}
                   </div>
                   {isProposed ? (
@@ -200,34 +174,6 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
       ) : null}
 
       <Link className="button button-secondary" href={getMerchantAgentsPath()}>{copy.back}</Link>
-    </>
-  );
-}
-
-function renderStep(
-  step: TranscriptStep,
-  copy: (typeof detailCopy)[AppLanguage],
-): ReactNode {
-  if (step.kind === 'reasoning') {
-    return (
-      <>
-        <span className="agent-chain-tag">💭 {copy.reasoning}</span>
-        <p className="agent-chain-text">{step.text}</p>
-      </>
-    );
-  }
-  if (step.kind === 'tool_call') {
-    return (
-      <>
-        <span className="agent-chain-tag">🔧 {copy.tool} · {step.tool}</span>
-        <p className="agent-chain-io">{summarize(step.input)} → {summarize(step.output)}</p>
-      </>
-    );
-  }
-  return (
-    <>
-      <span className="agent-chain-tag">⚡ {copy.action} · {copy.actionType[step.actionType]}</span>
-      <p className="agent-chain-text">{step.summary}</p>
     </>
   );
 }

@@ -1837,3 +1837,48 @@ would have burned cash, and `8284` — the style the old brain wanted to amplify
   6 ad-gate cases incl. over-exposed peer, unmeasurable ROAS, and scale-freeness.
 - **Requires migration `0029`.** Until it is applied, group-buy `save` throws a message naming the file
   (deliberately no silent fallback to the non-atomic path).
+
+## 2026-07-10 — Merchant UI alignment: readable transcripts, traceable proposals, token-scale cleanup
+
+Audit-driven pass over the new merchant surfaces (今日 home, 团购管理, agent team, run detail, AI inline
+cards), which had drifted from the app's design system and rendered developer exhaust to merchants.
+
+**Transcripts became human (the big one).** The run page's 思考链 rendered the entire brain output as one
+raw-JSON wall (`JSON.stringify(input) → JSON.stringify(output)` at 12px). Now every thinking-chain surface
+renders through `src/domain/agent-transcript.ts` (pure, 15 tests): per-tool summarizers turn I/O into one
+sentence with the numbers that matter (决策大脑 → "42 款分析：投广候选 3 · 团购候选 4 · … · 下周产能 33%"),
+`describeAction` replaces `JSON.stringify(payload)` in action rows, and raw payloads live only inside a
+capped mono `查看数据` expander. One shared `TranscriptChain` renderer (Multica-inspired tone pills:
+thinking=violet / tool=blue / action=emerald) is used by BOTH the 今日 bottom sheet and the run page — the
+same run no longer reads differently per entry point. Unknown tools fall back honestly (name + expander).
+
+**Proposals are traceable end-to-end (ADR-0012 audit gap).** The backward link existed in the DB but no UI
+exposed it: 团购 detail now shows "AI 提案 · 查看推理 →" (via the deal's `sourceRunId`), 投广中心 rows carry
+an "AI 建议" badge + "为什么?" link (snapshot now selects `source_run_id`), inline AI cards link 为什么? to
+the run, and run-page action rows deep-link "查看 →" to the entity (ads editor / `?panel=groupbuy`, a new
+manage-tab deep link). The ads center also gains the missing kill switch: a 暂停 button on live campaigns
+wired to `withdrawStyleAdCampaignAction`.
+
+**Duplicate AI rows gone.** The manage-page AI card listed one row per historical action for the same
+entity ("已为 …8284 设置团购券" ×4, truncated ids). `dedupeActionsByEntity` keeps the latest per entity;
+`styleLabel` renders 款式 8284 instead of `…a-img-8284`.
+
+**Type-scale alignment.** New surfaces had invented sizes (0.6–0.84rem sprinkled everywhere). All lane/
+section labels now use the manage page's established quiet-uppercase micro-label pattern; every sub-12px
+font in TodayHome/AgentRunSheet/groupbuy CSS moved onto the `--text-xs/sm` tokens (12px floor); groupbuy
+wizard topbar's hardcoded peach → `--color-bg` token; groupbuy back buttons match the app-wide
+`← 返回` `.detail-back-link` pattern and are i18n'd (were hardcoded Chinese pills); run page gains the
+standard top back link.
+
+**Backend-honest fixes (ADR-0011).** 团购 purchase/redemption counts showed a fake 0 with no data source —
+now '—' (unknown); the manage currency picker says "未能连接后台，显示的是本地缓存数据" instead of silently
+presenting stale cache as loaded; agent team cards gain presence dots (green pulse = live run) + last-run
+line tying 团队成员 to 最近运行.
+
+- Design doc: `docs/plans/2026-07-10-merchant-ui-alignment.md` (local). Audits: design-system map, surface
+  misalignment, Multica pattern catalogue (`/home/tough/multica`), wiring gaps.
+- Tests: full suite 24 failed / 544 passed (baseline failure count unchanged, +15 passing); new
+  `agent-transcript.test.ts` (15); manage suite 22/22 (back-button selectors updated to the new
+  accessible name). tsc clean.
+- Deferred (documented in the design doc): GroupbuyPanel URL-backed navigation, TodayHome stat-strip
+  cascade isolation, real groupbuy sales counts, full GroupbuyWizard i18n.

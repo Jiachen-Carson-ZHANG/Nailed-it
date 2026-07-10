@@ -129,12 +129,27 @@ export default function MerchantAgentsPage() {
               <span className="insights-badge">Nailed AI</span>
             </div>
             <div className="agent-team-grid">
-              {agents.map((a) => (
-                <div key={a.slug} className="agent-card">
-                  <p className="agent-card-name">{a.name}</p>
-                  <span className={`agent-role-chip agent-role-${a.role}`}>{copy.role[a.role]}</span>
-                </div>
-              ))}
+              {agents.map((a) => {
+                // Presence (Multica pattern): tie 团队成员 to 最近运行 — live dot + the agent's last outcome.
+                const mine = runs.filter((r) => r.agentSlug === a.slug);
+                const isRunning = mine.some((r) => r.status === 'running');
+                const last = mine[0]; // runs are newest-first
+                return (
+                  <div key={a.slug} className="agent-card">
+                    <p className="agent-card-name">
+                      <span className={`agent-presence-dot${isRunning ? ' agent-presence-dot--running' : ''}`} aria-hidden />
+                      {a.name}
+                    </p>
+                    <span className={`agent-role-chip agent-role-${a.role}`}>{copy.role[a.role]}</span>
+                    {last ? (
+                      <p className="agent-card-lastrun">
+                        <span className={last.status === 'failed' ? 'bad' : 'ok'}>{copy.status[last.status]}</span>
+                        {' · '}{fmtTime(last.startedAt, language)}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </section>
 

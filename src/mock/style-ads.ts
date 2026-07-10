@@ -33,6 +33,7 @@ export const mockStyleAdCampaigns: StyleAdSummary[] = [
     bookings: 4,
     spendCents: 18200,
     updatedAt: SEEDED_AT,
+    sourceRunId: null,
   },
   {
     id: 'ad-soft-french',
@@ -45,6 +46,7 @@ export const mockStyleAdCampaigns: StyleAdSummary[] = [
     bookings: 2,
     spendCents: 14600,
     updatedAt: SEEDED_AT,
+    sourceRunId: null,
   },
 ];
 

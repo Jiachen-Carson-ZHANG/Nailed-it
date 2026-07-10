@@ -51,7 +51,8 @@ const copy = {
   },
 } as const;
 
-const ZERO_META = { purchaseCount: 0, redemptionCount: 0 };
+/** No real sales metrics exist yet — render '—' (unknown), never a fake 0 (ADR-0011 backend-honest). */
+const UNKNOWN_META = { purchaseCount: null, redemptionCount: null };
 
 function formatListPrice(currency: string, price: number) {
   return `${currency} ${price}`;
@@ -105,7 +106,8 @@ export function GroupbuyPanel({ language, currency, settingsById }: GroupbuyPane
           language={language}
           currency={currency}
           deal={deal}
-          meta={ZERO_META}
+          meta={UNKNOWN_META}
+          sourceRunId={deal.sourceRunId}
           onBack={backToList}
           onEdit={() => setMode('edit')}
           onCopy={() => run(copyGroupbuyDealAction(deal), backToList)}
@@ -192,8 +194,8 @@ export function GroupbuyPanel({ language, currency, settingsById }: GroupbuyPane
                 ) : null}
               </div>
               <div className="groupbuy-deal-meta">
-                <span>{t.purchaseCount}{ZERO_META.purchaseCount}</span>
-                <span>{t.redemptionCount}{ZERO_META.redemptionCount}</span>
+                <span>{t.purchaseCount}—</span>
+                <span>{t.redemptionCount}—</span>
               </div>
             </div>
             <button type="button" className="button button-primary button-compact groupbuy-deal-cta" onClick={() => handleView(deal.id)}>

@@ -2407,12 +2407,20 @@ select {
 }
 
 .manage-currency-loading {
-  font-size: 0.6rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
   text-align: center;
   padding: 0.2rem 0;
   opacity: 0.7;
   animation: manage-currency-pulse 1s ease-in-out infinite;
+}
+
+/* Backend-unreachable note (ADR-0011: never present cached data as loaded data silently). */
+.manage-currency-stale {
+  margin: 0.25rem 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-warning-ink);
 }
 
 @keyframes manage-currency-pulse {
@@ -2699,7 +2707,7 @@ select {
 }
 
 .manage-accordion-chevron {
-  font-size: 0.6rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
 }
 
@@ -2784,7 +2792,7 @@ select {
   flex-shrink: 0;
   text-decoration: none;
   white-space: nowrap;
-  font-size: 0.68rem !important;
+  font-size: var(--text-xs) !important;
   padding: 0.2em 0.5em !important;
 }
 
@@ -2817,7 +2825,7 @@ select {
 }
 
 .groupbuy-deal-title {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   line-height: 1.4;
   color: var(--color-text);
@@ -2835,7 +2843,7 @@ select {
 }
 
 .groupbuy-element-tag {
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -2856,7 +2864,7 @@ select {
 }
 
 .groupbuy-deal-original {
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
   text-decoration: line-through;
 }
@@ -2864,7 +2872,7 @@ select {
 .groupbuy-deal-meta {
   display: flex;
   gap: var(--space-2);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
 }
 
@@ -2872,7 +2880,7 @@ select {
   flex-shrink: 0;
   align-self: center;
   text-decoration: none;
-  font-size: 0.68rem !important;
+  font-size: var(--text-xs) !important;
   padding: 0.2em 0.5em !important;
 }
 
@@ -2918,8 +2926,8 @@ select {
   border: 1px solid rgba(217, 119, 6, 0.22);
   border-radius: var(--radius-pill);
   background: rgba(217, 119, 6, 0.1);
-  color: var(--color-warning);
-  font-size: 0.68rem;
+  color: var(--color-warning-ink);
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
@@ -3087,34 +3095,51 @@ select {
   margin: 0 -0.25rem;
   padding: var(--space-2) 0.25rem var(--space-3);
   border-bottom: 1px solid var(--color-border);
-  background: rgba(255, 248, 247, 0.94);
+  background: color-mix(in srgb, var(--color-bg) 94%, transparent);
   backdrop-filter: blur(12px);
 }
 
+/* AI-proposed campaign marks in 投广中心 (ADR-0012: proposals must be visibly agent-authored + auditable). */
+.style-ad-ai-badge {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  vertical-align: middle;
+}
+.style-ad-why-link { font-size: var(--text-xs); font-weight: 700; color: var(--color-accent-strong); text-decoration: none; }
+
+/* Link from an AI-proposed deal to the run that reasoned it (ADR-0012: proposals must be auditable). */
+.groupbuy-detail-ai-link {
+  display: inline-flex;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-accent-strong);
+  text-decoration: none;
+}
+
+/* Back affordance aligned with the app-wide .detail-back-link pattern (quiet "← 返回" text, not a
+ * decorative pill) — 44px min target kept for touch. */
 .groupbuy-back-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   min-height: 2.25rem;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-strong);
-  box-shadow: var(--shadow-soft);
+  padding: 0 var(--space-2) 0 0;
+  border: 0;
+  background: none;
   color: var(--color-accent-strong);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
+  transition: color var(--motion-fast) var(--motion-ease);
 }
 
 .groupbuy-back-btn:hover {
-  border-color: rgba(236, 93, 123, 0.28);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
+  color: var(--color-accent);
 }
 
 .groupbuy-back-btn:focus-visible {
@@ -3259,7 +3284,7 @@ select {
   flex-shrink: 0;
   margin-left: var(--space-2);
   color: var(--color-muted);
-  font-size: 0.6rem;
+  font-size: var(--text-xs);
 }
 
 .groupbuy-service-accordion-body {
@@ -3405,7 +3430,7 @@ select {
   margin: var(--space-2) -0.25rem 0;
   padding: var(--space-3) 0.25rem 0;
   border-top: 1px solid var(--color-border);
-  background: rgba(255, 248, 247, 0.94);
+  background: color-mix(in srgb, var(--color-bg) 94%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -4804,7 +4829,18 @@ select {
   flex-direction: column;
   gap: 4px;
 }
-.agent-card-name { margin: 0; font-weight: 700; color: var(--color-text); font-size: var(--text-sm); }
+.agent-card-name { margin: 0; font-weight: 700; color: var(--color-text); font-size: var(--text-sm); display: flex; align-items: center; gap: var(--space-2); }
+/* Presence dot (Multica pattern): green pulse = a run is live right now; muted = idle. */
+.agent-presence-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border); flex: 0 0 auto; }
+.agent-presence-dot--running { background: var(--color-success); animation: agent-presence-pulse 1.6s ease-in-out infinite; }
+@keyframes agent-presence-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(46, 139, 108, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(46, 139, 108, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .agent-presence-dot--running { animation: none; } }
+.agent-card-lastrun { margin: 0; font-size: var(--text-xs); color: var(--color-muted); }
+.agent-card-lastrun .ok { color: var(--color-success-ink); font-weight: 600; }
+.agent-card-lastrun .bad { color: var(--color-danger); font-weight: 600; }
 .agent-role-chip {
   align-self: flex-start;
   font-size: var(--text-xs);
@@ -4842,17 +4878,50 @@ select {
 .agent-run-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--text-xs); color: var(--color-muted); }
 .agent-run-actions-count { color: var(--color-accent-strong); font-weight: 600; }
 
+/* Thinking chain (shared TranscriptChain renderer). Multica-inspired tone mapping: thinking=violet,
+ * tool=blue, action=emerald. One human sentence per step; raw payloads live in the <details> expander. */
 .agent-chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .agent-chain-step {
   border-left: 2px solid var(--color-border);
   padding: 2px 0 2px var(--space-3);
 }
-.agent-chain-reasoning { border-left-color: var(--color-muted); }
-.agent-chain-tool_call { border-left-color: #2f6df0; }
-.agent-chain-action { border-left-color: var(--color-accent-strong); }
-.agent-chain-tag { font-size: var(--text-xs); font-weight: 700; color: var(--color-muted); }
-.agent-chain-text { margin: 2px 0 0; font-size: var(--text-sm); color: var(--color-text); line-height: 1.5; }
-.agent-chain-io { margin: 2px 0 0; font-size: var(--text-xs); color: var(--color-muted); word-break: break-word; }
+.agent-chain-tone-thinking { border-left-color: #7a4ed6; }
+.agent-chain-tone-tool { border-left-color: #2f6df0; }
+.agent-chain-tone-action { border-left-color: var(--color-success); }
+.agent-chain-pill {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+.agent-chain-pill-thinking { background: #f0e9fb; color: #5b3aa8; }
+.agent-chain-pill-tool { background: #e7eefc; color: #2456c8; }
+.agent-chain-pill-action { background: #e3f5ee; color: var(--color-success-ink); }
+.agent-chain-text { margin: 4px 0 0; font-size: var(--text-sm); color: var(--color-text); line-height: 1.5; }
+.agent-chain-details { margin-top: 4px; }
+.agent-chain-details summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-muted);
+  list-style: none;
+}
+.agent-chain-details summary::before { content: '▸ '; }
+.agent-chain-details[open] summary::before { content: '▾ '; }
+.agent-chain-details pre {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2);
+  max-height: 14rem;
+  overflow: auto;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .agent-action-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .agent-action-row {
@@ -4874,8 +4943,9 @@ select {
   background: var(--color-accent-soft);
   color: var(--color-accent-strong);
 }
-.agent-action-payload { font-size: var(--text-xs); color: var(--color-muted); word-break: break-word; }
-.agent-action-gate-note { font-size: var(--text-xs); color: var(--color-warning, #b8860b); }
+.agent-action-payload { font-size: var(--text-sm); color: var(--color-text); word-break: break-word; }
+.agent-action-entity-link { font-size: var(--text-xs); font-weight: 700; color: var(--color-accent-strong); text-decoration: none; white-space: nowrap; }
+.agent-action-gate-note { font-size: var(--text-xs); color: var(--color-warning-ink); }
 .agent-action-gate { display: flex; gap: var(--space-2); flex-shrink: 0; }
 .agent-action-status { font-size: var(--text-xs); font-weight: 700; color: var(--color-muted); flex-shrink: 0; }
 
@@ -4893,6 +4963,7 @@ select {
 .agent-inline-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .agent-inline-row { display: flex; align-items: center; gap: var(--space-2); }
 .agent-inline-text { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--color-text); }
+.agent-inline-why { font-size: var(--text-xs); font-weight: 700; color: var(--color-accent-strong); text-decoration: none; white-space: nowrap; }
 
 .agent-entry {
   display: flex;

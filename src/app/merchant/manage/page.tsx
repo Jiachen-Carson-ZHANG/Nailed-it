@@ -74,6 +74,7 @@ const manageCopy = {
     currencyUpdated: '货币已更新',
     currencyError: '货币更新失败，请重试。',
     currencyLoading: '加载中…',
+    loadFailed: '未能连接后台，显示的是本地缓存数据。',
     unitBasicPrice: '基础护理服务 单价',
     unitBasicPricing: '基础护理服务 单位',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_zh,
@@ -124,6 +125,7 @@ const manageCopy = {
     currencyUpdated: 'Currency updated',
     currencyError: 'Failed to update currency. Please try again.',
     currencyLoading: 'Loading…',
+    loadFailed: 'Backend unreachable — showing locally cached data.',
     unitBasicPrice: 'Basic manicure service price',
     unitBasicPricing: 'Basic manicure service unit',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_en,
@@ -600,6 +602,14 @@ export default function MerchantManagePage() {
   const [dirty, setDirty] = useState(false);
   const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
   const [currencyLoading, setCurrencyLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  // Deep link: ?panel=groupbuy opens 团购管理 directly — agent-action "查看 →" links land here.
+  // Read after mount (not in the initializer) so SSR and the first client render agree.
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get('panel');
+    if (panel === 'groupbuy') setActivePanel('groupbuy');
+  }, []);
 
   // Pricing is authoritative in the DB (merchant_pricing), not localStorage. Load the full UI entry
   // set (incl. the time-only base procedures the panels show) from defaults, then overlay the
@@ -620,8 +630,11 @@ export default function MerchantManagePage() {
         }
       } catch {
         if (active) {
+          // Backend unreachable: fall back to defaults + the locally cached currency, but SAY so —
+          // silently showing stale data as if it were loaded misleads the merchant (ADR-0011).
           setSettings(getDefaultSettings());
           setCurrencyLoading(false);
+          setLoadFailed(true);
         }
       }
     })();
@@ -707,6 +720,7 @@ export default function MerchantManagePage() {
                 ))}
               </select>
             )}
+            {loadFailed ? <p className="manage-currency-stale">{copy.loadFailed}</p> : null}
           </div>
           <div className="manage-sidebar-group">
             <SidebarGroupHeader

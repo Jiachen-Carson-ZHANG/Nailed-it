@@ -87,7 +87,7 @@ describe('MerchantManagePage', () => {
   it('opens the add groupbuy wizard from the groupbuy panel', async () => {
     await openAddGroupbuyWizard();
 
-    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /返回/ })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '团购内容' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: '价格时间' })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByLabelText('团购名称')).toBeInTheDocument();
@@ -179,11 +179,11 @@ describe('MerchantManagePage', () => {
     fireEvent.change(screen.getByLabelText('团购名称'), {
       target: { value: '超过二十个字的团购名称会被拦截因为真的太长了' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    fireEvent.click(screen.getByRole('button', { name: /返回/ }));
     fireEvent.click(screen.getByRole('button', { name: '保存草稿暂不发布' }));
 
     expect(screen.getByText('团购名称不能超过20个字')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /返回/ })).toBeInTheDocument();
     expect(screen.queryByText('超过二十个字的团购名称会被拦截因为真的太长了')).not.toBeInTheDocument();
   });
 
@@ -229,7 +229,7 @@ describe('MerchantManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
     fireEvent.click(screen.getByRole('button', { name: '+ 添加团购' }));
     fireEvent.change(screen.getByLabelText('团购名称'), { target: { value: '猫眼通勤团购' } });
-    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    fireEvent.click(screen.getByRole('button', { name: /返回/ }));
 
     expect(screen.getByText('是否保存草稿？')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '保存草稿暂不发布' })).toBeInTheDocument();
@@ -257,7 +257,7 @@ describe('MerchantManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
     await openFirstDealDetail();
 
-    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /返回/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '复制' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下架' })).toBeInTheDocument();
@@ -293,7 +293,7 @@ describe('MerchantManagePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '团购管理' }));
     await openFirstDealDetail();
-    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    fireEvent.click(screen.getByRole('button', { name: /返回/ }));
 
     expect(screen.getByRole('button', { name: '+ 添加团购' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '修改' })).not.toBeInTheDocument();

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { StyleAdCenterSnapshot } from '@/domain/style-ad';
+import { getMerchantAgentRunPath } from '@/domain/session';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useLanguage } from '@/i18n/context';
-import { getStyleAdCenterSnapshotAction } from '@/lib/actions/style-ad-actions';
+import { getStyleAdCenterSnapshotAction, withdrawStyleAdCampaignAction } from '@/lib/actions/style-ad-actions';
 
 const adCenterCopy = {
   'zh-CN': {
@@ -27,6 +28,10 @@ const adCenterCopy = {
     ended: '已结束',
     draft: '草稿',
     perDay: '/ 天',
+    aiBadge: 'AI 建议',
+    why: '为什么？',
+    pause: '暂停',
+    pauseFailed: '暂停失败，请重试。',
   },
   en: {
     loading: 'Loading ad data…',
@@ -47,6 +52,10 @@ const adCenterCopy = {
     ended: 'Ended',
     draft: 'Draft',
     perDay: '/ day',
+    aiBadge: 'AI proposed',
+    why: 'Why?',
+    pause: 'Pause',
+    pauseFailed: 'Pause failed, please retry.',
   },
 } as const;
 
@@ -75,11 +84,23 @@ export function StyleAdCenter() {
   const [snapshot, setSnapshot] = useState<StyleAdCenterSnapshot | null>(null);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     getStyleAdCenterSnapshotAction()
       .then(setSnapshot)
       .catch(() => setMessage(copy.loadError));
   }, [copy.loadError]);
+
+  useEffect(refresh, [refresh]);
+
+  /** The kill switch (ADR-0012 envelope): a live campaign pauses on the spot, no undo hunt required. */
+  async function pause(campaignId: string) {
+    try {
+      await withdrawStyleAdCampaignAction(campaignId);
+      refresh();
+    } catch {
+      setMessage(copy.pauseFailed);
+    }
+  }
 
   if (!snapshot && !message) {
     return <p className="helper-copy">{copy.loading}</p>;
@@ -133,14 +154,34 @@ export function StyleAdCenter() {
                     <img alt="" className="style-ad-campaign-thumb" src={campaign.styleImageUrl} />
                   ) : null}
                   <div className="style-ad-campaign-copy">
-                    <strong>{campaign.styleTitle}</strong>
+                    <strong>
+                      {campaign.styleTitle}
+                      {campaign.sourceRunId ? <span className="style-ad-ai-badge">{copy.aiBadge}</span> : null}
+                    </strong>
                     <p className="helper-copy">
                       {copy.impressions} {campaign.impressions.toLocaleString()} · {copy.clicks} {campaign.clicks.toLocaleString()} · {copy.bookings} {campaign.bookings}
+                      {campaign.sourceRunId ? (
+                        <>
+                          {' · '}
+                          <Link className="style-ad-why-link" href={getMerchantAgentRunPath(campaign.sourceRunId)}>
+                            {copy.why}
+                          </Link>
+                        </>
+                      ) : null}
                     </p>
                   </div>
                   <span className={`style-ad-status-badge style-ad-status-${campaign.status}`}>
                     {statusLabel(campaign.status, copy)}
                   </span>
+                  {campaign.status === 'active' ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-compact"
+                      onClick={(e) => { e.preventDefault(); void pause(campaign.id); }}
+                    >
+                      {copy.pause}
+                    </button>
+                  ) : null}
                 </Link>
               </li>
             ))}

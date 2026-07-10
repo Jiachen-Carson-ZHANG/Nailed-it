@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { glossaryById } from '@/data/glossary';
 import type { MockGroupbuyMeta } from '@/data/mock-groupbuy-deals';
 import type { GroupbuyDeal } from '@/domain/groupbuy';
+import { getMerchantAgentRunPath } from '@/domain/session';
 import {
   formatAvailability,
   formatBenefitSharing,
@@ -20,7 +22,10 @@ type GroupbuyDetailProps = {
   language: 'zh-CN' | 'en';
   currency: string;
   deal: GroupbuyDeal;
-  meta: MockGroupbuyMeta;
+  /** Real sales metrics don't exist yet — null renders as '—' (unknown), never a fake 0 (ADR-0011). */
+  meta: { [K in keyof MockGroupbuyMeta]: MockGroupbuyMeta[K] | null };
+  /** The agent run that proposed this deal (deals with a sourceRunId) — links to its reasoning. */
+  sourceRunId?: string | null;
   onBack: () => void;
   onEdit: () => void;
   onCopy: () => void;
@@ -72,6 +77,7 @@ export function GroupbuyDetail({
   currency,
   deal,
   meta,
+  sourceRunId,
   onBack,
   onEdit,
   onCopy,
@@ -107,14 +113,14 @@ export function GroupbuyDetail({
       {/* ── top bar ── */}
       <div className="groupbuy-wizard-topbar">
         <button type="button" className="groupbuy-back-btn" onClick={onBack}>
-          返回
+          ← {language === 'zh-CN' ? '返回' : 'Back'}
         </button>
         <p className="groupbuy-detail-title-bar">
           <span className="groupbuy-detail-heading">{deal.title}</span>
           {deal.status === 'draft' ? (
-            <span className="groupbuy-status-pill">草稿</span>
+            <span className="groupbuy-status-pill">{language === 'zh-CN' ? '草稿' : 'Draft'}</span>
           ) : isUnlisted ? (
-            <span className="groupbuy-status-pill groupbuy-status-pill--unlisted">已下架</span>
+            <span className="groupbuy-status-pill groupbuy-status-pill--unlisted">{language === 'zh-CN' ? '已下架' : 'Unlisted'}</span>
           ) : null}
         </p>
       </div>
@@ -133,9 +139,14 @@ export function GroupbuyDetail({
             ) : null}
           </div>
           <div className="groupbuy-deal-meta">
-            <span>购买次数 {meta.purchaseCount}</span>
-            <span>核销次数 {meta.redemptionCount}</span>
+            <span>购买次数 {meta.purchaseCount ?? '—'}</span>
+            <span>核销次数 {meta.redemptionCount ?? '—'}</span>
           </div>
+          {sourceRunId ? (
+            <Link className="groupbuy-detail-ai-link" href={getMerchantAgentRunPath(sourceRunId)}>
+              {language === 'zh-CN' ? 'AI 提案 · 查看推理 →' : 'AI proposal · view reasoning →'}
+            </Link>
+          ) : null}
         </div>
 
         {/* ── accordion stack ── */}
