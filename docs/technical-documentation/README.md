@@ -13,5 +13,6 @@ why** — every design claim cites the code path or the measured evidence behind
 | [05 — Memory, feedback & the revision edge](05-memory-feedback-revision.md) | What does the team learn, and how do agents push back on each other? |
 | [06 — Evaluation methodology](06-evaluation-methodology.md) | How do we know any of it works? |
 | [07 — Anticipated judge Q&A](07-judge-qa.md) | The hard questions, answered before they're asked |
+| [08 — Demo walkthrough: agent I/O & contracts](08-demo-walkthrough-agent-io.md) | The real round, agent by agent: inputs, outputs, tool usage, JSON contracts, the envelope |
 
-Reading order for a 15-minute review: 01 → 02 → 07.
+Reading order for a 15-minute review: 01 → 02 → 07. For the live-demo script: 08.
