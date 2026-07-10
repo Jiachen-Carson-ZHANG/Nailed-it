@@ -241,7 +241,7 @@ def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
     launched = entity_status == "active"
     ctx.transcript.append(
         {"kind": "action", "actionType": "place_ad", "status": action_status,
-         "summary": f"投广：{style_id} · {slot} · 日预算 {budget_cents / 100:.0f}"
+         "summary": f"投广：{style_id} · {slot} · 日预算 {budget_cents / 100:g}"
                     + ("（已投放，可随时暂停）" if launched else "（超出预算上限，待商家启动）")}
     )
     verb = "launched" if launched else "left as a draft for the merchant to launch"
@@ -272,7 +272,7 @@ def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
     )
     ctx.transcript.append(
         {"kind": "action", "actionType": "set_group_buy_coupon", "status": "proposed",
-         "summary": f"团购草稿（待商家发布）：{style_id} · 券后 {price_cents / 100:.0f}"}
+         "summary": f"团购草稿（待商家发布）：{style_id} · 券后 {price_cents / 100:g}"}
     )
     return f"Group-buy draft {deal_id} proposed for {style_id} at {price_cents} cents — awaiting merchant publish."
 

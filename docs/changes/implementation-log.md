@@ -1882,3 +1882,35 @@ line tying 团队成员 to 最近运行.
   accessible name). tsc clean.
 - Deferred (documented in the design doc): GroupbuyPanel URL-backed navigation, TodayHome stat-strip
   cascade isolation, real groupbuy sales counts, full GroupbuyWizard i18n.
+
+## 2026-07-10 — Merchant-PM journey walk: task context, real style names, architecture-true team page
+
+Second alignment pass, driven by a screenshot walk of every merchant journey (production build, 390×844)
+acting as merchant + PM. Findings table lives in the local design doc; the fixes:
+
+- **Run detail got its missing context.** The chain started mid-air — no hint of WHY the agent acted. The
+  hero now shows 任务来源 ("由「决策 Agent」的结论触发本次任务") with ↑upstream/↓downstream lineage chips
+  (via the existing `deriveRunDetail`), so the sheet is no longer the only place lineage exists.
+- **The chain stopped repeating itself.** The Python runner records a tool_call AND an action step for the
+  same act; rendered together the chain said one thing three times. `condenseTranscript` drops action steps
+  that restate the preceding tool_call (the action's status still shows in 执行动作).
+- **Real style names everywhere.** Styles have titles ("Melissa Design 8284") but transcripts, action rows
+  and 今日 feed cards showed machine ids ("下架 · sty…", "…a-img-8284"). New `getStyleTitleMapAction`
+  threads a titles map through the describers, TranscriptChain, run page, sheet, inline AI cards, and the
+  今日 read model (`toActionView`/`splitActions` take styleTitles; enrichment failure degrades to ids,
+  never blanks the feed).
+- **Team page now renders the PM architecture** (商家运营 Multi-Agent 画板), replacing both the flat
+  9-card grid and the wrong "闭环：数分→决策→执行→监测" caption: three colored business lanes —
+  款式运营 (数据收集 → 商业决策 → 动作 → 监测), 用户运营 (匹配 → 召回私信), 预约运营 (规划中, honest
+  placeholder) — with the orchestrator above. 最近运行 capped at 9 with a 显示全部 N 条 toggle (was an
+  undifferentiated 42-run dump).
+- **Cramp/format fixes:** "← 返回" no longer wraps (nowrap + flex-shrink); 广告中心 "$328.00" and 今日
+  "$0" → SGD convention; campaign titles wrap 2 lines instead of ellipsizing the AI 建议 badge away;
+  为什么? links nowrap; 团购 AI 建议 clamp 2→3 lines so the coupon price survives; bare-text loaders on
+  团队/run detail → standard LoadingState; Python action summaries `:.0f`→`:g` (券后 70.4 was logged
+  as "70").
+- Open (documented): 26-deep pending-approval pileup from repeated demo rounds needs an expiry/batch
+  policy; the trailing LLM 推理 text still carries raw ids/markdown (skill-prompt fix, not a UI rewrite);
+  demo runbook should use `next build && next start` (dev-mode compiles read as broken pages).
+- Tests: full suite 24 failed / 544 passed (baseline unchanged). pytest 23. tsc clean. Verified by
+  re-screenshot: team lanes, coupon-run context + condensed chain with real names, SGD ads center.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentAction } from './agents';
 import {
   actionEntityHref,
+  condenseTranscript,
   dedupeActionsByEntity,
   describeAction,
   describeStep,
@@ -91,6 +92,42 @@ describe('describeAction', () => {
   it('keeps short human style ids readable', () => {
     expect(styleLabel('minimal-solid', 'zh-CN')).toBe('款式 minimal-solid');
     expect(styleLabel('style-melissa-img-8249', 'en')).toBe('style 8249');
+  });
+});
+
+describe('style titles (merchants see names, not machine ids)', () => {
+  const titles = { 'style-melissa-img-8284': 'Melissa Design 8284' };
+
+  it('styleLabel uses the real title when the map has it', () => {
+    expect(styleLabel('style-melissa-img-8284', 'zh-CN', titles)).toBe('「Melissa Design 8284」');
+    expect(styleLabel('style-melissa-img-9999', 'zh-CN', titles)).toBe('款式 9999'); // fallback survives
+  });
+
+  it('threads titles through tool-call and action sentences', () => {
+    const d = describeToolCall('set_group_buy_coupon', { styleId: 'style-melissa-img-8284', priceCents: 7040 }, {}, 'zh-CN', titles);
+    expect(d.summary).toContain('「Melissa Design 8284」');
+    expect(describeAction('delist_style', { styleId: 'style-melissa-img-8284' }, 'zh-CN', titles))
+      .toBe('下架「Melissa Design 8284」');
+  });
+});
+
+describe('condenseTranscript', () => {
+  it('drops the action step that restates the tool_call before it (no double-entry chains)', () => {
+    const steps = [
+      { kind: 'tool_call', tool: 'set_group_buy_coupon', input: { styleId: 's' }, output: { dealId: 'gb-s' } },
+      { kind: 'action', actionType: 'set_group_buy_coupon', status: 'proposed', summary: '团购草稿：s' },
+      { kind: 'reasoning', text: '结论' },
+    ] as const;
+    const out = condenseTranscript([...steps]);
+    expect(out.map((s) => s.kind)).toEqual(['tool_call', 'reasoning']);
+  });
+
+  it('keeps action steps that stand alone or follow a different tool', () => {
+    const steps = [
+      { kind: 'tool_call', tool: 'get_merchant_insights', input: {}, output: {} },
+      { kind: 'action', actionType: 'send_customer_message', status: 'applied', summary: '唤回' },
+    ] as const;
+    expect(condenseTranscript([...steps])).toHaveLength(2);
   });
 });
 

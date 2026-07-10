@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { getAgentRunDetailAction } from '@/lib/actions/agent-actions';
+import { getAgentRunDetailAction, getStyleTitleMapAction } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AgentRunDetail, RunStatus } from '@/domain/agents';
+import type { StyleTitleMap } from '@/domain/agent-transcript';
 import { TranscriptChain } from './TranscriptChain';
 import styles from './AgentRunSheet.module.css';
 
@@ -38,6 +39,7 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
   const { language } = useLanguage();
   const t = copy[language];
   const [detail, setDetail] = useState<AgentRunDetail | null>(null);
+  const [titles, setTitles] = useState<StyleTitleMap>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,8 +47,8 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
     let active = true;
     setLoading(true);
     setDetail(null);
-    getAgentRunDetailAction(runId)
-      .then((d) => { if (active) setDetail(d); })
+    Promise.all([getAgentRunDetailAction(runId), getStyleTitleMapAction().catch(() => ({}))])
+      .then(([d, t]) => { if (active) { setDetail(d); setTitles(t); } })
       .catch(() => { if (active) setDetail(null); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -98,7 +100,7 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
 
           <section className={styles.section} aria-label={t.why}>
             <div className={styles.lane}>{t.why}</div>
-            <TranscriptChain steps={run.transcript} language={language} />
+            <TranscriptChain steps={run.transcript} language={language} titles={titles} />
           </section>
 
           <Link className={styles.full} href={getMerchantAgentRunPath(run.id)} onClick={onClose}>

@@ -59,8 +59,14 @@ export async function getMerchantTodayHomeAction(): Promise<TodayHomeData> {
   }
 
   try {
-    const actions = await repos.agents.listActions(demoMerchantId, { statuses: ['proposed', 'applied'] });
-    ({ pending, recent } = splitActions(actions, nowMs));
+    // Style titles make card titles human ("下架 · Melissa Design 8284", not a machine id). Cosmetic —
+    // a titles failure must not take the feed down with it.
+    const [actions, styleRows] = await Promise.all([
+      repos.agents.listActions(demoMerchantId, { statuses: ['proposed', 'applied'] }),
+      repos.merchantStyles.listByMerchant(demoMerchantId).catch(() => []),
+    ]);
+    const styleTitles = Object.fromEntries(styleRows.map((s) => [s.id, s.title]));
+    ({ pending, recent } = splitActions(actions, nowMs, 8, styleTitles));
   } catch {
     errors.push('actions');
   }

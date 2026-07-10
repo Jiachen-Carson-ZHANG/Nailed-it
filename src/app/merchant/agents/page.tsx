@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { listAgentsAction, listAgentRunsAction, triggerAgentRoundAction } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
@@ -14,8 +15,7 @@ const agentsCopy = {
   'zh-CN': {
     eyebrow: 'Nailed AI · 运营团队',
     title: '运营 Agent 团队',
-    body: 'AI 团队自动分析、决策、执行并复盘，闭合 B→C 回路。',
-    loop: '闭环：数分 → 决策 → 执行（投广 / 团购 / 上下架 / 用户运营）→ 监测',
+    body: 'AI 团队按三条业务线运转：数据收集 → 商业决策 → 动作，动作效果由监测回流。',
     teamTitle: '团队成员',
     runsTitle: '最近运行',
     runRound: '运行一轮',
@@ -24,6 +24,10 @@ const agentsCopy = {
     emptyTitle: '暂无运行记录',
     emptyBody: '运营团队运行后，这里会显示每次运行的思考链与动作。',
     loading: '正在加载…',
+    planned: '规划中',
+    plannedBooking: '预约全程跟踪 Bot · 满意度调研 → 技师月报 / 补偿折扣券',
+    showAllRuns: (n: number) => `显示全部 ${n} 条运行记录`,
+    collapseRuns: '收起',
     role: { lead: '主控', analyst: '分析', planner: '决策', operator: '执行', reviewer: '监测' } as Record<AgentRole, string>,
     status: { running: '运行中', completed: '完成', failed: '失败', awaiting_approval: '待审批' } as Record<RunStatus, string>,
     trigger: { manual: '手动', event: '事件', schedule: '定时' } as Record<TriggerSource, string>,
@@ -32,8 +36,7 @@ const agentsCopy = {
   en: {
     eyebrow: 'Nailed AI · Agent team',
     title: 'Operations agent team',
-    body: 'The AI team analyzes, decides, acts, and reviews automatically — a closed B→C loop.',
-    loop: 'Loop: Insight → Decision → Act (ad / coupon / catalog / customer-ops) → Monitor',
+    body: 'Three business lanes: data collection → business decision → action, with monitoring feeding back.',
     teamTitle: 'Team',
     runsTitle: 'Recent runs',
     runRound: 'Run a round',
@@ -42,12 +45,52 @@ const agentsCopy = {
     emptyTitle: 'No runs yet',
     emptyBody: 'Once the team runs, each run’s thinking chain and actions show here.',
     loading: 'Loading…',
+    planned: 'Planned',
+    plannedBooking: 'Booking-journey bot · satisfaction survey → tech monthly report / compensation coupon',
+    showAllRuns: (n: number) => `Show all ${n} runs`,
+    collapseRuns: 'Collapse',
     role: { lead: 'Lead', analyst: 'Analyst', planner: 'Planner', operator: 'Operator', reviewer: 'Reviewer' } as Record<AgentRole, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Pending' } as Record<RunStatus, string>,
     trigger: { manual: 'Manual', event: 'Event', schedule: 'Schedule' } as Record<TriggerSource, string>,
     actionsN: (n: number) => `${n} action${n === 1 ? '' : 's'}`,
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
+
+/** The PM architecture (商家运营 Multi-Agent 画板): three business lanes, each 数据收集 → 商业决策 → 动作,
+ *  with 监测 feeding back. The team renders in THIS structure — not a flat card grid. */
+/** 最近运行 shows the latest round's worth by default — the full history sits behind a toggle. */
+const RUNS_PREVIEW = 9;
+
+const TEAM_LANES: ReadonlyArray<{
+  key: 'style' | 'customer' | 'booking';
+  name: { 'zh-CN': string; en: string };
+  stages: ReadonlyArray<{ label: { 'zh-CN': string; en: string }; slugs: readonly string[] }>;
+  planned?: boolean;
+}> = [
+  {
+    key: 'style',
+    name: { 'zh-CN': '款式运营', en: 'Style ops' },
+    stages: [
+      { label: { 'zh-CN': '数据收集', en: 'Collect' }, slugs: ['trend', 'insight'] },
+      { label: { 'zh-CN': '商业决策', en: 'Decide' }, slugs: ['decision'] },
+      { label: { 'zh-CN': '动作', en: 'Act' }, slugs: ['ad', 'coupon', 'catalog'] },
+      { label: { 'zh-CN': '监测', en: 'Monitor' }, slugs: ['monitor'] },
+    ],
+  },
+  {
+    key: 'customer',
+    name: { 'zh-CN': '用户运营', en: 'Customer ops' },
+    stages: [
+      { label: { 'zh-CN': '匹配 → 召回私信', en: 'Match → recall message' }, slugs: ['customer_ops'] },
+    ],
+  },
+  {
+    key: 'booking',
+    name: { 'zh-CN': '预约运营', en: 'Booking ops' },
+    stages: [],
+    planned: true,
+  },
+];
 
 function fmtTime(iso: string, language: AppLanguage): string {
   const d = new Date(iso);
@@ -67,6 +110,7 @@ export default function MerchantAgentsPage() {
   const [runs, setRuns] = useState<AgentRunView[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [showAllRuns, setShowAllRuns] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -116,11 +160,10 @@ export default function MerchantAgentsPage() {
         <p className="section-eyebrow">{copy.eyebrow}</p>
         <h1>{copy.title}</h1>
         <p className="section-copy">{copy.body}</p>
-        <p className="agent-loop-caption">{copy.loop}</p>
       </section>
 
       {loading ? (
-        <p className="helper-copy">{copy.loading}</p>
+        <LoadingState title={copy.loading} body="" />
       ) : (
         <>
           <section className="detail-surface" aria-labelledby="agents-team-title">
@@ -128,9 +171,12 @@ export default function MerchantAgentsPage() {
               <h2 id="agents-team-title">{copy.teamTitle}</h2>
               <span className="insights-badge">Nailed AI</span>
             </div>
-            <div className="agent-team-grid">
-              {agents.map((a) => {
-                // Presence (Multica pattern): tie 团队成员 to 最近运行 — live dot + the agent's last outcome.
+            {(() => {
+              const bySlug = new Map(agents.map((a) => [a.slug, a]));
+              // Presence (Multica pattern): tie 团队成员 to 最近运行 — live dot + the agent's last outcome.
+              const card = (slug: string) => {
+                const a = bySlug.get(slug as Agent['slug']);
+                if (!a) return null;
                 const mine = runs.filter((r) => r.agentSlug === a.slug);
                 const isRunning = mine.some((r) => r.status === 'running');
                 const last = mine[0]; // runs are newest-first
@@ -149,8 +195,32 @@ export default function MerchantAgentsPage() {
                     ) : null}
                   </div>
                 );
-              })}
-            </div>
+              };
+              return (
+                <>
+                  {/* Orchestrator sits above the lanes — it dispatches every targeted run. */}
+                  {bySlug.has('orchestrator') ? <div className="agent-lane-orchestrator">{card('orchestrator')}</div> : null}
+                  {TEAM_LANES.map((lane) => (
+                    <section key={lane.key} className={`agent-lane agent-lane-${lane.key}`} aria-label={lane.name[language]}>
+                      <p className="agent-lane-name">
+                        {lane.name[language]}
+                        {lane.planned ? <span className="agent-lane-planned">{copy.planned}</span> : null}
+                      </p>
+                      {lane.planned ? (
+                        <p className="agent-lane-planned-copy">{copy.plannedBooking}</p>
+                      ) : (
+                        lane.stages.map((stage, si) => (
+                          <div key={stage.label.en} className="agent-stage">
+                            <p className="agent-stage-label">{si > 0 ? '↓ ' : ''}{stage.label[language]}</p>
+                            <div className="agent-stage-cards">{stage.slugs.map(card)}</div>
+                          </div>
+                        ))
+                      )}
+                    </section>
+                  ))}
+                </>
+              );
+            })()}
           </section>
 
           <section className="detail-surface" aria-labelledby="agents-runs-title">
@@ -169,7 +239,7 @@ export default function MerchantAgentsPage() {
               <EmptyState title={copy.emptyTitle} body={copy.emptyBody} />
             ) : (
               <ul className="agent-run-list">
-                {runs.map((run) => (
+                {(showAllRuns ? runs : runs.slice(0, RUNS_PREVIEW)).map((run) => (
                   <li key={run.id}>
                     <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
                       <div className="agent-run-main">
@@ -194,6 +264,11 @@ export default function MerchantAgentsPage() {
                 ))}
               </ul>
             )}
+            {runs.length > RUNS_PREVIEW ? (
+              <button type="button" className="button button-secondary button-block agent-runs-toggle" onClick={() => setShowAllRuns((v) => !v)}>
+                {showAllRuns ? copy.collapseRuns : copy.showAllRuns(runs.length)}
+              </button>
+            ) : null}
           </section>
         </>
       )}

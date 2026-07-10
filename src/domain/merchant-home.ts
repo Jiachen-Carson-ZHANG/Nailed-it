@@ -190,15 +190,18 @@ export function computeTechnicianDay(
 
 // ── agent actions → card view models + backend-honest controls ──────────────────
 
-const ACTION_META: Record<AgentActionType, { icon: string; agent: string; title: (p: Record<string, unknown>) => string }> = {
-  place_ad: { icon: '📣', agent: '投广助手', title: (p) => `投广 · ${str(p.slot) || str(p.styleId) || ''}`.trim() },
-  set_group_buy_coupon: { icon: '🛍', agent: '团购助手', title: () => '团购券建议' },
+/** styleId → merchant-facing name. Cards must show "Melissa Design 8284", never a machine id. */
+type StyleName = (id: string) => string;
+
+const ACTION_META: Record<AgentActionType, { icon: string; agent: string; title: (p: Record<string, unknown>, name: StyleName) => string }> = {
+  place_ad: { icon: '📣', agent: '投广助手', title: (p, name) => `投广 · ${name(str(p.styleId)) || str(p.slot) || ''}`.trim() },
+  set_group_buy_coupon: { icon: '🛍', agent: '团购助手', title: (p, name) => `团购券 · ${name(str(p.styleId))}`.trim() },
   // propose_listing writes { gapTag, reason } (tools.py) — the demand gap, not a style id. gapTag first;
   // styleTitle/styleId kept only as defensive fallbacks for any legacy payload shape.
-  draft_upload: { icon: '🎯', agent: '决策助手', title: (p) => `上架建议 · ${str(p.gapTag) || str(p.styleTitle) || str(p.styleId) || ''}`.trim() },
+  draft_upload: { icon: '🎯', agent: '决策助手', title: (p, name) => `上架建议 · ${str(p.gapTag) || str(p.styleTitle) || name(str(p.styleId)) || ''}`.trim() },
   send_customer_message: { icon: '💬', agent: '用户运营', title: (p) => `唤回 · ${str(p.customerName) || str(p.name) || ''}`.trim() },
-  list_style: { icon: '✨', agent: '选品助手', title: (p) => `上架 · ${str(p.styleId)}` },
-  delist_style: { icon: '✨', agent: '选品助手', title: (p) => `下架 · ${str(p.styleId)}` },
+  list_style: { icon: '✨', agent: '选品助手', title: (p, name) => `上架 · ${name(str(p.styleId))}` },
+  delist_style: { icon: '✨', agent: '选品助手', title: (p, name) => `下架 · ${name(str(p.styleId))}` },
 };
 
 function str(v: unknown): string {
@@ -215,8 +218,9 @@ export function controlCapabilities(action: Pick<AgentAction, 'type' | 'status'>
   return ['view'];
 }
 
-export function toActionView(action: AgentAction): HomeActionView {
+export function toActionView(action: AgentAction, styleTitles: Record<string, string> = {}): HomeActionView {
   const meta = ACTION_META[action.type];
+  const name: StyleName = (id) => (id ? styleTitles[id] ?? id : '');
   return {
     id: action.id,
     runId: action.runId,
@@ -224,20 +228,25 @@ export function toActionView(action: AgentAction): HomeActionView {
     status: action.status,
     agentLabel: meta.agent,
     icon: meta.icon,
-    title: meta.title(action.payload) || meta.agent,
+    title: meta.title(action.payload, name) || meta.agent,
     createdAt: action.createdAt,
     controls: controlCapabilities(action),
   };
 }
 
 /** Split raw actions into the pin (proposed) and the done roll (applied, last 48h, capped). */
-export function splitActions(actions: AgentAction[], nowMs: number, recentLimit = 8): { pending: HomeActionView[]; recent: HomeActionView[] } {
+export function splitActions(
+  actions: AgentAction[],
+  nowMs: number,
+  recentLimit = 8,
+  styleTitles: Record<string, string> = {},
+): { pending: HomeActionView[]; recent: HomeActionView[] } {
   const pending: HomeActionView[] = [];
   const recent: HomeActionView[] = [];
   for (const a of actions) {
-    if (a.status === 'proposed') pending.push(toActionView(a));
+    if (a.status === 'proposed') pending.push(toActionView(a, styleTitles));
     else if (a.status === 'applied' && nowMs - Date.parse(a.createdAt) <= 2 * DAY_MS && recent.length < recentLimit) {
-      recent.push(toActionView(a));
+      recent.push(toActionView(a, styleTitles));
     }
   }
   return { pending, recent };

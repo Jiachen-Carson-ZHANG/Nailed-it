@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { listAgentActionsAction, undoAgentActionAction } from '@/lib/actions/agent-actions';
+import { getStyleTitleMapAction, listAgentActionsAction, undoAgentActionAction } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath, getMerchantAgentsPath } from '@/domain/session';
-import { dedupeActionsByEntity, describeAction } from '@/domain/agent-transcript';
+import { dedupeActionsByEntity, describeAction, type StyleTitleMap } from '@/domain/agent-transcript';
 import { useLanguage } from '@/i18n/context';
 import type { AgentAction, AgentActionType } from '@/domain/agents';
 
@@ -32,17 +32,19 @@ export function AgentActionInline({ types, filterCustomerName }: Props) {
   const { language } = useLanguage();
   const c = copy[language];
   const [actions, setActions] = useState<AgentAction[]>([]);
+  const [titles, setTitles] = useState<StyleTitleMap>({});
   const [undone, setUndone] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
-    listAgentActionsAction(types)
-      .then((rows) => {
+    Promise.all([listAgentActionsAction(types), getStyleTitleMapAction().catch(() => ({}))])
+      .then(([rows, titleMap]) => {
         if (!active) return;
         const filtered = filterCustomerName
           ? rows.filter((a) => a.payload?.customerName === filterCustomerName)
           : rows;
         setActions(dedupeActionsByEntity(filtered));
+        setTitles(titleMap);
       })
       .catch(() => {/* no surface */});
     return () => {
@@ -71,7 +73,7 @@ export function AgentActionInline({ types, filterCustomerName }: Props) {
           return (
             <li key={a.id} className="agent-inline-row">
               <span className="agent-inline-text">
-                {describeAction(a.type, a.payload, language)}{' '}
+                {describeAction(a.type, a.payload, language, titles)}{' '}
                 <Link className="agent-inline-why" href={getMerchantAgentRunPath(a.runId)}>{c.why}</Link>
               </span>
               {a.risk === 'reversible' ? (

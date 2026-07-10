@@ -3,17 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import {
-  getAgentRunAction,
+  getAgentRunDetailAction,
+  getStyleTitleMapAction,
   undoAgentActionAction,
   approveAgentActionAction,
   rejectAgentActionAction,
 } from '@/lib/actions/agent-actions';
-import { getMerchantAgentsPath, getMerchantStylesPath } from '@/domain/session';
-import { actionEntityHref, actionTypeLabel, describeAction } from '@/domain/agent-transcript';
+import { getMerchantAgentRunPath, getMerchantAgentsPath, getMerchantStylesPath } from '@/domain/session';
+import { actionEntityHref, actionTypeLabel, describeAction, type StyleTitleMap } from '@/domain/agent-transcript';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
-import type { AgentRunView } from '@/domain/agents';
+import type { AgentRunDetail } from '@/domain/agents';
 import { TranscriptChain } from './TranscriptChain';
 
 const detailCopy = {
@@ -23,6 +25,10 @@ const detailCopy = {
     back: '返回团队',
     thinking: '思考链',
     actions: '执行动作',
+    context: '任务来源',
+    dispatchedBy: (name: string) => `由「${name}」的结论触发本次任务`,
+    selfStarted: '本轮例行运行的起点',
+    spawned: '触发的下游',
     undo: '撤销',
     undone: '已撤销',
     approve: '批准',
@@ -39,6 +45,10 @@ const detailCopy = {
     back: 'Back to team',
     thinking: 'Thinking chain',
     actions: 'Actions',
+    context: 'Task context',
+    dispatchedBy: (name: string) => `Dispatched by "${name}"`,
+    selfStarted: 'The starting point of this round',
+    spawned: 'Spawned',
     undo: 'Undo',
     undone: 'Undone',
     approve: 'Approve',
@@ -59,7 +69,8 @@ function headline(output: unknown, fallback: string): string {
 export function AgentRunDetailClient({ runId }: { runId: string }) {
   const { language } = useLanguage();
   const copy = detailCopy[language];
-  const [run, setRun] = useState<AgentRunView | null>(null);
+  const [detail, setDetail] = useState<AgentRunDetail | null>(null);
+  const [titles, setTitles] = useState<StyleTitleMap>({});
   const [loading, setLoading] = useState(true);
   const [undone, setUndone] = useState<Set<string>>(new Set());
   const [approved, setApproved] = useState<Set<string>>(new Set());
@@ -67,14 +78,16 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
 
   useEffect(() => {
     let active = true;
-    getAgentRunAction(runId)
-      .then((data) => active && setRun(data))
+    // Titles are cosmetic — a failure must not blank the page, so they degrade to id-derived labels.
+    Promise.all([getAgentRunDetailAction(runId), getStyleTitleMapAction().catch(() => ({}))])
+      .then(([d, t]) => { if (active) { setDetail(d); setTitles(t); } })
       .catch(() => {/* not found */})
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [runId]);
+  const run = detail?.run ?? null;
 
   async function undo(actionId: string) {
     setUndone((prev) => new Set(prev).add(actionId));
@@ -91,7 +104,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
     await rejectAgentActionAction(actionId);
   }
 
-  if (loading) return <p className="helper-copy">{copy.loading}</p>;
+  if (loading) return <LoadingState title={copy.loading} body="" />;
   if (!run) {
     return (
       <section className="page-heading">
@@ -107,11 +120,34 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
       <section className="profile-hero">
         <p className="section-eyebrow">{run.agentName}</p>
         <h1>{headline(run.output, run.agentName)}</h1>
+        {/* Task context (为什么会有这次运行): the dispatching run + what this one spawned. Without this the
+            chain starts mid-air — the merchant can't tell why the agent acted (audit finding). */}
+        <p className="agent-run-context">
+          {detail?.parent ? (
+            <>
+              {copy.dispatchedBy(detail.parent.agentName)}
+              {' '}
+              <Link className="agent-run-context-link" href={getMerchantAgentRunPath(detail.parent.id)}>
+                ↑ {detail.parent.agentName}
+              </Link>
+            </>
+          ) : copy.selfStarted}
+          {detail && detail.children.length > 0 ? (
+            <>
+              {' · '}{copy.spawned}
+              {detail.children.map((c) => (
+                <Link key={c.id} className="agent-run-context-link" href={getMerchantAgentRunPath(c.id)}>
+                  ↓ {c.agentName}
+                </Link>
+              ))}
+            </>
+          ) : null}
+        </p>
       </section>
 
       <section className="detail-surface" aria-label={copy.thinking}>
         <div className="detail-surface-header"><h2>{copy.thinking}</h2></div>
-        <TranscriptChain steps={run.transcript} language={language} />
+        <TranscriptChain steps={run.transcript} language={language} titles={titles} />
       </section>
 
       {run.actions.length > 0 ? (
@@ -131,7 +167,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
                   <div className="agent-action-body">
                     <span className={`agent-action-type agent-action-${a.type}`}>{actionTypeLabel(a.type, language)}</span>
                     <span className="agent-action-payload">
-                      {describeAction(a.type, a.payload, language)}
+                      {describeAction(a.type, a.payload, language, titles)}
                       {entityHref ? <> <Link className="agent-action-entity-link" href={entityHref}>{copy.viewEntity}</Link></> : null}
                     </span>
                     {isProposed ? <span className="agent-action-gate-note">{copy.proposedNote}</span> : null}

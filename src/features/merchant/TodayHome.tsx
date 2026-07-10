@@ -63,12 +63,9 @@ const techStateClass: Record<string, string> = {
   off: styles.tstateOff,
 };
 
-function money(amount: number, currency: string, locale: string): string {
-  try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0, currencyDisplay: 'narrowSymbol' }).format(amount);
-  } catch {
-    return `${currency} ${Math.round(amount)}`;
-  }
+function money(amount: number, currency: string, _locale: string): string {
+  // App-wide convention: "SGD 128", never a bare $ (narrowSymbol rendered SGD as "$").
+  return `${currency} ${Math.round(amount)}`;
 }
 
 function hhmm(iso: string, locale: string): string {

@@ -31,10 +31,16 @@ function money(cents: unknown, currency = 'SGD'): string {
   return `${currency} ${Number.isInteger(units) ? units : units.toFixed(1)}`;
 }
 
-/** '款式 8284' for machine ids like style-melissa-img-8284; short human ids pass through as-is. */
-export function styleLabel(id: unknown, lang: AppLang): string {
+/** styleId → what the merchant calls it. Styles have real titles ("Melissa Design 8284") — pass a
+ *  `titles` map (from getStyleTitleMapAction) and the label IS the title. The id-derived form is only
+ *  the fallback for rows whose style no longer exists. */
+export type StyleTitleMap = Readonly<Record<string, string>>;
+
+export function styleLabel(id: unknown, lang: AppLang, titles?: StyleTitleMap): string {
   const s = String(id ?? '').trim();
   if (!s) return '—';
+  const title = titles?.[s];
+  if (title) return lang === 'zh-CN' ? `「${title}」` : `"${title}"`;
   const trailingDigits = /(\d{3,})$/.exec(s)?.[1];
   const core = trailingDigits ?? (s.length > 18 ? s.replace(/^style-/, '') : s);
   return lang === 'zh-CN' ? `款式 ${core}` : `style ${core}`;
@@ -72,7 +78,7 @@ const AD_SLOTS: Record<string, { 'zh-CN': string; en: string }> = {
 const slotLabel = (slot: unknown, lang: AppLang): string =>
   AD_SLOTS[String(slot)]?.[lang] ?? String(slot ?? '');
 
-type Summarizer = (input: Record<string, unknown>, output: unknown, lang: AppLang) => { label: string; summary: string };
+type Summarizer = (input: Record<string, unknown>, output: unknown, lang: AppLang, titles?: StyleTitleMap) => { label: string; summary: string };
 
 /** The 决策大脑 payload: count candidates + quote utilization so the sentence carries the verdict. */
 function summarizeDecisions(_input: Record<string, unknown>, output: unknown, lang: AppLang) {
@@ -146,7 +152,7 @@ const SUMMARIZERS: Record<string, Summarizer> = {
     };
   },
 
-  place_ad: (input, output, lang) => {
+  place_ad: (input, output, lang, titles) => {
     const status = isObj(output) ? String((output as { campaignStatus?: unknown }).campaignStatus ?? '') : '';
     const zh = lang === 'zh-CN';
     const tail = status === 'active'
@@ -157,29 +163,29 @@ const SUMMARIZERS: Record<string, Summarizer> = {
     return {
       label: zh ? '投广' : 'Ad',
       summary: zh
-        ? `为${styleLabel(input.styleId, lang)}创建广告 · ${slotLabel(input.slot, lang)} · 日预算 ${money(input.budgetCents)}${tail}`
-        : `Created an ad for ${styleLabel(input.styleId, lang)} · ${slotLabel(input.slot, lang)} · ${money(input.budgetCents)}/day${tail}`,
+        ? `为${styleLabel(input.styleId, lang, titles)}创建广告 · ${slotLabel(input.slot, lang)} · 日预算 ${money(input.budgetCents)}${tail}`
+        : `Created an ad for ${styleLabel(input.styleId, lang, titles)} · ${slotLabel(input.slot, lang)} · ${money(input.budgetCents)}/day${tail}`,
     };
   },
 
-  set_group_buy_coupon: (input, _o, lang) => {
+  set_group_buy_coupon: (input, _o, lang, titles) => {
     const zh = lang === 'zh-CN';
     return {
       label: zh ? '团购' : 'Deal',
       summary: zh
-        ? `为${styleLabel(input.styleId, lang)}创建团购草稿 · 券后 ${money(input.priceCents)}（待你发布）`
-        : `Drafted a group-buy for ${styleLabel(input.styleId, lang)} · ${money(input.priceCents)} after coupon (awaiting publish)`,
+        ? `为${styleLabel(input.styleId, lang, titles)}创建团购草稿 · 券后 ${money(input.priceCents)}（待你发布）`
+        : `Drafted a group-buy for ${styleLabel(input.styleId, lang, titles)} · ${money(input.priceCents)} after coupon (awaiting publish)`,
     };
   },
 
-  list_style: (input, _o, lang) => ({
+  list_style: (input, _o, lang, titles) => ({
     label: lang === 'zh-CN' ? '上架' : 'List',
-    summary: lang === 'zh-CN' ? `上架${styleLabel(input.styleId, lang)}` : `Listed ${styleLabel(input.styleId, lang)}`,
+    summary: lang === 'zh-CN' ? `上架${styleLabel(input.styleId, lang, titles)}` : `Listed ${styleLabel(input.styleId, lang, titles)}`,
   }),
 
-  delist_style: (input, _o, lang) => ({
+  delist_style: (input, _o, lang, titles) => ({
     label: lang === 'zh-CN' ? '下架' : 'Delist',
-    summary: lang === 'zh-CN' ? `下架${styleLabel(input.styleId, lang)}` : `Delisted ${styleLabel(input.styleId, lang)}`,
+    summary: lang === 'zh-CN' ? `下架${styleLabel(input.styleId, lang, titles)}` : `Delisted ${styleLabel(input.styleId, lang, titles)}`,
   }),
 
   propose_listing: (input, _o, lang) => ({
@@ -201,7 +207,7 @@ const SUMMARIZERS: Record<string, Summarizer> = {
 SUMMARIZERS.placeAd = SUMMARIZERS.place_ad;
 SUMMARIZERS.setGroupBuyCoupon = SUMMARIZERS.set_group_buy_coupon;
 
-export function describeToolCall(tool: string, input: unknown, output: unknown, lang: AppLang): StepDescription {
+export function describeToolCall(tool: string, input: unknown, output: unknown, lang: AppLang, titles?: StyleTitleMap): StepDescription {
   const summarizer = SUMMARIZERS[tool];
   const detail = rawDetail(input, output);
   if (!summarizer) {
@@ -209,16 +215,16 @@ export function describeToolCall(tool: string, input: unknown, output: unknown, 
     const io = compactJson(input, 60);
     return { label: tool, summary: io || (lang === 'zh-CN' ? '调用工具' : 'Tool call'), detail };
   }
-  const { label, summary } = summarizer(isObj(input) ? input : {}, output, lang);
+  const { label, summary } = summarizer(isObj(input) ? input : {}, output, lang, titles);
   return { label, summary, detail };
 }
 
 /** One transcript step → its merchant-facing description. */
-export function describeStep(step: TranscriptStep, lang: AppLang): StepDescription {
+export function describeStep(step: TranscriptStep, lang: AppLang, titles?: StyleTitleMap): StepDescription {
   if (step.kind === 'reasoning') {
     return { label: lang === 'zh-CN' ? '推理' : 'Reasoning', summary: step.text, detail: null };
   }
-  if (step.kind === 'tool_call') return describeToolCall(step.tool, step.input, step.output, lang);
+  if (step.kind === 'tool_call') return describeToolCall(step.tool, step.input, step.output, lang, titles);
   return { label: actionTypeLabel(step.actionType, lang), summary: step.summary, detail: null };
 }
 
@@ -227,6 +233,25 @@ export function stepTone(kind: TranscriptStep['kind']): 'thinking' | 'tool' | 'a
   if (kind === 'reasoning') return 'thinking';
   if (kind === 'tool_call') return 'tool';
   return 'action';
+}
+
+/** Which action type an execution tool records — the Python runner writes BOTH a tool_call and an
+ *  action step for the same act, so a rendered chain says the same thing twice. */
+const TOOL_ACTION_TYPE: Record<string, AgentActionType> = {
+  place_ad: 'place_ad', placeAd: 'place_ad',
+  set_group_buy_coupon: 'set_group_buy_coupon', setGroupBuyCoupon: 'set_group_buy_coupon',
+  list_style: 'list_style', delist_style: 'delist_style',
+  propose_listing: 'draft_upload', send_customer_message: 'send_customer_message',
+};
+
+/** Drop 'action' steps that restate the tool_call right before them. The action's status still shows on
+ *  the run's 执行动作 list — the chain reads as a narrative, not a double-entry ledger. */
+export function condenseTranscript(steps: TranscriptStep[]): TranscriptStep[] {
+  return steps.filter((step, i) => {
+    if (step.kind !== 'action') return true;
+    const prev = steps[i - 1];
+    return !(prev?.kind === 'tool_call' && TOOL_ACTION_TYPE[prev.tool] === step.actionType);
+  });
 }
 
 // ── action descriptions (the 执行动作 list + inline AI cards) ───────────────────
@@ -245,22 +270,22 @@ export function actionTypeLabel(type: AgentActionType, lang: AppLang): string {
 }
 
 /** Human sentence for an action row — replaces JSON.stringify(payload). */
-export function describeAction(type: AgentActionType, payload: Record<string, unknown>, lang: AppLang): string {
+export function describeAction(type: AgentActionType, payload: Record<string, unknown>, lang: AppLang, titles?: StyleTitleMap): string {
   const zh = lang === 'zh-CN';
   const p = payload ?? {};
   switch (type) {
     case 'place_ad':
       return zh
-        ? `为${styleLabel(p.styleId, lang)}投放广告 · ${slotLabel(p.slot, lang)} · 日预算 ${money(p.budgetCents)}`
-        : `Ad for ${styleLabel(p.styleId, lang)} · ${slotLabel(p.slot, lang)} · ${money(p.budgetCents)}/day`;
+        ? `为${styleLabel(p.styleId, lang, titles)}投放广告 · ${slotLabel(p.slot, lang)} · 日预算 ${money(p.budgetCents)}`
+        : `Ad for ${styleLabel(p.styleId, lang, titles)} · ${slotLabel(p.slot, lang)} · ${money(p.budgetCents)}/day`;
     case 'set_group_buy_coupon':
       return zh
-        ? `为${styleLabel(p.styleId, lang)}设置团购券 · 券后 ${money(p.priceCents)}`
-        : `Group-buy coupon for ${styleLabel(p.styleId, lang)} · ${money(p.priceCents)} after coupon`;
+        ? `为${styleLabel(p.styleId, lang, titles)}设置团购券 · 券后 ${money(p.priceCents)}`
+        : `Group-buy coupon for ${styleLabel(p.styleId, lang, titles)} · ${money(p.priceCents)} after coupon`;
     case 'list_style':
-      return zh ? `上架${styleLabel(p.styleId, lang)}` : `Listed ${styleLabel(p.styleId, lang)}`;
+      return zh ? `上架${styleLabel(p.styleId, lang, titles)}` : `Listed ${styleLabel(p.styleId, lang, titles)}`;
     case 'delist_style':
-      return zh ? `下架${styleLabel(p.styleId, lang)}` : `Delisted ${styleLabel(p.styleId, lang)}`;
+      return zh ? `下架${styleLabel(p.styleId, lang, titles)}` : `Delisted ${styleLabel(p.styleId, lang, titles)}`;
     case 'draft_upload': {
       const what = String(p.gapTag ?? p.styleTitle ?? p.styleId ?? '');
       return zh ? `生成上新草稿：${what}` : `Drafted a new listing: ${what}`;

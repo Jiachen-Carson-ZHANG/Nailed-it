@@ -14,6 +14,13 @@ export async function listAgentsAction(): Promise<Agent[]> {
   return getRepositories().agents.listAgents();
 }
 
+/** styleId → title for the demo merchant. Transcript/action surfaces render real style names
+ *  ("Melissa Design 8284"), not machine ids — the describers take this as their `titles` map. */
+export async function getStyleTitleMapAction(): Promise<Record<string, string>> {
+  const rows = await getRepositories().merchantStyles.listByMerchant(demoMerchantId);
+  return Object.fromEntries(rows.map((r) => [r.id, r.title]));
+}
+
 /** Recent runs for the demo merchant (most recent first) — powers /merchant/agents. */
 export async function listAgentRunsAction(): Promise<AgentRunView[]> {
   return getRepositories().agents.listRuns(demoMerchantId);
