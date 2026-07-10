@@ -1999,3 +1999,13 @@ both 2/2 stable.
   budget cap, irreversible/entityless refusal). Registry 20 tools.
 - BLOCKED for final verification: OpenRouter credits ran out mid-eval (402) — full-suite rerun + the
   live P2/P3 round need a top-up + migration 0030 applied.
+
+## 2026-07-11 — Judge-facing technical documentation set
+
+New `docs/technical-documentation/`: seven documents synthesizing the ADRs, eval evidence, and live-round
+data into a defensible engineering account — system overview, multi-agent architecture (with the
+what-we-rejected table), decision brain & economics (incl. honest limits), action contract & safety
+model (envelope / undo ordering / capability objects), memory & the revision edge, evaluation
+methodology (three layers + the findings it produced), and a 20-question anticipated judge Q&A covering
+the hard tradeoffs (why no framework, fake-ROAS critique, blast radius, synthetic data, scale limits).
+Every claim cites a code path, an ADR, or a measured run.
