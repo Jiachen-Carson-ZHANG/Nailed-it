@@ -5,9 +5,8 @@ import { mockGroupbuyEntries } from '@/data/mock-groupbuy-deals';
 import { demoMerchantId } from '@/mock/merchants';
 import type { GroupbuyRepository } from '../types';
 
-// In-memory group-buy repo (ADR-0012 Phase 0a). Mirrors the merchant-style memory repo: a flat record
-// array scoped by merchantId. Seeded from the existing demo deals so the seam has data once the UI is
-// wired to it (Phase 0b); the localStorage repo is untouched in 0a.
+// In-memory group-buy repo (ADR-0012). Mirrors the merchant-style memory repo: a flat record array scoped
+// by merchantId. Seeded from the demo deals so 团购管理 renders without Supabase.
 function seedRecords(): GroupbuyDealRecord[] {
   return mockGroupbuyEntries.map((entry) => toGroupbuyRecord(entry.deal, demoMerchantId));
 }

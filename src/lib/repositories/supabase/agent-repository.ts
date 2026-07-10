@@ -130,6 +130,17 @@ export function createSupabaseAgentRepository(): AgentRepository {
       return data ? rowToRunView(data as RunRow) : null;
     },
 
+    async getAction(actionId: string, merchantId: string): Promise<AgentAction | null> {
+      const { data, error } = await getServiceClient()
+        .from('agent_actions')
+        .select('*')
+        .eq('id', actionId)
+        .eq('merchant_id', merchantId)
+        .maybeSingle();
+      if (error) throw new Error(`AgentRepository.getAction failed: ${error.message}`);
+      return data ? rowToAction(data as ActionRow) : null;
+    },
+
     async setActionStatus(
       actionId: string,
       merchantId: string,

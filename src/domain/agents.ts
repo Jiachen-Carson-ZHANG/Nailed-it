@@ -60,6 +60,14 @@ export type AgentAction = {
   entityId?: string | null;
 };
 
+/** Can this action be undone/rejected? An `applied` action only if it is reversible (a sent message is
+ *  not); a `proposed` one always (rejecting a proposal costs nothing). The single source of truth for the
+ *  guard the repositories enforce — callers pre-check with it before touching the real entity. */
+export function canUndoAction(action: Pick<AgentAction, 'status' | 'risk'>): boolean {
+  if (action.status === 'proposed') return true;
+  return action.status === 'applied' && action.risk === 'reversible';
+}
+
 /** One step in a run's thinking chain (the diagram's reasoning ⇄ tool ⇄ action). */
 export type TranscriptStep =
   | { kind: 'reasoning'; text: string }

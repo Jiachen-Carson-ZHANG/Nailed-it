@@ -6,8 +6,10 @@
 
 import type { StyleEconomics } from './economics';
 import { couponProfitPerHourCents } from './economics';
-import type { FunnelScores } from './funnel';
+import type { FunnelScores, FunnelCounts } from './funnel';
 import type { CapacityBand } from './capacity';
+import type { AdEconomics, AdPeerTotals } from './ads';
+import { adPeerTotals, computeAdEconomics, passesRoasGate } from './ads';
 
 export type Recommendation = 'ad' | 'coupon' | 'display_only' | 'skip';
 
@@ -17,23 +19,24 @@ export type DecisionSignal =
   | 'high_conversion' | 'low_conversion'
   | 'idle_capacity' | 'full_capacity'
   | 'fits' | 'no_fit'
-  | 'underexposed' | 'below_coupon_floor';
+  | 'underexposed' | 'over_exposed' | 'exposure_unknown'
+  | 'roas_above_target' | 'roas_below_target' | 'roas_unknown'
+  | 'below_coupon_floor';
 
 export type StyleDecisionInput = {
   styleId: string;
   styleTitle: string;
   economics: StyleEconomics;
   funnel: FunnelScores;
+  counts: FunnelCounts; // raw counts — the ad gate needs measured impressions/clicks/bookings, not scores
   fitsCapacity: boolean; // this style's duration fits a next-week gap (capacity.fitsStyle)
 };
-// Phase-2 ad gate (not yet modelled): expected ROAS >= the merchant's ROI target and expected incremental
-// profit > 0, plus MEASURED underexposure (impressions/share vs peers). Today the ad candidate fires on
-// scores + capacity + fit, and the `underexposed` signal is a proxy ("economics say amplify"), not measured.
 
 export type DecisionContext = {
   capacityBand: CapacityBand; // merchant-level, shared across styles
   capacityUtilizationPct: number;
   minProfitPerHourCents: number; // the coupon floor (from the merchant envelope)
+  targetRoi: number; // the merchant's ad ROI target — ad spend must clear it (domain/style-ad DEFAULT_TARGET_ROI)
   couponDiscountPct?: number; // suggested discount for a coupon candidate (default 0.2)
 };
 
@@ -44,6 +47,8 @@ export type StyleDecision = {
   candidate: Recommendation;
   signals: DecisionSignal[];
   suggestedCouponCents: number | null; // set when candidate === 'coupon'
+  /** The money behind an ad verdict — the agent quotes these instead of trusting the label. */
+  ad: AdEconomics;
 };
 
 const AD = { biz: 70, conv: 65, demand: 60, utilMax: 85 };
@@ -67,17 +72,21 @@ function capacityFitScore(band: CapacityBand, fits: boolean): number {
   return round1(0.6 * availableScore[band] + 0.4 * (fits ? 100 : 0));
 }
 
-/** Decide one style. The peer maxima come from the batch so business value is relative (PM). */
-export function decideStyle(
-  input: StyleDecisionInput,
-  ctx: DecisionContext,
-  peers: { maxProfitPerHourCents: number; maxRevenuePerHourCents: number; maxPriceCents: number },
-): StyleDecision {
+type Peers = {
+  maxProfitPerHourCents: number;
+  maxRevenuePerHourCents: number;
+  maxPriceCents: number;
+} & AdPeerTotals;
+
+/** Decide one style. The peer maxima/totals come from the batch so business value and exposure are both
+ *  relative (PM: "高于店铺均值"). */
+export function decideStyle(input: StyleDecisionInput, ctx: DecisionContext, peers: Peers): StyleDecision {
   const { economics: e, funnel } = input;
   const businessValue = businessValueScore(e, peers.maxProfitPerHourCents, peers.maxRevenuePerHourCents, peers.maxPriceCents);
   const demand = funnel.demandScore;
   const conversion = funnel.conversionScore;
   const capacityFit = capacityFitScore(ctx.capacityBand, input.fitsCapacity);
+  const ad = computeAdEconomics(input.counts, demand, e, peers);
 
   const signals: DecisionSignal[] = [];
   signals.push(businessValue >= AD.biz ? 'high_profit_per_hour' : 'low_profit_per_hour');
@@ -85,6 +94,14 @@ export function decideStyle(
   signals.push(conversion >= AD.conv ? 'high_conversion' : 'low_conversion');
   signals.push(ctx.capacityUtilizationPct <= COUPON.utilMax ? 'idle_capacity' : 'full_capacity');
   signals.push(input.fitsCapacity ? 'fits' : 'no_fit');
+  signals.push(
+    ad.exposureRatio === null ? 'exposure_unknown' : ad.underexposed ? 'underexposed' : 'over_exposed',
+  );
+  signals.push(
+    ad.expectedRoas === null ? 'roas_unknown'
+      : passesRoasGate(ad, ctx.targetRoi) ? 'roas_above_target'
+        : 'roas_below_target',
+  );
 
   const discount = ctx.couponDiscountPct ?? 0.2;
   const suggestedCoupon = Math.round(e.priceCents * (1 - discount));
@@ -94,17 +111,18 @@ export function decideStyle(
   let candidate: Recommendation;
   if (
     businessValue >= AD.biz && conversion >= AD.conv && demand >= AD.demand &&
-    ctx.capacityUtilizationPct <= AD.utilMax && input.fitsCapacity
+    ctx.capacityUtilizationPct <= AD.utilMax && input.fitsCapacity &&
+    ad.underexposed && passesRoasGate(ad, ctx.targetRoi)
   ) {
-    candidate = 'ad'; // already-profitable + converting + underexposed + room to serve
-    signals.push('underexposed');
+    // Already-profitable + converting + room to serve + genuinely under-surfaced + the money clears.
+    candidate = 'ad';
   } else if (
     demand >= COUPON.demand && conversion < COUPON.convBelow &&
     ctx.capacityUtilizationPct <= COUPON.utilMax && input.fitsCapacity && couponAboveFloor
   ) {
     candidate = 'coupon'; // interested-but-stuck + idle + still profitable discounted
   } else if (demand >= COUPON.demand) {
-    candidate = 'display_only'; // real interest but can't justify spend (full / no-fit / below floor / low value)
+    candidate = 'display_only'; // real interest, can't justify spend (full / no-fit / below floor / bad ROAS)
     if (!couponAboveFloor) signals.push('below_coupon_floor');
   } else {
     candidate = 'skip';
@@ -117,15 +135,18 @@ export function decideStyle(
     candidate,
     signals,
     suggestedCouponCents: candidate === 'coupon' ? suggestedCoupon : null,
+    ad,
   };
 }
 
-/** Decide the whole style set — computes peer maxima once, then decides each. */
+/** Decide the whole style set — computes peer maxima + exposure totals once, then decides each. */
 export function decideStyles(inputs: StyleDecisionInput[], ctx: DecisionContext): StyleDecision[] {
-  const peers = {
+  const totals = adPeerTotals(inputs.map((i) => ({ counts: i.counts, demandScore: i.funnel.demandScore })));
+  const peers: Peers = {
     maxProfitPerHourCents: Math.max(0, ...inputs.map((i) => i.economics.profitPerHourCents)),
     maxRevenuePerHourCents: Math.max(0, ...inputs.map((i) => i.economics.revenuePerHourCents)),
     maxPriceCents: Math.max(0, ...inputs.map((i) => i.economics.priceCents)),
+    ...totals,
   };
   return inputs.map((i) => decideStyle(i, ctx, peers));
 }

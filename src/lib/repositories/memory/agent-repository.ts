@@ -6,6 +6,7 @@ import type {
   ActionStatus,
   NewAgentRun,
 } from '@/domain/agents';
+import { canUndoAction } from '@/domain/agents';
 import { AGENT_DEFINITIONS, generateAgentRuns } from '@/mock/agent-seed';
 import type { AgentRepository } from '../types';
 
@@ -43,12 +44,7 @@ export function createMemoryAgentRepository(
     if (status === 'approved') {
       return action.status === 'proposed' && action.type === 'draft_upload';
     }
-    if (status === 'undone') {
-      return (
-        (action.status === 'applied' && action.risk === 'reversible') ||
-        action.status === 'proposed'
-      );
-    }
+    if (status === 'undone') return canUndoAction(action);
     return false;
   }
 
@@ -69,6 +65,11 @@ export function createMemoryAgentRepository(
     async getRun(id: string): Promise<AgentRunView | null> {
       const run = runs.find((r) => r.id === id);
       return run ? structuredClone(toView(run)) : null;
+    },
+
+    async getAction(actionId: string, merchantId: string): Promise<AgentAction | null> {
+      const action = actions.find((a) => a.id === actionId && a.merchantId === merchantId);
+      return action ? structuredClone(action) : null;
     },
 
     async setActionStatus(

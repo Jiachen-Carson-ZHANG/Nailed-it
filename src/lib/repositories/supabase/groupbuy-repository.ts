@@ -59,30 +59,32 @@ export function createSupabaseGroupbuyRepository(): GroupbuyRepository {
 
     getByIdForMerchant: fetchOne,
 
+    // One RPC (migration 0029), not upsert + delete + insert: a failure between the item delete and the
+    // item insert used to leave a published deal with zero services. Deal and items now commit together.
     async save(record) {
-      const { error: dealErr } = await db.from('groupbuy_deal').upsert({
-        id: record.id, merchant_id: record.merchantId, title: record.title, status: record.status,
-        original_price_cents: toCents(record.originalPrice),
-        deal_price_cents: record.dealPrice === null ? null : toCents(record.dealPrice),
-        currency: record.currency,
-        sale_start: record.saleStart, sale_end: record.saleEnd, validity: record.validity,
-        sale_channel: record.saleChannel, availability: record.availability,
-        benefit_sharing: record.benefitSharing, purchase_limit: record.purchaseLimit,
-        source_run_id: record.sourceRunId, updated_at: record.updatedAt,
-      });
-      if (dealErr) throw new Error(`GroupbuyRepository.save deal failed: ${dealErr.message}`);
-
-      // Replace the authoritative item rows (enabled selections only).
-      const { error: delErr } = await db.from('groupbuy_deal_item').delete().eq('groupbuy_deal_id', record.id);
-      if (delErr) throw new Error(`GroupbuyRepository.save clear-items failed: ${delErr.message}`);
       const items = record.serviceSelections.filter((s) => s.enabled).map((s, position) => ({
-        id: `${record.id}:${s.catalogItemId}`, groupbuy_deal_id: record.id,
         catalog_item_id: s.catalogItemId, quantity: s.quantity, position,
       }));
-      if (items.length > 0) {
-        const { error: insErr } = await db.from('groupbuy_deal_item').insert(items);
-        if (insErr) throw new Error(`GroupbuyRepository.save items failed: ${insErr.message}`);
+      const { error } = await db.rpc('save_groupbuy_deal', {
+        p_deal: {
+          id: record.id, merchant_id: record.merchantId, title: record.title, status: record.status,
+          original_price_cents: toCents(record.originalPrice),
+          deal_price_cents: record.dealPrice === null ? null : toCents(record.dealPrice),
+          currency: record.currency,
+          sale_start: record.saleStart, sale_end: record.saleEnd, validity: record.validity,
+          sale_channel: record.saleChannel, availability: record.availability,
+          benefit_sharing: record.benefitSharing, purchase_limit: record.purchaseLimit,
+          source_run_id: record.sourceRunId, updated_at: record.updatedAt,
+        },
+        p_items: items,
+      });
+      if (error) {
+        if (/save_groupbuy_deal/i.test(error.message) && /(does not exist|schema cache|could not find)/i.test(error.message)) {
+          throw new Error(`save_groupbuy_deal RPC missing — apply migration 0029_save_groupbuy_deal_rpc.sql (${error.message})`);
+        }
+        throw new Error(`GroupbuyRepository.save failed: ${error.message}`);
       }
+
       const saved = await fetchOne(record.id, record.merchantId);
       if (!saved) throw new Error('GroupbuyRepository.save: not found after upsert');
       return saved;

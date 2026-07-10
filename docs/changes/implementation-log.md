@@ -1786,3 +1786,54 @@ the proposal was invisible. Closed it.
   tsc clean.
 - **Still open:** supabase group-buy `save` is not transactional (needs an RPC); entity-aware undo; ad
   ROAS + measured underexposure.
+
+## 2026-07-10 — Phase 2 tail: entity-aware undo, atomic group-buy save, ad ROAS + measured exposure
+
+Closes the three items left open by the 团购管理 rewire. All three were places where the code *reported*
+something it had not actually done.
+
+**1. Entity-aware undo.** `undoAgentActionAction` flipped `agent_actions.status` and stopped there — the
+campaign kept spending and the deal stayed published. Now: read the action → pre-check `canUndoAction`
+(new, in `domain/agents.ts`; the memory repo's duplicated guard now delegates to it) → withdraw the
+**entity** → mirror the coarse status.
+- **The order is the design.** Entity first: if the mirror then fails, money is already stopped and the
+  stale pill self-corrects, because the entity's status is authoritative. Mirror-first would report "undone"
+  while the ad kept spending.
+- New: `AgentRepository.getAction` (both impls), `withdrawStyleAdCampaignAction` (also the 投广中心 pause
+  button later), `styleAdWithdrawTarget` / `groupbuyWithdrawTarget` in `action-entity-contract.ts`.
+- `GROUPBUY_TRANSITIONS.draft` gains `unlisted`: rejecting an agent proposal **shelves** it (keeps
+  `source_run_id` for audit) rather than deleting it. An applied irreversible action is refused *before* its
+  entity is touched. Withdrawing an already-not-live entity is a no-op, not an error.
+- The seeded coupon action now carries `entityType: 'groupbuy_deal'` / `entityId: 'deal-001'` so memory mode
+  behaves like Supabase — otherwise the demo's undo lies.
+
+**2. Atomic group-buy save (migration `0029_save_groupbuy_deal_rpc.sql`).** `save` was upsert + item-delete +
+item-insert as three PostgREST calls; a failure between the delete and the insert left a **published deal
+with zero services**. One plpgsql RPC now commits deal + items together, restates the table defaults (an
+explicit INSERT overrides them), and refuses to reassign a deal across merchants.
+
+**3. Ad ROAS + measured underexposure (`src/domain/decision/ads.ts`).** The ad gate fired on scores and
+capacity, never on money, and `underexposed` was emitted *by* the ad branch — it meant "we decided to ad".
+- `expectedRoas = contribution / costPerBooking`, `costPerBooking = AD_COST_PER_CLICK_CENTS ÷ (bookings/clicks)`
+  measured from the style's own funnel. **ROAS is scale-free** (the budget cancels), so *whether* to advertise
+  is a property of the style; the cap only decides *how much* of a good buy to buy.
+- `exposureRatio = impressionShare / demandShare` — attention received vs attention earned. `< 0.8` = the
+  shop's own surface under-serves it.
+- **Asymmetric defaults:** unknown ROAS is a **NO** (wrongly spending is a real loss); unknown exposure is
+  reported as `exposure_unknown`, never fabricated, because the agent narrates these signals. Exposure needs
+  ≥2 impression-carrying styles — one style is 100% of its own batch.
+- Honest limit recorded in-code and in the ADR: bookings are treated as fully incremental, so ROAS is an
+  **upper bound**; `AD_COST_PER_CLICK_CENTS = 120` is a named assumption, not a measurement.
+- The 决策 skill + tool docstring now require the agent to quote `expectedRoas` and `exposureRatio` in its
+  reason, and state that a null ROAS is a NO, not a maybe.
+
+**Verified live** (demo merchant, 5 styles with traffic): exactly 2 clear both gates — `8274` (ratio 0.61,
+ROAS 4.1) and `8249` (ratio 0.66, ROAS 6.8). Blocked: `8284` (26% of all impressions, 61 clicks, **zero**
+bookings → ROAS unmeasurable) and `8282` (ROAS 1.8 < target 2.0). The gate removes exactly the two buys that
+would have burned cash, and `8284` — the style the old brain wanted to amplify — is the clearest example.
+
+- Tests: full suite **24 failed / 529 passed** (failure count unchanged from baseline; +17 passing). pytest 23.
+  tsc clean. New: 6 withdrawal-target cases, 4 undo-orchestration cases (memory bundle, end-to-end),
+  6 ad-gate cases incl. over-exposed peer, unmeasurable ROAS, and scale-freeness.
+- **Requires migration `0029`.** Until it is applied, group-buy `save` throws a message naming the file
+  (deliberately no silent fallback to the non-atomic path).

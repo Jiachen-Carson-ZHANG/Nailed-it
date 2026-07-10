@@ -5,7 +5,9 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { getRepositories } from '@/lib/repositories';
 import { demoMerchantId } from '@/mock/merchants';
-import { agentActionTypes, deriveRunDetail, type Agent, type AgentAction, type AgentActionType, type AgentRunDetail, type AgentRunView } from '@/domain/agents';
+import { agentActionTypes, canUndoAction, deriveRunDetail, type Agent, type AgentAction, type AgentActionType, type AgentRunDetail, type AgentRunView } from '@/domain/agents';
+import { groupbuyWithdrawTarget } from '@/domain/action-entity-contract';
+import { withdrawStyleAdCampaignAction } from '@/lib/actions/style-ad-actions';
 
 /** The agent team definitions for the panel. */
 export async function listAgentsAction(): Promise<Agent[]> {
@@ -28,9 +30,42 @@ export async function getAgentRunDetailAction(runId: string): Promise<AgentRunDe
   return deriveRunDetail(runId, runs);
 }
 
-/** One-click undo for a reversible action (ADR-0007). Flips status → 'undone'. */
-export async function undoAgentActionAction(actionId: string): Promise<AgentAction | null> {
+/**
+ * Move the real commercial object this action produced to a not-live state (ADR-0012 Phase 2).
+ * Actions with no entity (a sent message, a pre-contract row) are a no-op.
+ *
+ * ORDER: the entity is withdrawn BEFORE agent_actions.status is mirrored. If the mirror then fails, the
+ * campaign is already paused / the deal already unlisted — the merchant's money is safe and the stale pill
+ * self-corrects, because the entity's own status is authoritative. The reverse order would report "undone"
+ * while the ad kept spending.
+ */
+async function withdrawEntity(action: AgentAction): Promise<void> {
+  if (!action.entityType || !action.entityId) return;
+
+  if (action.entityType === 'style_ad') {
+    await withdrawStyleAdCampaignAction(action.entityId);
+    return;
+  }
+
+  const deal = await getRepositories().groupbuy.getByIdForMerchant(action.entityId, demoMerchantId);
+  if (!deal) return;
+  const target = groupbuyWithdrawTarget(deal.status);
+  if (target === null) return; // already not live
+  await getRepositories().groupbuy.setStatus(action.entityId, demoMerchantId, target);
+}
+
+/** Undo/reject: stop the real entity, then mirror the coarse status. Returns null if the action may not be
+ *  undone (an applied irreversible action, e.g. a message already sent) — the entity is never touched. */
+async function withdrawAgentAction(actionId: string): Promise<AgentAction | null> {
+  const action = await getRepositories().agents.getAction(actionId, demoMerchantId);
+  if (!action || !canUndoAction(action)) return null;
+  await withdrawEntity(action);
   return getRepositories().agents.setActionStatus(actionId, demoMerchantId, 'undone');
+}
+
+/** One-click undo for a reversible action (ADR-0007): pauses the campaign / unlists the deal it created. */
+export async function undoAgentActionAction(actionId: string): Promise<AgentAction | null> {
+  return withdrawAgentAction(actionId);
 }
 
 /** Approve a gated `proposed` action — the one human gate (ADR-0007 §4): 上架-a-new-style. Flips
@@ -40,9 +75,9 @@ export async function approveAgentActionAction(actionId: string): Promise<AgentA
   return getRepositories().agents.setActionStatus(actionId, demoMerchantId, 'approved');
 }
 
-/** Reject a gated `proposed` action — flips status → 'undone' so it won't be acted on. */
+/** Reject a gated `proposed` action — shelves the draft entity it produced, then flips status → 'undone'. */
 export async function rejectAgentActionAction(actionId: string): Promise<AgentAction | null> {
-  return getRepositories().agents.setActionStatus(actionId, demoMerchantId, 'undone');
+  return withdrawAgentAction(actionId);
 }
 
 /** Applied actions of given types for the demo merchant — powers the in-context surfaces (投广 /

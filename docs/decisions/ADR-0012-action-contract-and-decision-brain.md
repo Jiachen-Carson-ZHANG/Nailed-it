@@ -142,11 +142,60 @@ per-style editor + entity + migrations 0023–0025). This supersedes parts of th
 (Decision §5: brain = advisory tool, agent = tool-loop + synthesis, no single tool returns the answer) and
 the ad-spend model (Decision §2: auto-launch within cap + withdrawable, gate above).
 
+## Amendments (2026-07-10 — Phase 2 tail: undo, atomicity, ad economics)
+
+**1. Undo acts on the entity, and the order is load-bearing.** `undoAgentActionAction` / `rejectAgentActionAction`
+now: read the action → pre-check `canUndoAction` → withdraw the **entity** → mirror `agent_actions.status`.
+The entity moves *first*. If the mirror then fails, the campaign is already paused and the deal already
+unlisted: the merchant's money is safe and the stale pill self-corrects, because the entity's status is
+authoritative (§ contract). The reverse order would report "undone" while the ad kept spending. An applied
+irreversible action (a sent message) is refused before its entity is touched at all.
+
+Withdrawal targets (`action-entity-contract.ts`): `style_ad active→paused` (resumable), `draft→ended`
+(a declined proposal); `groupbuy published→unlisted`, `draft→unlisted`. `GROUPBUY_TRANSITIONS.draft` gains
+`unlisted` so a rejected proposal is **shelved, not deleted** — the audit trail keeps its `source_run_id`.
+A withdraw on an already-not-live entity is a no-op, not an illegal transition.
+
+**2. Group-buy `save` is atomic (migration `0029`, `save_groupbuy_deal` RPC).** The old path was upsert +
+item-delete + item-insert as three PostgREST calls; a failure between the delete and the insert left a
+*published* deal with zero services — a live offer the merchant cannot honour. One plpgsql function now
+commits deal + items together, and refuses to reassign a deal across merchants.
+
+**3. The ad gate spends only when the money clears.** Two independent defects, both fixed in
+`src/domain/decision/ads.ts`:
+- *No ROAS.* The gate fired on scores + capacity, never on money. Now `expectedRoas = contribution /
+  costPerBooking`, where `costPerBooking = AD_COST_PER_CLICK_CENTS / (bookings/clicks)` measured from the
+  style's own funnel. **ROAS is scale-free** — the budget cancels — so *whether* to advertise is a property
+  of the style, and the budget cap only decides *how much* of a good buy to buy. That is why the gate lives
+  in the brain and the cap lives in the envelope (§2).
+- *Circular `underexposed`.* The signal was emitted **by** the ad branch, so it meant "we decided to ad".
+  Now measured: `exposureRatio = impressionShare / demandShare` — attention received (a volume share) vs
+  attention earned (a rate-quality share). Below `0.8` the shop's own surface under-serves the style and
+  paid amplification has a misallocation to correct; at parity it does not.
+
+**Asymmetric defaults, deliberately.** Unknown ROAS is a **NO** (wrongly spending is a real loss). Unknown
+exposure is reported as `exposure_unknown` rather than fabricated — the agent narrates these signals, and a
+false `over_exposed` becomes a false explanation. Exposure is a *relative* claim, so it needs ≥2
+impression-carrying styles; one style is 100% of its own batch and that is evidence of nothing.
+
+**Honest limit:** every ad-driven booking is treated as incremental. Some fraction would have booked
+organically, so `expectedRoas` is an **upper bound**. Measuring true lift needs a holdout experiment; when
+`style_ad_campaign` accumulates real impressions/clicks/spend, replace the estimate with that measurement
+rather than inventing a lift factor. `AD_COST_PER_CLICK_CENTS = 120` is a named config assumption (¥1.20,
+美团 beauty-category CPC), not a measurement.
+
+Verified live against the demo merchant: of 5 styles with traffic, exactly 2 clear both gates
+(`8274` ratio 0.61 / ROAS 4.1; `8249` ratio 0.66 / ROAS 6.8). The gate blocks `8284` (26% of all impressions,
+61 clicks, **zero** bookings) and `8282` (ROAS 1.8 < target 2.0) — the two that would have burned cash.
+
 ## References
 
 - PM spec: `美甲款式运营决策分析.pdf` (local) · ADR-0006 (compute-on-read) · ADR-0007 (agent team) ·
   ADR-0011 (backend-honest controls / reversibility) · ADR-0004 (repository seam)
 - Audits 2026-07-06 (proposal audit + action-contract audit) · `docs/plans/2026-07-06-decision-brain-and-action-contract.md`
 - Code touch points: `agent-service/nailed_agents/orchestrator.py`, `agent-service/skills/decision.md`,
-  `agent-service/nailed_agents/tools.py`, `src/lib/repositories/local/groupbuy-repository.ts`,
-  `src/domain/groupbuy.ts`, `src/features/merchant/GroupbuyPanel.tsx`, `src/app/merchant/manage/page.tsx`
+  `agent-service/nailed_agents/tools.py`, `src/domain/decision/` (brain, incl. `ads.ts`),
+  `src/domain/action-entity-contract.ts`, `src/lib/actions/agent-actions.ts` (entity-aware undo),
+  `src/lib/repositories/supabase/groupbuy-repository.ts`, `src/domain/groupbuy.ts`,
+  `src/features/merchant/GroupbuyPanel.tsx`, `src/app/merchant/manage/page.tsx`
+- Migrations: `0027_action_entity_contract` · `0028_style_ad_source_run` · `0029_save_groupbuy_deal_rpc`

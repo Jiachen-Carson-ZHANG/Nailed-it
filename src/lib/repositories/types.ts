@@ -179,6 +179,8 @@ export interface AgentRepository {
   /** Runs for a merchant, most recent first, each joined with its agent identity + actions. */
   listRuns(merchantId: string): Promise<AgentRunView[]>;
   getRun(id: string): Promise<AgentRunView | null>;
+  /** One action for one merchant — undo must read its (entityType, entityId) before touching the entity. */
+  getAction(actionId: string, merchantId: string): Promise<AgentAction | null>;
   /** Flip an action's status for one merchant, enforcing the panel's legal transitions. */
   setActionStatus(actionId: string, merchantId: string, status: ActionStatus): Promise<AgentAction | null>;
   /** Actions for a merchant (most recent first), optionally filtered by type/status. Powers the
@@ -194,8 +196,8 @@ export interface AgentRepository {
 export interface GroupbuyRepository {
   listByMerchant(merchantId: string): Promise<GroupbuyDealRecord[]>;
   getByIdForMerchant(id: string, merchantId: string): Promise<GroupbuyDealRecord | null>;
-  /** Upsert a draft or published deal, replacing its items. NOTE: the supabase impl does deal-upsert +
-   *  item delete/insert as separate calls (not yet transactional) — a Postgres RPC is the Phase-2 fix. */
+  /** Upsert a draft or published deal, replacing its items — atomically (supabase: the save_groupbuy_deal
+   *  RPC, migration 0029), so a deal never persists with a partially-written item list. */
   save(record: GroupbuyDealRecord): Promise<GroupbuyDealRecord>;
   /** Move a deal along its lifecycle (draft→published→unlisted→relist); null if not found or illegal. */
   setStatus(id: string, merchantId: string, status: GroupbuyStatus): Promise<GroupbuyDealRecord | null>;

@@ -2,6 +2,7 @@
 
 import type {
   StyleAdCenterSnapshot,
+  StyleAdStatus,
   StyleAdView,
   PromotionGoal,
   AudienceMode,
@@ -9,6 +10,7 @@ import type {
   ProposeStyleAdInput,
   ProposeStyleAdResult,
 } from '@/domain/style-ad';
+import { styleAdWithdrawTarget } from '@/domain/action-entity-contract';
 import {
   DEFAULT_TARGET_EXPOSURE,
   DEFAULT_TARGET_ROI,
@@ -300,4 +302,31 @@ export async function proposeStyleAdAction(input: ProposeStyleAdInput): Promise<
     throw new Error(`StyleAdCampaign.propose failed: ${error.message}`);
   }
   return { id, status };
+}
+
+/** Withdraw a campaign: `active → paused` (resumable), `draft → ended` (a declined proposal). This is what
+ *  undoing a 投广 action must call — flipping agent_actions.status alone would leave the ad spending money.
+ *  Returns the entity's new status, or null when it was already not live (a no-op, not a failure). */
+export async function withdrawStyleAdCampaignAction(campaignId: string): Promise<StyleAdStatus | null> {
+  if (!usesSupabaseBackend()) return null; // memory/dev: no campaign table to withdraw
+
+  const { data, error } = await getServiceClient()
+    .from('style_ad_campaign')
+    .select('status')
+    .eq('id', campaignId)
+    .eq('merchant_id', demoMerchantId)
+    .maybeSingle();
+  if (error) throw new Error(`StyleAdCampaign.withdraw read failed: ${error.message}`);
+  if (!data) return null;
+
+  const target = styleAdWithdrawTarget((data as { status: StyleAdStatus }).status);
+  if (target === null) return null;
+
+  const { error: updateError } = await getServiceClient()
+    .from('style_ad_campaign')
+    .update({ status: target, updated_at: new Date().toISOString() })
+    .eq('id', campaignId)
+    .eq('merchant_id', demoMerchantId);
+  if (updateError) throw new Error(`StyleAdCampaign.withdraw failed: ${updateError.message}`);
+  return target;
 }

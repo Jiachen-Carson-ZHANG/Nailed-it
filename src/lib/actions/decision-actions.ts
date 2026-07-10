@@ -8,6 +8,7 @@ import { computeFunnelScores, type FunnelCounts } from '@/domain/decision/funnel
 import { computeCapacity, type CapacityDay, type CapacityBand } from '@/domain/decision/capacity';
 import { funnelCountsByStyle, bookingsToBusyIntervals } from '@/domain/decision/aggregate';
 import { decideStyles, type StyleDecision, type StyleDecisionInput } from '@/domain/decision/decision';
+import { DEFAULT_TARGET_ROI } from '@/domain/style-ad';
 import type { Weekday } from '@/domain/scheduling';
 import { listMerchantBookingViewsAction } from './booking-actions';
 
@@ -74,18 +75,23 @@ export async function getStyleBusinessDecisionsAction(): Promise<StyleBusinessDe
   } catch { errors.push('capacity'); }
 
   const emptyCounts = { impressions: 0, clicks: 0, detailViews: 0, saves: 0, tryOns: 0, bookings: 0, completedOrders: 0 };
-  const inputs: StyleDecisionInput[] = styles.map((s) => ({
-    styleId: s.id,
-    styleTitle: s.title,
-    economics: computeStyleEconomics(s.priceCents, s.durationMin),
-    funnel: computeFunnelScores(countsByStyle.get(s.id) ?? emptyCounts),
-    fitsCapacity: cap.largestGapMin >= s.durationMin,
-  }));
+  const inputs: StyleDecisionInput[] = styles.map((s) => {
+    const counts = countsByStyle.get(s.id) ?? emptyCounts;
+    return {
+      styleId: s.id,
+      styleTitle: s.title,
+      economics: computeStyleEconomics(s.priceCents, s.durationMin),
+      funnel: computeFunnelScores(counts),
+      counts, // the ad gate needs raw impressions/clicks/bookings, not the derived scores
+      fitsCapacity: cap.largestGapMin >= s.durationMin,
+    };
+  });
 
   const decisions = decideStyles(inputs, {
     capacityBand: cap.band,
     capacityUtilizationPct: cap.utilizationPct,
     minProfitPerHourCents: DEFAULT_MIN_PROFIT_PER_HOUR_CENTS,
+    targetRoi: DEFAULT_TARGET_ROI,
   });
 
   return {

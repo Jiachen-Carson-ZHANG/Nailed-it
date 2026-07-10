@@ -18,11 +18,24 @@ describe('memory groupbuy repository', () => {
     expect((await repo.getByIdForMerchant('gb-1', demoMerchantId))?.title).toBe('工作日套餐');
   });
 
-  it('publishes then unlists via legal transitions, rejecting illegal ones', async () => {
+  it('walks the lifecycle: draft → published → unlisted → relist', async () => {
     await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-2' }, demoMerchantId));
-    expect(await repo.setStatus('gb-2', demoMerchantId, 'unlisted')).toBeNull(); // draft→unlisted illegal
     expect((await repo.setStatus('gb-2', demoMerchantId, 'published'))?.status).toBe('published');
     expect((await repo.setStatus('gb-2', demoMerchantId, 'unlisted'))?.status).toBe('unlisted');
+    expect((await repo.setStatus('gb-2', demoMerchantId, 'published'))?.status).toBe('published');
+  });
+
+  it('shelves a rejected draft (draft→unlisted) — rejecting an agent proposal must not delete it', async () => {
+    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-4' }, demoMerchantId, 'SGD', 'run-9'));
+    expect((await repo.setStatus('gb-4', demoMerchantId, 'unlisted'))?.status).toBe('unlisted');
+    // The audit trail survives: the shelved deal still names the run that proposed it.
+    expect((await repo.getByIdForMerchant('gb-4', demoMerchantId))?.sourceRunId).toBe('run-9');
+  });
+
+  it('rejects an illegal transition (unlisting what is already unlisted)', async () => {
+    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-5' }, demoMerchantId));
+    await repo.setStatus('gb-5', demoMerchantId, 'unlisted');
+    expect(await repo.setStatus('gb-5', demoMerchantId, 'unlisted')).toBeNull();
   });
 
   it('carries the source run link for agent-proposed deals', async () => {

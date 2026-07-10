@@ -21,7 +21,7 @@ export const STYLE_AD_TRANSITIONS: Record<StyleAdStatus, readonly StyleAdStatus[
 };
 
 export const GROUPBUY_TRANSITIONS: Record<GroupbuyStatus, readonly GroupbuyStatus[]> = {
-  draft: ['published'],
+  draft: ['published', 'unlisted'], // merchant publishes, or rejects the proposal (shelve, don't delete)
   published: ['unlisted'], // withdraw = unlist
   unlisted: ['published'], // relist
 };
@@ -50,5 +50,29 @@ export function groupbuyActionStatus(status: GroupbuyStatus): ActionStatus {
     case 'draft': return 'proposed';
     case 'published': return 'applied';
     case 'unlisted': return 'undone';
+  }
+}
+
+// ── Withdrawal (ADR-0012 Phase 2) ──────────────────────────────────────────────────────────────
+// Undoing/rejecting an agent action must move the REAL entity to a not-live state — flipping
+// agent_actions.status alone would leave the campaign spending money. These say where each entity goes;
+// `null` means it is already not live, so a withdraw is a no-op rather than an illegal transition.
+
+/** A live ad is paused, not ended: the merchant may resume it. A never-launched draft is discarded. */
+export function styleAdWithdrawTarget(status: StyleAdStatus): StyleAdStatus | null {
+  switch (status) {
+    case 'active': return 'paused';
+    case 'draft': return 'ended';
+    case 'paused':
+    case 'ended': return null;
+  }
+}
+
+/** Both a live deal and a rejected draft go to `unlisted` — recoverable via the relist transition. */
+export function groupbuyWithdrawTarget(status: GroupbuyStatus): GroupbuyStatus | null {
+  switch (status) {
+    case 'published':
+    case 'draft': return 'unlisted';
+    case 'unlisted': return null;
   }
 }

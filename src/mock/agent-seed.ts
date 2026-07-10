@@ -211,6 +211,10 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
           status: 'applied',
           payload: { styleId: LOW_CONVERSION_ID, priceCents: 6800 },
           createdAt: iso(2 * DAY - 16_000),
+          // Points at a real seeded deal (ADR-0012): undoing this action must unlist that deal, not just
+          // flip the log row. Memory mode has to behave like Supabase or the demo lies about undo.
+          entityType: 'groupbuy_deal',
+          entityId: 'deal-001',
         },
       ],
     },
