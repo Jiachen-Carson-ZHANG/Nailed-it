@@ -1914,3 +1914,14 @@ acting as merchant + PM. Findings table lives in the local design doc; the fixes
   demo runbook should use `next build && next start` (dev-mode compiles read as broken pages).
 - Tests: full suite 24 failed / 544 passed (baseline unchanged). pytest 23. tsc clean. Verified by
   re-screenshot: team lanes, coupon-run context + condensed chain with real names, SGD ads center.
+
+## 2026-07-10 — ADR-0013 proposed: dynamic orchestration, cross-round memory, feedback loop
+
+Owner audit called the orchestration layer what it is: a fixed Python pipeline wearing a team costume.
+ADR-0013 (Proposed) scopes the rebuild to that layer only — orchestrator-as-agent with bounded dispatch
+tools (skip/parallel with citable reasons), a round blackboard (`agent_rounds`), cross-round memory
+(`agent_memory` — monitor writes MEASURED campaign outcomes, 决策 reads them, retiring the estimated-ROAS
+caveat with data), one bounded revision edge (监测 may reject an action and re-dispatch the executor once),
+and proposal hygiene (dedupe by gapTag + round supersede + merchant cap — the 25-条待确认 fix). Substrate
+(bus, runs/actions, entity contract, tools, brain, all UI) is explicitly kept. Phases P0–P3 defined;
+implementation not started in this entry.
