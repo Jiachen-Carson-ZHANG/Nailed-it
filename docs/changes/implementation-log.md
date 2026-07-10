@@ -1925,3 +1925,32 @@ caveat with data), one bounded revision edge (监测 may reject an action and re
 and proposal hygiene (dedupe by gapTag + round supersede + merchant cap — the 25-条待确认 fix). Substrate
 (bus, runs/actions, entity contract, tools, brain, all UI) is explicitly kept. Phases P0–P3 defined;
 implementation not started in this entry.
+
+## 2026-07-10 — ADR-0013 P0+P1: proposal hygiene + orchestrator-as-agent
+
+The orchestration layer stopped being a for-loop. Implemented and live-verified:
+
+**P0 — proposal hygiene.** `propose_listing` now (1) supersedes the agent's older pending proposals on
+its first call of the run (`bus.expire_stale_proposals`, audit trail kept), (2) dedupes by gapTag within
+the round, (3) hard-caps at `config.MAX_PENDING_PROPOSALS` (5). Live: the 25+ pending 上架建议 pileup
+collapsed to exactly 5 after one round.
+
+**P1 — dynamic orchestration.** `orchestrator.py` rewritten: 运营助手 runs its own tool loop with
+`dispatch_agent` / `dispatch_many` (parallel fan-out), reading the briefing + decision brain itself and
+deciding which lanes to wake. Deterministic guardrails in `RoundState`: lane whitelist, one dispatch per
+agent per round, `MAX_DISPATCHES_PER_ROUND` budget, atomic batch validation; dispatch tools refuse to run
+on any context without a RoundState (lane agents can't dispatch). Upstream conclusions are appended to
+child tasks verbatim by Python (no LLM copying); children parent to their semantic upstream so the
+lineage tree renders the round as decided. New `skills/orchestrator.md`: default plan (the old chain),
+citable skip rules, non-skippable 数分/决策, no-interim-prose reply protocol.
+
+**Model tier decision:** flash reliably abandoned the dispatch chain after one tool call; prompt hardening
+failed, gemini-2.5-pro fixed it — `ORCHESTRATOR_MODEL` (orchestrator only) added to config.
+
+- Eval: 2 new orchestrator scenarios driving the REAL RoundState (full-capacity must-not-dispatch
+  ad/coupon; chosen-lanes ad-yes/coupon-no) — both 2/2 stable. `customer_ops/lapsed-rachel` flaked once
+  at n=2 (pre-existing flash nondeterminism, passes on re-run). pytest 23 → 30 (P0 supersede/dedupe/cap;
+  dispatch guardrails incl. orchestrator-only refusal and atomic batch validation).
+- Live round: orchestrator dispatched 8 lanes with cited numbers (ROAS >3.8, exposureRatio <0.76,
+  产能 33%), ad/coupon/catalog/customer_ops all started the same second (parallel), monitor last.
+- Removed: the fixed `_CHAIN` and the decorative 数分' rebaseline run (P2's memory write replaces it).

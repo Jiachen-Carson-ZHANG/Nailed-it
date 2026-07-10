@@ -1,6 +1,6 @@
 # ADR-0013 — Dynamic orchestration, cross-round memory, and a real feedback loop
 
-Status: **Proposed** (2026-07-10) · Builds on ADR-0007 (agent team), ADR-0012 (action contract + decision brain)
+Status: **Accepted** (2026-07-10 — P0+P1 implemented; P2 memory / P3 revision pending) · Builds on ADR-0007, ADR-0012
 
 ## Context
 
@@ -121,6 +121,26 @@ bounded to one attempt, run finalizes `failed` visibly).
 - **P2** — `agent_rounds` + `agent_memory`; monitor writes measured outcomes; 决策 reads them.
 - **P3** — revision edge + eval ("over-budget ad → exactly one revision dispatch").
 - UI later (optional): group 最近运行 by round; blackboard viewer on the run page.
+
+## Amendments (2026-07-10 — P0+P1 implementation)
+
+- **Orchestrator runs a stronger model** (`config.ORCHESTRATOR_MODEL`, default gemini-2.5-pro on
+  OpenRouter / sonnet on Anthropic; lanes stay on `AGENT_MODEL`). Flash-tier models reliably abandoned the
+  multi-step dispatch chain after one tool call — prompt hardening did not fix it; the model tier did.
+  The round's brain is the one place the stronger model earns its cost.
+- **Two lanes are non-skippable** (数分, 决策) — without data and a decision the round has no basis; the
+  skill and eval both pin this after a flash run skipped everything.
+- **Reply protocol** in the skill: no interim prose until all dispatches are done (the OpenAI-format loop
+  treats a text-only reply as the final answer).
+- **Eval**: two orchestrator scenarios drive the REAL RoundState guardrails with canned lane conclusions —
+  `full-capacity-skips-spend` (must NOT dispatch ad/coupon at 91% utilization) and
+  `dispatches-chosen-lanes` (ad yes / coupon no per the decision text). Signatures pin only the judged
+  lanes; optional lanes may legitimately vary.
+- **Live round evidence**: orchestrator read insights+decisions itself, dispatched 8 lanes with cited
+  reasons (ROAS >3.8, exposureRatio <0.76, 产能 33%), fanned ad/coupon/catalog/customer_ops out in
+  parallel (all started the same second), semantic lineage intact (trend→insight, decision→trend,
+  executors→decision), and P0 cut pending 上架建议 from 25+ to exactly 5 (cap) with older rounds
+  superseded.
 
 ## References
 

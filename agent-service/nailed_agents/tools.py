@@ -45,6 +45,13 @@ class RunContext:
     range_days: int = 7
     transcript: list[dict[str, Any]] = field(default_factory=list)
     awaiting_approval: bool = False
+    # ADR-0013 P0 proposal hygiene: first propose_listing of the run supersedes older rounds' pending
+    # proposals; `proposed_tags` dedupes within the run; the cap lives in config.MAX_PENDING_PROPOSALS.
+    proposals_reset: bool = False
+    proposed_tags: set[str] = field(default_factory=set)
+    # ADR-0013 P1: set ONLY on the orchestrator's context — the RoundState the dispatch tools drive.
+    # None for every lane agent, so a hallucinated dispatch from a non-orchestrator run is refused.
+    round: Any = None
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
@@ -309,16 +316,36 @@ def propose_listing(gap_tag: str, reason: str) -> str:
     """Propose listing a NEW style for a demand gap that has NO matching internal style (external
     trending found nothing in-catalog). You CANNOT fabricate the design — this only PROPOSES the
     listing; it is written status='proposed' and the merchant must approve and supply the image in
-    the panel before it goes live (ADR-0007 §4, the one human gate). gap_tag: the demand tag (e.g.
-    '暗黑'); reason: one line of grounded justification."""
+    the panel before it goes live (ADR-0007 §4, the one human gate). At most
+    MAX_PENDING_PROPOSALS per round — propose the highest-priority gaps first; when the cap is
+    reached, STOP proposing and say so. gap_tag: the demand tag (e.g. '暗黑'); reason: one line of
+    grounded justification."""
     ctx = _ctx()
     gap_tag = _clean_text(gap_tag, field="gap_tag", max_chars=_MAX_TAG_CHARS)
     reason = _clean_text(reason, field="reason")
+
+    # ADR-0013 P0 hygiene — new-listing ideas track weekly trend sources, so the pending queue must not
+    # outrun them. (1) This round SUPERSEDES the agent's older pending proposals; (2) same-tag repeats
+    # within the round dedupe; (3) a hard cap stops the pile at config.MAX_PENDING_PROPOSALS.
+    if not ctx.proposals_reset:
+        expired = bus.expire_stale_proposals(ctx.sb, exclude_run_id=ctx.run_id)
+        ctx.proposals_reset = True
+        if expired:
+            ctx.transcript.append(
+                {"kind": "tool_call", "tool": "propose_listing", "input": {"supersede": True},
+                 "output": {"expiredPriorProposals": expired}}
+            )
+    if gap_tag in ctx.proposed_tags:
+        return f"Duplicate skipped — '{gap_tag}' is already proposed this round."
+    if len(ctx.proposed_tags) >= config.MAX_PENDING_PROPOSALS:
+        raise ValueError("proposal_cap_reached")
+
     payload = {"gapTag": gap_tag, "reason": reason}
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="draft_upload",
         payload=payload, risk="irreversible", status="proposed",
     )
+    ctx.proposed_tags.add(gap_tag)
     ctx.transcript.append({"kind": "tool_call", "tool": "propose_listing", "input": payload, "output": {"proposed": True}})
     ctx.transcript.append(
         {"kind": "action", "actionType": "draft_upload", "status": "proposed",
@@ -389,6 +416,80 @@ def get_style_business_decisions() -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+# ── orchestration tools (ADR-0013 P1) — available ONLY to the orchestrator run ───────────────────
+# ctx.round is a RoundState set by orchestrator.run_round; every lane agent has round=None, so a
+# hallucinated dispatch from a non-orchestrator loop is refused before any side effect.
+
+def _require_round() -> tuple[RunContext, Any]:
+    ctx = _ctx()
+    if ctx.round is None:
+        raise ValueError("dispatch_not_allowed")  # only the orchestrator holds a RoundState
+    return ctx, ctx.round
+
+
+def _record_dispatch(ctx: RunContext, slug: str, parent: str, run_id: str, text: str) -> None:
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "dispatch_agent",
+         "input": {"agent": slug, "parent": parent or None},
+         "output": {"runId": run_id, "summary": text[:280]}}
+    )
+
+
+def dispatch_agent(agent: str, task: str, parent: str = "") -> str:
+    """Dispatch ONE team agent to run its own tool loop on a task, wait for it, and return its
+    conclusion. agent: one of trend/insight/decision/ad/coupon/catalog/customer_ops/monitor.
+    task: the concrete assignment in Chinese (the upstream conclusion named by `parent` is appended
+    automatically — do not paste it yourself). parent: the earlier-dispatched agent this task follows
+    from (e.g. 'decision' for ad/coupon) — it wires the lineage tree. Each agent may be dispatched at
+    most once per round; skipping an agent is a decision — say why in your final summary."""
+    ctx, rnd = _require_round()
+    agent = _clean_text(agent, field="agent", max_chars=40)
+    task = _clean_text(task, field="task", max_chars=4000)
+    parent = str(parent or "").strip()  # models pass JSON null for "no parent"
+    run_id, text = rnd.dispatch(agent, task, parent or None)
+    _record_dispatch(ctx, agent, parent, run_id, text)
+    return f"[{agent}] run {run_id} finished:\n{text[:1200]}"
+
+
+def dispatch_many(dispatches_json: str) -> str:
+    """Dispatch SEVERAL INDEPENDENT agents in parallel and wait for all of them. dispatches_json:
+    a JSON array of up to 4 items, each {"agent": str, "task": str, "parent": str?} with the same
+    semantics as dispatch_agent. Use for lanes with no dependency between them (e.g. ad + coupon +
+    customer_ops after the decision) — dependent steps must use dispatch_agent sequentially."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    ctx, rnd = _require_round()
+    try:
+        items = json.loads(dispatches_json)
+    except json.JSONDecodeError as e:
+        raise ValueError("dispatches_json_invalid") from e
+    if not isinstance(items, list) or not (1 <= len(items) <= 4):
+        raise ValueError("dispatches_json_must_be_1_to_4_items")
+    cleaned: list[tuple[str, str, str]] = []
+    for it in items:
+        if not isinstance(it, dict):
+            raise ValueError("dispatches_json_invalid")
+        cleaned.append((
+            _clean_text(str(it.get("agent", "")), field="agent", max_chars=40),
+            _clean_text(str(it.get("task", "")), field="task", max_chars=4000),
+            str(it.get("parent", "") or "").strip(),
+        ))
+    rnd.reserve([slug for slug, _, _ in cleaned])  # validate the whole batch before any run starts
+
+    def _one(args: tuple[str, str, str]) -> tuple[str, str, str, str]:
+        slug, task, parent = args
+        run_id, text = rnd.dispatch(slug, task, parent or None, reserved=True)
+        return slug, parent, run_id, text
+
+    with ThreadPoolExecutor(max_workers=len(cleaned)) as pool:
+        results = list(pool.map(_one, cleaned))
+    out_lines = []
+    for slug, parent, run_id, text in results:
+        _record_dispatch(ctx, slug, parent, run_id, text)
+        out_lines.append(f"[{slug}] run {run_id} finished:\n{text[:800]}")
+    return "\n\n".join(out_lines)
+
+
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
     get_style_business_decisions,
@@ -403,6 +504,8 @@ _FUNCTIONS: list[Callable[..., str]] = [
     delist_style,
     propose_listing,
     send_customer_message,
+    dispatch_agent,
+    dispatch_many,
 ]
 
 _JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}

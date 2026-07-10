@@ -70,6 +70,11 @@ _DEFAULT_MODEL = {
 }
 AGENT_MODEL = os.environ.get("AGENT_MODEL") or _DEFAULT_MODEL.get(MODEL_PROVIDER, "google/gemini-2.5-flash")
 
+# ADR-0013 P1: the orchestrator drives a LONG multi-step dispatch chain — flash-tier models reliably
+# abandon it after one tool call. The round's brain runs a stronger model; lanes stay on AGENT_MODEL.
+_DEFAULT_ORCH_MODEL = {"anthropic": "claude-sonnet-4-6", "openrouter": "google/gemini-2.5-pro"}
+ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL") or _DEFAULT_ORCH_MODEL.get(MODEL_PROVIDER, AGENT_MODEL)
+
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
 #   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).
 #   "concept" (opt-in):  VLM concept per style (cached in style_concept) → Cohere embed → pgvector top-k
@@ -104,6 +109,14 @@ MATCH_THRESHOLD = float(os.environ.get("MATCH_THRESHOLD", "0.3"))  # min rerank 
 _EMBED_PROVIDER_KEY = {"google": ("GEMINI_API_KEY", GEMINI_API_KEY),
                        "cohere": ("COHERE_API_KEY", COHERE_API_KEY),
                        "openrouter": ("OPENROUTER_API_KEY", OPENROUTER_API_KEY)}
+
+
+# ADR-0013 P0: pending 上架建议 cap. New-listing ideas originate from weekly-cadence sources (internal
+# hot + external trends) — the pending queue must never outrun that cadence. Merchant policy later.
+MAX_PENDING_PROPOSALS = int(os.environ.get("MAX_PENDING_PROPOSALS", "5"))
+
+# ADR-0013 P1: per-round orchestration guardrails (the LLM chooses; code bounds).
+MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "8"))
 
 
 def require_env() -> None:

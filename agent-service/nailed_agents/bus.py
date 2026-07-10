@@ -131,6 +131,22 @@ def finish_run(
     ).eq("id", run_id).execute()
 
 
+def expire_stale_proposals(sb: Client, *, exclude_run_id: str) -> int:
+    """Supersede previous rounds' pending 上架建议 (ADR-0013 P0). A new catalog round REPLACES the
+    agent's own older proposals instead of stacking them (25 待确认 pileup): older proposed
+    draft_upload actions flip to 'undone' — audit trail kept, pin count stays sane."""
+    res = (
+        sb.table("agent_actions")
+        .update({"status": "undone"})
+        .eq("merchant_id", config.MERCHANT_ID)
+        .eq("type", "draft_upload")
+        .eq("status", "proposed")
+        .neq("run_id", exclude_run_id)
+        .execute()
+    )
+    return len(res.data or [])
+
+
 def write_action(
     sb: Client,
     *,

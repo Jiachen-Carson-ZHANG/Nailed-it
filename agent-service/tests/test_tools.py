@@ -37,6 +37,8 @@ def test_registries_cover_the_same_tools():
         "get_catalog_actions",
         # 决策 (ADR-0012) grounded decision-brain read tool
         "get_style_business_decisions",
+        # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
+        "dispatch_agent", "dispatch_many",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected
@@ -56,8 +58,12 @@ def ctx(monkeypatch):
     # place_ad / set_group_buy_coupon now create REAL entities through the TS routes (ADR-0012) — stub the hop.
     monkeypatch.setattr(bus, "post_propose_ad", lambda style_id, *a, **k: {"ok": True, "id": f"ad-{style_id}", "status": "active"})
     monkeypatch.setattr(bus, "post_propose_groupbuy", lambda style_id, *a, **k: {"ok": True, "deal": {"id": f"gb-{style_id}"}})
+    # ADR-0013 P0: propose_listing supersedes older rounds' pending proposals on its first call.
+    supersedes = []
+    monkeypatch.setattr(bus, "expire_stale_proposals", lambda sb, **kw: supersedes.append(kw) or 3)
     c = tools.RunContext(sb=object(), run_id="run-test", merchant_id="m-test")
     c.writes = writes  # expose for assertions
+    c.supersedes = supersedes
     token = tools.use_context(c)
     yield c
     tools.reset_context(token)
@@ -126,3 +132,93 @@ def test_read_tool_returns_json_and_records_tool_call(ctx):
     assert ctx.writes == []  # read-only → no action
     assert ctx.transcript[0]["kind"] == "tool_call"
     assert ctx.transcript[0]["tool"] == "get_merchant_insights"
+
+
+# ── ADR-0013 P0: proposal hygiene — supersede / dedupe / cap ─────────────────────────────────────
+
+def test_propose_listing_supersedes_older_rounds_once(ctx):
+    tools.propose_listing("金属感", "外部趋势上升且库内无匹配")
+    tools.propose_listing("暗黑", "平台热榜缺口")
+    # supersede fires exactly once per run, excluding this run's own rows
+    assert ctx.supersedes == [{"exclude_run_id": "run-test"}]
+
+
+def test_propose_listing_dedupes_same_tag_within_the_round(ctx):
+    tools.propose_listing("金属感", "理由一")
+    out = tools.propose_listing("金属感", "理由二（重复）")
+    assert "Duplicate skipped" in out
+    assert len([w for w in ctx.writes if w["action_type"] == "draft_upload"]) == 1
+
+
+def test_propose_listing_caps_pending_proposals(ctx, monkeypatch):
+    from nailed_agents import config
+    monkeypatch.setattr(config, "MAX_PENDING_PROPOSALS", 2)
+    tools.propose_listing("tag-a", "理由 a")
+    tools.propose_listing("tag-b", "理由 b")
+    with pytest.raises(ValueError, match="proposal_cap_reached"):
+        tools.propose_listing("tag-c", "理由 c")
+    assert len(ctx.writes) == 2  # the third never wrote
+
+
+# ── ADR-0013 P1: dispatch tools — orchestrator-only, guardrailed ─────────────────────────────────
+
+def _round_state():
+    from nailed_agents.orchestrator import RoundState
+    state = RoundState(dispatch_fn=None, budget=3)
+    calls = []
+
+    def fake_dispatch(slug, task, parent):
+        calls.append({"slug": slug, "task": task, "parent": parent})
+        return f"run-{slug}", f"{slug} 完成"
+
+    state.dispatch_fn = fake_dispatch
+    state.calls = calls
+    return state
+
+
+def test_dispatch_refused_outside_the_orchestrator(ctx):
+    # Lane agents carry round=None — a hallucinated dispatch must die before any side effect.
+    with pytest.raises(ValueError, match="dispatch_not_allowed"):
+        tools.dispatch_agent("ad", "投广", "decision")
+    assert ctx.writes == []
+
+
+def test_dispatch_agent_runs_and_records_the_lineage_step(ctx):
+    ctx.round = _round_state()
+    out = tools.dispatch_agent("insight", "分析最近 7 天数据", "")
+    assert "run-insight" in out and "insight 完成" in out
+    assert ctx.round.dispatched == {"insight": "run-insight"}
+    step = ctx.transcript[-1]
+    assert step["tool"] == "dispatch_agent"
+    assert step["input"] == {"agent": "insight", "parent": None}
+    assert step["output"]["runId"] == "run-insight"
+
+
+def test_dispatch_guardrails_one_per_agent_and_budget(ctx):
+    ctx.round = _round_state()
+    tools.dispatch_agent("insight", "任务", "")
+    with pytest.raises(ValueError, match="already_dispatched"):
+        tools.dispatch_agent("insight", "再来一次", "")
+    with pytest.raises(ValueError, match="unknown_agent"):
+        tools.dispatch_agent("hacker", "越权", "")
+    tools.dispatch_agent("trend", "任务", "insight")
+    tools.dispatch_agent("decision", "任务", "trend")
+    with pytest.raises(ValueError, match="dispatch_budget_exhausted"):
+        tools.dispatch_agent("ad", "任务", "decision")  # budget=3 spent
+
+
+def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
+    ctx.round = _round_state()
+    import json as _json
+    out = tools.dispatch_many(_json.dumps([
+        {"agent": "ad", "task": "落地投广", "parent": "decision"},
+        {"agent": "coupon", "task": "落地团购", "parent": "decision"},
+    ]))
+    assert "run-ad" in out and "run-coupon" in out
+    assert set(ctx.round.dispatched) == {"ad", "coupon"}
+    # duplicates in one batch are rejected atomically — nothing runs
+    ctx2_round = _round_state()
+    ctx.round = ctx2_round
+    with pytest.raises(ValueError, match="duplicate_agents_in_batch"):
+        tools.dispatch_many(_json.dumps([{"agent": "ad", "task": "x"}, {"agent": "ad", "task": "y"}]))
+    assert ctx2_round.calls == []

@@ -34,21 +34,21 @@ def _openai():
     return _openai_client
 
 
-def run_agent(*, system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int = 2048) -> str:
+def run_agent(*, system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int = 2048, max_iters: int = _MAX_TOOL_ITERS, model: str | None = None) -> str:
     """Run one agent with its skill (system), tool allow-list (by name), and task. Returns final text.
     The tool bodies append their own tool_call/action transcript steps; here we append reasoning."""
     token = tools.use_context(ctx)
     try:
         if config.MODEL_PROVIDER == "openrouter":
-            return _run_openrouter(system, tool_names, task, ctx, max_tokens)
-        return _run_anthropic(system, tool_names, task, ctx, max_tokens)
+            return _run_openrouter(system, tool_names, task, ctx, max_tokens, max_iters, model)
+        return _run_anthropic(system, tool_names, task, ctx, max_tokens, model)
     finally:
         tools.reset_context(token)
 
 
-def _run_anthropic(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int) -> str:
+def _run_anthropic(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int, model: str | None = None) -> str:
     runner = _anthropic().beta.messages.tool_runner(
-        model=config.AGENT_MODEL,
+        model=model or config.AGENT_MODEL,
         max_tokens=max_tokens,
         system=system,
         tools=[tools.BETA_TOOLS[n] for n in tool_names],
@@ -65,7 +65,7 @@ def _run_anthropic(system: str, tool_names: list[str], task: str, ctx: tools.Run
     return final_text
 
 
-def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int) -> str:
+def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int, max_iters: int = _MAX_TOOL_ITERS, model: str | None = None) -> str:
     client = _openai()
     schemas = [tools.OPENAI_TOOLS[n] for n in tool_names]
     allowed = {n: tools.IMPL[n] for n in tool_names}  # ONLY these execute — a model may hallucinate an
@@ -75,9 +75,9 @@ def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.Ru
         {"role": "user", "content": task},
     ]
     final_text = ""
-    for _ in range(_MAX_TOOL_ITERS):
+    for _ in range(max_iters):
         resp = client.chat.completions.create(
-            model=config.AGENT_MODEL, max_tokens=max_tokens, messages=messages, tools=schemas,
+            model=model or config.AGENT_MODEL, max_tokens=max_tokens, messages=messages, tools=schemas,
         )
         msg = resp.choices[0].message
         if msg.content and msg.content.strip():

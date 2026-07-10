@@ -78,7 +78,11 @@ class Scenario:
     styles: list = field(default_factory=lambda: list(_STYLES))
     customers: list = field(default_factory=list)
     decisions: dict = field(default_factory=dict)  # the decision brain's output (ADR-0012)
-    # {'kind':'opportunity'|'action'|'no_action'} — 'no_action' asserts the agent correctly did NOTHING
+    # ADR-0013 P1: canned lane conclusions for orchestrator scenarios — dispatch returns these instead of
+    # running a real child loop, so the eval judges the ORCHESTRATION decision, not the lanes.
+    lane_results: dict = field(default_factory=dict)
+    # {'kind':'opportunity'|'action'|'no_action'|'dispatch'} — 'no_action' asserts the agent correctly did
+    # NOTHING; 'dispatch' asserts who was (not) dispatched: {'must': [...], 'forbid_dispatch': [...]}
     expect: dict = field(default_factory=dict)
     forbid: list[dict] = field(default_factory=list)  # [{'action_type','target'}] must NOT occur
 
@@ -122,17 +126,51 @@ SCENARIOS = [
         expect={"kind": "no_action"},
         forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
     ),
+    # ADR-0013 P1: the ORCHESTRATOR must skip the spend lanes when capacity is full — dispatching 投广/团购
+    # into a salon that cannot serve the demand is the exact failure the dynamic layer exists to prevent.
+    Scenario(
+        id="orchestrator/full-capacity-skips-spend", slug="orchestrator",
+        tools=["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
+        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "full", "utilizationPct": 91, "largestGapMin": 30},
+                   "decisions": [{"candidate": "display_only"}, {"candidate": "skip"}]},
+        lane_results={
+            "insight": "简报：本周订单量稳定，无异常告警。",
+            "trend": "本周无高优先选品机会。",
+            "decision": "本轮不采取投广与团购：下周产能利用率 91%（full），买来的流量接不住，低价团购会挤占产能。",
+            "catalog": "无上下架候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
+        },
+        expect={"kind": "dispatch", "must": ["insight", "decision"], "forbid_dispatch": ["ad", "coupon"]},
+    ),
+    # …and must dispatch exactly the lanes the decision chose when capacity is idle (ad yes, coupon no).
+    Scenario(
+        id="orchestrator/dispatches-chosen-lanes", slug="orchestrator",
+        tools=["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
+        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "very_idle", "utilizationPct": 33, "largestGapMin": 300},
+                   "decisions": [{"candidate": "ad"}, {"candidate": "display_only"}]},
+        lane_results={
+            "insight": "简报：本周试戴量上升，转化偏低。",
+            "trend": "一个放大机会：高转化款曝光不足。",
+            "decision": "本轮投广 1 款（首页推荐位，日预算 5000 分，ROAS 4.1、曝光占比 0.61）；不做团购：所有团购候选 ROAS 无法测算（零成单），不投。",
+            "catalog": "无上下架候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
+        },
+        expect={"kind": "dispatch", "must": ["insight", "decision", "ad"], "forbid_dispatch": ["coupon"]},
+    ),
 ]
 
 
 @contextlib.contextmanager
 def _stub_bus(scn: Scenario, captured: list[dict]):
     orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
-            bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy)
+            bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
     bus.fetch_decisions = lambda: scn.decisions                             # type: ignore[assignment]
+    bus.expire_stale_proposals = lambda sb, **kw: 0                         # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
     # eval stays offline while still exercising the real tool bodies + their action writes.
@@ -142,7 +180,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
         yield
     finally:
         (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
-         bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy) = orig
+         bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals) = orig
 
 
 def _skill(slug: str) -> str:
@@ -177,6 +215,10 @@ _PROSE_KEYS = {"body", "reason", "summary", "note", "message", "text"}  # free t
 def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
     """Structured decision signature (never compares prose) — kind-aware so an empty action run is `()`,
     not the trend fallback."""
+    if scn.expect.get("kind") == "dispatch":  # orchestration decision = the JUDGED lanes only
+        judged = set(scn.expect.get("must", [])) | set(scn.expect.get("forbid_dispatch", []))
+        dispatched = set(ctx.round.dispatched) if ctx.round else set()
+        return tuple(sorted(judged & dispatched))
     if scn.expect.get("kind") == "action":  # decision = (action_type, target fields only)
         return tuple(sorted(
             (a.get("action_type"), json.dumps({k: v for k, v in a.get("payload", {}).items() if k not in _PROSE_KEYS},
@@ -189,13 +231,27 @@ def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
     return (m.get("trendLabel"), m.get("action"), tuple(m.get("matchedStyleIds", [])))
 
 
+def _stub_round(scn: Scenario):
+    """A REAL RoundState (same guardrails as production) whose dispatch returns the scenario's canned
+    lane conclusions instead of running child loops — the eval judges the orchestration decision."""
+    from nailed_agents.orchestrator import RoundState
+
+    state = RoundState(dispatch_fn=None)
+    state.dispatch_fn = lambda slug, task, parent: (f"run-{slug}", scn.lane_results.get(slug, f"{slug} 完成"))
+    return state
+
+
 def _run_once(scn: Scenario) -> dict:
     captured: list[dict] = []
     ctx = tools.RunContext(sb=object(), run_id=f"eval-{scn.id}", merchant_id=_M)
+    if scn.slug == "orchestrator":
+        ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
-            final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=scn.task, ctx=ctx)
+            final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=scn.task, ctx=ctx,
+                                     max_iters=12 if scn.slug == "orchestrator" else 8,
+                                     model=config.ORCHESTRATOR_MODEL if scn.slug == "orchestrator" else None)
     finally:
         tools.reset_context(token)
 
@@ -223,7 +279,10 @@ def _run_once(scn: Scenario) -> dict:
     tool_ok = (not bad) if expects_no_action else (bool(ctx.tool_attempts) and not bad)
     tool_bad = "" if tool_ok else (f"{bad[0][0]}: {bad[0][1]}" if bad else "no tool calls")
     # expectation — compare the EXPLICIT target field by action type (not a payload substring)
-    if e.get("kind") == "opportunity":
+    if e.get("kind") == "dispatch":
+        dispatched = set(ctx.round.dispatched) if ctx.round else set()
+        exp_ok = set(e.get("must", [])) <= dispatched and not (set(e.get("forbid_dispatch", [])) & dispatched)
+    elif e.get("kind") == "opportunity":
         exp_ok = any(o.get("action") == e["action"] and e["target"] in o.get("matchedStyleIds", [])
                      for o in _opp_report(ctx).get("opportunities", []))
     elif expects_no_action:
