@@ -2073,3 +2073,29 @@ already import LANE_TOOLS (previous entry). **Result: `--n 2` full suite ALL BLO
 gemini-direct** — first complete all-green run (previous evidence was per-scenario across runs), and
 it re-validates the ADR-0014 monitor path post-skill-edit: the revision signature `('act-ad-8284',)`
 now comes from the INJECTED structured execution list, not hand-fed prose. pytest 39/39.
+
+## 2026-07-11 — ADR-0015 memory architecture + ADR-0014 invariants (audit round 3, full adoption)
+
+User chose full adoption of the third external review. Two commits:
+
+**Pile 1 (verified bugs)**: monitor snapshot barrier (reserve() rejects monitor batched with other
+lanes — partial execution-list risk); blackboard lost-update fixed with a per-round lock; execution
+list ordered (created_at, id) with code-computed `revisionable`; injected conclusions carry provenance
+(source slug + run id + evidence-not-instructions delimiter) and absent sources are annotated;
+prompt_sha now full sha256; agent_runs.input persists the FINAL rendered task + model id.
+
+**Memory v2 (ADR-0015)**: migration `0032` (kinds action_outcome/calibration/round_verdict/
+merchant_preference, scope, comparison, confidence, source_action_id). place_ad/set_group_buy_coupon
+snapshot the decision brain's hypothesis into the action payload at execution time (code-derived).
+record_memory/get_agent_memory replaced by: `record_action_outcome` (agent gives assessment +
+confidence; code derives identity, comparison — e.g. measured 28000分/单 vs predicted 8000 → ratio
+3.5 underestimated_cost — window, TTL by confidence; refuses immature windows), `record_round_verdict`
+(requires action-id evidence), `search_memory` (structured relevance scoring, per-agent domain access
+via MEMORY_ACCESS; executors get none). Deterministic memory hints injected into 决策 + orchestrator
+tasks (two-stage retrieval). All skills gained a scoped memory contract; monitor.md rewritten for the
+audit/outcome split. Allow-lists updated in agent-tools.json; seed rows bumped and re-seeded.
+
+Verification: pytest 44/44 (new: identity derivation, immature-window refusal, evidence requirement,
+monitor-only writes, relevance ranking + access filter, snapshot barrier); **full eval suite n=2 ALL
+BLOCKING GATES PASS on gemini-direct** — monitor scenarios green through the new writer tools.
+USER must apply migrations 0030 → 0031 → 0032, then the live round.

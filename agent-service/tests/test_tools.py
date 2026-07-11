@@ -39,8 +39,9 @@ def test_registries_cover_the_same_tools():
         "get_style_business_decisions",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
-        # 监测回流 + 记忆 + 修订 (ADR-0013 P2/P3)
-        "get_campaign_outcomes", "record_memory", "get_agent_memory", "read_blackboard", "request_revision",
+        # 监测回流 + 记忆 v2 + 修订 (ADR-0013 P2/P3, ADR-0015)
+        "get_campaign_outcomes", "record_action_outcome", "record_round_verdict", "search_memory",
+        "read_blackboard", "request_revision",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected
@@ -246,25 +247,92 @@ def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
     assert ctx2_round.calls == []
 
 
-# ── ADR-0013 P2: memory tools ────────────────────────────────────────────────────────────────────
+# ── ADR-0015: memory v2 tools — agent judges, code anchors identity + evidence ───────────────────
 
-def test_record_memory_upserts_a_windowed_entity_keyed_verdict(ctx, monkeypatch):
+_ACTION_ROW = {
+    "id": "act-1", "run_id": "r-ad", "type": "place_ad", "risk": "reversible", "status": "applied",
+    "entity_type": "style_ad", "entity_id": "ad-style-1", "created_at": "2026-07-04T00:00:00+00:00",
+    "payload": {"styleId": "style-1", "slot": "top_funnel", "budgetCents": 5000,
+                "hypothesis": {"expectedRoas": 4.1, "costPerBookingCents": 8000}},
+}
+_CAMPAIGN_ROW = {"id": "ad-style-1", "impressions": 4000, "clicks": 120, "bookings": 2, "spend_cents": 56000}
+
+
+def test_record_action_outcome_derives_identity_and_comparison_from_the_action(ctx, monkeypatch):
     rows = []
     monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: rows.append(row))
-    tools.record_memory("ad_outcome", "ad-style-1", "7 天实测 ROAS 2.1，估算 4.1 —— 高估约 2 倍", "ad-style-1", 7)
-    assert len(rows) == 1
+    monkeypatch.setattr(bus, "fetch_action", lambda sb, aid, m: _ACTION_ROW if aid == "act-1" else None)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [_CAMPAIGN_ROW])
+    tools.record_action_outcome("act-1", "实测每单花费 280 元，决策预测 80 元——低估约 3.5 倍", "high")
     r = rows[0]
-    assert r["kind"] == "ad_outcome" and r["key"] == "ad-style-1"
-    assert r["content"] == {"verdict": "7 天实测 ROAS 2.1，估算 4.1 —— 高估约 2 倍"}
-    assert r["entity_type"] == "style_ad" and r["entity_id"] == "ad-style-1"
-    assert r["evidence_run_id"] == "run-test"
-    assert r["window_start"] < r["window_end"] <= r["expires_at"]
+    assert r["kind"] == "action_outcome" and r["key"] == "act-1" and r["domain"] == "ad"
+    assert r["scope_type"] == "style" and r["scope_id"] == "style-1"
+    assert r["source_action_id"] == "act-1" and r["entity_id"] == "ad-style-1"
+    # code-derived comparison: measured 56000/2=28000 vs predicted 8000 → ratio 3.5, cost underestimated
+    assert r["comparison"]["measured"]["spend_per_booking_cents"] == 28000
+    assert r["comparison"]["ratio"] == 3.5 and r["comparison"]["direction"] == "underestimated_cost"
+    assert r["window_start"] == _ACTION_ROW["created_at"] and r["confidence"] == "high"
 
 
-def test_record_memory_rejects_unknown_kind(ctx, monkeypatch):
+def test_record_action_outcome_refuses_immature_window_and_bad_inputs(ctx, monkeypatch):
     monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: (_ for _ in ()).throw(AssertionError("must not write")))
-    with pytest.raises(ValueError, match="kind_invalid"):
-        tools.record_memory("raw_metrics_dump", "k", "v")
+    monkeypatch.setattr(bus, "fetch_action", lambda sb, aid, m: {**_ACTION_ROW} if aid == "act-1" else None)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes",
+                        lambda sb, m: [{**_CAMPAIGN_ROW, "impressions": 0}])
+    with pytest.raises(ValueError, match="observation_window_immature"):
+        tools.record_action_outcome("act-1", "太早", "low")  # no data yet → pending in prose, not memory
+    with pytest.raises(ValueError, match="action_not_found"):
+        tools.record_action_outcome("act-nope", "x", "low")
+    with pytest.raises(ValueError, match="confidence_invalid"):
+        tools.record_action_outcome("act-1", "x", "certain")
+
+
+def test_record_round_verdict_requires_real_evidence(ctx, monkeypatch):
+    rows = []
+    monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: rows.append(row))
+    monkeypatch.setattr(bus, "fetch_action", lambda sb, aid, m: _ACTION_ROW if aid == "act-1" else None)
+    with pytest.raises(ValueError, match="evidence_required"):
+        tools.record_round_verdict("没有证据的观点", "", "high")
+    with pytest.raises(ValueError, match="evidence_action_not_found"):
+        tools.record_round_verdict("引用了不存在的动作", "act-ghost", "high")
+    tools.record_round_verdict("满产能时仍投广，新增预约接不住", "act-1", "medium")
+    r = rows[0]
+    assert r["kind"] == "round_verdict" and r["scope_type"] == "merchant"
+    assert r["content"]["evidenceActionIds"] == ["act-1"]
+    # confidence drives TTL: medium = 14d < high = 30d
+    assert r["expires_at"] > r["window_end"]
+
+
+def test_memory_write_is_monitor_only(ctx, monkeypatch):
+    monkeypatch.setattr(bus, "upsert_memory", lambda sb, row: (_ for _ in ()).throw(AssertionError("must not write")))
+    ctx.agent_slug = "decision"  # a non-monitor lane trying to write experience
+    with pytest.raises(ValueError, match="memory_write_not_allowed"):
+        tools.record_action_outcome("act-1", "x", "low")
+    with pytest.raises(ValueError, match="memory_write_not_allowed"):
+        tools.record_round_verdict("x", "act-1", "low")
+
+
+def test_search_memory_ranks_by_relevance_and_respects_domain_access(ctx, monkeypatch):
+    mems = [
+        {"id": "m-exact", "kind": "action_outcome", "domain": "ad", "scope_type": "style",
+         "scope_id": "style-1", "scope_tags": [], "claim": "exact", "confidence": "low",
+         "created_at": "2026-07-01", "content": {}},
+        {"id": "m-tag", "kind": "action_outcome", "domain": "ad", "scope_type": "tag",
+         "scope_id": None, "scope_tags": ["金属感"], "claim": "tag", "confidence": "low",
+         "created_at": "2026-07-02", "content": {}},
+        {"id": "m-cust", "kind": "action_outcome", "domain": "customer_ops", "scope_type": "segment",
+         "scope_id": "seg-1", "scope_tags": [], "claim": "other-domain", "confidence": "high",
+         "created_at": "2026-07-03", "content": {}},
+    ]
+    monkeypatch.setattr(bus, "fetch_memory", lambda sb, m, limit=200: mems)
+    ctx.agent_slug = "trend"  # allowed: {ad, catalog} — customer_ops rows must be invisible
+    out = json.loads(tools.search_memory(scope_refs="style-1", scope_tags="金属感", limit=5))
+    ids = [m["memoryId"] for m in out["memories"]]
+    assert ids[0] == "m-exact"          # +100 exact ref beats +50 tag
+    assert "m-cust" not in ids          # domain access filter
+    ctx.agent_slug = "ad"               # executors don't re-interpret strategy
+    with pytest.raises(ValueError, match="memory_access_denied"):
+        tools.search_memory(scope_refs="style-1")
 
 
 # ── ADR-0013 P3: the revision edge ───────────────────────────────────────────────────────────────

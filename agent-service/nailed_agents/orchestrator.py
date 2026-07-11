@@ -191,6 +191,40 @@ def _skill(slug: str, fallback: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else fallback
 
 
+def _memory_hints(sb, *, kinds: tuple[str, ...], limit: int = 5) -> str:
+    """Deterministic pre-run memory hints (ADR-0015): code picks the few memories a lane structurally
+    needs — all merchant preferences (capped), then the newest row of each requested kind — so recall
+    never depends on the model remembering to search. Hints are priors, and the injected header says
+    so. Returns '' when memory is empty or the tables aren't migrated (loud WARN, run proceeds)."""
+    try:
+        rows = bus.fetch_memory(sb, config.MERCHANT_ID)
+    except Exception:
+        print("WARN agent_memory unavailable — apply migrations 0030+0032 (round runs without memory hints)")
+        return ""
+    picked: list[dict] = []
+    for r in rows:  # newest first
+        if r.get("kind") == "merchant_preference" and "merchant_preference" in kinds:
+            picked.append(r)
+    for kind in kinds:
+        if kind == "merchant_preference":
+            continue
+        for r in rows:
+            if r.get("kind") == kind:
+                picked.append(r)
+                break  # newest of this kind only — search_memory is the tool for going deeper
+    picked = picked[:limit]
+    if not picked:
+        return ""
+    lines = []
+    for r in picked:
+        claim = r.get("claim") or (r.get("content") or {}).get("verdict") or ""
+        lines.append(f"- [mem {str(r.get('id', ''))[:8]}｜{r.get('kind')}｜{r.get('confidence') or '?'}] {claim}")
+    return (
+        "\n\n[团队记忆提示｜历史结论，非当前事实；与实时数据冲突时以实时数据为准；"
+        "若某条记忆改变了你的结论，请引用其 mem id]\n" + "\n".join(lines) + "\n[/团队记忆提示]"
+    )
+
+
 def _prompt_sha(system: str) -> str:
     """Identity of the resolved system prompt (ADR-0014). agents.version can't version prompts —
     skills/*.md is the prompt truth and editing it leaves the DB untouched; the sha pins which prompt
@@ -216,7 +250,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         prompt_sha=_prompt_sha(system), agent_version=agents[slug].get("version"),
     )
     ctx = tools.RunContext(sb=sb, run_id=run_id, merchant_id=config.MERCHANT_ID,
-                           range_days=range_days, round_id=round_id)
+                           range_days=range_days, round_id=round_id, agent_slug=slug)
     if revision_port_factory is not None:
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     text = runner.run_agent(
@@ -245,6 +279,10 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
                if s != (parent_slug or "") and s not in state.results]
     if missing:
         task = f"{task}\n\n（上游 {', '.join(missing)} 本轮未运行——按信息缺失处理，不要臆造其结论。）"
+    if slug == "decision":
+        # 决策 is the team's main memory consumer — the highest-relevance priors are injected, and
+        # search_memory remains its tool for candidate-specific digging (ADR-0015 two-stage retrieval).
+        task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
     if slug == "monitor" and round_id:
         actions = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
         if actions:
@@ -281,7 +319,9 @@ def run_round(range_days: int = 7) -> dict[str, str]:
 
     round_id = bus.start_round(sb, config.MERCHANT_ID)  # None when 0030 unapplied (degrades loudly)
     orch_system = _skill("orchestrator", agents["orchestrator"]["instructions"])
-    orch_task = ORCH_TASK.format(range_days=range_days)
+    orch_task = ORCH_TASK.format(range_days=range_days) + _memory_hints(
+        sb, kinds=("merchant_preference", "round_verdict")
+    )
     orch_run = bus.start_run(
         sb, agent_id=agents["orchestrator"]["id"], trigger_source="manual",
         parent_run_id=None,
@@ -312,7 +352,7 @@ def run_round(range_days: int = 7) -> dict[str, str]:
 
     ctx = tools.RunContext(
         sb=sb, run_id=orch_run, merchant_id=config.MERCHANT_ID, range_days=range_days,
-        round=state, round_id=round_id,
+        round=state, round_id=round_id, agent_slug="orchestrator",
     )
     try:
         text = runner.run_agent(

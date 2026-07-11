@@ -181,7 +181,8 @@ SCENARIOS = [
                     "bookings": 2, "spend_cents": 56000}],
         actions_by_id={"act-ad-8284": {"id": "act-ad-8284", "type": "place_ad", "risk": "reversible",
                                         "status": "applied", "entity_id": "ad-style-melissa-img-8284",
-                                        "payload": {"styleId": "style-melissa-img-8284", "budgetCents": 20000}}},
+                                        "payload": {"styleId": "style-melissa-img-8284", "budgetCents": 20000,
+                                                    "hypothesis": {"expectedRoas": 4.1, "costPerBookingCents": 8000}}}},
         expect={"kind": "revision", "must_revise": ["act-ad-8284"]},
     ),
     # …and must NOT revise when the measured numbers support the action (trigger-happy monitor = failure).
@@ -198,7 +199,8 @@ SCENARIOS = [
                     "bookings": 9, "spend_cents": 15000}],
         actions_by_id={"act-ad-8265": {"id": "act-ad-8265", "type": "place_ad", "risk": "reversible",
                                         "status": "applied", "entity_id": "ad-style-melissa-img-8265",
-                                        "payload": {"styleId": "style-melissa-img-8265", "budgetCents": 5000}}},
+                                        "payload": {"styleId": "style-melissa-img-8265", "budgetCents": 5000,
+                                                    "hypothesis": {"expectedRoas": 4.0, "costPerBookingCents": 9000}}}},
         expect={"kind": "no_revision"},
     ),
 ]
@@ -209,7 +211,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
             bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
             bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
-            bus.fetch_blackboard)
+            bus.fetch_blackboard, bus.fetch_memory)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
@@ -220,6 +222,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     bus.fetch_action = lambda sb, action_id, merchant_id: scn.actions_by_id.get(action_id)  # type: ignore[assignment]
     bus.supersede_action = lambda sb, action_id: None                       # type: ignore[assignment]
     bus.fetch_blackboard = lambda sb, round_id: {"executions": list(scn.actions_by_id.values())}  # type: ignore[assignment]
+    bus.fetch_memory = lambda sb, m, limit=200: []                          # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
     # eval stays offline while still exercising the real tool bodies + their action writes.
@@ -231,7 +234,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
         (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
          bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
          bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
-         bus.fetch_blackboard) = orig
+         bus.fetch_blackboard, bus.fetch_memory) = orig
 
 
 def _skill(slug: str) -> str:
@@ -296,7 +299,7 @@ def _stub_round(scn: Scenario):
 
 def _run_once(scn: Scenario) -> dict:
     captured: list[dict] = []
-    ctx = tools.RunContext(sb=object(), run_id=f"eval-{scn.id}", merchant_id=_M)
+    ctx = tools.RunContext(sb=object(), run_id=f"eval-{scn.id}", merchant_id=_M, agent_slug=scn.slug)
     task = scn.task
     if scn.slug == "orchestrator":
         ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one

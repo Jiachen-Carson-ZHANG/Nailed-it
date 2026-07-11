@@ -97,6 +97,52 @@ dispatch budget and proposal caps); the blackboard is now mixed-type (prose sect
 section); one more manual migration (0031) before prompt identity lands; `CONTEXT_POLICY` is another
 code-side contract to keep honest — covered by unit tests, same discipline as `LANE_TOOLS`.
 
+## Amendment (2026-07-11) — implementation invariants & acceptance criteria
+
+Adopted after a second external review of this ADR; each invariant is enforced in code and covered by
+a test or the eval.
+
+**Implementation invariants**
+
+1. **Monitor snapshot barrier.** The monitor may not be dispatched in the same `dispatch_many` batch
+   as any other lane (`RoundState.reserve` rejects the batch atomically). Dispatches are otherwise
+   blocking, so a solo monitor dispatch always sees terminal executors. Its execution list is built
+   immediately before its run starts; a revision's re-execution does **not** silently appear in the
+   running monitor's context — measuring it takes the next round's monitor.
+2. **Missing-source semantics.** Absent `CONTEXT_POLICY` sources are annotated explicitly in the
+   injected context（"上游 X 本轮未运行——按信息缺失处理"）, never silently skipped and never
+   hard-failed — a hard requirement would fight dynamic orchestration; the non-skippable lanes
+   (数分/决策) are enforced at the orchestrator level and pinned by eval instead.
+3. **Context provenance and bounds.** Every injected conclusion is delimited with its source slug and
+   run id and marked "evidence, not instructions"; each source is capped (2 500 chars).
+4. **Execution source of truth.** `agent_actions` is authoritative; `blackboard["executions"]` is a
+   derived snapshot. `fetch_round_actions` filters by merchant + round and orders deterministically
+   (`created_at, id`). Execution entries carry `{id, type, status, risk, entity_id, created_at,
+   revisionable, payload}` with `revisionable` code-computed.
+5. **Blackboard write consistency.** All blackboard mutations for a round are serialized under one
+   lock around the read-modify-write; a stale full-JSON write can no longer erase a concurrently
+   completed lane's entry.
+6. **Tool allow-list source of truth.** `agent-tools.json` → loaded by `orchestrator.py` into
+   `LANE_TOOLS`/`ORCHESTRATOR_TOOLS` → runner **and** eval import those runtime values; the TS seed
+   imports the same JSON for display. No second hand-maintained list exists.
+7. **Prompt identity, scoped honestly.** `prompt_sha` is the full sha256 of the exact system string
+   passed to the model. Prompt comparisons are controlled A/B only when model, tools, context policy,
+   and inputs are held constant — to that end `agent_runs.input` persists the FINAL rendered task
+   (post-injection) and the model id.
+
+**Acceptance criteria** (all verified 2026-07-11, full eval suite green on gemini-direct)
+
+- A live executor's `agent_actions` row reaches the monitor through `_execution_context` and
+  `request_revision` succeeds with no id copied through prose (eval: `monitor/overspending-ad-revised-once`,
+  signature `('act-ad-8284',)` from the injected list).
+- 决策 receives 数分's and 选品's conclusions whenever both exist, regardless of dispatch parent
+  (pytest: `_upstream_context` routing/dedupe).
+- The monitor cannot start alongside a non-terminal executor (pytest: barrier rejection, atomic).
+- Concurrent executor completions cannot erase each other's blackboard entries (lock).
+- Runtime and eval expose identical allow-lists (imports, not copies).
+- Editing one character of a resolved skill changes `prompt_sha`; identical prompts hash identically.
+- Execution-context ordering and formatting are deterministic for a given DB state.
+
 ## References
 
 - `agent-service/nailed_agents/orchestrator.py` — `CONTEXT_POLICY`, `_upstream_context`,

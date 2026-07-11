@@ -1,11 +1,11 @@
 {
-  "orchestrator": ["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
-  "insight": ["get_merchant_insights"],
-  "trend": ["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
-  "decision": ["get_style_business_decisions", "get_merchant_insights", "get_agent_memory", "read_blackboard"],
+  "orchestrator": ["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many", "search_memory"],
+  "insight": ["get_merchant_insights", "search_memory"],
+  "trend": ["get_trend_opportunities", "get_platform_hot", "get_external_trends", "search_memory"],
+  "decision": ["get_style_business_decisions", "get_merchant_insights", "search_memory", "read_blackboard"],
   "ad": ["place_ad"],
   "coupon": ["set_group_buy_coupon"],
-  "catalog": ["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
-  "customer_ops": ["get_customer_intelligence", "send_customer_message"],
-  "monitor": ["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision", "read_blackboard"]
+  "catalog": ["get_catalog_actions", "list_style", "delist_style", "propose_listing", "search_memory"],
+  "customer_ops": ["get_customer_intelligence", "send_customer_message", "search_memory"],
+  "monitor": ["get_merchant_insights", "get_campaign_outcomes", "record_action_outcome", "record_round_verdict", "search_memory", "request_revision", "read_blackboard"]
 }

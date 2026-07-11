@@ -226,15 +226,18 @@ def upsert_memory(sb: Client, row: dict[str, Any]) -> None:
     sb.table("agent_memory").upsert(row, on_conflict="merchant_id,kind,key").execute()
 
 
-def fetch_memory(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
-    """Non-expired memory rows, newest first."""
+def fetch_memory(sb: Client, merchant_id: str, limit: int = 200) -> list[dict[str, Any]]:
+    """Non-expired memory rows, newest first. Callers (search_memory's relevance scorer, the
+    deterministic hint injector) filter and rank in code — the DB just guarantees active + scoped."""
     res = (
         sb.table("agent_memory")
-        .select("agent_slug, kind, key, content, entity_type, entity_id, window_start, window_end, created_at")
+        .select("id, agent_slug, kind, key, content, claim, domain, scope_type, scope_id, scope_tags, "
+                "comparison, applicability, confidence, source_action_id, "
+                "entity_type, entity_id, window_start, window_end, created_at, expires_at")
         .eq("merchant_id", merchant_id)
         .or_(f"expires_at.is.null,expires_at.gt.{now_iso()}")
         .order("created_at", desc=True)
-        .limit(40)
+        .limit(limit)
         .execute()
     )
     return res.data or []
@@ -263,7 +266,7 @@ def fetch_action(sb: Client, action_id: str, merchant_id: str) -> dict[str, Any]
     """One action row — the revision edge (ADR-0013 P3) must read type/risk/entity before acting."""
     res = (
         sb.table("agent_actions")
-        .select("id, run_id, type, risk, status, payload, entity_type, entity_id")
+        .select("id, run_id, type, risk, status, payload, entity_type, entity_id, created_at")
         .eq("id", action_id)
         .eq("merchant_id", merchant_id)
         .maybe_single()

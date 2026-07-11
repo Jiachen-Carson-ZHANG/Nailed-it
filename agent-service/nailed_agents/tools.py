@@ -44,6 +44,8 @@ class RunContext:
     run_id: str
     merchant_id: str
     range_days: int = 7
+    # ADR-0015: which agent this run is — memory tools scope search domains and write permission by it.
+    agent_slug: str = ""
     transcript: list[dict[str, Any]] = field(default_factory=list)
     awaiting_approval: bool = False
     # ADR-0013 P0 proposal hygiene: first propose_listing of the run supersedes older rounds' pending
@@ -226,6 +228,31 @@ def get_trend_opportunities(range_days: int = 7, trend_type: str = "growing") ->
     return json.dumps(report, ensure_ascii=False)
 
 
+def _decision_hypothesis(style_id: str, *, lever: str) -> dict[str, Any] | None:
+    """Snapshot the decision brain's prediction for this style AT EXECUTION TIME (ADR-0015). The
+    monitor later compares measured outcomes against it — that difference (not the outcome alone) is
+    what calibration memory stores. Code-derived from the brain's own output; never parsed out of a
+    model's prose. Absence is fine — the action proceeds, it just can't be calibrated later."""
+    try:
+        brain = bus.fetch_decisions() or {}
+    except Exception:
+        return None  # brain route down / eval without decisions fixture — not this tool's failure
+    hypo: dict[str, Any] = {}
+    band = (brain.get("capacity") or {}).get("band")
+    if band:
+        hypo["capacityBand"] = band
+    for d in brain.get("decisions", []):
+        if d.get("styleId") == style_id:
+            if lever == "ad":
+                ad = d.get("ad") or {}
+                hypo.update({k: ad[k] for k in ("expectedRoas", "exposureRatio", "costPerBookingCents")
+                             if ad.get(k) is not None})
+            elif lever == "coupon" and d.get("suggestedCouponCents") is not None:
+                hypo["suggestedCouponCents"] = d["suggestedCouponCents"]
+            break
+    return hypo or None
+
+
 def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
     """Run an ad for a published style in a funnel slot. slot must be one of 'top_funnel',
     'lower_funnel', 'mid_funnel'. budget_cents is the daily ad budget in cents. This creates a REAL ad
@@ -245,6 +272,9 @@ def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
     action_status = "applied" if entity_status == "active" else "proposed"
 
     payload = {"styleId": style_id, "slot": slot, "budgetCents": budget_cents}
+    hypothesis = _decision_hypothesis(style_id, lever="ad")
+    if hypothesis:
+        payload["hypothesis"] = hypothesis  # prediction snapshot — the monitor's calibration baseline
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="place_ad", payload=payload,
         status=action_status, entity_type="style_ad", entity_id=entity_id,
@@ -277,6 +307,9 @@ def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
     deal_id = result["deal"]["id"]
 
     payload = {"styleId": style_id, "priceCents": price_cents}
+    hypothesis = _decision_hypothesis(style_id, lever="coupon")
+    if hypothesis:
+        payload["hypothesis"] = hypothesis  # prediction snapshot — the monitor's calibration baseline
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="set_group_buy_coupon", payload=payload,
         status="proposed", entity_type="groupbuy_deal", entity_id=deal_id,
@@ -424,9 +457,68 @@ def get_style_business_decisions() -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-# ── memory + measurement tools (ADR-0013 P2) ─────────────────────────────────────────────────────
+# ── memory + measurement tools (ADR-0013 P2, rebuilt by ADR-0015) ────────────────────────────────
+# Principle: the AGENT decides what was learned (claim + confidence); CODE decides identity and
+# evidence (which action/entity, the prediction compared against, windows, expiry, scope).
 
-_MEMORY_KINDS = {"ad_outcome", "coupon_outcome", "round_verdict"}
+_CONFIDENCE = {"low", "medium", "high"}
+_ACTION_DOMAIN = {
+    "place_ad": "ad", "set_group_buy_coupon": "coupon",
+    "list_style": "catalog", "delist_style": "catalog",
+    "propose_listing": "catalog", "draft_upload": "catalog",
+    "send_customer_message": "customer_ops",
+}
+# Which memory DOMAINS each agent may search. Executors (投广/团购) get none by design: history is
+# synthesized into the plan by 决策 — an executor re-interpreting strategy mid-execution blurs who
+# decided what. Empty ctx.agent_slug (unit tests, direct calls) is unrestricted.
+MEMORY_ACCESS: dict[str, set[str]] = {
+    "orchestrator": {"round", "merchant"},
+    "insight": {"ad", "coupon", "catalog", "round"},
+    "trend": {"ad", "catalog"},
+    "decision": {"ad", "coupon", "catalog", "customer_ops", "round", "merchant"},
+    "ad": set(),
+    "coupon": set(),
+    "catalog": {"catalog", "merchant"},
+    "customer_ops": {"customer_ops", "merchant"},
+    "monitor": {"ad", "coupon", "catalog", "customer_ops", "round", "merchant"},
+}
+_MEMORY_TTL_DAYS = {"high": 30, "medium": 14, "low": 7}
+
+
+def _memory_view(r: dict[str, Any]) -> dict[str, Any]:
+    """Slim row for model consumption. Legacy (pre-0032) rows surface their verdict as the claim."""
+    return {
+        "memoryId": r.get("id"),
+        "kind": r.get("kind"),
+        "domain": r.get("domain"),
+        "scope": {"type": r.get("scope_type"), "id": r.get("scope_id"), "tags": r.get("scope_tags") or []},
+        "claim": r.get("claim") or (r.get("content") or {}).get("verdict"),
+        "comparison": r.get("comparison"),
+        "applicability": r.get("applicability"),
+        "confidence": r.get("confidence"),
+        "source": {"actionId": r.get("source_action_id"), "entityId": r.get("entity_id"),
+                   "windowEnd": r.get("window_end")},
+        "expiresAt": r.get("expires_at"),
+    }
+
+
+def _score_memory(r: dict[str, Any], *, refs: set[str], tags: set[str], domains: set[str]) -> float:
+    """Structured relevance (ADR-0015) — exact entity/action anchor beats style beats tag beats domain.
+    No embeddings: our scopes are explicit ids and tags, so deterministic scoring is both cheaper and
+    reproducible in eval."""
+    score = 0.0
+    row_refs = {r.get("scope_id"), r.get("entity_id"), r.get("source_action_id"), r.get("key")}
+    if refs & {x for x in row_refs if x}:
+        score += 100
+    if tags & set(r.get("scope_tags") or []):
+        score += 50
+    if r.get("kind") == "merchant_preference":
+        score += 60
+    if domains and r.get("domain") in domains:
+        score += 25
+    if r.get("confidence") == "high":
+        score += 20
+    return score
 
 
 def get_campaign_outcomes() -> str:
@@ -439,65 +531,185 @@ def get_campaign_outcomes() -> str:
     return json.dumps(rows, ensure_ascii=False)
 
 
-def record_memory(kind: str, key: str, verdict: str, entity_id: str = "", window_days: int = 7) -> str:
-    """Record a WINDOWED VERDICT the team should remember across rounds (ADR-0013 §3) — e.g.
-    "7d 实测 ROAS 2.1，决策时估算 4.1 —— 高估约 2 倍". kind: ad_outcome | coupon_outcome | round_verdict.
-    key: stable id for what was measured (e.g. the campaign id) — re-measuring the same key REPLACES the
-    old verdict. verdict: one sentence citing measured numbers; never restate raw metric tables (they
-    live in the campaign/event tables, which always win a conflict). entity_id: the campaign/deal this
-    verdict is about (optional). Expires in 30 days."""
+def _require_memory_writer(ctx: RunContext) -> None:
+    # only the monitor writes memory — everyone else's conclusions are candidates, not experience.
+    # (empty agent_slug = unit tests / direct calls; the monitor's RevisionPort doubles as evidence.)
+    if ctx.agent_slug not in ("", "monitor") and ctx.revision is None:
+        raise ValueError("memory_write_not_allowed")
+
+
+def record_action_outcome(action_id: str, assessment: str, confidence: str) -> str:
+    """Record the MEASURED outcome of ONE of the team's actions (ADR-0015). You provide only the
+    judgment: action_id (from the execution list), assessment (one or two sentences citing measured
+    numbers vs the prediction), confidence (low|medium|high). Code derives everything else from the
+    action row — entity, scope, the decision's hypothesis snapshot, live campaign metrics at write
+    time, windows and expiry. Re-recording the same action REPLACES the previous outcome. Refuses when
+    the campaign has no data yet (immature observation window) — say "基线已记录，N 天后可测" in prose
+    instead of writing a premature verdict."""
     ctx = _ctx()
-    kind = _clean_text(kind, field="kind", max_chars=40)
-    if kind not in _MEMORY_KINDS:
-        raise ValueError("kind_invalid")
-    key = _clean_text(key, field="key", max_chars=120)
-    verdict = _clean_text(verdict, field="verdict", max_chars=600)
-    entity_id = str(entity_id or "").strip()
-    window_days = _bounded_int(window_days, field="window_days", maximum=90)
+    _require_memory_writer(ctx)
+    action_id = _clean_text(action_id, field="action_id", max_chars=80)
+    assessment = _clean_text(assessment, field="assessment", max_chars=600)
+    confidence = _clean_text(confidence, field="confidence", max_chars=10)
+    if confidence not in _CONFIDENCE:
+        raise ValueError("confidence_invalid")
+
+    action = bus.fetch_action(ctx.sb, action_id, ctx.merchant_id)
+    if not action:
+        raise ValueError("action_not_found")
+    domain = _ACTION_DOMAIN.get(action.get("type", ""))
+    if domain is None:
+        raise ValueError("action_type_unmeasurable")
+    payload = action.get("payload") or {}
+    style_id = payload.get("styleId")
+    hypothesis = payload.get("hypothesis")  # code-written at execution time (place_ad / coupon)
+
+    # live metrics for the action's entity at write time — evidence, pinned into the comparison
+    measured = None
+    if action.get("entity_type") == "style_ad":
+        for c in bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id):
+            if c.get("id") == action.get("entity_id"):
+                measured = {k: c.get(k) for k in ("impressions", "clicks", "bookings", "spend_cents")}
+                if (c.get("bookings") or 0) > 0:
+                    measured["spend_per_booking_cents"] = round(c["spend_cents"] / c["bookings"])
+                break
+        if not measured or not measured.get("impressions"):
+            raise ValueError("observation_window_immature")  # nothing measured yet — record pending in prose
+
+    comparison: dict[str, Any] = {"predicted": hypothesis, "measured": measured}
+    predicted_cpb = (hypothesis or {}).get("costPerBookingCents")
+    measured_cpb = (measured or {}).get("spend_per_booking_cents")
+    if predicted_cpb and measured_cpb:
+        comparison.update({
+            "metric": "costPerBookingCents", "ratio": round(measured_cpb / predicted_cpb, 2),
+            "direction": "underestimated_cost" if measured_cpb > predicted_cpb else "overestimated_cost",
+        })
 
     now = datetime.now(timezone.utc)
-    entity_type = "style_ad" if entity_id.startswith("ad-") else "groupbuy_deal" if entity_id.startswith("gb-") else None
     row = {
         "merchant_id": ctx.merchant_id,
         "agent_slug": "monitor",
-        "kind": kind,
-        "key": key,
-        "content": {"verdict": verdict},
-        "entity_type": entity_type,
-        "entity_id": entity_id or None,
-        "window_start": (now - timedelta(days=window_days)).isoformat(),
+        "kind": "action_outcome",
+        "key": action_id,  # unique(merchant, kind, key) → re-measurement replaces
+        "domain": domain,
+        "scope_type": "style" if style_id else "entity",
+        "scope_id": style_id or action.get("entity_id"),
+        "claim": assessment,
+        "content": {"verdict": assessment},  # legacy readers
+        "comparison": comparison,
+        "applicability": {"funnelSlot": payload.get("slot")} if payload.get("slot") else None,
+        "confidence": confidence,
+        "source_action_id": action_id,
+        "entity_type": action.get("entity_type"),
+        "entity_id": action.get("entity_id"),
+        "window_start": action.get("created_at"),
         "window_end": now.isoformat(),
         "evidence_run_id": ctx.run_id,
-        "expires_at": (now + timedelta(days=30)).isoformat(),
+        "expires_at": (now + timedelta(days=_MEMORY_TTL_DAYS[confidence])).isoformat(),
     }
     bus.upsert_memory(ctx.sb, row)
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "record_memory",
-         "input": {"kind": kind, "key": key, "verdict": verdict, "entityId": entity_id or None},
+        {"kind": "tool_call", "tool": "record_action_outcome",
+         "input": {"actionId": action_id, "assessment": assessment, "confidence": confidence},
+         "output": {"recorded": True, "domain": domain, "comparison": comparison}}
+    )
+    return f"Action outcome recorded for {action_id} ({domain}, {confidence}) — future rounds will read it."
+
+
+def record_round_verdict(verdict: str, evidence_action_ids: str, confidence: str) -> str:
+    """Record a ROUND-LEVEL operational conclusion (ADR-0015) — e.g. "产能 92% 时仍投广，新增预约接不
+    住；满产能应先提价控量而非获客". verdict: the conclusion. evidence_action_ids: comma-separated
+    action ids backing it (at least one must exist — a verdict without evidence is opinion).
+    confidence: low|medium|high (drives expiry: 7/14/30 days)."""
+    ctx = _ctx()
+    _require_memory_writer(ctx)
+    verdict = _clean_text(verdict, field="verdict", max_chars=600)
+    confidence = _clean_text(confidence, field="confidence", max_chars=10)
+    if confidence not in _CONFIDENCE:
+        raise ValueError("confidence_invalid")
+    ids = [s.strip() for s in str(evidence_action_ids or "").split(",") if s.strip()]
+    if not ids:
+        raise ValueError("evidence_required")
+    for aid in ids:
+        if not bus.fetch_action(ctx.sb, aid, ctx.merchant_id):
+            raise ValueError(f"evidence_action_not_found:{aid}")
+
+    now = datetime.now(timezone.utc)
+    row = {
+        "merchant_id": ctx.merchant_id,
+        "agent_slug": "monitor",
+        "kind": "round_verdict",
+        "key": f"round-{ctx.round_id or ctx.run_id}",
+        "domain": "round",
+        "scope_type": "merchant",
+        "scope_id": ctx.merchant_id,
+        "claim": verdict,
+        "content": {"verdict": verdict, "evidenceActionIds": ids},
+        "confidence": confidence,
+        "window_end": now.isoformat(),
+        "evidence_run_id": ctx.run_id,
+        "expires_at": (now + timedelta(days=_MEMORY_TTL_DAYS[confidence])).isoformat(),
+    }
+    bus.upsert_memory(ctx.sb, row)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "record_round_verdict",
+         "input": {"verdict": verdict, "evidenceActionIds": ids, "confidence": confidence},
          "output": {"recorded": True}}
     )
-    return f"Memory recorded ({kind}/{key}) — future 决策 rounds will read this verdict."
+    return "Round verdict recorded — next round's orchestrator and 决策 will see it."
 
 
-def get_agent_memory() -> str:
-    """Read the team's non-expired memory: windowed verdicts from past rounds (measured ad outcomes,
-    coupon outcomes, round verdicts), newest first. MEASURED verdicts outrank estimates — when memory
-    says an estimate ran hot, weigh the estimate down. Raw live metrics still come from their own
-    tables; on any conflict the live table wins."""
+def search_memory(scope_refs: str = "", scope_tags: str = "", domains: str = "", limit: int = 5) -> str:
+    """Search the team's long-term memory by RELEVANCE (ADR-0015), not recency. Use when historical
+    evidence could materially change your ranking, action, budget, or confidence — e.g. after
+    identifying candidate styles, check whether the team already measured them. scope_refs:
+    comma-separated ids (style ids, entity ids like ad-style-…, action ids). scope_tags:
+    comma-separated style tags (金属感, 法式…). domains: comma-separated (ad, coupon, catalog,
+    customer_ops, round, merchant) — your agent's allowed domains apply regardless. Memory is
+    historical prior, NOT current fact: live tools win every conflict; absence of memory is not
+    evidence an action will work."""
     ctx = _ctx()
+    limit = min(_bounded_int(limit, field="limit", maximum=10), 10)
+    refs = {s.strip() for s in str(scope_refs or "").split(",") if s.strip()}
+    tags = {s.strip() for s in str(scope_tags or "").split(",") if s.strip()}
+    doms = {s.strip() for s in str(domains or "").split(",") if s.strip()}
+    allowed = MEMORY_ACCESS.get(ctx.agent_slug) if ctx.agent_slug else None
+    if allowed is not None:
+        doms = (doms & allowed) if doms else set(allowed)
+        if not doms and not allowed:
+            raise ValueError("memory_access_denied")  # executors don't re-interpret strategy
+
     rows = bus.fetch_memory(ctx.sb, ctx.merchant_id)
-    ctx.transcript.append({"kind": "tool_call", "tool": "get_agent_memory", "input": {}, "output": rows})
-    return json.dumps(rows, ensure_ascii=False)
+    if allowed is not None:
+        rows = [r for r in rows if r.get("domain") in allowed or r.get("domain") is None]
+    if doms:
+        rows = [r for r in rows if not r.get("domain") or r.get("domain") in doms]
+    ranked = sorted(rows, key=lambda r: _score_memory(r, refs=refs, tags=tags, domains=doms), reverse=True)
+    out = [_memory_view(r) for r in ranked[:limit]]
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "search_memory",
+         "input": {"scopeRefs": sorted(refs), "scopeTags": sorted(tags), "domains": sorted(doms), "limit": limit},
+         "output": out}
+    )
+    return json.dumps({"memories": out}, ensure_ascii=False)
 
 
-def read_blackboard() -> str:
-    """Read this round's shared blackboard: the sections upstream lanes have concluded so far
-    (briefing / opportunities / plan / executed…). Written deterministically by the orchestrator."""
+def read_blackboard(sections: str = "") -> str:
+    """Read this round's shared blackboard — the sections upstream lanes have concluded so far, plus
+    the derived `executions` snapshot. Written deterministically by the orchestrator; agent_actions
+    stays the authoritative store for executions. sections: comma-separated section names to read
+    (e.g. "insight,trend" or "executions") — omit for the full board. Use for mid-run consultation;
+    your required context is already injected into the task."""
     ctx = _ctx()
     if not ctx.round_id:
         return json.dumps({"note": "no blackboard this round (migration 0030 not applied)"}, ensure_ascii=False)
     board = bus.fetch_blackboard(ctx.sb, ctx.round_id)
-    ctx.transcript.append({"kind": "tool_call", "tool": "read_blackboard", "input": {}, "output": board})
+    wanted = [s.strip() for s in str(sections or "").split(",") if s.strip()]
+    if wanted:
+        board = {"sections": {k: board.get(k) for k in wanted if k in board},
+                 "missingSections": [k for k in wanted if k not in board]}
+    ctx.transcript.append({"kind": "tool_call", "tool": "read_blackboard",
+                           "input": {"sections": wanted}, "output": board})
     return json.dumps(board, ensure_ascii=False)
 
 
@@ -615,8 +827,9 @@ _FUNCTIONS: list[Callable[..., str]] = [
     dispatch_agent,
     dispatch_many,
     get_campaign_outcomes,
-    record_memory,
-    get_agent_memory,
+    record_action_outcome,
+    record_round_verdict,
+    search_memory,
     read_blackboard,
     request_revision,
 ]
