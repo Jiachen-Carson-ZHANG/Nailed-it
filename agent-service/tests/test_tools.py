@@ -81,6 +81,9 @@ def ctx(monkeypatch):
     # place_ad / set_group_buy_coupon now create REAL entities through the TS routes (ADR-0012) — stub the hop.
     monkeypatch.setattr(bus, "post_propose_ad", lambda style_id, *a, **k: {"ok": True, "id": f"ad-{style_id}", "status": "active"})
     monkeypatch.setattr(bus, "post_propose_groupbuy", lambda style_id, *a, **k: {"ok": True, "deal": {"id": f"gb-{style_id}"}})
+    # hypothesis snapshot (ADR-0015) reads the brain route — stub it empty so tests never depend on
+    # whether the dev server happens to be running (it bit us: payloads silently grew a hypothesis).
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {})
     # ADR-0013 P0: propose_listing supersedes older rounds' pending proposals on its first call.
     supersedes = []
     monkeypatch.setattr(bus, "expire_stale_proposals", lambda sb, **kw: supersedes.append(kw) or 3)

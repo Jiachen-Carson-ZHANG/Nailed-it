@@ -2122,3 +2122,32 @@ memory rows directly would be indefensible ("where did this come from?" — "we 
   their hypotheses. pytest 44/44, tsc clean.
 - Demo script: round 1 → monitor measures seeded history live (outcome memory + one revision on
   8284); round 2 → 决策's injected 记忆提示 cites the mem id and tightens budgets.
+
+## 2026-07-11 — Live P2/P3 rounds verified end-to-end; two real failures caught and fixed
+
+Migrations 0030/0031/0032 applied; history seed rerun (preference row landed). Five live rounds on
+gemini-direct. Verified in the DB, not the console:
+
+**The loop works.** Round 1: monitor received the injected due list, wrote both outcomes with
+code-computed comparisons (8284: measured 28000分/单 vs predicted 8000 → ratio 3.5
+`underestimated_cost`; 8265: ratio 0.93 healthy), and fired EXACTLY ONE revision — 投广′ re-landed
+ad-…8284 at ¥80/day; the envelope parked it as a draft; campaign metrics survived the upsert.
+Blackboard: all lane sections + 10 structured executions. prompt_sha + final rendered task persisted.
+Later rounds converged: revised budget under the bright line → no further revisions; monitor wrote a
+generalized round_verdict（高意向低转化款直接投广会放大获客成本——先用团购解决转化）with evidence ids.
+
+**Failure 1 — hint selector too coarse.** Round 2's 决策 hints carried the healthy 8265 outcome but
+DROPPED the 3.5× miss (newest-one-per-kind picked the wrong row). Fix: `_HINTS_PER_KIND` caps
+(outcomes/calibrations ×3, verdict ×1, preferences ×3). Round 3 hints carried all three memories.
+
+**Failure 2 — the monitor NARRATED unperformed writes on flash.** Rounds 2–3: one real tool call,
+then prose claiming memory writes + a revision that never happened (all memory still carried round-1
+evidence ids). Same class as the orchestrator's measured chain-abandonment, now with fabrication.
+Fixes: `MONITOR_MODEL` (defaults to the orchestrator tier; the monitor's live task — dual lists + N
+writes + verdict — is a long chain), max_iters 12 for it, eval runs the monitor on the same tier
+(eval-live parity), and `output.toolAttempts` is now persisted on every lane run so a narrated-but-
+not-executed call is visible in the row itself, not just a live debugger.
+
+Also: pytest no longer network-dependent (fetch_decisions stubbed in fixtures — the running dev
+server had silently added hypothesis payloads to test assertions). pytest 44/44; monitor eval 2/2×2
+green on the live tier.

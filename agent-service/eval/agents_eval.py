@@ -316,9 +316,10 @@ def _run_once(scn: Scenario) -> dict:
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
+            model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL}.get(scn.slug)
             final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=task, ctx=ctx,
-                                     max_iters=12 if scn.slug == "orchestrator" else 8,
-                                     model=config.ORCHESTRATOR_MODEL if scn.slug == "orchestrator" else None)
+                                     max_iters=8 if scn.slug not in ("orchestrator", "monitor") else 12,
+                                     model=model)
     finally:
         tools.reset_context(token)
 

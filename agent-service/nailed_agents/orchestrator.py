@@ -205,27 +205,26 @@ def _skill(slug: str, fallback: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else fallback
 
 
-def _memory_hints(sb, *, kinds: tuple[str, ...], limit: int = 5) -> str:
+# how many hint rows each kind may contribute — measured lesson from the first live round-2: taking
+# only the NEWEST action_outcome surfaced the healthy control and dropped the 3.5× miss (the one
+# memory the next decision most needed). Outcomes/calibrations come in sets; verdicts don't.
+_HINTS_PER_KIND = {"merchant_preference": 3, "round_verdict": 1, "calibration": 3, "action_outcome": 3}
+
+
+def _memory_hints(sb, *, kinds: tuple[str, ...], limit: int = 8) -> str:
     """Deterministic pre-run memory hints (ADR-0015): code picks the few memories a lane structurally
-    needs — all merchant preferences (capped), then the newest row of each requested kind — so recall
-    never depends on the model remembering to search. Hints are priors, and the injected header says
-    so. Returns '' when memory is empty or the tables aren't migrated (loud WARN, run proceeds)."""
+    needs — newest rows per kind, capped by _HINTS_PER_KIND — so recall never depends on the model
+    remembering to search. Hints are priors, and the injected header says so. Returns '' when memory
+    is empty or the tables aren't migrated (loud WARN, run proceeds)."""
     try:
         rows = bus.fetch_memory(sb, config.MERCHANT_ID)
     except Exception:
         print("WARN agent_memory unavailable — apply migrations 0030+0032 (round runs without memory hints)")
         return ""
     picked: list[dict] = []
-    for r in rows:  # newest first
-        if r.get("kind") == "merchant_preference" and "merchant_preference" in kinds:
-            picked.append(r)
     for kind in kinds:
-        if kind == "merchant_preference":
-            continue
-        for r in rows:
-            if r.get("kind") == kind:
-                picked.append(r)
-                break  # newest of this kind only — search_memory is the tool for going deeper
+        cap = _HINTS_PER_KIND.get(kind, 1)
+        picked.extend([r for r in rows if r.get("kind") == kind][:cap])  # rows are newest-first
     picked = picked[:limit]
     if not picked:
         return ""
@@ -270,9 +269,19 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
     text = runner.run_agent(
         system=system,
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
+        # the monitor drives a multi-step write chain (outcomes + verdict + revision) — flash narrates
+        # instead of calling (measured live); it runs the strong tier, other lanes stay cheap.
+        model=config.MONITOR_MODEL if slug == "monitor" else None,
+        max_iters=12 if slug == "monitor" else 8,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
-    bus.finish_run(sb, run_id, output={"text": text}, transcript=ctx.transcript, status=status)
+    # toolAttempts persists the ATTEMPT log (incl. failed calls) — a lane that claims work in prose
+    # without tool calls is now visible in the row, not just in a live debugger (observability rule).
+    bus.finish_run(sb, run_id,
+                   output={"text": text,
+                           "toolAttempts": [{"tool": a["tool"], "status": a["status"], "error": a["error"]}
+                                            for a in ctx.tool_attempts]},
+                   transcript=ctx.transcript, status=status)
     return run_id, text
 
 

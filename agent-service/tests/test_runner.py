@@ -25,6 +25,7 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     monkeypatch.setattr(bus, "write_action", lambda sb, **kw: writes.append(kw))
     # place_ad now creates a REAL StyleAd campaign through the TS route (ADR-0012); stub that hop.
     monkeypatch.setattr(bus, "post_propose_ad", lambda *a, **k: {"ok": True, "id": "ad-s-1", "status": "active"})
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {})  # hypothesis hop (ADR-0015) — offline
 
     # fake client: 1st turn → call place_ad; 2nd turn → final text, no tool_calls
     responses = iter([

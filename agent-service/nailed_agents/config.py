@@ -84,6 +84,11 @@ _DEFAULT_ORCH_MODEL = {"anthropic": "claude-sonnet-4-6", "openrouter": "google/g
                        "gemini": "gemini-2.5-pro"}
 ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL") or _DEFAULT_ORCH_MODEL.get(MODEL_PROVIDER, AGENT_MODEL)
 
+# ADR-0015: the monitor is the second long-chain agent (N outcome writes + verdict + bounded revision).
+# Measured live 2026-07-11: on flash it made ONE tool call then NARRATED unperformed memory writes and
+# revisions — the exact orchestrator failure class, so it gets the same fix. One run per round.
+MONITOR_MODEL = os.environ.get("MONITOR_MODEL") or ORCHESTRATOR_MODEL
+
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
 #   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).
 #   "concept" (opt-in):  VLM concept per style (cached in style_concept) → Cohere embed → pgvector top-k
