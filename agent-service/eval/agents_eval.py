@@ -31,10 +31,12 @@ _M = "merchant-nailed-it"
 _ID_RE = re.compile(r"style-[\w-]+")
 
 # deterministic + offline: CN fixture external trends (no live Pinterest), tag matching (concept needs an
-# enriched DB), OpenRouter (the tool_attempts recorder only covers the OpenRouter loop for now).
+# enriched DB). The tool_attempts recorder only covers the OpenAI-compatible loop — "openrouter" or
+# "gemini" (direct Google endpoint, the credit fallback) both qualify; only anthropic is forced off.
 config.TREND_SOURCE = "fixture"
 config.MATCH_MODE = "tag"
-config.MODEL_PROVIDER = "openrouter"
+if config.MODEL_PROVIDER not in ("openrouter", "gemini"):
+    config.MODEL_PROVIDER = "openrouter"
 
 # the explicit target field per action type — compare THIS field, not a substring of the whole payload
 # (a message body mentioning "Rachel" must not satisfy a customerName target).
@@ -491,14 +493,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=4, help="runs per scenario for stability (4/4)")
     ap.add_argument("--judge", action="store_true", help="Phase C: LLM-judge open-ended quality (non-blocking)")
+    ap.add_argument("--only", default="", help="run only scenarios whose id contains this substring")
     args = ap.parse_args()
     n, judge = args.n, args.judge
-    if not config.OPENROUTER_API_KEY:  # bus is stubbed → no Supabase needed, just the model key
-        raise SystemExit("Missing OPENROUTER_API_KEY in .env.local (agent eval runs on OpenRouter).")
-    print(f"Agent eval (Phase A+B{'+C' if judge else ''}) — model={config.AGENT_MODEL} n={n}"
+    _key = config.GEMINI_API_KEY if config.MODEL_PROVIDER == "gemini" else config.OPENROUTER_API_KEY
+    if not _key:  # bus is stubbed → no Supabase needed, just the model key
+        raise SystemExit(f"Missing model API key in .env.local for MODEL_PROVIDER={config.MODEL_PROVIDER}.")
+    scenarios = [s for s in SCENARIOS if args.only in s.id]
+    print(f"Agent eval (Phase A+B{'+C' if judge else ''}) — provider={config.MODEL_PROVIDER} "
+          f"model={config.AGENT_MODEL} n={n} scenarios={len(scenarios)}"
           f"{' judges=' + ','.join(_JUDGE_MODELS) if judge else ''}\n" + "=" * 80)
     all_pass = True
-    for scn in SCENARIOS:
+    for scn in scenarios:
         try:
             r = evaluate(scn, n)
         except Exception as ex:

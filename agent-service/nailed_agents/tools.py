@@ -112,6 +112,8 @@ def _clean_style_id(value: str, *, required: bool = True) -> str:
 
 
 def _bounded_int(value: int, *, field: str, maximum: int) -> int:
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)  # JSON has no int type — Gemini's function-calling emits 7.0 for 7
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field}_invalid")
     if value <= 0:

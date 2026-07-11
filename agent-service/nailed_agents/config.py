@@ -1,8 +1,11 @@
 """Env config. Reuses the repo-root .env.local (Supabase keys live there).
 
-Two model providers, selected by MODEL_PROVIDER (one flag — same orchestrator, skills, tools either way):
+Three model providers, selected by MODEL_PROVIDER (one flag — same orchestrator, skills, tools either way):
   - "openrouter" (default demo): Gemini/GPT/etc via the OpenAI SDK pointed at OpenRouter. Needs
                                   OPENROUTER_API_KEY. One key covers many models.
+  - "gemini"     (fallback):     the SAME Gemini models via Google's OpenAI-compatible endpoint —
+                                  drop-in when OpenRouter credits run dry. Needs GEMINI_API_KEY
+                                  (already present for embeddings). Same loop, same recorder.
   - "anthropic"  (optional):     Claude via the Anthropic SDK `tool_runner`. Needs ANTHROPIC_API_KEY.
 """
 import os
@@ -25,6 +28,10 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # OpenRouter (default demo path) — OpenAI-compatible endpoint; one key → Gemini/GPT/Claude/etc.
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
+# Gemini direct (fallback path) — Google's OpenAI-compatible endpoint; model ids WITHOUT the
+# "google/" prefix (gemini-2.5-flash, gemini-2.5-pro). GEMINI_API_KEY is defined below (embeddings).
+GEMINI_BASE_URL = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
 
 # Supabase (shared bus)
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -67,12 +74,14 @@ PINTEREST_REDIRECT_URI = os.environ.get("PINTEREST_REDIRECT_URI", "https://local
 _DEFAULT_MODEL = {
     "anthropic": "claude-haiku-4-5",
     "openrouter": "google/gemini-2.5-flash",
+    "gemini": "gemini-2.5-flash",
 }
 AGENT_MODEL = os.environ.get("AGENT_MODEL") or _DEFAULT_MODEL.get(MODEL_PROVIDER, "google/gemini-2.5-flash")
 
 # ADR-0013 P1: the orchestrator drives a LONG multi-step dispatch chain — flash-tier models reliably
 # abandon it after one tool call. The round's brain runs a stronger model; lanes stay on AGENT_MODEL.
-_DEFAULT_ORCH_MODEL = {"anthropic": "claude-sonnet-4-6", "openrouter": "google/gemini-2.5-pro"}
+_DEFAULT_ORCH_MODEL = {"anthropic": "claude-sonnet-4-6", "openrouter": "google/gemini-2.5-pro",
+                       "gemini": "gemini-2.5-pro"}
 ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL") or _DEFAULT_ORCH_MODEL.get(MODEL_PROVIDER, AGENT_MODEL)
 
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
@@ -118,6 +127,16 @@ MAX_PENDING_PROPOSALS = int(os.environ.get("MAX_PENDING_PROPOSALS", "5"))
 # ADR-0013 P1: per-round orchestration guardrails (the LLM chooses; code bounds).
 MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "8"))
 
+# Sampling temperature for the OpenAI-compatible loop. Operations agents judge against bright-line
+# thresholds — low temperature is a feature (reproducible rounds, stable eval), not a limitation.
+# Default 1.0 measurably flip-flopped the monitor on identical inputs (gemini direct, 2026-07-11).
+AGENT_TEMPERATURE = float(os.environ.get("AGENT_TEMPERATURE", "0.2"))
+
+# Gemini-direct only: 2.5 models think by default and the thoughts consume max_tokens — measured as
+# one-tool-call-then-empty-response chain abandonment. "low" bounds the thinking budget so content
+# survives; valid for both flash (lanes) and pro (orchestrator, which can't disable thinking).
+GEMINI_REASONING_EFFORT = os.environ.get("GEMINI_REASONING_EFFORT", "low")
+
 
 def require_env() -> None:
     """Validate the env for the selected provider (Supabase always; the chosen model key)."""
@@ -129,8 +148,10 @@ def require_env() -> None:
         checks.append(("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY))
     elif MODEL_PROVIDER == "openrouter":
         checks.append(("OPENROUTER_API_KEY", OPENROUTER_API_KEY))
+    elif MODEL_PROVIDER == "gemini":
+        checks.append(("GEMINI_API_KEY", GEMINI_API_KEY))
     else:
-        raise SystemExit(f"Unknown MODEL_PROVIDER '{MODEL_PROVIDER}' — use 'anthropic' or 'openrouter'.")
+        raise SystemExit(f"Unknown MODEL_PROVIDER '{MODEL_PROVIDER}' — use 'anthropic', 'openrouter' or 'gemini'.")
 
     if TREND_SOURCE == "pinterest":
         checks += [("PINTEREST_APP_ID", PINTEREST_APP_ID), ("PINTEREST_APP_SECRET", PINTEREST_APP_SECRET)]

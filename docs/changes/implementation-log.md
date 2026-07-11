@@ -2053,3 +2053,23 @@ External audit round 2 — three context gaps verified at HEAD and fixed:
 - pytest 39/39 (new: `_upstream_context` routing/dedupe, `_execution_context` shape), tsc clean,
   seed parity 2/2. Deferred in ADR-0014: context-pack abstraction, fully-structured blackboard,
   memory-kind expansion. Live P2/P3 round still pending migration 0030 + OpenRouter top-up.
+
+## 2026-07-11 — Gemini-direct provider fallback; FIRST full all-green eval suite
+
+OpenRouter credits ran dry mid-eval (402). Added `MODEL_PROVIDER=gemini`: the same Gemini models via
+Google's OpenAI-compatible endpoint, reusing the existing OpenAI-format loop + tool_attempts recorder
+(`GEMINI_API_KEY` was already in .env.local for embeddings). Three provider-quirk fixes it surfaced:
+
+- **Integral floats from function-calling**: Gemini emits `7.0` for 7 → `_bounded_int` now coerces
+  integral floats (JSON has no int type; rejecting 7.0 was pedantry that broke real calls).
+- **Unbounded thinking ate max_tokens**: 2.5 models think by default on the direct endpoint; measured
+  as one-tool-call → empty-response chain abandonment. `GEMINI_REASONING_EFFORT=low` bounds it; the
+  loop also retries ONCE on a dead response (no content, no tool calls) before ending honestly.
+- **Temperature**: default 1.0 flip-flopped the monitor on identical inputs. `AGENT_TEMPERATURE=0.2`
+  — operations agents judging bright-line thresholds want reproducibility, not creativity.
+
+Eval hardening: `--only <substring>` scenario filter; provider-aware key check; scenario tool lists
+already import LANE_TOOLS (previous entry). **Result: `--n 2` full suite ALL BLOCKING GATES PASS on
+gemini-direct** — first complete all-green run (previous evidence was per-scenario across runs), and
+it re-validates the ADR-0014 monitor path post-skill-edit: the revision signature `('act-ad-8284',)`
+now comes from the INJECTED structured execution list, not hand-fed prose. pytest 39/39.

@@ -62,7 +62,11 @@ Set keys in the **repo-root `.env.local`** (Supabase keys are already there).
 - **`MODEL_PROVIDER=openrouter`** (default demo path) — Gemini/GPT/etc via the OpenAI SDK pointed at
   OpenRouter. Needs `OPENROUTER_API_KEY` (one key → many models). Default model
   `google/gemini-2.5-flash` (verified live); set `AGENT_MODEL=openai/gpt-4o-mini` etc. to switch.
-  A standalone `GEMINI_API_KEY` is **not** used — OpenRouter reaches Gemini via `OPENROUTER_API_KEY`.
+- **`MODEL_PROVIDER=gemini`** (credit fallback) — the SAME Gemini models via Google's OpenAI-compatible
+  endpoint, for when OpenRouter credits run dry. Needs `GEMINI_API_KEY` (already present for
+  embeddings). Model ids WITHOUT the `google/` prefix (defaults `gemini-2.5-flash` / `gemini-2.5-pro`).
+  Verified live: full eval suite all-green on this path (2026-07-11). Reasoning is bounded
+  (`GEMINI_REASONING_EFFORT=low`) — unbounded thinking ate `max_tokens` and dropped tool chains.
 - **`MODEL_PROVIDER=anthropic`** (optional direct-Claude path) — Claude via the SDK `tool_runner`
   (beta). Needs `ANTHROPIC_API_KEY`. Default model `claude-haiku-4-5`; set `AGENT_MODEL` to the
   desired Claude model before relying on this path.

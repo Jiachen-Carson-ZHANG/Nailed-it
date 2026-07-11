@@ -4,6 +4,8 @@ backends behind the MODEL_PROVIDER flag (see config):
   - anthropic  → Claude via the SDK's `tool_runner` (beta): reasons, calls a tool, loops. Prod path.
   - openrouter → Gemini/GPT/etc via the OpenAI SDK pointed at OpenRouter: a manual call→tool→call
                  loop in OpenAI function-call format. Cheap dev path.
+  - gemini     → the SAME manual loop pointed at Google's OpenAI-compatible endpoint (credit fallback
+                 when OpenRouter runs dry) — model ids without the "google/" prefix.
 
 Both drive the SAME tool bodies (tools.IMPL) and write into the SAME RunContext.transcript, so the
 orchestrator, skills, tools, and panel are provider-agnostic — only the model adapter differs."""
@@ -29,8 +31,11 @@ def _anthropic():
 def _openai():
     global _openai_client
     if _openai_client is None:
-        from openai import OpenAI  # lazy — only needed for the OpenRouter path
-        _openai_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+        from openai import OpenAI  # lazy — only needed for the OpenAI-compatible paths
+        if config.MODEL_PROVIDER == "gemini":
+            _openai_client = OpenAI(api_key=config.GEMINI_API_KEY, base_url=config.GEMINI_BASE_URL)
+        else:
+            _openai_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
     return _openai_client
 
 
@@ -39,7 +44,7 @@ def run_agent(*, system: str, tool_names: list[str], task: str, ctx: tools.RunCo
     The tool bodies append their own tool_call/action transcript steps; here we append reasoning."""
     token = tools.use_context(ctx)
     try:
-        if config.MODEL_PROVIDER == "openrouter":
+        if config.MODEL_PROVIDER in ("openrouter", "gemini"):
             return _run_openrouter(system, tool_names, task, ctx, max_tokens, max_iters, model)
         return _run_anthropic(system, tool_names, task, ctx, max_tokens, model)
     finally:
@@ -74,17 +79,25 @@ def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.Ru
         {"role": "system", "content": system},
         {"role": "user", "content": task},
     ]
+    extra = {"reasoning_effort": config.GEMINI_REASONING_EFFORT} if config.MODEL_PROVIDER == "gemini" else {}
     final_text = ""
+    retried_empty = False
     for _ in range(max_iters):
         resp = client.chat.completions.create(
             model=model or config.AGENT_MODEL, max_tokens=max_tokens, messages=messages, tools=schemas,
+            temperature=config.AGENT_TEMPERATURE, **extra,
         )
         msg = resp.choices[0].message
         if msg.content and msg.content.strip():
             ctx.transcript.append({"kind": "reasoning", "text": msg.content})
             final_text = msg.content
         if not msg.tool_calls:
-            break
+            if final_text or retried_empty:
+                break
+            # empty content AND no tool calls — a dead response (thinking ate the budget, or a
+            # transient provider hiccup). One retry; a second empty response ends the run honestly.
+            retried_empty = True
+            continue
         messages.append({
             "role": "assistant",
             "content": msg.content or "",
