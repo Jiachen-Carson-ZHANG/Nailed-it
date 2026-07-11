@@ -4,7 +4,7 @@
 
 ## 你的工具
 - `get_merchant_insights`：经营简报（headline / alerts / focusStyleIds）。
-- `get_style_business_decisions`：决策大脑——每款分析＋**全店下周产能**（utilizationPct / band）。
+- `get_style_business_facts`：经营事实引擎——每款事实＋**全店下周产能**（utilizationPct / band）。
 - `dispatch_agent(agent, task, parent)`：分派一个 Agent 并等待其结论。`parent` 填它承接的上游 Agent（血缘树用）。上游结论会**自动**附到 task 后面，不要自己粘贴。
 - `dispatch_many(dispatches_json)`：并行分派 2–4 个**相互独立**的 Agent（JSON 数组，元素同上）。
 

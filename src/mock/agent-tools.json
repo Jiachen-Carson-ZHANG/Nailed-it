@@ -24,7 +24,12 @@
     "submit_action_brief"
   ],
   "ad": [
-    "place_ad"
+    "get_ad_account_state",
+    "list_available_audiences",
+    "forecast_ad_plan",
+    "place_ad",
+    "update_ad_campaign",
+    "pause_ad_campaign"
   ],
   "coupon": [
     "set_group_buy_coupon"
