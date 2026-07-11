@@ -3,7 +3,7 @@ write agent_runs + agent_actions back. No business rules here — just I/O."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx
 from supabase import Client, create_client
@@ -83,8 +83,29 @@ def fetch_styles() -> dict[str, Any]:
     return resp.json()
 
 
-def agents_by_slug(sb: Client) -> dict[str, dict[str, Any]]:
-    rows = sb.table("agents").select("*").execute().data or []
+class AgentRow(TypedDict):
+    """One row of public.agents (migration 0022). Registry + UI metadata;
+    runtime tool truth is LANE_TOOLS (orchestrator.py), prompt truth is skills/*.md
+    with `instructions` as fallback."""
+
+    id: str
+    slug: str
+    name: str
+    role: str
+    instructions: str
+    tools: list[str]
+    version: int
+    created_at: str
+
+
+def agents_by_slug(sb: Client) -> dict[str, AgentRow]:
+    rows = (
+        sb.table("agents")
+        .select("id, slug, name, role, instructions, tools, version, created_at")
+        .execute()
+        .data
+        or []
+    )
     return {r["slug"]: r for r in rows}
 
 
