@@ -7,7 +7,15 @@ decisions, and the monitor can push back on this round's actions — both bounde
 ## Round blackboard: shared state without shared chaos
 
 `agent_rounds.blackboard` (migration `0030`) holds each lane's conclusion, keyed by lane, written
-**deterministically by Python** as lanes finish. Lanes read it via a read-only `read_blackboard` tool.
+**deterministically by Python** as lanes finish — plus one structured section, `executions`: the
+round's `agent_actions` rows (id, type, status, entity, payload), refreshed by code after each
+executor lane concludes (ADR-0014). Reading is two-layer: context a lane *structurally needs* is
+injected by Python before the run starts (`CONTEXT_POLICY` — 决策 always gets 数分+选品's
+conclusions, 监测 always gets the plan and the execution list with real action ids); the read-only
+`read_blackboard` tool is granted to 决策 and 监测 only, for mid-run consultation, never as the
+carrier of required context. An external audit caught the original sin here: the tool existed but no
+lane held it — a write-only blackboard — and the monitor had no path to the action ids its revision
+tool required. Both are now wired and eval-tested through the same code path the live round uses.
 
 Design deviation worth defending: the ADR draft gave agents *write* tools to the blackboard. We didn't
 ship that. Writes are Python-side because the orchestrator already has every conclusion in hand — LLM

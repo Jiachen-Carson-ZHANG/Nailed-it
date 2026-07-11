@@ -64,8 +64,9 @@ opens; everything below is dispatched by its tool loop.
 
 ### 决策 decision — flash (the synthesis point)
 
-- **Input**: parent=trend; **brain output via its own tool call**, briefing + trend conclusions in-context
-- **Tools**: `get_style_business_decisions`, `get_merchant_insights`, `get_agent_memory` (P2)
+- **Input**: parent=trend; since ADR-0014 the injection is multi-source — 数分's *and* 选品's
+  conclusions arrive in-context every round (`CONTEXT_POLICY`), regardless of which one is the parent
+- **Tools**: `get_style_business_decisions`, `get_merchant_insights`, `get_agent_memory` (P2), `read_blackboard` (optional)
 - **Tool output** (the brain, excerpt): `{"capacity": {"band": "very_idle", "utilizationPct": 33, "largestGapMin": 300}, "decisions": [{"styleId": …, "candidate": "ad|coupon|display_only|skip", "scores": {...}, "signals": [...], "ad": {"expectedRoas": …, "exposureRatio": …, "costPerBookingCents": …}, "suggestedCouponCents": …}, ×42]}`
 - **Runtime decisions actually made this round** (all with cited numbers):
   - **Overrode the trend agent** on 8265: trend said *amplify*, brain said `display_only` (ROAS 6.09 fine but `exposureRatio 1.575` — over-saturated) → 决策 sided with the brain: *"继续放大反而会降低效率，本轮不采取任何动作"*
@@ -115,9 +116,12 @@ opens; everything below is dispatched by its tool loop.
 
 ### 监测 monitor — flash
 
-- **Tools (P2/P3)**: `get_merchant_insights`, `get_campaign_outcomes`, `record_memory`, `request_revision` — the revision tool works ONLY here (RevisionPort)
+- **Tools (P2/P3)**: `get_merchant_insights`, `get_campaign_outcomes`, `record_memory`, `request_revision`, `read_blackboard` — the revision tool works ONLY here (RevisionPort)
+- **Injected input (ADR-0014)**: the round's structured execution list from `agent_actions` —
+  `[{id, type, status, risk, entity_id, payload}, …]` — the `id` field is what `request_revision` takes.
+  Sourced from the table by Python, never parsed from another agent's prose.
 - This round predates the P2 tables; behavior under P2/P3 is pinned by eval instead: over-spender
-  (¥200/day, spend/booking ¥280) → exactly one `request_revision`; healthy campaign → verdict recorded, zero revisions (both 2/2 stable)
+  (¥200/day, spend/booking ¥280) → exactly one `request_revision`; healthy campaign → verdict recorded, zero revisions (both 2/2 stable). The eval injects the execution list through the same formatter as the live path.
 
 ### One honest finding this trace surfaced
 
@@ -141,12 +145,12 @@ lives, bounded by per-argument validation.
 | orchestrator | 2 reads + dispatch_agent + dispatch_many | which lanes, order, parallelism, skips |
 | insight | get_merchant_insights | range window |
 | trend | 3 trend reads | which sources to corroborate with |
-| decision | brain + insights + memory | read order; the entire action plan (0..N) |
+| decision | brain + insights + memory + read_blackboard | read order; the entire action plan (0..N) |
 | ad | place_ad | targets, slots, budgets — or refuse to call at all |
 | coupon | set_group_buy_coupon | targets, prices — or refuse |
 | catalog | catalog reads + list/delist/propose | which candidates to act on (instructed: only the computed list) |
 | customer_ops | roster read + send message | who to contact, what to write |
-| monitor | insights + outcomes + record_memory + request_revision | verdicts; whether numbers justify a revision |
+| monitor | insights + outcomes + record_memory + request_revision + read_blackboard | verdicts; whether numbers justify a revision |
 
 Two tools are additionally gated by **capability objects** (not names): `dispatch_*` requires
 `ctx.round` (only the orchestrator's context has one), `request_revision` requires `ctx.revision`

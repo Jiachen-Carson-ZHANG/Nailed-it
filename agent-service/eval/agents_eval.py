@@ -24,6 +24,7 @@ from typing import Any
 from pathlib import Path
 
 from nailed_agents import bus, config, runner, tools
+from nailed_agents.orchestrator import LANE_TOOLS, ORCHESTRATOR_TOOLS
 
 _SKILLS = Path(__file__).resolve().parents[1] / "skills"
 _M = "merchant-nailed-it"
@@ -93,14 +94,14 @@ class Scenario:
 SCENARIOS = [
     Scenario(
         id="trend/8284-low-conversion", slug="trend",
-        tools=["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
+        tools=LANE_TOOLS["trend"],
         task="产出本周优先级选品机会清单：先调用 get_trend_opportunities，给出按机会分排序的 amplify / price_test / gap / prune 机会。",
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "opportunity", "action": "price_test", "target": "style-melissa-img-8284"},
     ),
     Scenario(
         id="customer_ops/lapsed-rachel", slug="customer_ops",
-        tools=["get_customer_intelligence", "send_customer_message"],
+        tools=LANE_TOOLS["customer_ops"],
         task="第一步必须调用 get_customer_intelligence 读取客户名册；挑一位最值得再营销的老客；最后必须调用 send_customer_message 真正发送（老板身份、简短回归消息）。",
         customers=_ROSTER,
         expect={"kind": "action", "action_type": "send_customer_message", "target": "Rachel Goh"},  # canonical full name
@@ -108,7 +109,7 @@ SCENARIOS = [
     ),
     Scenario(
         id="catalog/dead-8277-delist", slug="catalog",
-        tools=["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
+        tools=LANE_TOOLS["catalog"],
         task="先调用 get_catalog_actions；对 delist[] 中每个款调用 delist_style；对 propose[] 中每个缺口调用 propose_listing。只执行清单里的候选，不要自行判断。",
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "action", "action_type": "delist_style", "target": "style-melissa-img-8277"},
@@ -118,7 +119,7 @@ SCENARIOS = [
     # the decision says skip — the 投广 agent must not call place_ad just because it has the tool.
     Scenario(
         id="ad/full-capacity-skip", slug="ad",
-        tools=["place_ad"],
+        tools=LANE_TOOLS["ad"],
         task=(
             "根据以下决策处理投广：若决策中包含投广动作，调用 place_ad（top_funnel/lower_funnel/mid_funnel + 预算分）"
             "落地它；**若决策未选择投广，则不要调用任何工具**，直接说明本轮不投广。只处理投广那段：\n\n"
@@ -133,7 +134,7 @@ SCENARIOS = [
     # into a salon that cannot serve the demand is the exact failure the dynamic layer exists to prevent.
     Scenario(
         id="orchestrator/full-capacity-skips-spend", slug="orchestrator",
-        tools=["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
+        tools=ORCHESTRATOR_TOOLS,
         task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
         briefing=_LOWCONV_BRIEFING,
         decisions={"capacity": {"band": "full", "utilizationPct": 91, "largestGapMin": 30},
@@ -149,7 +150,7 @@ SCENARIOS = [
     # …and must dispatch exactly the lanes the decision chose when capacity is idle (ad yes, coupon no).
     Scenario(
         id="orchestrator/dispatches-chosen-lanes", slug="orchestrator",
-        tools=["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
+        tools=ORCHESTRATOR_TOOLS,
         task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
         briefing=_LOWCONV_BRIEFING,
         decisions={"capacity": {"band": "very_idle", "utilizationPct": 33, "largestGapMin": 300},
@@ -166,10 +167,10 @@ SCENARIOS = [
     # a live campaign burning budget at measured ROAS 1.2 with the round's decision estimating 4.1.
     Scenario(
         id="monitor/overspending-ad-revised-once", slug="monitor",
-        tools=["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
+        tools=LANE_TOOLS["monitor"],  # the real allow-list — scenario lists must not drift from it
         task=(
-            "本轮已落地投广动作（action id: act-ad-8284，款式 style-melissa-img-8284，日预算 20000 分，"
-            "决策时估算 ROAS 4.1）。请读取实测活动数据，写入记忆结论；若实测数字明确违背该动作，"
+            "本轮已落地投广动作（款式 style-melissa-img-8284，日预算 20000 分，决策时估算 ROAS 4.1）。"
+            "请读取实测活动数据，写入记忆结论；若实测数字明确违背该动作，"
             "用 request_revision 修订它（feedback 要具体带数字）。"
         ),
         briefing=_LOWCONV_BRIEFING,
@@ -184,10 +185,10 @@ SCENARIOS = [
     # …and must NOT revise when the measured numbers support the action (trigger-happy monitor = failure).
     Scenario(
         id="monitor/healthy-ad-no-revision", slug="monitor",
-        tools=["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
+        tools=LANE_TOOLS["monitor"],
         task=(
-            "本轮已落地投广动作（action id: act-ad-8265，款式 style-melissa-img-8265，日预算 5000 分，"
-            "决策时估算 ROAS 4.0）。请读取实测活动数据，写入记忆结论；仅当实测数字明确违背该动作时才修订。"
+            "本轮已落地投广动作（款式 style-melissa-img-8265，日预算 5000 分，决策时估算 ROAS 4.0）。"
+            "请读取实测活动数据，写入记忆结论；仅当实测数字明确违背该动作时才修订。"
         ),
         briefing=_LOWCONV_BRIEFING,
         campaigns=[{"id": "ad-style-melissa-img-8265", "merchant_style_id": "style-melissa-img-8265",
@@ -205,7 +206,8 @@ SCENARIOS = [
 def _stub_bus(scn: Scenario, captured: list[dict]):
     orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
             bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
-            bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action)
+            bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
+            bus.fetch_blackboard)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
@@ -215,6 +217,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     bus.upsert_memory = lambda sb, row: captured.append({"action_type": "memory", "payload": row})  # type: ignore[assignment]
     bus.fetch_action = lambda sb, action_id, merchant_id: scn.actions_by_id.get(action_id)  # type: ignore[assignment]
     bus.supersede_action = lambda sb, action_id: None                       # type: ignore[assignment]
+    bus.fetch_blackboard = lambda sb, round_id: {"executions": list(scn.actions_by_id.values())}  # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
     # eval stays offline while still exercising the real tool bodies + their action writes.
@@ -225,7 +228,8 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     finally:
         (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
          bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
-         bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action) = orig
+         bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
+         bus.fetch_blackboard) = orig
 
 
 def _skill(slug: str) -> str:
@@ -291,17 +295,23 @@ def _stub_round(scn: Scenario):
 def _run_once(scn: Scenario) -> dict:
     captured: list[dict] = []
     ctx = tools.RunContext(sb=object(), run_id=f"eval-{scn.id}", merchant_id=_M)
+    task = scn.task
     if scn.slug == "orchestrator":
         ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one
     if scn.slug == "monitor":
-        from nailed_agents.orchestrator import RevisionPort
+        from nailed_agents.orchestrator import RevisionPort, _execution_context
         # REAL RevisionPort guardrails; the re-dispatch returns a canned conclusion.
         ctx.revision = RevisionPort(sb=object(), merchant_id=_M, monitor_run_id=f"eval-{scn.id}",
                                     dispatch_fn=lambda slug, task, parent: (f"run-rev-{slug}", f"{slug} 已按反馈修订"))
+        # The execution list is injected through the SAME formatter as the live path (_run_lane) —
+        # the eval judges the monitor against the context format it will actually receive, never a
+        # hand-written prose approximation of it (ADR-0014).
+        if scn.actions_by_id:
+            task = f"{task}\n\n{_execution_context(list(scn.actions_by_id.values()))}"
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
-            final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=scn.task, ctx=ctx,
+            final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=task, ctx=ctx,
                                      max_iters=12 if scn.slug == "orchestrator" else 8,
                                      model=config.ORCHESTRATOR_MODEL if scn.slug == "orchestrator" else None)
     finally:

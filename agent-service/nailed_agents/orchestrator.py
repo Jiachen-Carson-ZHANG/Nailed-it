@@ -15,6 +15,7 @@ survives as the DEFAULT PLAN in skills/orchestrator.md — deviation requires a 
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from dataclasses import dataclass, field
@@ -34,6 +35,42 @@ _AGENT_TOOLS: dict[str, list[str]] = json.loads(_TOOLS_JSON.read_text(encoding="
 
 ORCHESTRATOR_TOOLS = _AGENT_TOOLS["orchestrator"]
 LANE_TOOLS: dict[str, list[str]] = {k: v for k, v in _AGENT_TOOLS.items() if k != "orchestrator"}
+
+# Deterministic context routing (ADR-0014): upstream conclusions injected BEYOND the dispatch parent.
+# The parent edge gives lineage; the policy gives a lane every conclusion its judgment structurally
+# needs — 决策 must see 数分's alerts even when its parent is 选品, and 监测 must see the plan it
+# measures against. Executors deliberately stay single-parent: their context is the decision plus
+# their own grounded read tools, not the whole round.
+CONTEXT_POLICY: dict[str, list[str]] = {
+    "decision": ["insight", "trend"],
+    "monitor": ["decision"],
+}
+
+# Lanes whose tools write agent_actions — after each of these concludes, the round's structured
+# execution list is refreshed onto the blackboard (code-written, never LLM prose).
+_EXECUTOR_LANES = {"ad", "coupon", "catalog", "customer_ops"}
+
+
+def _upstream_context(slug: str, parent_slug: str | None, results: dict[str, str]) -> list[tuple[str, str]]:
+    """Which upstream conclusions this lane sees: parent first, policy extras after, each once."""
+    ordered: list[str] = []
+    for s in [parent_slug or "", *CONTEXT_POLICY.get(slug, [])]:
+        if s and s in results and s not in ordered:
+            ordered.append(s)
+    return [(s, results[s]) for s in ordered]
+
+
+def _execution_context(actions: list[dict]) -> str:
+    """The monitor's structured execution list, formatted for injection. Sourced from agent_actions —
+    request_revision(action_id) needs real ids, and another agent's prose can't be trusted to carry
+    them. Used verbatim by the eval so the judged context format IS the live one."""
+    slim = [
+        {k: a.get(k) for k in ("id", "type", "status", "risk", "entity_id", "payload")}
+        for a in actions
+    ]
+    return "本轮执行清单（来自 agent_actions；request_revision 用其中的 id 字段）：\n" + json.dumps(
+        slim, ensure_ascii=False
+    )
 
 ORCH_TASK = (
     "编排今天这一轮门店运营（最近 {range_days} 天窗口）。\n"
@@ -141,6 +178,13 @@ def _skill(slug: str, fallback: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else fallback
 
 
+def _prompt_sha(system: str) -> str:
+    """Identity of the resolved system prompt (ADR-0014). agents.version can't version prompts —
+    skills/*.md is the prompt truth and editing it leaves the DB untouched; the sha pins which prompt
+    text actually produced a run, enabling prompt A/B across eval and live runs."""
+    return hashlib.sha256(system.encode("utf-8")).hexdigest()[:16]
+
+
 def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   slug: str, task: str, parent_run_id: str,
                   revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
@@ -149,17 +193,19 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
     with its fixed allow-list, finalize, return (run_id, final_text). Used by both normal dispatch and
     the revision edge (which parents to the monitor run and bypasses the one-per-agent rule — its own
     RevisionPort guardrails bound it instead)."""
+    system = _skill(slug, agents[slug]["instructions"])
     run_id = bus.start_run(
         sb, agent_id=agents[slug]["id"], trigger_source="event",
         parent_run_id=parent_run_id, input=input_extra or {},
         started_at=bus.now_iso(), round_id=round_id,
+        prompt_sha=_prompt_sha(system), agent_version=agents[slug].get("version"),
     )
     ctx = tools.RunContext(sb=sb, run_id=run_id, merchant_id=config.MERCHANT_ID,
                            range_days=range_days, round_id=round_id)
     if revision_port_factory is not None:
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     text = runner.run_agent(
-        system=_skill(slug, agents[slug]["instructions"]),
+        system=system,
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
@@ -169,12 +215,17 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
 
 def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id: str,
               round_id: str | None, slug: str, task: str, parent_slug: str | None) -> tuple[str, str]:
-    """One ORCHESTRATOR-dispatched lane run: resolve the symbolic parent, append the upstream conclusion
-    verbatim (deterministic context passing, no LLM copying), and — for the monitor — arm the bounded
-    RevisionPort (ADR-0013 P3) whose re-dispatches parent to the monitor's own run."""
+    """One ORCHESTRATOR-dispatched lane run: resolve the symbolic parent, inject the routed upstream
+    conclusions verbatim (deterministic context passing per CONTEXT_POLICY, no LLM copying), and — for
+    the monitor — inject the round's structured execution list and arm the bounded RevisionPort
+    (ADR-0013 P3) whose re-dispatches parent to the monitor's own run."""
     parent_run = state.dispatched.get(parent_slug or "", orch_run_id)
-    if parent_slug and parent_slug in state.results:
-        task = f"{task}\n\n上游「{parent_slug}」结论：\n{state.results[parent_slug][:2500]}"
+    for src, conclusion in _upstream_context(slug, parent_slug, state.results):
+        task = f"{task}\n\n上游「{src}」结论：\n{conclusion[:2500]}"
+    if slug == "monitor" and round_id:
+        actions = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
+        if actions:
+            task = f"{task}\n\n{_execution_context(actions)}"
 
     factory = None
     if slug == "monitor":
@@ -203,19 +254,24 @@ def run_round(range_days: int = 7) -> dict[str, str]:
         raise SystemExit(f"agents missing ({', '.join(sorted(missing))}) — run `npm run seed:agents` after migration 0022")
 
     round_id = bus.start_round(sb, config.MERCHANT_ID)  # None when 0030 unapplied (degrades loudly)
+    orch_system = _skill("orchestrator", agents["orchestrator"]["instructions"])
     orch_run = bus.start_run(
         sb, agent_id=agents["orchestrator"]["id"], trigger_source="manual",
         parent_run_id=None, input={"rangeDays": range_days}, started_at=bus.now_iso(), round_id=round_id,
+        prompt_sha=_prompt_sha(orch_system), agent_version=agents["orchestrator"].get("version"),
     )
     state = RoundState(dispatch_fn=None)
-    blackboard: dict[str, str] = {}
+    blackboard: dict[str, object] = {}
 
     def _dispatch(slug: str, task: str, parent: str | None) -> tuple[str, str]:
         run_id, text = _run_lane(sb, agents, range_days, state, orch_run, round_id, slug, task, parent)
         if round_id:
-            # The blackboard is the round's shared working state — written deterministically as lanes
-            # conclude, so read_blackboard shows every agent what stands so far.
+            # The blackboard is the round's shared working state, written deterministically by Python
+            # as lanes conclude — 决策/监测 hold read_blackboard to consult it mid-run (ADR-0014).
+            # `executions` is the one structured section: the round's agent_actions, from the table.
             blackboard[slug] = text[:1500]
+            if slug in _EXECUTOR_LANES:
+                blackboard["executions"] = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
             bus.update_blackboard(sb, round_id, blackboard)
         return run_id, text
 
@@ -227,7 +283,7 @@ def run_round(range_days: int = 7) -> dict[str, str]:
     )
     try:
         text = runner.run_agent(
-            system=_skill("orchestrator", agents["orchestrator"]["instructions"]),
+            system=orch_system,
             tool_names=ORCHESTRATOR_TOOLS,
             task=ORCH_TASK.format(range_days=range_days),
             ctx=ctx, max_tokens=3000, max_iters=14, model=config.ORCHESTRATOR_MODEL,

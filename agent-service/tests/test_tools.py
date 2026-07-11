@@ -332,3 +332,36 @@ def test_revision_budget_caps_per_round(ctx, monkeypatch):
     with pytest.raises(ValueError, match="revision_budget_exhausted"):
         tools.request_revision("act-2", "反馈 2")
     assert len(dispatched) == 2
+
+
+# ── context routing (ADR-0014): deterministic multi-source injection ──────────────────────────────
+
+def test_upstream_context_routes_parent_then_policy_extras_once():
+    from nailed_agents.orchestrator import _upstream_context
+
+    results = {"insight": "简报结论", "trend": "机会结论", "decision": "动作结论"}
+    # decision parented to trend gets trend (parent) + insight (policy extra), each once
+    assert _upstream_context("decision", "trend", results) == [
+        ("trend", "机会结论"), ("insight", "简报结论"),
+    ]
+    # parent==policy source deduped; missing sources skipped silently
+    assert _upstream_context("decision", "insight", {"insight": "简报结论"}) == [("insight", "简报结论")]
+    # monitor gets decision even when its dispatch parent is an executor
+    assert _upstream_context("monitor", "ad", {"ad": "投广结论", "decision": "动作结论"}) == [
+        ("ad", "投广结论"), ("decision", "动作结论"),
+    ]
+    # lanes without a policy stay single-parent
+    assert _upstream_context("ad", "decision", results) == [("decision", "动作结论")]
+
+
+def test_execution_context_carries_action_ids_for_revision():
+    from nailed_agents.orchestrator import _execution_context
+
+    text = _execution_context([
+        {"id": "act-1", "run_id": "r1", "type": "place_ad", "status": "applied", "risk": "reversible",
+         "entity_id": "ad-style-1", "payload": {"budgetCents": 5000}, "extra_noise": "dropped"},
+    ])
+    data = json.loads(text.split("：\n", 1)[1])
+    assert data == [{"id": "act-1", "type": "place_ad", "status": "applied", "risk": "reversible",
+                     "entity_id": "ad-style-1", "payload": {"budgetCents": 5000}}]
+    assert "request_revision" in text  # the injection tells the monitor what the ids are FOR

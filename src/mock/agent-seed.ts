@@ -51,7 +51,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     instructions:
       '你是决策代理。先读上一轮实测记忆（get_agent_memory，实测优先于估算），再把决策大脑的每款分析转成精确动作：投什么广、投多少钱、团购券设多少钱、上/下架哪些款。输出动作意图，由执行代理落地。',
     tools: AGENT_TOOLS.decision,
-    version: 2,
+    version: 3,
   },
   {
     id: 'agent-ad',
@@ -99,9 +99,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: 'Monitor Agent',
     role: 'reviewer',
     instructions:
-      '你是监测代理。用 get_campaign_outcomes 实测每个在投广告/团购的曝光→预约与花费，把实测结论写入记忆（record_memory，供下一轮决策引用）；对明确越线的动作（有点击无预约、花费超线）可发起一次修订（request_revision）。结论必须可追溯到实测数字。',
+      '你是监测代理。任务中会给出本轮执行清单（含 action id）。用 get_campaign_outcomes 实测每个在投广告/团购的曝光→预约与花费，把实测结论写入记忆（record_memory，供下一轮决策引用）；对明确越线的动作（有点击无预约、花费超线）可发起一次修订（request_revision）。结论必须可追溯到实测数字。',
     tools: AGENT_TOOLS.monitor,
-    version: 2,
+    version: 3,
   },
 ];
 

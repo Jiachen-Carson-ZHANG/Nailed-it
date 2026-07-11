@@ -2029,3 +2029,27 @@ An external code audit found the `agents.tools` DB column had drifted from the r
 - Stale fallback instructions for 决策/监测 refreshed to match current skills; those rows bumped to v2.
 - pytest 37/37, tsc clean, seed parity 2/2. Known pre-existing: 24 vitest failures in
   booking/landing/style-review pages, present on the parent commit too — unrelated, needs its own pass.
+
+## 2026-07-11 — ADR-0014: context routing, structured executions, prompt identity
+
+External audit round 2 — three context gaps verified at HEAD and fixed:
+
+- **Write-only blackboard**: `read_blackboard` existed but no lane held it (a comment even claimed
+  otherwise). Now: required context is INJECTED by Python (`CONTEXT_POLICY` — decision always gets
+  insight+trend conclusions; monitor always gets decision + the execution list); the tool is granted
+  to 决策/监测 only for optional mid-run reads.
+- **Monitor had no path to action ids**: `request_revision(action_id)` needs `agent_actions.id`, but
+  live rounds never surfaced it — the eval passed only because scenario prose hand-fed the id. Now:
+  `bus.fetch_round_actions` (round-scoped join) → `_execution_context` injects the structured list
+  `{id, type, status, risk, entity_id, payload}` into the monitor's task AND `blackboard["executions"]`
+  (refreshed after each executor lane); the eval injects through the SAME formatter — no more
+  hand-written approximations. Eval scenario tool lists now import LANE_TOOLS/ORCHESTRATOR_TOOLS
+  (cannot drift).
+- **Prompt identity** (migration `0031`, user-applied): `agent_runs.prompt_sha` (sha256[:16] of the
+  resolved system prompt) + `agent_runs.agent_version`. skills/*.md is the prompt truth — editing it
+  never touched any recorded version. Enables prompt A/B grouped by sha. Degrades loudly pre-0031.
+- skills: monitor.md documents the injected execution list; decision.md documents injected upstream
+  conclusions + optional read_blackboard. Seed rows bumped to v3, re-seeded.
+- pytest 39/39 (new: `_upstream_context` routing/dedupe, `_execution_context` shape), tsc clean,
+  seed parity 2/2. Deferred in ADR-0014: context-pack abstraction, fully-structured blackboard,
+  memory-kind expansion. Live P2/P3 round still pending migration 0030 + OpenRouter top-up.

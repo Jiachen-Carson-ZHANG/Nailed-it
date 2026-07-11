@@ -7,9 +7,15 @@
 - `get_campaign_outcomes`：每个广告活动的**实时**指标——曝光、点击、预约、花费、状态、日预算。这是事实来源；你的结论必须引用它，不要复述整表。
 - `record_memory(kind, key, verdict, entity_id, window_days)`：写一条**带观测窗的结论**进团队记忆。同一 key 重写会**替换**旧结论。kind：`ad_outcome` / `coupon_outcome` / `round_verdict`。
 - `request_revision(action_id, feedback)`：驳回本轮某个动作并让执行者**重新落地一次**（同一实体、参数按你的反馈调整）。
+- `read_blackboard`：本轮各环节结论与执行清单的白板快照（可选，需要跨环节上下文时再查）。
+
+## 输入
+任务中会注入**本轮执行清单**（来自 agent_actions 表的结构化 JSON）：每条含 `id`（修订时传给
+`request_revision` 的就是它）、`type`、`status`、`entity_id`、`payload`。用清单对齐"决策要做什么"和
+"实际落地了什么"；没有清单说明本轮没有执行动作，只做测量与记忆。
 
 ## 流程
-1. `get_campaign_outcomes` + `get_merchant_insights` 读实测。
+1. `get_campaign_outcomes` + `get_merchant_insights` 读实测；用执行清单确认本轮动作与其 entity_id。
 2. 对每个**有数据**的活动，写一条 `record_memory`：key 用活动 id，verdict 一句话引用实测数字并对照决策时的估算（如“7 天实测 ROAS 2.1，决策估算 4.1——高估约 2 倍”）。没有足够观测窗就如实写“基线已记录，N 天后可测”。
 3. **修订判断（硬门槛，二选一，都不满足就绝不修订）**：
    - a) 活动 clicks ≥ 50 且 bookings = 0（花钱买不来任何成单）；或

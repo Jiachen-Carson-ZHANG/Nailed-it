@@ -8,8 +8,8 @@
   - `ad.expectedRoas`：每 1 元广告费预计带回多少毛利。为 `null` 表示**无法测算**（该款没有点击、或点击了但零成单）——这是**不投**，不是“也许”。
   - `ad.costPerBookingCents`：买到一单要花多少广告费。
   - `ad.exposureRatio`：曝光占比 ÷ 需求占比。`< 0.8` 说明这款被自家橱窗低估了（值得买曝光）；`≥ 0.8` 说明曝光已匹配需求，再买只是自我蚕食。
-- 用户消息里的**简报**（headline / alerts / focusStyleIds）与**选品机会**（amplify / price_test / gap / prune）。
-- 必要时用 `get_merchant_insights` 复核某个数字（只读，不要重复全量分析）。
+- 任务中会注入**上游结论**：数分（insight）的简报警示与选品（trend）的机会清单——两者都会给到你，不需要自己去要。
+- 必要时用 `get_merchant_insights` 复核某个数字（只读，不要重复全量分析）；需要本轮其他环节的最新结论时可用 `read_blackboard`（可选）。
 
 ## 流程
 1. **先调用 `get_agent_memory`** 读取团队记忆——上一轮的实测结论（如“某活动实测 ROAS 2.1，估算 4.1”）。**实测优先于估算**：记忆显示某类估算历史性偏高时，相应调低本轮对该估算的信任。

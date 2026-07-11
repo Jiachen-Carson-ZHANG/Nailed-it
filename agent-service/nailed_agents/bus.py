@@ -118,10 +118,14 @@ def start_run(
     input: dict[str, Any],
     started_at: str,
     round_id: str | None = None,
+    prompt_sha: str | None = None,
+    agent_version: int | None = None,
 ) -> str:
     """Insert a `running` run and return its id, so the tool-call loop's action tools can write
     agent_actions against it mid-run. Finalize with finish_run(). round_id groups the round's runs
-    (ADR-0013 P2); omitted when migration 0030 is unapplied so old DBs keep working."""
+    (ADR-0013 P2); omitted when migration 0030 is unapplied so old DBs keep working.
+    prompt_sha/agent_version snapshot WHICH prompt produced this run (ADR-0014) — skills/*.md edits
+    change behavior without touching agents.version, so runs must pin the resolved prompt identity."""
     row: dict[str, Any] = {
         "agent_id": agent_id,
         "merchant_id": config.MERCHANT_ID,
@@ -134,7 +138,20 @@ def start_run(
     }
     if round_id is not None:
         row["round_id"] = round_id
-    res = sb.table("agent_runs").insert(row).execute()
+    if prompt_sha is not None:
+        row["prompt_sha"] = prompt_sha
+    if agent_version is not None:
+        row["agent_version"] = agent_version
+    try:
+        res = sb.table("agent_runs").insert(row).execute()
+    except Exception as e:  # noqa: BLE001 — degrade with intent + log (observability rule)
+        if _is_missing_column(e) and ("prompt_sha" in row or "agent_version" in row):
+            print("WARN agent_runs.prompt_sha/agent_version missing — apply migration 0031_run_prompt_identity.sql (runs proceed without prompt snapshot)")
+            row.pop("prompt_sha", None)
+            row.pop("agent_version", None)
+            res = sb.table("agent_runs").insert(row).execute()
+        else:
+            raise
     return res.data[0]["id"]
 
 
@@ -156,6 +173,11 @@ def finish_run(
 def _is_missing_table(err: Exception) -> bool:
     msg = str(err)
     return "PGRST205" in msg or "does not exist" in msg or "schema cache" in msg
+
+
+def _is_missing_column(err: Exception) -> bool:
+    msg = str(err)
+    return "PGRST204" in msg or "does not exist" in msg or "schema cache" in msg
 
 
 def start_round(sb: Client, merchant_id: str) -> str | None:
@@ -216,6 +238,24 @@ def fetch_memory(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
         .execute()
     )
     return res.data or []
+
+
+def fetch_round_actions(sb: Client, merchant_id: str, round_id: str) -> list[dict[str, Any]]:
+    """This round's execution list — every agent_action written by the round's runs, structured
+    (ADR-0014). The monitor's revision edge needs real action ids + entity ids + statuses, and it must
+    get them from the table, never from another agent's prose."""
+    res = (
+        sb.table("agent_actions")
+        .select("id, run_id, type, risk, status, payload, entity_type, entity_id, agent_runs!inner(round_id)")
+        .eq("merchant_id", merchant_id)
+        .eq("agent_runs.round_id", round_id)
+        .order("created_at")
+        .execute()
+    )
+    rows = res.data or []
+    for r in rows:
+        r.pop("agent_runs", None)  # join artifact — the filter's, not the caller's
+    return rows
 
 
 def fetch_action(sb: Client, action_id: str, merchant_id: str) -> dict[str, Any] | None:
