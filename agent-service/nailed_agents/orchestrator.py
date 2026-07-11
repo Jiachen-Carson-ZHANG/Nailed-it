@@ -252,6 +252,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   slug: str, task: str, parent_run_id: str,
                   revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
                   brief_sink: Callable[[dict], None] | None = None,
+                  briefs: list[dict] | None = None,
                   input_extra: dict | None = None) -> tuple[str, str]:
     """The lane-run core: open a running agent_run under an explicit parent, drive the lane's tool loop
     with its fixed allow-list, finalize, return (run_id, final_text). Used by both normal dispatch and
@@ -270,6 +271,8 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     if brief_sink is not None:
         ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
+    if briefs:
+        ctx.briefs = briefs  # executor lanes — place_ad/update enforce the brief ceilings as law
     text = runner.run_agent(
         system=system,
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
@@ -352,6 +355,7 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         sb, agents, range_days, round_id, slug, task, parent_run,
         revision_port_factory=factory,
         brief_sink=_sink if slug == "decision" else None,
+        briefs=[b for b in state.briefs if b.get("action_type") == slug] if slug in ("ad", "coupon") else None,
         # `task` here is the FINAL rendered task (after context injection) — persisted so a run's
         # behavior is attributable to what the model actually saw, not the pre-injection template.
         input_extra={"parentSlug": parent_slug, "dispatchedBy": orch_run_id,

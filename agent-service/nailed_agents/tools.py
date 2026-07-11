@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 from anthropic import beta_tool
 
-from . import bus, config, trend_logic, trends_source
+from . import bus, config, sandbox, trend_logic, trends_source
 
 __all__ = [
     "RunContext",
@@ -63,6 +63,9 @@ class RunContext:
     # ADR-0016 §2: set ONLY on the decision agent's context — a callable that files an Action Brief
     # onto the round. None everywhere else, so no other lane can author briefs.
     brief_sink: Any = None
+    # ADR-0016 §2: the briefs governing THIS executor run (ad/coupon lanes) — place_ad/update enforce
+    # their ceilings as hard law; empty for non-executor lanes and revision re-runs predating briefs.
+    briefs: list[dict[str, Any]] = field(default_factory=list)
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
@@ -85,7 +88,6 @@ def _ctx() -> RunContext:
 
 
 _STYLE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,120}$")
-_AD_SLOTS = {"top_funnel", "lower_funnel", "mid_funnel"}
 _MAX_AD_BUDGET_CENTS = 200_000
 _MAX_COUPON_PRICE_CENTS = 100_000
 _MAX_TEXT_CHARS = 280
@@ -256,28 +258,165 @@ def _decision_hypothesis(style_id: str, *, lever: str) -> dict[str, Any] | None:
     return hypo or None
 
 
-def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
-    """Run an ad for a published style in a funnel slot. slot must be one of 'top_funnel',
-    'lower_funnel', 'mid_funnel'. budget_cents is the daily ad budget in cents. This creates a REAL ad
-    campaign the merchant can see and stop in 投广中心 — inside the merchant's budget cap it launches
-    immediately (spend is a withdrawable daily drip); above the cap it is left as a draft for the merchant
-    to launch. Reversible: the merchant can pause or stop the campaign."""
+# ── ad sandbox tools (ADR-0016 §3-4) — the 投广 agent's world ────────────────────────────────────
+
+def _style_facts(style_id: str) -> dict[str, Any]:
+    """Forecast inputs from the business engine's facts. Unknown CVR degrades to a conservative
+    default with a warning downstream — wide uncertainty, never a refusal to think."""
+    try:
+        brain = bus.fetch_decisions() or {}
+    except Exception:
+        brain = {}
+    for d in brain.get("decisions", []):
+        if d.get("styleId") == style_id:
+            ad = d.get("ad") or {}
+            return {
+                "style_cvr": ad.get("clickToBookingRate") or 0.03,
+                "cvr_measured": ad.get("clickToBookingRate") is not None,
+                "service_minutes": d.get("durationMin") or 60,
+                "contribution_profit_cents": ad.get("expectedProfitPerBookingCents")
+                    or round((d.get("priceCents") or 8800) * 0.79),
+            }
+    return {"style_cvr": 0.03, "cvr_measured": False, "service_minutes": 60,
+            "contribution_profit_cents": 6900}
+
+
+def _my_briefs(ctx: RunContext, action_type: str) -> list[dict]:
+    return [b for b in (ctx.briefs or []) if b.get("action_type") == action_type]
+
+
+def get_ad_account_state() -> str:
+    """The merchant's ad account: remaining marketing budget, committed budget on live/draft
+    campaigns, the auto-execute limit (campaigns whose DAILY budget exceeds it become drafts awaiting
+    the merchant), and every existing campaign (avoid duplicating a style that already has one —
+    modify it with update_ad_campaign instead)."""
+    ctx = _ctx()
+    campaigns = bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)
+    committed = sum(
+        (c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4))
+        for c in campaigns if c.get("status") in ("active", "draft")
+    )
+    state = {
+        "marketing_budget_cents": config.MARKETING_BUDGET_CENTS,
+        "committed_budget_cents": committed,
+        "remaining_budget_cents": max(0, config.MARKETING_BUDGET_CENTS - committed),
+        "auto_execute_daily_limit_cents": 5000,
+        "campaigns": [
+            {k: c.get(k) for k in ("id", "merchant_style_id", "status", "audience",
+                                    "daily_budget_cents", "total_budget_cents", "version")}
+            for c in campaigns
+        ],
+    }
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_ad_account_state", "input": {}, "output": state})
+    return json.dumps(state, ensure_ascii=False)
+
+
+def list_available_audiences() -> str:
+    """The targetable audience segments: size, intent level, funnel stage, description. Small
+    high-intent pools convert far better but saturate fast (frequency fatigue) — bigger budgets on a
+    small pool buy repeat eyeballs, not more intent."""
+    ctx = _ctx()
+    out = [
+        {"audience": aid, "size": a["size"], "intent": a["intent"], "funnel": a["funnel"],
+         "description": a["description"]}
+        for aid, a in sandbox.AUDIENCES.items()
+    ]
+    ctx.transcript.append({"kind": "tool_call", "tool": "list_available_audiences", "input": {}, "output": out})
+    return json.dumps(out, ensure_ascii=False)
+
+
+def forecast_ad_plan(style_id: str, audience: str, total_budget_cents: int, duration_days: int = 4) -> str:
+    """Pre-launch forecast for ONE candidate plan — expected impressions/clicks/bookings/CPA/booked
+    minutes as RANGES with saturation + warnings. Compare plans by re-calling with different
+    audience/budget/duration; forecasts are estimates from historical priors, actual results can and
+    do diverge. Do NOT optimise for impressions — bookings, CPA, profit, and capacity fit are the
+    goals that matter."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
-    if not isinstance(slot, str) or slot not in _AD_SLOTS:
-        raise ValueError("slot_invalid")
-    budget_cents = _bounded_int(budget_cents, field="budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
+    total_budget_cents = _bounded_int(total_budget_cents, field="total_budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
+    duration_days = _bounded_int(duration_days, field="duration_days", maximum=30)
+    facts = _style_facts(style_id)
+    fc = sandbox.forecast(
+        audience=audience, total_budget_cents=total_budget_cents, duration_days=duration_days,
+        style_cvr=facts["style_cvr"], service_minutes=facts["service_minutes"],
+        contribution_profit_cents=facts["contribution_profit_cents"],
+    )
+    if not facts["cvr_measured"]:
+        fc["confidence"] = min(fc["confidence"], 0.4)
+        fc["warnings"].append("该款没有实测点击→预约样本，预测使用保守默认值——不确定性很高。")
+    # brief guardrails surface as warnings at forecast time (hard refusal happens at place time)
+    for b in _my_briefs(ctx, "ad"):
+        if b.get("style_id") == style_id:
+            if total_budget_cents > b["max_total_budget_cents"]:
+                fc["warnings"].append("该预算超出行动简报的硬上限——place_ad 会拒绝。")
+            cap = b.get("max_cost_per_booking_cents")
+            if cap and fc["expected_cost_per_booking_cents"] and fc["expected_cost_per_booking_cents"][0] > cap:
+                fc["warnings"].append("预计每单成本区间下限已超简报 CAC 上限——考虑换受众或降预算。")
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "forecast_ad_plan",
+         "input": {"styleId": style_id, "audience": audience, "totalBudgetCents": total_budget_cents,
+                    "durationDays": duration_days},
+         "output": fc}
+    )
+    return json.dumps(fc, ensure_ascii=False)
 
-    result = bus.post_propose_ad(style_id, budget_cents, ctx.run_id)
+
+def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_days: int = 4) -> str:
+    """Create the campaign for your CHOSEN plan (run forecast_ad_plan first — the winning plan's
+    forecast is snapshotted as the hypothesis the monitor later measures against). Hard rules enforced
+    here: the Action Brief's budget ceiling, audience validity, one campaign per style (use
+    update_ad_campaign to modify an existing one). Daily budget = total/duration; within the
+    merchant's auto-execute limit it launches as a withdrawable drip, above it it lands as a draft the
+    merchant must launch. If no viable plan exists inside the brief, do NOT place — report the
+    objective infeasible with the forecast evidence instead."""
+    ctx = _ctx()
+    style_id = _clean_style_id(style_id)
+    if audience not in sandbox.AUDIENCES:
+        raise ValueError("audience_unknown")
+    total_budget_cents = _bounded_int(total_budget_cents, field="total_budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
+    duration_days = _bounded_int(duration_days, field="duration_days", maximum=30)
+
+    # Action Brief = hard law for the executor (ADR-0016 §2): when briefs exist, the target style
+    # must be briefed and the budget must sit inside its ceiling.
+    briefs = _my_briefs(ctx, "ad")
+    if briefs:
+        mine = next((b for b in briefs if b.get("style_id") == style_id), None)
+        if mine is None:
+            raise ValueError("style_not_in_brief")
+        if total_budget_cents > mine["max_total_budget_cents"]:
+            raise ValueError("budget_exceeds_brief")
+
+    daily_budget_cents = max(1, round(total_budget_cents / duration_days))
+    result = bus.post_propose_ad(style_id, daily_budget_cents, ctx.run_id)
     if not result.get("ok"):
         raise ValueError(f"propose_ad_failed: {result.get('errors')}")
     entity_id, entity_status = result["id"], result["status"]  # 'active' | 'draft'
     action_status = "applied" if entity_status == "active" else "proposed"
 
-    payload = {"styleId": style_id, "slot": slot, "budgetCents": budget_cents}
-    hypothesis = _decision_hypothesis(style_id, lever="ad")
-    if hypothesis:
-        payload["hypothesis"] = hypothesis  # prediction snapshot — the monitor's calibration baseline
+    # persist sandbox config on the campaign (audience/total budget/version) — pre-0033 degrades
+    try:
+        bus.update_campaign(ctx.sb, entity_id, ctx.merchant_id,
+                            {"audience": audience, "total_budget_cents": total_budget_cents,
+                             "duration_days": duration_days})
+    except Exception:
+        print("WARN campaign sandbox columns missing — apply migration 0033_ad_sandbox.sql")
+
+    facts = _style_facts(style_id)
+    fc = sandbox.forecast(audience=audience, total_budget_cents=total_budget_cents,
+                          duration_days=duration_days, style_cvr=facts["style_cvr"],
+                          service_minutes=facts["service_minutes"],
+                          contribution_profit_cents=facts["contribution_profit_cents"])
+    payload = {
+        "styleId": style_id, "audience": audience, "totalBudgetCents": total_budget_cents,
+        "durationDays": duration_days, "dailyBudgetCents": daily_budget_cents,
+        # the CHOSEN plan's forecast is the hypothesis — measured outcomes are judged against it
+        "hypothesis": {
+            "expectedBookings": fc["expected_bookings"],
+            "expectedCostPerBookingCents": fc["expected_cost_per_booking_cents"],
+            "expectedClicks": fc["expected_clicks"],
+            "audience": audience,
+        },
+    }
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="place_ad", payload=payload,
         status=action_status, entity_type="style_ad", entity_id=entity_id,
@@ -289,11 +428,85 @@ def place_ad(style_id: str, slot: str, budget_cents: int) -> str:
     launched = entity_status == "active"
     ctx.transcript.append(
         {"kind": "action", "actionType": "place_ad", "status": action_status,
-         "summary": f"投广：{style_id} · {slot} · 日预算 {budget_cents / 100:g}"
-                    + ("（已投放，可随时暂停）" if launched else "（超出预算上限，待商家启动）")}
+         "summary": f"投广：{style_id} · {audience} · 总预算 {total_budget_cents / 100:g}（{duration_days} 天）"
+                    + ("（已投放，可随时暂停）" if launched else "（超出自动投放上限，待商家启动）")}
     )
     verb = "launched" if launched else "left as a draft for the merchant to launch"
-    return f"Ad campaign {entity_id} for {style_id} ({slot}, {budget_cents} cents/day) {verb}."
+    return (f"Ad campaign {entity_id} for {style_id} ({audience}, {total_budget_cents} cents total / "
+            f"{duration_days}d) {verb}.")
+
+
+def update_ad_campaign(campaign_id: str, total_budget_cents: int = 0, audience: str = "",
+                       duration_days: int = 0) -> str:
+    """Modify the SAME campaign in place — budget, audience, and/or duration (a revision NEVER forks a
+    parallel campaign; the version increments). Allowed on draft/active/paused campaigns. Use after a
+    monitor revision (e.g. broad audience delivered clicks but zero bookings → switch to retargeting
+    with a lower budget) or when your own forecast comparison says the current config is wrong."""
+    ctx = _ctx()
+    campaign_id = _clean_text(campaign_id, field="campaign_id", max_chars=140)
+    campaigns = {c["id"]: c for c in bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)}
+    cur = campaigns.get(campaign_id)
+    if cur is None:
+        raise ValueError("campaign_not_found")
+    if cur.get("status") == "ended":
+        raise ValueError("campaign_ended")
+    fields: dict[str, Any] = {}
+    changes: list[str] = []
+    if audience:
+        if audience not in sandbox.AUDIENCES:
+            raise ValueError("audience_unknown")
+        fields["audience"] = audience
+        changes.append(f"受众→{audience}")
+    if total_budget_cents:
+        total_budget_cents = _bounded_int(total_budget_cents, field="total_budget_cents",
+                                          maximum=_MAX_AD_BUDGET_CENTS)
+        for b in _my_briefs(ctx, "ad"):
+            if b.get("style_id") == cur.get("merchant_style_id") and total_budget_cents > b["max_total_budget_cents"]:
+                raise ValueError("budget_exceeds_brief")
+        days = duration_days or cur.get("duration_days") or 4
+        fields["total_budget_cents"] = total_budget_cents
+        fields["daily_budget_cents"] = max(1, round(total_budget_cents / days))
+        changes.append(f"总预算→{total_budget_cents / 100:g}")
+    if duration_days:
+        fields["duration_days"] = _bounded_int(duration_days, field="duration_days", maximum=30)
+        changes.append(f"时长→{duration_days}天")
+    if not fields:
+        raise ValueError("nothing_to_update")
+    fields["version"] = (cur.get("version") or 1) + 1
+    bus.update_campaign(ctx.sb, campaign_id, ctx.merchant_id, fields)
+
+    payload = {"campaignId": campaign_id, "changes": fields,
+               "styleId": cur.get("merchant_style_id")}
+    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="update_ad_campaign", payload=payload,
+                     status="applied", entity_type="style_ad", entity_id=campaign_id)
+    ctx.transcript.append({"kind": "tool_call", "tool": "update_ad_campaign", "input": payload,
+                           "output": {"version": fields["version"]}})
+    ctx.transcript.append({"kind": "action", "actionType": "update_ad_campaign", "status": "applied",
+                           "summary": f"修改广告 {campaign_id}（v{fields['version']}）：{'、'.join(changes)}"})
+    return f"Campaign {campaign_id} updated in place (v{fields['version']}): {', '.join(changes)}."
+
+
+def pause_ad_campaign(campaign_id: str) -> str:
+    """Pause an ACTIVE campaign — the stop-loss when continuing to spend is unjustifiable (e.g. the
+    stop conditions in the brief were hit). Paused campaigns keep their history and can be resumed by
+    the merchant; pausing is always reversible."""
+    ctx = _ctx()
+    campaign_id = _clean_text(campaign_id, field="campaign_id", max_chars=140)
+    campaigns = {c["id"]: c for c in bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)}
+    cur = campaigns.get(campaign_id)
+    if cur is None:
+        raise ValueError("campaign_not_found")
+    if not sandbox.can_transition(str(cur.get("status")), "paused"):
+        raise ValueError(f"cannot_pause_{cur.get('status')}")
+    bus.update_campaign(ctx.sb, campaign_id, ctx.merchant_id, {"status": "paused"})
+    payload = {"campaignId": campaign_id, "styleId": cur.get("merchant_style_id")}
+    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="pause_ad_campaign", payload=payload,
+                     status="applied", entity_type="style_ad", entity_id=campaign_id)
+    ctx.transcript.append({"kind": "tool_call", "tool": "pause_ad_campaign", "input": payload,
+                           "output": {"status": "paused"}})
+    ctx.transcript.append({"kind": "action", "actionType": "pause_ad_campaign", "status": "applied",
+                           "summary": f"暂停广告 {campaign_id}（止损，可恢复）"})
+    return f"Campaign {campaign_id} paused."
 
 
 def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
@@ -523,7 +736,8 @@ def submit_action_brief(
 
 _CONFIDENCE = {"low", "medium", "high"}
 _ACTION_DOMAIN = {
-    "place_ad": "ad", "set_group_buy_coupon": "coupon",
+    "place_ad": "ad", "update_ad_campaign": "ad", "pause_ad_campaign": "ad",
+    "set_group_buy_coupon": "coupon",
     "list_style": "catalog", "delist_style": "catalog",
     "propose_listing": "catalog", "draft_upload": "catalog",
     "send_customer_message": "customer_ops",
@@ -879,7 +1093,12 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_platform_hot,
     get_trend_opportunities,
     get_catalog_actions,
+    get_ad_account_state,
+    list_available_audiences,
+    forecast_ad_plan,
     place_ad,
+    update_ad_campaign,
+    pause_ad_campaign,
     set_group_buy_coupon,
     list_style,
     delist_style,

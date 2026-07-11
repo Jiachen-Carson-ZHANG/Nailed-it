@@ -29,7 +29,7 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
 
     # fake client: 1st turn → call place_ad; 2nd turn → final text, no tool_calls
     responses = iter([
-        _msg("", [_tool_call("c1", "place_ad", '{"style_id":"s-1","slot":"top_funnel","budget_cents":5000}')]),
+        _msg("", [_tool_call("c1", "place_ad", '{"style_id":"s-1","audience":"try_on_no_booking","total_budget_cents":16000,"duration_days":4}')]),
         _msg("Placed the ad."),
     ])
     fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
@@ -42,7 +42,7 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     assert final == "Placed the ad."
     # the real place_ad body ran → one captured action write
     assert len(writes) == 1 and writes[0]["action_type"] == "place_ad"
-    assert writes[0]["payload"] == {"styleId": "s-1", "slot": "top_funnel", "budgetCents": 5000}
+    assert writes[0]["payload"]["styleId"] == "s-1" and writes[0]["payload"]["totalBudgetCents"] == 16000
     # ADR-0012: the action links FORWARD to the real campaign it created, and mirrors its live state.
     assert writes[0]["entity_type"] == "style_ad" and writes[0]["entity_id"] == "ad-s-1"
     assert writes[0]["status"] == "applied"  # budget within the auto-launch cap → campaign is active
@@ -50,7 +50,7 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     assert [s["kind"] for s in ctx.transcript] == ["tool_call", "action", "reasoning"]
     # the attempt recorder logged the successful call (name + parsed args + ok), for the eval gate
     assert ctx.tool_attempts == [{"tool": "place_ad",
-                                  "args": {"style_id": "s-1", "slot": "top_funnel", "budget_cents": 5000},
+                                  "args": {"style_id": "s-1", "audience": "try_on_no_booking", "total_budget_cents": 16000, "duration_days": 4},
                                   "status": "ok", "error": None}]
 
 

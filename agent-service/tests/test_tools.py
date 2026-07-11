@@ -15,8 +15,8 @@ def test_openai_schema_types_and_required():
     assert s["description"]  # pulled from the docstring
     props = s["parameters"]["properties"]
     assert props["style_id"]["type"] == "string"
-    assert props["budget_cents"]["type"] == "integer"
-    assert set(s["parameters"]["required"]) == {"style_id", "slot", "budget_cents"}
+    assert props["total_budget_cents"]["type"] == "integer"
+    assert set(s["parameters"]["required"]) == {"style_id", "audience", "total_budget_cents"}
 
 
 def test_openai_schema_optional_params_excluded_from_required():
@@ -30,6 +30,9 @@ def test_openai_schema_optional_params_excluded_from_required():
 def test_registries_cover_the_same_tools():
     expected = {
         "get_merchant_insights", "get_customer_intelligence", "place_ad", "set_group_buy_coupon",
+        # 投广沙盒 (ADR-0016): forecast loop + in-place campaign mutation
+        "get_ad_account_state", "list_available_audiences", "forecast_ad_plan",
+        "update_ad_campaign", "pause_ad_campaign",
         "list_style", "delist_style", "propose_listing", "send_customer_message",
         # 选品 (trend) read tools
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
@@ -84,6 +87,8 @@ def ctx(monkeypatch):
     # hypothesis snapshot (ADR-0015) reads the brain route — stub it empty so tests never depend on
     # whether the dev server happens to be running (it bit us: payloads silently grew a hypothesis).
     monkeypatch.setattr(bus, "fetch_decisions", lambda: {})
+    monkeypatch.setattr(bus, "update_campaign", lambda sb, cid, m, fields: None)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [])
     # ADR-0013 P0: propose_listing supersedes older rounds' pending proposals on its first call.
     supersedes = []
     monkeypatch.setattr(bus, "expire_stale_proposals", lambda sb, **kw: supersedes.append(kw) or 3)
@@ -96,18 +101,34 @@ def ctx(monkeypatch):
 
 
 def test_place_ad_creates_a_real_campaign_and_links_the_action(ctx):
-    """ADR-0012: the ad tool creates a StyleAd campaign and the action links FORWARD to it (entity_type /
-    entity_id), mirroring its live state — it is no longer a fire-and-forget applied log row."""
-    out = tools.place_ad("style-1", "top_funnel", 5000)
-    assert "ad-style-1" in out and "launched" in out  # budget within the auto-launch cap → active
-    assert ctx.writes == [{
-        "run_id": "run-test", "action_type": "place_ad",
-        "payload": {"styleId": "style-1", "slot": "top_funnel", "budgetCents": 5000},
-        "status": "applied", "entity_type": "style_ad", "entity_id": "ad-style-1",
-    }]
+    """ADR-0016: the ad tool takes audience + TOTAL budget, snapshots its own forecast as the
+    hypothesis, creates the campaign, and links the action forward to it."""
+    out = tools.place_ad("style-1", "try_on_no_booking", 16000, 4)  # 4000分/day ≤ auto-launch cap
+    assert "ad-style-1" in out and "launched" in out
+    w = ctx.writes[0]
+    assert w["action_type"] == "place_ad" and w["entity_id"] == "ad-style-1"
+    p = w["payload"]
+    assert p["audience"] == "try_on_no_booking" and p["totalBudgetCents"] == 16000
+    assert p["dailyBudgetCents"] == 4000 and p["durationDays"] == 4
+    # the CHOSEN plan's forecast is the hypothesis the monitor later measures against
+    assert p["hypothesis"]["audience"] == "try_on_no_booking"
+    assert len(p["hypothesis"]["expectedBookings"]) == 2  # a range, never a point estimate
     kinds = [s["kind"] for s in ctx.transcript]
     assert kinds == ["tool_call", "action"]
     assert ctx.transcript[-1]["status"] == "applied"
+
+
+def test_place_ad_enforces_the_action_brief_as_law(ctx):
+    """ADR-0016 §2: when briefs exist, off-brief styles and over-ceiling budgets are refused before
+    any side effect — the brief is the executor's hard boundary, not a suggestion."""
+    ctx.briefs = [{"action_type": "ad", "style_id": "style-1", "max_total_budget_cents": 12000}]
+    with pytest.raises(ValueError, match="style_not_in_brief"):
+        tools.place_ad("style-other", "try_on_no_booking", 6000)
+    with pytest.raises(ValueError, match="budget_exceeds_brief"):
+        tools.place_ad("style-1", "try_on_no_booking", 20000)
+    assert ctx.writes == []
+    tools.place_ad("style-1", "try_on_no_booking", 12000, 4)  # at the ceiling is legal
+    assert ctx.writes[0]["payload"]["totalBudgetCents"] == 12000
 
 
 def test_set_group_buy_coupon_proposes_a_real_draft_never_pretends_it_is_live(ctx):
@@ -125,10 +146,10 @@ def test_set_group_buy_coupon_proposes_a_real_draft_never_pretends_it_is_live(ct
 
 
 def test_action_tools_validate_model_supplied_payloads_before_write(ctx):
-    with pytest.raises(ValueError, match="slot_invalid"):
-        tools.place_ad("style-1", "bad_slot", 5000)
-    with pytest.raises(ValueError, match="budget_cents_must_be_positive"):
-        tools.place_ad("style-1", "top_funnel", -1)
+    with pytest.raises(ValueError, match="audience_unknown"):
+        tools.place_ad("style-1", "everyone_on_earth", 5000)
+    with pytest.raises(ValueError, match="total_budget_cents_must_be_positive"):
+        tools.place_ad("style-1", "try_on_no_booking", -1)
     with pytest.raises(ValueError, match="style_id_invalid"):
         tools.set_group_buy_coupon("../style", 6800)
     with pytest.raises(ValueError, match="body_too_long"):

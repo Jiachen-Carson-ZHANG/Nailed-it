@@ -209,16 +209,28 @@ def fetch_blackboard(sb: Client, round_id: str) -> dict[str, Any]:
     return (res.data or {}).get("blackboard", {}) if res else {}
 
 
+_CAMPAIGN_COLS = "id, merchant_style_id, status, daily_budget_cents, impressions, clicks, bookings, spend_cents, source_run_id, updated_at"
+_CAMPAIGN_COLS_V2 = _CAMPAIGN_COLS + ", audience, total_budget_cents, duration_days, version"
+
+
 def fetch_campaign_outcomes(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
-    """Live campaign metrics — the TRUTH memory verdicts must cite, never duplicate (ADR-0013 §3)."""
-    res = (
-        sb.table("style_ad_campaign")
-        .select("id, merchant_style_id, status, daily_budget_cents, impressions, clicks, bookings, spend_cents, source_run_id, updated_at")
-        .eq("merchant_id", merchant_id)
-        .order("updated_at", desc=True)
-        .execute()
-    )
-    return res.data or []
+    """Live campaign metrics — the TRUTH memory verdicts must cite, never duplicate (ADR-0013 §3).
+    Includes sandbox columns (audience/total budget/version) when 0033 is applied; degrades to the
+    legacy shape otherwise."""
+    def _q(cols: str):
+        return (
+            sb.table("style_ad_campaign")
+            .select(cols)
+            .eq("merchant_id", merchant_id)
+            .order("updated_at", desc=True)
+            .execute()
+        )
+    try:
+        return _q(_CAMPAIGN_COLS_V2).data or []
+    except Exception as e:  # noqa: BLE001 — pre-0033 DBs lack the sandbox columns
+        if _is_missing_column(e):
+            return _q(_CAMPAIGN_COLS).data or []
+        raise
 
 
 def upsert_memory(sb: Client, row: dict[str, Any]) -> None:
@@ -260,6 +272,53 @@ def fetch_round_actions(sb: Client, merchant_id: str, round_id: str) -> list[dic
     for r in rows:
         r.pop("agent_runs", None)  # join artifact — the filter's, not the caller's
     return rows
+
+
+# ── ad sandbox state (ADR-0016; migration 0033) ──────────────────────────────────────────────────
+
+def fetch_sim_state(sb: Client, merchant_id: str) -> dict[str, Any] | None:
+    """The accelerated business clock + scenario seed. None when 0033 is unapplied (degrades loudly
+    at the caller — the sandbox is demo infrastructure, not a hidden dependency)."""
+    try:
+        res = sb.table("sim_state").select("*").eq("merchant_id", merchant_id).maybe_single().execute()
+        return res.data if res else None
+    except Exception as e:  # noqa: BLE001
+        if _is_missing_table(e):
+            print("WARN sim_state missing — apply migration 0033_ad_sandbox.sql (clock features disabled)")
+            return None
+        raise
+
+
+def set_sim_state(sb: Client, merchant_id: str, *, clock_hours: int, scenario_seed: str | None = None) -> None:
+    row: dict[str, Any] = {"merchant_id": merchant_id, "clock_hours": clock_hours, "updated_at": now_iso()}
+    if scenario_seed is not None:
+        row["scenario_seed"] = scenario_seed
+    sb.table("sim_state").upsert(row, on_conflict="merchant_id").execute()
+
+
+def update_campaign(sb: Client, campaign_id: str, merchant_id: str, fields: dict[str, Any]) -> None:
+    """Mutate ONE campaign in place (ADR-0016 state machine — revisions version the same entity,
+    they never fork a parallel one)."""
+    sb.table("style_ad_campaign").update({**fields, "updated_at": now_iso()}) \
+        .eq("id", campaign_id).eq("merchant_id", merchant_id).execute()
+
+
+def apply_campaign_delivery(sb: Client, campaign_id: str, merchant_id: str, deltas: dict[str, int]) -> None:
+    """Accumulate the delivery simulator's deltas onto the campaign row. Single writer (the clock
+    advance), so read-modify-write is safe."""
+    cur = (
+        sb.table("style_ad_campaign")
+        .select("impressions, clicks, bookings, spend_cents")
+        .eq("id", campaign_id).eq("merchant_id", merchant_id)
+        .single().execute().data
+    )
+    sb.table("style_ad_campaign").update({
+        "impressions": (cur["impressions"] or 0) + deltas["impressions"],
+        "clicks": (cur["clicks"] or 0) + deltas["clicks"],
+        "bookings": (cur["bookings"] or 0) + deltas["bookings"],
+        "spend_cents": (cur["spend_cents"] or 0) + deltas["spend_cents"],
+        "updated_at": now_iso(),
+    }).eq("id", campaign_id).eq("merchant_id", merchant_id).execute()
 
 
 def fetch_due_actions(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
