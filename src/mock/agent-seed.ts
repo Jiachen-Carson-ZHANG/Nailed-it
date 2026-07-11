@@ -7,6 +7,9 @@
 import type { Agent, NewAgentRun } from '@/domain/agents';
 import { demoMerchantId } from '@/mock/merchants';
 import { LOW_CONVERSION_ID, TOP_CONVERTER_ID } from '@/mock/intelligence-seed';
+// Runtime tool truth, shared with the Python runner (orchestrator.py loads the same file) so the
+// agents table's tools column can never drift from what the tool loop actually enforces.
+import AGENT_TOOLS from '@/mock/agent-tools.json';
 
 export const AGENT_DEFINITIONS: Agent[] = [
   {
@@ -17,7 +20,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     // Fallback only — the runtime prompt is agent-service/skills/orchestrator.md (ADR-0013 P1).
     instructions:
       '你是美甲店的运营助手（主控）。每轮先读简报与决策大脑，再决定唤醒哪些 Agent：数分与决策必跑，执行环节按信号分派或跳过（跳过要给数字理由），相互独立的环节并行。只在预计算数据上行动，不要臆造数字。',
-    tools: ['get_merchant_insights', 'get_style_business_decisions', 'dispatch_agent', 'dispatch_many'],
+    tools: AGENT_TOOLS.orchestrator,
     version: 2,
   },
   {
@@ -27,7 +30,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'analyst',
     instructions:
       '你是数据分析代理（只读），分析顾客旅程漏斗（曝光→点击→详情→试戴→预约）。基于 getMerchantInsights 产出 top/bottom 转化款、高意向低转化款、流失客户与异常告警。只复述预计算数字，数据不足时说“数据不足”。',
-    tools: ['get_merchant_insights'],
+    tools: AGENT_TOOLS.insight,
     version: 1,
   },
   {
@@ -37,7 +40,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'analyst',
     instructions:
       '你是选品/趋势代理（只读）。结合外部趋势（Pinterest/固定）+ 内部上升需求 + 平台热门，匹配到本店款式并分类为放大/试价/缺口上架/下架候选，按机会分排序。基于 get_trend_opportunities / get_platform_hot / get_external_trends，只用预计算数据，去重后再计数，缺口必须确为库内无匹配。',
-    tools: ['get_external_trends', 'get_platform_hot', 'get_trend_opportunities'],
+    tools: AGENT_TOOLS.trend,
     version: 1,
   },
   {
@@ -46,9 +49,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '决策 Agent',
     role: 'planner',
     instructions:
-      '你是决策代理。把简报转成精确动作：投什么广、投多少钱、团购券设多少钱、上/下架哪些款。输出动作意图，由执行代理落地。',
-    tools: ['get_merchant_insights'],
-    version: 1,
+      '你是决策代理。先读上一轮实测记忆（get_agent_memory，实测优先于估算），再把决策大脑的每款分析转成精确动作：投什么广、投多少钱、团购券设多少钱、上/下架哪些款。输出动作意图，由执行代理落地。',
+    tools: AGENT_TOOLS.decision,
+    version: 2,
   },
   {
     id: 'agent-ad',
@@ -57,7 +60,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'operator',
     instructions:
       '你是投广执行代理。对决策选定的款式在三段漏斗广告位投放（reasoning→投广 tool）。可逆，支持一键撤销。',
-    tools: ['place_ad'],
+    tools: AGENT_TOOLS.ad,
     version: 1,
   },
   {
@@ -67,7 +70,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'operator',
     instructions:
       '你是团购执行代理。在价格 config 页面为款式设置团购券与券后价（reasoning→团购 tool）。可逆，支持一键撤销。',
-    tools: ['set_group_buy_coupon'],
+    tools: AGENT_TOOLS.coupon,
     version: 1,
   },
   {
@@ -77,7 +80,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'operator',
     instructions:
       '你是款式运营代理。先调用 get_catalog_actions 获取已计算好的下架/上架候选，执行 delist_style / propose_listing；不自行从原始指标重新判断。可逆。',
-    tools: ['get_catalog_actions', 'list_style', 'delist_style', 'propose_listing'],
+    tools: AGENT_TOOLS.catalog,
     version: 1,
   },
   {
@@ -87,8 +90,8 @@ export const AGENT_DEFINITIONS: Agent[] = [
     role: 'operator',
     instructions:
       '你是用户运营代理。基于 getCustomerIntelligence 起草获客/复购消息，在老板消息页面以“老板”身份发送，并附 AI 说明。可逆。',
-    tools: ['send_customer_message'],
-    version: 1,
+    tools: AGENT_TOOLS.customer_ops,
+    version: 2,
   },
   {
     id: 'agent-monitor',
@@ -96,9 +99,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: 'Monitor Agent',
     role: 'reviewer',
     instructions:
-      '你是监测代理（只读）。对比动作前后的 analytics_events 衡量提升，无论好坏都反馈，并重新触发数分，闭合 B→C 回路。结论必须可追溯到事件。',
-    tools: ['get_merchant_insights'],
-    version: 1,
+      '你是监测代理。用 get_campaign_outcomes 实测每个在投广告/团购的曝光→预约与花费，把实测结论写入记忆（record_memory，供下一轮决策引用）；对明确越线的动作（有点击无预约、花费超线）可发起一次修订（request_revision）。结论必须可追溯到实测数字。',
+    tools: AGENT_TOOLS.monitor,
+    version: 2,
   },
 ];
 

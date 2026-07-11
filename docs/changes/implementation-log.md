@@ -2009,3 +2009,23 @@ model (envelope / undo ordering / capability objects), memory & the revision edg
 methodology (three layers + the findings it produced), and a 20-question anticipated judge Q&A covering
 the hard tradeoffs (why no framework, fake-ROAS critique, blast radius, synthetic data, scale limits).
 Every claim cites a code path, an ADR, or a measured run.
+
+## 2026-07-11 — Tool allow-lists single-sourced (external audit P0/P1)
+
+An external code audit found the `agents.tools` DB column had drifted from the runtime truth
+(`LANE_TOOLS` in Python): the panel showed 1 tool for 决策/用户运营/监测 while the runner enforced
+3/2/4 — the UI lied about three agents' capabilities.
+
+- **Single source**: `src/mock/agent-tools.json` — orchestrator.py loads it as
+  `ORCHESTRATOR_TOOLS`/`LANE_TOOLS`; `agent-seed.ts` imports the same file into `agents.tools`.
+  Parity tests both sides (pytest: names must exist in the registry, no lane may hold dispatch tools;
+  vitest: every seed definition matches the JSON). Re-seeded — drift class dead.
+- **Typed contract**: `bus.agents_by_slug` returns `dict[str, AgentRow]` (TypedDict) with an explicit
+  column select — key typos now fail static checks.
+- **Doc precision** (doc 02): the agents row is registry + audit identity + UI metadata; prompts are
+  `skills/*.md` (PR-reviewed, eval-pinned), allow-lists are the shared JSON. Deliberate, now stated.
+- Deferred (recorded in doc 02): DB-configured lists validated against a code ceiling
+  (`configured ⊆ ceiling`) — only worth building when agent configs become merchant/ops-editable.
+- Stale fallback instructions for 决策/监测 refreshed to match current skills; those rows bumped to v2.
+- pytest 37/37, tsc clean, seed parity 2/2. Known pre-existing: 24 vitest failures in
+  booking/landing/style-review pages, present on the parent commit too — unrelated, needs its own pass.

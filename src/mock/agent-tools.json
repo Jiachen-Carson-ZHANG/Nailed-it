@@ -1,0 +1,11 @@
+{
+  "orchestrator": ["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"],
+  "insight": ["get_merchant_insights"],
+  "trend": ["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
+  "decision": ["get_style_business_decisions", "get_merchant_insights", "get_agent_memory"],
+  "ad": ["place_ad"],
+  "coupon": ["set_group_buy_coupon"],
+  "catalog": ["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
+  "customer_ops": ["get_customer_intelligence", "send_customer_message"],
+  "monitor": ["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"]
+}

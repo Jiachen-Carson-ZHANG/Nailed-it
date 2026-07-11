@@ -25,19 +25,15 @@ from . import bus, config, runner, tools
 
 _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 
-# Per-lane tool allow-lists — the orchestrator picks WHO runs; code fixes WHAT each lane may touch.
-LANE_TOOLS: dict[str, list[str]] = {
-    "insight": ["get_merchant_insights"],
-    "trend": ["get_trend_opportunities", "get_platform_hot", "get_external_trends"],
-    "decision": ["get_style_business_decisions", "get_merchant_insights", "get_agent_memory"],
-    "ad": ["place_ad"],
-    "coupon": ["set_group_buy_coupon"],
-    "catalog": ["get_catalog_actions", "list_style", "delist_style", "propose_listing"],
-    "customer_ops": ["get_customer_intelligence", "send_customer_message"],
-    "monitor": ["get_merchant_insights", "get_campaign_outcomes", "record_memory", "request_revision"],
-}
+# Per-agent tool allow-lists — the orchestrator picks WHO runs; code fixes WHAT each agent may touch.
+# Single source shared with the TS seed (src/mock/agent-tools.json) so the agents table's display copy
+# can never drift from what the runner actually enforces. The Python service runs from the repo
+# checkout, so the cross-package path is a deployment invariant, not a convenience.
+_TOOLS_JSON = Path(__file__).resolve().parents[2] / "src" / "mock" / "agent-tools.json"
+_AGENT_TOOLS: dict[str, list[str]] = json.loads(_TOOLS_JSON.read_text(encoding="utf-8"))
 
-ORCHESTRATOR_TOOLS = ["get_merchant_insights", "get_style_business_decisions", "dispatch_agent", "dispatch_many"]
+ORCHESTRATOR_TOOLS = _AGENT_TOOLS["orchestrator"]
+LANE_TOOLS: dict[str, list[str]] = {k: v for k, v in _AGENT_TOOLS.items() if k != "orchestrator"}
 
 ORCH_TASK = (
     "编排今天这一轮门店运营（最近 {range_days} 天窗口）。\n"

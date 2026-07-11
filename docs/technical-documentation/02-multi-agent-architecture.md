@@ -50,9 +50,11 @@ matter most:
 - **Prompts** live in `agent-service/skills/*.md`; the row's `instructions` is a fallback for a missing
   file. Version-controlled prompts are PR-reviewed and pinned by the eval suite — a DB-edited prompt
   would change agent behavior with no diff, no review, and no eval run.
-- **Tool allow-lists** live in code (`LANE_TOOLS`, `orchestrator.py`); the row's `tools[]` mirrors them
-  for display. Allow-lists are legality, and legality lives in code (ADR-0012) — a DB edit must never be
-  able to hand the read-only insight agent `place_ad`.
+- **Tool allow-lists** live in one shared file (`src/mock/agent-tools.json`): the Python runner loads it
+  as `LANE_TOOLS` for enforcement, the TS seed writes the same file into the row's `tools[]` for display,
+  and parity tests pin both sides — the display copy structurally cannot drift from what the runner
+  enforces. Allow-lists are legality, and legality lives in the repo, not in an editable DB row
+  (ADR-0012) — a DB edit must never be able to hand the read-only insight agent `place_ad`.
 
 Within its allow-list an agent chooses freely — which tools, what order, how many calls, what arguments.
 The list itself is code. When agent configs become merchant- or ops-editable (multi-merchant stage), the

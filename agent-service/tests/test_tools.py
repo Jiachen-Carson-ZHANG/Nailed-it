@@ -47,6 +47,26 @@ def test_registries_cover_the_same_tools():
     assert set(tools.OPENAI_TOOLS) == expected
 
 
+def test_agent_tools_json_is_valid_against_the_registry():
+    """agent-tools.json is the single source for allow-lists (Python runtime + TS seed).
+    A typo'd or unknown tool name there must fail here, not at dispatch time."""
+    from nailed_agents import orchestrator
+
+    assert set(orchestrator.LANE_TOOLS) == {
+        "insight", "trend", "decision", "ad", "coupon", "catalog", "customer_ops", "monitor",
+    }
+    for lane, names in orchestrator.LANE_TOOLS.items():
+        assert names, f"lane {lane} has an empty allow-list"
+        unknown = set(names) - set(tools.IMPL)
+        assert not unknown, f"lane {lane} lists unknown tools: {sorted(unknown)}"
+    assert orchestrator.ORCHESTRATOR_TOOLS
+    unknown = set(orchestrator.ORCHESTRATOR_TOOLS) - set(tools.IMPL)
+    assert not unknown, f"orchestrator lists unknown tools: {sorted(unknown)}"
+    # dispatch stays orchestrator-only: no lane may ever hold a dispatch tool
+    for lane, names in orchestrator.LANE_TOOLS.items():
+        assert not {"dispatch_agent", "dispatch_many"} & set(names), lane
+
+
 # ── side-effects: action tools write an agent_action + record transcript steps ────────────────────
 
 @pytest.fixture
