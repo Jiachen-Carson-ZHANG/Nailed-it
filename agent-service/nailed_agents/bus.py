@@ -246,10 +246,11 @@ def fetch_round_actions(sb: Client, merchant_id: str, round_id: str) -> list[dic
     get them from the table, never from another agent's prose."""
     res = (
         sb.table("agent_actions")
-        .select("id, run_id, type, risk, status, payload, entity_type, entity_id, agent_runs!inner(round_id)")
+        .select("id, run_id, type, risk, status, payload, entity_type, entity_id, created_at, agent_runs!inner(round_id)")
         .eq("merchant_id", merchant_id)
         .eq("agent_runs.round_id", round_id)
         .order("created_at")
+        .order("id")  # same-second actions are common (parallel lanes) — id breaks the tie deterministically
         .execute()
     )
     rows = res.data or []

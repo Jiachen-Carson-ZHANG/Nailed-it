@@ -8,6 +8,6 @@ alter table public.agent_runs
   add column if not exists agent_version int;
 
 comment on column public.agent_runs.prompt_sha is
-  'sha256[:16] of the resolved system prompt (skill file or instructions fallback) that produced this run';
+  'full sha256 (64 hex) of the resolved system prompt (skill file or instructions fallback) that produced this run';
 comment on column public.agent_runs.agent_version is
   'agents.version at run time — config version, NOT the prompt version (that is prompt_sha)';

@@ -363,5 +363,33 @@ def test_execution_context_carries_action_ids_for_revision():
     ])
     data = json.loads(text.split("：\n", 1)[1])
     assert data == [{"id": "act-1", "type": "place_ad", "status": "applied", "risk": "reversible",
-                     "entity_id": "ad-style-1", "payload": {"budgetCents": 5000}}]
+                     "entity_id": "ad-style-1", "created_at": None, "payload": {"budgetCents": 5000},
+                     "revisionable": True}]
     assert "request_revision" in text  # the injection tells the monitor what the ids are FOR
+
+
+def test_monitor_snapshot_barrier_rejects_parallel_batch():
+    """ADR-0014 invariant: the monitor's execution list is built at run start — batching it with any
+    other lane risks a partial snapshot, so reserve() must reject the batch atomically."""
+    from nailed_agents.orchestrator import RoundState
+
+    state = RoundState(dispatch_fn=lambda s, t, p: (f"run-{s}", "ok"))
+    with pytest.raises(ValueError, match="monitor_must_not_run_in_parallel"):
+        state.reserve(["ad", "monitor"])
+    assert state.budget == 8 and not state._taken  # atomic: nothing reserved on rejection
+    state.reserve(["monitor"])  # alone is fine — prior dispatches are blocking, hence terminal
+    assert "monitor" in state._taken
+
+
+def test_execution_context_marks_revisionable_and_orders_fields():
+    from nailed_agents.orchestrator import _execution_context
+
+    text = _execution_context([
+        {"id": "a1", "type": "place_ad", "status": "applied", "risk": "reversible",
+         "entity_id": "ad-x", "created_at": "2026-07-11T01:00:00Z", "payload": {}},
+        {"id": "a2", "type": "send_customer_message", "status": "applied", "risk": "irreversible",
+         "entity_id": None, "created_at": "2026-07-11T01:00:01Z", "payload": {}},
+    ])
+    data = json.loads(text.split("：\n", 1)[1])
+    assert data[0]["revisionable"] is True and data[1]["revisionable"] is False
+    assert data[0]["created_at"] == "2026-07-11T01:00:00Z"
