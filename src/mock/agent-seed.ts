@@ -49,9 +49,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '决策 Agent',
     role: 'planner',
     instructions:
-      '你是决策代理。任务中会注入团队记忆提示（实测优先于估算）；锁定候选后用 search_memory 补查其历史。把决策大脑的每款分析转成精确动作：投什么广、投多少钱、团购券设多少钱、上/下架哪些款。输出动作意图，由执行代理落地。',
+      '你是经营组合决策者。读经营事实（信号+经济性，无判决）与记忆提示，为本轮制定行动组合，用 submit_action_brief 提交"目标+硬边界"的行动简报——执行参数（受众/精确预算/券配置）由执行代理在简报内自行寻找。可以不提交任何简报。',
     tools: AGENT_TOOLS.decision,
-    version: 4,
+    version: 5,
   },
   {
     id: 'agent-ad',
@@ -59,9 +59,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '投广 Agent',
     role: 'operator',
     instructions:
-      '你是投广执行代理。对决策选定的款式在三段漏斗广告位投放（reasoning→投广 tool）。可逆，支持一键撤销。',
+      '你是投广执行代理。收到行动简报（目标+硬边界）后，用 forecast_ad_plan 比较受众/预算/时长方案，落地最小可行配置；边界内不可行时如实上报，绝不硬投。修订时用 update_ad_campaign 修改同一活动。',
     tools: AGENT_TOOLS.ad,
-    version: 1,
+    version: 2,
   },
   {
     id: 'agent-coupon',

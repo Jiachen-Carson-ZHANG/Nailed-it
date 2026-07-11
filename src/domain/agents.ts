@@ -34,6 +34,8 @@ export type RunStatus = 'running' | 'completed' | 'failed' | 'awaiting_approval'
 /** Concrete side-effect a run performed. Reversible actions get one-click undo. */
 export const agentActionTypes = [
   'place_ad',
+  'update_ad_campaign',
+  'pause_ad_campaign',
   'set_group_buy_coupon',
   'list_style',
   'delist_style',

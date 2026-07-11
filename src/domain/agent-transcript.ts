@@ -78,6 +78,16 @@ const AD_SLOTS: Record<string, { 'zh-CN': string; en: string }> = {
 const slotLabel = (slot: unknown, lang: AppLang): string =>
   AD_SLOTS[String(slot)]?.[lang] ?? String(slot ?? '');
 
+// ADR-0016 sandbox audiences (audience implies funnel stage)
+const AUDIENCES: Record<string, { 'zh-CN': string; en: string }> = {
+  broad_local_interest: { 'zh-CN': '本地泛兴趣用户', en: 'broad local interest' },
+  saved_or_viewed: { 'zh-CN': '收藏/浏览过的用户', en: 'saved or viewed' },
+  try_on_no_booking: { 'zh-CN': '试戴未预约用户', en: 'tried on, no booking' },
+};
+
+const audienceLabel = (audience: string, lang: AppLang): string =>
+  AUDIENCES[audience]?.[lang] ?? audience;
+
 type Summarizer = (input: Record<string, unknown>, output: unknown, lang: AppLang, titles?: StyleTitleMap) => { label: string; summary: string };
 
 /** The 决策大脑 payload: count candidates + quote utilization so the sentence carries the verdict. */
@@ -98,7 +108,8 @@ function summarizeDecisions(_input: Record<string, unknown>, output: unknown, la
 }
 
 const SUMMARIZERS: Record<string, Summarizer> = {
-  get_style_business_decisions: summarizeDecisions,
+  get_style_business_decisions: summarizeDecisions, // legacy rows
+  get_style_business_facts: summarizeDecisions,
 
   get_merchant_insights: (input, output, lang) => {
     const headline = isObj(output) ? String((output as { headline?: unknown }).headline ?? '') : '';
@@ -161,11 +172,67 @@ const SUMMARIZERS: Record<string, Summarizer> = {
       : status === 'draft'
         ? (zh ? '（草稿，待你启动）' : ' (draft — awaiting your launch)')
         : '';
+    // ADR-0016 contract: audience + total budget; legacy slot-based rows keep rendering.
+    const target = input.audience ? audienceLabel(String(input.audience), lang) : slotLabel(input.slot, lang);
+    const budget = input.totalBudgetCents
+      ? (zh ? `总预算 ${money(input.totalBudgetCents)}（${String(input.durationDays ?? 4)} 天）` : `${money(input.totalBudgetCents)} total / ${String(input.durationDays ?? 4)}d`)
+      : (zh ? `日预算 ${money(input.budgetCents)}` : `${money(input.budgetCents)}/day`);
     return {
       label: zh ? '投广' : 'Ad',
       summary: zh
-        ? `为${styleLabel(input.styleId, lang, titles)}创建广告 · ${slotLabel(input.slot, lang)} · 日预算 ${money(input.budgetCents)}${tail}`
-        : `Created an ad for ${styleLabel(input.styleId, lang, titles)} · ${slotLabel(input.slot, lang)} · ${money(input.budgetCents)}/day${tail}`,
+        ? `为${styleLabel(input.styleId, lang, titles)}创建广告 · ${target} · ${budget}${tail}`
+        : `Created an ad for ${styleLabel(input.styleId, lang, titles)} · ${target} · ${budget}${tail}`,
+    };
+  },
+
+  forecast_ad_plan: (input, output, lang) => {
+    const o = isObj(output) ? output : {};
+    const b = Array.isArray(o.expected_bookings) ? (o.expected_bookings as number[]) : null;
+    const zh = lang === 'zh-CN';
+    return {
+      label: zh ? '投前预测' : 'Forecast',
+      summary: zh
+        ? `预测方案：${audienceLabel(String(input.audience ?? ''), lang)} · ${money(input.totalBudgetCents)}${b ? ` → 预计 ${b[0]}–${b[1]} 单` : ''}`
+        : `Forecast: ${audienceLabel(String(input.audience ?? ''), lang)} · ${money(input.totalBudgetCents)}${b ? ` → ${b[0]}–${b[1]} bookings` : ''}`,
+    };
+  },
+
+  get_ad_account_state: (_i, output, lang) => {
+    const o = isObj(output) ? output : {};
+    const zh = lang === 'zh-CN';
+    const rem = typeof o.remaining_budget_cents === 'number' ? money(o.remaining_budget_cents) : '';
+    return { label: zh ? '广告账户' : 'Ad account', summary: zh ? `读取账户状态${rem ? `：剩余预算 ${rem}` : ''}` : `Account state${rem ? `: ${rem} remaining` : ''}` };
+  },
+
+  list_available_audiences: (_i, output, lang) => ({
+    label: lang === 'zh-CN' ? '受众列表' : 'Audiences',
+    summary: lang === 'zh-CN' ? `查看 ${count(output) || '可选'} 个可投受众` : `Listed ${count(output) || 'available'} audiences`,
+  }),
+
+  update_ad_campaign: (input, output, lang) => {
+    const v = isObj(output) ? Number((output as { version?: unknown }).version) || null : null;
+    const zh = lang === 'zh-CN';
+    return {
+      label: zh ? '修改广告' : 'Update ad',
+      summary: zh
+        ? `原地修改广告 ${String(input.campaignId ?? '')}${v ? `（第 ${v} 版）` : ''} —— 同一活动，不另起炉灶`
+        : `Updated campaign ${String(input.campaignId ?? '')} in place${v ? ` (v${v})` : ''}`,
+    };
+  },
+
+  pause_ad_campaign: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '暂停广告' : 'Pause ad',
+    summary: lang === 'zh-CN' ? `止损暂停广告 ${String(input.campaignId ?? '')}（可恢复）` : `Paused campaign ${String(input.campaignId ?? '')} (resumable)`,
+  }),
+
+  submit_action_brief: (input, _o, lang) => {
+    const zh = lang === 'zh-CN';
+    const kind = input.action_type === 'ad' ? (zh ? '投广' : 'ad') : (zh ? '团购' : 'coupon');
+    return {
+      label: zh ? '行动简报' : 'Brief',
+      summary: zh
+        ? `提交${kind}简报：${String(input.style_id ?? '')} · 预算上限 ${money(input.max_total_budget_cents)} · ${truncate(String(input.objective ?? ''), 50)}`
+        : `Filed ${kind} brief: ${String(input.style_id ?? '')} · budget ≤ ${money(input.max_total_budget_cents)}`,
     };
   },
 
@@ -293,6 +360,7 @@ export function stepTone(kind: TranscriptStep['kind']): 'thinking' | 'tool' | 'a
  *  action step for the same act, so a rendered chain says the same thing twice. */
 const TOOL_ACTION_TYPE: Record<string, AgentActionType> = {
   place_ad: 'place_ad', placeAd: 'place_ad',
+  update_ad_campaign: 'update_ad_campaign', pause_ad_campaign: 'pause_ad_campaign',
   set_group_buy_coupon: 'set_group_buy_coupon', setGroupBuyCoupon: 'set_group_buy_coupon',
   list_style: 'list_style', delist_style: 'delist_style',
   propose_listing: 'draft_upload', send_customer_message: 'send_customer_message',
@@ -312,6 +380,8 @@ export function condenseTranscript(steps: TranscriptStep[]): TranscriptStep[] {
 
 const ACTION_LABELS: Record<AgentActionType, { 'zh-CN': string; en: string }> = {
   place_ad: { 'zh-CN': '投广', en: 'Ad' },
+  update_ad_campaign: { 'zh-CN': '修改广告', en: 'Update ad' },
+  pause_ad_campaign: { 'zh-CN': '暂停广告', en: 'Pause ad' },
   set_group_buy_coupon: { 'zh-CN': '团购券', en: 'Coupon' },
   list_style: { 'zh-CN': '上架', en: 'List' },
   delist_style: { 'zh-CN': '下架', en: 'Delist' },

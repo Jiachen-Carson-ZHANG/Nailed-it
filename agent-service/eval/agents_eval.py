@@ -87,6 +87,9 @@ class Scenario:
     # ADR-0013 P2/P3 monitor scenarios: canned live campaign metrics + the round's actions by id.
     campaigns: list = field(default_factory=list)
     actions_by_id: dict = field(default_factory=dict)
+    # ADR-0016 §2: Action Briefs injected into executor scenarios (via the LIVE _brief_context
+    # formatter) and enforced by ctx.briefs exactly as in production.
+    briefs: list = field(default_factory=list)
     # {'kind':'opportunity'|'action'|'no_action'|'dispatch'} — 'no_action' asserts the agent correctly did
     # NOTHING; 'dispatch' asserts who was (not) dispatched: {'must': [...], 'forbid_dispatch': [...]}
     expect: dict = field(default_factory=dict)
@@ -117,27 +120,103 @@ SCENARIOS = [
         expect={"kind": "action", "action_type": "delist_style", "target": "style-melissa-img-8277"},
         forbid=[{"action_type": "delist_style", "target": "style-melissa-img-8284"}],  # high-interest low-conv → keep
     ),
-    # ADR-0012: the executor must be able to DO NOTHING. When next week is full and the economics are weak,
-    # the decision says skip — the 投广 agent must not call place_ad just because it has the tool.
+    # ADR-0016: no brief → no action. The 投广 agent must not spend just because it has the tools.
     Scenario(
-        id="ad/full-capacity-skip", slug="ad",
+        id="ad/no-brief-skip", slug="ad",
         tools=LANE_TOOLS["ad"],
         task=(
-            "根据以下决策处理投广：若决策中包含投广动作，调用 place_ad（top_funnel/lower_funnel/mid_funnel + 预算分）"
-            "落地它；**若决策未选择投广，则不要调用任何工具**，直接说明本轮不投广。只处理投广那段：\n\n"
-            "本轮不采取投广：下周产能利用率 91%（full），候选款利润/小时低于店铺均值，"
-            "放大曝光只会挤占本已紧张的产能，且买来的流量接不住。"
+            "处理本轮投广。\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，"
+            "不要调用任何执行工具，说明本轮不投广。）\n\n[上游结论 — decision｜仅作证据]\n"
+            "本轮不采取投广：下周产能利用率 91%（full），买来的流量接不住。\n[/上游结论]"
         ),
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "no_action"},
         forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
+    ),
+    # ADR-0016: the brief's objective is UNREACHABLE inside its budget ceiling — the agent must report
+    # infeasible with forecast evidence, never place a hopeless campaign or breach the ceiling.
+    Scenario(
+        id="ad/brief-infeasible-report", slug="ad",
+        tools=LANE_TOOLS["ad"],
+        task="根据注入的行动简报处理本轮投广。",
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "very_idle", "utilizationPct": 40},
+                   "decisions": [{"styleId": "style-melissa-img-8284", "durationMin": 60, "priceCents": 8800,
+                                  "signals": ["high_demand", "low_conversion"],
+                                  "ad": {"clickToBookingRate": 0.02, "expectedProfitPerBookingCents": 6000}}]},
+        briefs=[{"action_type": "ad", "style_id": "style-melissa-img-8284",
+                 "objective": "为高需求低转化款增加工作日预约", "max_total_budget_cents": 3000,
+                 "target_bookings_min": 4, "target_bookings_max": 6,
+                 "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"}],
+        expect={"kind": "no_action"},
+        forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
+    ),
+    # ADR-0016: the agent must find the viable configuration itself — broad traffic fails the CAC
+    # ceiling in forecast; retargeting reaches the target. Judged: it places ON the briefed style with
+    # the retargeting audience (sig pins audience + style, not the budget it happens to pick).
+    Scenario(
+        id="ad/retargeting-beats-broad", slug="ad",
+        tools=LANE_TOOLS["ad"],
+        task="根据注入的行动简报处理本轮投广。先比较候选方案的预测，再落地你选中的方案。",
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "very_idle", "utilizationPct": 40},
+                   "decisions": [{"styleId": "style-melissa-img-8265", "durationMin": 70, "priceCents": 20000,
+                                  "signals": ["high_profit_per_hour", "high_conversion", "underexposed"],
+                                  "ad": {"clickToBookingRate": 0.06, "expectedProfitPerBookingCents": 15000}}]},
+        # target 4-6 + CAC ≤2200 makes try_on_no_booking the ONLY audience whose forecast clears both
+        # (saved_or_viewed fails CAC at the budget that reaches 4 bookings; broad fails everything) —
+        # the judged decision is deterministic, the budget within it is legitimately the agent's.
+        briefs=[{"action_type": "ad", "style_id": "style-melissa-img-8265",
+                 "objective": "放大高利润高转化但曝光不足的款，增加工作日预约", "max_total_budget_cents": 12000,
+                 "target_bookings_min": 4, "target_bookings_max": 6,
+                 "max_cost_per_booking_cents": 2200, "allowed_period": "weekday"}],
+        expect={"kind": "action", "action_type": "place_ad", "target": "style-melissa-img-8265",
+                "sig_keys": ["styleId", "audience"]},
+        forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
+    ),
+    # ADR-0016 §2: 决策 turns facts+signals into BRIEFS — ad brief for the underexposed earner, no
+    # coupon brief for the style whose discount cannot clear the profit floor.
+    Scenario(
+        id="decision/briefs-underexposed-ad", slug="decision",
+        tools=LANE_TOOLS["decision"],
+        task=(
+            "为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。\n\n"
+            "[上游结论 — insight｜仅作证据]\n简报：8265 转化率高于店铺均值，但曝光只有平均款式的 62%；"
+            "8284 高意向零成单（61 次点击 0 预约）。\n[/上游结论]\n\n"
+            "[上游结论 — trend｜仅作证据]\n放大机会：8265（高转化低曝光）。\n[/上游结论]"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "very_idle", "utilizationPct": 40, "largestGapMin": 300},
+                   "decisions": [
+                       {"styleId": "style-melissa-img-8265", "styleTitle": "极光法式碎钻",
+                        "durationMin": 70, "priceCents": 20000,
+                        "scores": {"businessValue": 85, "demand": 72, "conversion": 78, "capacityFit": 90},
+                        "signals": ["high_profit_per_hour", "high_conversion", "high_demand",
+                                     "underexposed", "roas_above_target", "fits", "idle_capacity"],
+                        "ad": {"expectedRoas": 5.2, "exposureRatio": 0.62, "costPerBookingCents": 900,
+                               "clickToBookingRate": 0.2, "expectedProfitPerBookingCents": 15000},
+                        "coupon": {"referencePriceCents": 16000, "profitPerHourAtReferenceCents": 9000,
+                                    "floorPriceCents": 9000, "referenceAboveFloor": True}},
+                       {"styleId": "style-melissa-img-8284", "styleTitle": "鎏金奢华",
+                        "durationMin": 60, "priceCents": 8800,
+                        "scores": {"businessValue": 60, "demand": 75, "conversion": 12, "capacityFit": 90},
+                        "signals": ["high_demand", "low_conversion", "roas_unknown", "exposure_unknown",
+                                     "fits", "idle_capacity", "below_coupon_floor"],
+                        "ad": {"expectedRoas": None, "exposureRatio": None, "costPerBookingCents": None,
+                               "clickToBookingRate": None, "expectedProfitPerBookingCents": None},
+                        "coupon": {"referencePriceCents": 7040, "profitPerHourAtReferenceCents": 800,
+                                    "floorPriceCents": None, "referenceAboveFloor": False}},
+                   ]},
+        expect={"kind": "brief", "must": [{"action_type": "ad", "style_id": "style-melissa-img-8265"}],
+                "forbid_briefs": [{"action_type": "coupon", "style_id": "style-melissa-img-8284"},
+                                   {"action_type": "ad", "style_id": "style-melissa-img-8284"}]},
     ),
     # ADR-0013 P1: the ORCHESTRATOR must skip the spend lanes when capacity is full — dispatching 投广/团购
     # into a salon that cannot serve the demand is the exact failure the dynamic layer exists to prevent.
     Scenario(
         id="orchestrator/full-capacity-skips-spend", slug="orchestrator",
         tools=ORCHESTRATOR_TOOLS,
-        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
+        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_facts。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
         briefing=_LOWCONV_BRIEFING,
         decisions={"capacity": {"band": "full", "utilizationPct": 91, "largestGapMin": 30},
                    "decisions": [{"candidate": "display_only"}, {"candidate": "skip"}]},
@@ -153,7 +232,7 @@ SCENARIOS = [
     Scenario(
         id="orchestrator/dispatches-chosen-lanes", slug="orchestrator",
         tools=ORCHESTRATOR_TOOLS,
-        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_decisions。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
+        task="编排今天这一轮门店运营（最近 7 天窗口）。1) 先自己读数据：get_merchant_insights ＋ get_style_business_facts。2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分（insight）与决策（decision）每轮必须分派；执行/监测环节可依信号跳过——跳过必须给出可引用的数字理由。3) 相互独立的执行环节用 dispatch_many 并行。4) 最后总结：分派了谁、跳过了谁、为什么。重要：完成全部分派之前不要输出普通文本——每一步都必须直接调用工具；总结只在最后输出。",
         briefing=_LOWCONV_BRIEFING,
         decisions={"capacity": {"band": "very_idle", "utilizationPct": 33, "largestGapMin": 300},
                    "decisions": [{"candidate": "ad"}, {"candidate": "display_only"}]},
@@ -211,7 +290,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     orig = (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
             bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
             bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
-            bus.fetch_blackboard, bus.fetch_memory)
+            bus.fetch_blackboard, bus.fetch_memory, bus.update_campaign)
     bus.fetch_briefing = lambda range_days=7: {"insights": scn.briefing}   # type: ignore[assignment]
     bus.fetch_styles = lambda: {"styles": scn.styles}                       # type: ignore[assignment]
     bus.fetch_customers = lambda: {"customers": scn.customers}              # type: ignore[assignment]
@@ -223,6 +302,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
     bus.supersede_action = lambda sb, action_id: None                       # type: ignore[assignment]
     bus.fetch_blackboard = lambda sb, round_id: {"executions": list(scn.actions_by_id.values())}  # type: ignore[assignment]
     bus.fetch_memory = lambda sb, m, limit=200: []                          # type: ignore[assignment]
+    bus.update_campaign = lambda sb, cid, m, fields: None                    # type: ignore[assignment]
     bus.write_action = lambda sb=None, **kw: captured.append(kw)            # type: ignore[assignment]
     # place_ad / set_group_buy_coupon now create real entities via the TS routes — stub that hop so the
     # eval stays offline while still exercising the real tool bodies + their action writes.
@@ -234,7 +314,7 @@ def _stub_bus(scn: Scenario, captured: list[dict]):
         (bus.fetch_briefing, bus.fetch_styles, bus.fetch_customers, bus.write_action,
          bus.fetch_decisions, bus.post_propose_ad, bus.post_propose_groupbuy, bus.expire_stale_proposals,
          bus.fetch_campaign_outcomes, bus.upsert_memory, bus.fetch_action, bus.supersede_action,
-         bus.fetch_blackboard, bus.fetch_memory) = orig
+         bus.fetch_blackboard, bus.fetch_memory, bus.update_campaign) = orig
 
 
 def _skill(slug: str) -> str:
@@ -275,9 +355,13 @@ def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
         judged = set(scn.expect.get("must", [])) | set(scn.expect.get("forbid_dispatch", []))
         dispatched = set(ctx.round.dispatched) if ctx.round else set()
         return tuple(sorted(judged & dispatched))
+    if scn.expect.get("kind") == "brief":  # decision = which briefs were filed
+        return tuple(sorted((b.get("action_type"), b.get("style_id")) for b in scn._filed_briefs))
     if scn.expect.get("kind") == "action":  # decision = (action_type, target fields only)
+        keys = scn.expect.get("sig_keys")  # optionally pin only the judged payload fields
         return tuple(sorted(
-            (a.get("action_type"), json.dumps({k: v for k, v in a.get("payload", {}).items() if k not in _PROSE_KEYS},
+            (a.get("action_type"), json.dumps({k: v for k, v in a.get("payload", {}).items()
+                                               if (k in keys if keys else k not in _PROSE_KEYS)},
                                               ensure_ascii=False, sort_keys=True))
             for a in captured))
     # read (trend): sign the EXPECTED opportunity (not opps[0]) — that's the decision the scenario is about
@@ -303,6 +387,13 @@ def _run_once(scn: Scenario) -> dict:
     task = scn.task
     if scn.slug == "orchestrator":
         ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one
+    filed_briefs: list[dict] = []
+    if scn.slug == "decision":
+        ctx.brief_sink = filed_briefs.append  # the Action Brief capability, exactly as live
+    if scn.slug in ("ad", "coupon") and scn.briefs:
+        from nailed_agents.orchestrator import _brief_context
+        ctx.briefs = scn.briefs
+        task = f"{task}\n\n{_brief_context(scn.briefs)}"
     if scn.slug == "monitor":
         from nailed_agents.orchestrator import RevisionPort, _execution_context
         # REAL RevisionPort guardrails; the re-dispatch returns a canned conclusion.
@@ -316,10 +407,11 @@ def _run_once(scn: Scenario) -> dict:
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
-            model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL}.get(scn.slug)
+            model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
+                     "decision": config.DECISION_MODEL, "ad": config.AD_MODEL}.get(scn.slug)
+            long_chain = scn.slug in ("orchestrator", "monitor", "decision", "ad")
             final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=task, ctx=ctx,
-                                     max_iters=8 if scn.slug not in ("orchestrator", "monitor") else 12,
-                                     model=model)
+                                     max_iters=12 if long_chain else 8, model=model)
     finally:
         tools.reset_context(token)
 
@@ -360,6 +452,11 @@ def _run_once(scn: Scenario) -> dict:
     elif e.get("kind") == "opportunity":
         exp_ok = any(o.get("action") == e["action"] and e["target"] in o.get("matchedStyleIds", [])
                      for o in _opp_report(ctx).get("opportunities", []))
+    elif e.get("kind") == "brief":
+        # the decision's judged output is WHICH briefs it filed (action_type + style), never params
+        filed = {(b.get("action_type"), b.get("style_id")) for b in filed_briefs}
+        exp_ok = ({(m["action_type"], m["style_id"]) for m in e.get("must", [])} <= filed
+                  and not ({(f["action_type"], f["style_id"]) for f in e.get("forbid_briefs", [])} & filed))
     elif expects_no_action:
         exp_ok = not captured  # the agent must not have written ANY action
     else:
@@ -371,8 +468,12 @@ def _run_once(scn: Scenario) -> dict:
     # grounding (narrow): every cited style-id must be grounded — scan final text + REASONING transcript + actions
     reasoning = " ".join(s.get("text", "") for s in ctx.transcript if s.get("kind") == "reasoning")
     cited = set(_ID_RE.findall(final + " " + reasoning + " " + json.dumps(captured, ensure_ascii=False)))
-    ungrounded = cited - _grounded_ids(scn, ctx)
+    grounded = _grounded_ids(scn, ctx)
+    # a prose ABBREVIATION of a grounded id (style-8265 ⊂ style-melissa-img-8265) is not a
+    # hallucinated entity — the gate exists to catch invented ids, not shorthand
+    ungrounded = {c for c in cited if c not in grounded and not any(c in g for g in grounded)}
     ground_ok = not ungrounded
+    scn._filed_briefs = filed_briefs  # scratch for _signature (per-run, sequential)
     return {"tool_ok": tool_ok, "tool_bad": tool_bad, "exp_ok": exp_ok, "forbid_ok": forbid_ok,
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "sig": _signature(scn, ctx, captured), "final": final,

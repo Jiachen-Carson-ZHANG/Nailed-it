@@ -2169,3 +2169,24 @@ Verified in the browser (production build): card shows the live 3.5× verdict an
 preference. Ops note for the runbook: an orphaned `next-server` process was holding :3000 and serving
 a stale in-memory build (fresh starts died on EADDRINUSE, page rendered unstyled with 404 chunks) —
 `kill <pid from ss -ltnp>` then `next start`, and only rebuild after the port is actually free.
+
+## 2026-07-11 — ADR-0016 Stage 1 complete: sandbox, briefs, executor autonomy — eval green
+
+Five code commits (5ff3e73 → 760b7e8) + this verification pass:
+
+- Eval rewritten for the v3 contract: `ad/no-brief-skip` (no brief → no spend), `ad/brief-infeasible-report`
+  (target unreachable inside the budget ceiling → agent reports infeasible with forecast evidence,
+  places nothing), `ad/retargeting-beats-broad` (broad fails the CAC ceiling in forecast; the agent
+  finds try_on_no_booking itself — signature pins audience+style, budget stays its own choice),
+  `decision/briefs-underexposed-ad` (facts+signals → ad brief for the underexposed earner, NO brief
+  for the below-floor style). Briefs flow through the LIVE `_brief_context` formatter and ctx.briefs
+  in eval, exactly as production.
+- Grounding gate: prose abbreviations of grounded ids (style-8265 ⊂ style-melissa-img-8265) no longer
+  count as hallucinations.
+- record_action_outcome understands forecast-range hypotheses (midpoint of expectedCostPerBookingCents).
+- TS: place_ad/forecast/update/pause/brief describers, new action types in merchant-home meta,
+  business-facts summarizer counts signals. Seed fallbacks refreshed (decision v5, ad v2), re-seeded.
+- **All 11 eval scenarios green at n=2 on gemini** (run in batches — one process now exceeds the
+  10-minute shell cap with four strong-tier lanes). pytest 51/51, tsc clean, vitest 198/198.
+
+BLOCKED on live verification: USER must apply 0033_ad_sandbox.sql, then rounds + advance-clock.

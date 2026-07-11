@@ -55,6 +55,9 @@ export type CouponEconomics = {
 export type StyleDecision = {
   styleId: string;
   styleTitle: string;
+  /** Raw facts the ad sandbox forecast consumes (ADR-0016): service time + price. */
+  durationMin: number;
+  priceCents: number;
   scores: { businessValue: number; demand: number; conversion: number; capacityFit: number };
   signals: DecisionSignal[];
   /** The money behind any ad idea — the agent quotes these, no label decides for it. */
@@ -127,6 +130,8 @@ export function decideStyle(input: StyleDecisionInput, ctx: DecisionContext, pee
   return {
     styleId: input.styleId,
     styleTitle: input.styleTitle,
+    durationMin: e.durationMin,
+    priceCents: e.priceCents,
     scores: { businessValue, demand, conversion, capacityFit },
     signals,
     ad,

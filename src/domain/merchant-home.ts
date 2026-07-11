@@ -194,7 +194,9 @@ export function computeTechnicianDay(
 type StyleName = (id: string) => string;
 
 const ACTION_META: Record<AgentActionType, { icon: string; agent: string; title: (p: Record<string, unknown>, name: StyleName) => string }> = {
-  place_ad: { icon: '📣', agent: '投广助手', title: (p, name) => `投广 · ${name(str(p.styleId)) || str(p.slot) || ''}`.trim() },
+  place_ad: { icon: '📣', agent: '投广助手', title: (p, name) => `投广 · ${name(str(p.styleId)) || str(p.audience) || str(p.slot) || ''}`.trim() },
+  update_ad_campaign: { icon: '📣', agent: '投广助手', title: (p, name) => `修改广告 · ${name(str(p.styleId)) || str(p.campaignId) || ''}`.trim() },
+  pause_ad_campaign: { icon: '⏸', agent: '投广助手', title: (p, name) => `暂停广告 · ${name(str(p.styleId)) || str(p.campaignId) || ''}`.trim() },
   set_group_buy_coupon: { icon: '🛍', agent: '团购助手', title: (p, name) => `团购券 · ${name(str(p.styleId))}`.trim() },
   // propose_listing writes { gapTag, reason } (tools.py) — the demand gap, not a style id. gapTag first;
   // styleTitle/styleId kept only as defensive fallbacks for any legacy payload shape.

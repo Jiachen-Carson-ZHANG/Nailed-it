@@ -85,6 +85,15 @@ def _execution_context(actions: list[dict]) -> str:
     )
 
 
+def _brief_context(briefs: list[dict]) -> str:
+    """The executor's Action Brief block (ADR-0016 §2) — used verbatim by the eval so the judged
+    context format IS the live one."""
+    return (
+        "[行动简报 — 来自决策 Agent｜目标与硬边界，执行参数由你决定]\n"
+        f"{json.dumps(briefs, ensure_ascii=False)}\n[/行动简报]"
+    )
+
+
 def _due_context(actions: list[dict]) -> str:
     """Measurable past actions (ADR-0015 two-phase monitor): observation windows with data — evaluate
     each with record_action_outcome (compare measured vs payload.hypothesis); revise only past the
@@ -321,10 +330,7 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         # objective infeasible); it never receives exact execution parameters.
         mine = [b for b in state.briefs if b.get("action_type") == slug]
         if mine:
-            task = (
-                f"{task}\n\n[行动简报 — 来自决策 Agent｜目标与硬边界，执行参数由你决定]\n"
-                f"{json.dumps(mine, ensure_ascii=False)}\n[/行动简报]"
-            )
+            task = f"{task}\n\n{_brief_context(mine)}"
         else:
             task = f"{task}\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，不要调用任何执行工具，说明本轮不{('投广' if slug == 'ad' else '设团购')}。）"
     if slug == "monitor":

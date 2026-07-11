@@ -851,7 +851,13 @@ def record_action_outcome(action_id: str, assessment: str, confidence: str) -> s
             raise ValueError("observation_window_immature")  # nothing measured yet — record pending in prose
 
     comparison: dict[str, Any] = {"predicted": hypothesis, "measured": measured}
+    # brain-era hypotheses carry a point costPerBookingCents; ADR-0016 forecast hypotheses carry an
+    # expectedCostPerBookingCents RANGE — compare against its midpoint.
     predicted_cpb = (hypothesis or {}).get("costPerBookingCents")
+    if predicted_cpb is None:
+        rng = (hypothesis or {}).get("expectedCostPerBookingCents")
+        if isinstance(rng, (list, tuple)) and len(rng) == 2 and all(isinstance(x, (int, float)) for x in rng):
+            predicted_cpb = round((rng[0] + rng[1]) / 2)
     measured_cpb = (measured or {}).get("spend_per_booking_cents")
     if predicted_cpb and measured_cpb:
         comparison.update({
