@@ -2099,3 +2099,26 @@ Verification: pytest 44/44 (new: identity derivation, immature-window refusal, e
 monitor-only writes, relevance ranking + access filter, snapshot barrier); **full eval suite n=2 ALL
 BLOCKING GATES PASS on gemini-direct** — monitor scenarios green through the new writer tools.
 USER must apply migrations 0030 → 0031 → 0032, then the live round.
+
+## 2026-07-11 — Demo history seed + due-outcomes injection (closing the loop on stage)
+
+Problem: a live agent-created campaign starts at 0 impressions, and `record_action_outcome` correctly
+refuses immature windows — so a fresh demo run could never show memory being written or cited. Seeding
+memory rows directly would be indefensible ("where did this come from?" — "we typed it").
+
+- **`scripts/seed-agent-history.ts`** (`npm run seed:agent-history`, idempotent): a backdated round
+  from 7 days ago — decision run → two ad runs → two ACTIVE campaigns with a week of metrics → their
+  `agent_actions` rows carrying hypothesis snapshots, exactly as `place_ad` writes them live. The two
+  campaigns straddle the monitor's bright lines: 8284 over-spender (¥280/booking measured vs ¥80
+  predicted → memory + revision) and 8265 healthy (¥17 vs ¥18 → memory only; revising it is the
+  trigger-happy failure). Memory itself is NEVER seeded — the live monitor writes it on stage. The one
+  exception: a `merchant_preference` row (it represents merchant settings, not agent experience) —
+  skipped loudly until 0030+0032 are applied.
+- **`bus.fetch_due_actions` + `_due_context`**: the monitor now receives TWO injected lists — this
+  round's executions (usually pending) and past actions whose campaigns have data (its real
+  measurement targets). This is the auditor's `get_due_outcomes` in minimal form: data presence is the
+  due signal, the immature-window gate stays the enforcement. monitor.md updated for the split.
+- Verified live: seed ran against the real DB; `fetch_due_actions` returns both seeded actions with
+  their hypotheses. pytest 44/44, tsc clean.
+- Demo script: round 1 → monitor measures seeded history live (outcome memory + one revision on
+  8284); round 2 → 决策's injected 记忆提示 cites the mem id and tightens budgets.

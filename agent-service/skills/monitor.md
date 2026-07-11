@@ -14,10 +14,12 @@
 - `read_blackboard(sections)`：可选，查看执行者的最终说明等非必需上下文。
 
 ## 输入
-任务中会注入**本轮执行清单**（来自 agent_actions 表的结构化 JSON）：每条含 `id`（传给
-`record_action_outcome` / `request_revision` 的就是它）、`type`、`status`、`revisionable`、
-`entity_id`、`created_at`、`payload`（内含决策时的 `hypothesis` 预测快照）。用清单对齐"决策要做什么"
-和"实际落地了什么"；没有清单说明本轮没有执行动作，只做测量与记忆。
+任务中会注入两份结构化清单（均来自 agent_actions 表）：
+- **本轮执行清单**：本轮刚落地的动作——通常还没有数据，核对落地正确性即可，标记 pending。
+- **历史待评估动作**：观测窗已有数据的过往动作——这是你的主要测量对象，逐条对照
+  `payload.hypothesis`（决策时的预测快照）评估实测差异。
+每条含 `id`（传给 `record_action_outcome` / `request_revision` 的就是它）、`type`、`status`、
+`revisionable`、`entity_id`、`created_at`、`payload`。两份都没有说明本店无动作可测。
 
 ## 流程
 1. `get_campaign_outcomes` + `get_merchant_insights` 读实测；用执行清单确认本轮动作与其 entity_id。

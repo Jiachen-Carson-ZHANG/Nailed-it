@@ -20,7 +20,7 @@ import json
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from . import bus, config, runner, tools
 
@@ -60,13 +60,10 @@ def _upstream_context(slug: str, parent_slug: str | None, results: dict[str, str
     return [(s, results[s]) for s in ordered]
 
 
-def _execution_context(actions: list[dict]) -> str:
-    """The monitor's structured execution list, formatted for injection. Sourced from agent_actions
-    (the authoritative store — blackboard['executions'] is a derived snapshot); request_revision needs
-    real ids, and another agent's prose can't be trusted to carry them. Used verbatim by the eval so
-    the judged context format IS the live one. `revisionable` is code-computed so the monitor doesn't
-    burn a revision attempt on an action the RevisionPort would refuse anyway."""
-    slim = [
+def _slim_actions(actions: list[dict]) -> list[dict]:
+    """`revisionable` is code-computed so the monitor doesn't burn a revision attempt on an action
+    the RevisionPort would refuse anyway."""
+    return [
         {
             **{k: a.get(k) for k in ("id", "type", "status", "risk", "entity_id", "created_at", "payload")},
             "revisionable": (
@@ -76,8 +73,25 @@ def _execution_context(actions: list[dict]) -> str:
         }
         for a in actions
     ]
+
+
+def _execution_context(actions: list[dict]) -> str:
+    """The monitor's structured execution list, formatted for injection. Sourced from agent_actions
+    (the authoritative store — blackboard['executions'] is a derived snapshot); request_revision needs
+    real ids, and another agent's prose can't be trusted to carry them. Used verbatim by the eval so
+    the judged context format IS the live one."""
     return "本轮执行清单（来自 agent_actions；request_revision 只对 revisionable=true 的 id 有效）：\n" + json.dumps(
-        slim, ensure_ascii=False
+        _slim_actions(actions), ensure_ascii=False
+    )
+
+
+def _due_context(actions: list[dict]) -> str:
+    """Measurable past actions (ADR-0015 two-phase monitor): observation windows with data — evaluate
+    each with record_action_outcome (compare measured vs payload.hypothesis); revise only past the
+    bright lines."""
+    return (
+        "历史待评估动作（观测窗已有数据；逐条用 record_action_outcome 评估实测 vs hypothesis 预测）：\n"
+        + json.dumps(_slim_actions(actions), ensure_ascii=False)
     )
 
 ORCH_TASK = (
@@ -283,12 +297,16 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         # 决策 is the team's main memory consumer — the highest-relevance priors are injected, and
         # search_memory remains its tool for candidate-specific digging (ADR-0015 two-stage retrieval).
         task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
-    if slug == "monitor" and round_id:
-        actions = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
-        if actions:
-            task = f"{task}\n\n{_execution_context(actions)}"
+    if slug == "monitor":
+        current = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id) if round_id else []
+        if current:
+            task = f"{task}\n\n{_execution_context(current)}"
+        current_ids = {a.get("id") for a in current}
+        due = [a for a in bus.fetch_due_actions(sb, config.MERCHANT_ID) if a.get("id") not in current_ids]
+        if due:
+            task = f"{task}\n\n{_due_context(due)}"
 
-    factory = None
+    factory: Callable[[str], RevisionPort] | None = None
     if slug == "monitor":
         def factory(monitor_run_id: str) -> RevisionPort:
             return RevisionPort(

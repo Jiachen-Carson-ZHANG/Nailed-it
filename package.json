@@ -15,6 +15,7 @@
     "seed:supabase": "tsx scripts/seed-supabase.ts",
     "seed:intelligence": "tsx scripts/seed-intelligence.ts",
     "seed:agents": "tsx scripts/seed-agents.ts",
+    "seed:agent-history": "tsx scripts/seed-agent-history.ts",
     "backfill:fillers": "tsx scripts/backfill-filler-merchants.ts",
     "preflight": "tsx scripts/preflight-demo.ts",
     "pinterest:auth": "tsx scripts/pinterest-auth.ts",

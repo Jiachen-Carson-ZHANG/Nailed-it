@@ -262,6 +262,28 @@ def fetch_round_actions(sb: Client, merchant_id: str, round_id: str) -> list[dic
     return rows
 
 
+def fetch_due_actions(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
+    """Measurable PAST actions (ADR-0015 two-phase monitor, minimal form): every applied/proposed
+    spend action whose campaign has accumulated data. Injected into the monitor beside the current
+    round's execution list — a due-outcomes queue without a scheduler. Data presence is the due
+    signal; the immature-window gate in record_action_outcome stays the enforcement."""
+    campaigns = fetch_campaign_outcomes(sb, merchant_id)
+    measurable = [c["id"] for c in campaigns if (c.get("impressions") or 0) > 0]
+    if not measurable:
+        return []
+    res = (
+        sb.table("agent_actions")
+        .select("id, run_id, type, risk, status, payload, entity_type, entity_id, created_at")
+        .eq("merchant_id", merchant_id)
+        .in_("entity_id", measurable)
+        .in_("status", ["applied", "proposed"])
+        .order("created_at")
+        .order("id")
+        .execute()
+    )
+    return res.data or []
+
+
 def fetch_action(sb: Client, action_id: str, merchant_id: str) -> dict[str, Any] | None:
     """One action row — the revision edge (ADR-0013 P3) must read type/risk/entity before acting."""
     res = (
