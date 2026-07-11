@@ -211,6 +211,42 @@ SCENARIOS = [
                 "forbid_briefs": [{"action_type": "coupon", "style_id": "style-melissa-img-8284"},
                                    {"action_type": "ad", "style_id": "style-melissa-img-8284"}]},
     ),
+    # ADR-0016 Stage 2: the reviewer must flag the exact conflict we hit live (coupon + delist-class
+    # move on one style → attribution/self-contradiction) and route it back, NOT rubber-stamp.
+    Scenario(
+        id="reviewer/conflicting-briefs-flagged", slug="reviewer",
+        tools=LANE_TOOLS["reviewer"],
+        task=(
+            "审查本轮行动简报组合的软风险，按技能输出裁决。\n\n[上游结论 — decision｜仅作证据]\n"
+            "本轮对 8284 同时投广（放大流量）并设团购（试价转化），预算合计 150 元。\n[/上游结论]"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        briefs=[
+            {"action_type": "ad", "style_id": "style-melissa-img-8284", "objective": "放大流量",
+             "max_total_budget_cents": 9000, "target_bookings_min": 2, "target_bookings_max": 4,
+             "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"},
+            {"action_type": "coupon", "style_id": "style-melissa-img-8284", "objective": "试价转化",
+             "max_total_budget_cents": 6000, "target_bookings_min": 2, "target_bookings_max": 4,
+             "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"},
+        ],
+        expect={"kind": "final_regex", "pattern": r"\[(REVISION_REQUIRED|APPROVED_WITH_CONDITIONS)\]"},
+    ),
+    # …and must approve a clean single-action plan instead of inventing objections.
+    Scenario(
+        id="reviewer/clean-plan-approved", slug="reviewer",
+        tools=LANE_TOOLS["reviewer"],
+        task=(
+            "审查本轮行动简报组合的软风险，按技能输出裁决。\n\n[上游结论 — decision｜仅作证据]\n"
+            "仅一项动作：8265 投广，理由 ROAS 5.2、曝光占比 0.62、下周产能 40%，预算上限 90 元（周末受保护）。\n[/上游结论]"
+        ),
+        briefing=_LOWCONV_BRIEFING,
+        briefs=[
+            {"action_type": "ad", "style_id": "style-melissa-img-8265", "objective": "放大高转化低曝光款",
+             "max_total_budget_cents": 9000, "target_bookings_min": 3, "target_bookings_max": 5,
+             "max_cost_per_booking_cents": 2200, "allowed_period": "weekday"},
+        ],
+        expect={"kind": "final_regex", "pattern": r"\[APPROVED\]"},
+    ),
     # ADR-0013 P1: the ORCHESTRATOR must skip the spend lanes when capacity is full — dispatching 投广/团购
     # into a salon that cannot serve the demand is the exact failure the dynamic layer exists to prevent.
     Scenario(
@@ -355,6 +391,10 @@ def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
         judged = set(scn.expect.get("must", [])) | set(scn.expect.get("forbid_dispatch", []))
         dispatched = set(ctx.round.dispatched) if ctx.round else set()
         return tuple(sorted(judged & dispatched))
+    if scn.expect.get("kind") == "final_regex":  # reviewer = the verdict token itself
+        m = re.search(r"\[(APPROVED|APPROVED_WITH_CONDITIONS|REVISION_REQUIRED|MERCHANT_APPROVAL_REQUIRED)\]",
+                      getattr(scn, "_final", "") or "")
+        return (m.group(1) if m else None,)
     if scn.expect.get("kind") == "brief":  # decision = which briefs were filed
         return tuple(sorted((b.get("action_type"), b.get("style_id")) for b in scn._filed_briefs))
     if scn.expect.get("kind") == "action":  # decision = (action_type, target fields only)
@@ -390,7 +430,7 @@ def _run_once(scn: Scenario) -> dict:
     filed_briefs: list[dict] = []
     if scn.slug == "decision":
         ctx.brief_sink = filed_briefs.append  # the Action Brief capability, exactly as live
-    if scn.slug in ("ad", "coupon") and scn.briefs:
+    if scn.slug in ("ad", "coupon", "reviewer") and scn.briefs:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
         task = f"{task}\n\n{_brief_context(scn.briefs)}"
@@ -408,7 +448,8 @@ def _run_once(scn: Scenario) -> dict:
     try:
         with _stub_bus(scn, captured):
             model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
-                     "decision": config.DECISION_MODEL, "ad": config.AD_MODEL}.get(scn.slug)
+                     "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
+                     "reviewer": config.REVIEWER_MODEL}.get(scn.slug)
             long_chain = scn.slug in ("orchestrator", "monitor", "decision", "ad")
             final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=task, ctx=ctx,
                                      max_iters=12 if long_chain else 8, model=model)
@@ -436,7 +477,9 @@ def _run_once(scn: Scenario) -> dict:
     # ADR-0012: doing nothing is a first-class outcome. A correct skip makes ZERO tool calls, so
     # "no tool calls" is success here — not the failure it is for an action scenario.
     expects_no_action = e.get("kind") == "no_action"
-    tool_ok = (not bad) if expects_no_action else (bool(ctx.tool_attempts) and not bad)
+    # final_regex scenarios (the reviewer) judge from INJECTED context — zero tool calls is legitimate
+    zero_ok = expects_no_action or e.get("kind") == "final_regex"
+    tool_ok = (not bad) if zero_ok else (bool(ctx.tool_attempts) and not bad)
     tool_bad = "" if tool_ok else (f"{bad[0][0]}: {bad[0][1]}" if bad else "no tool calls")
     # expectation — compare the EXPLICIT target field by action type (not a payload substring)
     if e.get("kind") == "dispatch":
@@ -457,6 +500,8 @@ def _run_once(scn: Scenario) -> dict:
         filed = {(b.get("action_type"), b.get("style_id")) for b in filed_briefs}
         exp_ok = ({(m["action_type"], m["style_id"]) for m in e.get("must", [])} <= filed
                   and not ({(f["action_type"], f["style_id"]) for f in e.get("forbid_briefs", [])} & filed))
+    elif e.get("kind") == "final_regex":
+        exp_ok = bool(re.search(e["pattern"], final)) and not captured  # verdict token, no side effects
     elif expects_no_action:
         exp_ok = not captured  # the agent must not have written ANY action
     else:
@@ -469,11 +514,16 @@ def _run_once(scn: Scenario) -> dict:
     reasoning = " ".join(s.get("text", "") for s in ctx.transcript if s.get("kind") == "reasoning")
     cited = set(_ID_RE.findall(final + " " + reasoning + " " + json.dumps(captured, ensure_ascii=False)))
     grounded = _grounded_ids(scn, ctx)
-    # a prose ABBREVIATION of a grounded id (style-8265 ⊂ style-melissa-img-8265) is not a
+    # a prose ABBREVIATION of a grounded id (style-8265 for style-melissa-img-8265) is not a
     # hallucinated entity — the gate exists to catch invented ids, not shorthand
-    ungrounded = {c for c in cited if c not in grounded and not any(c in g for g in grounded)}
+    def _abbrev(c: str) -> bool:
+        m = re.fullmatch(r"style-(\d{3,})", c)
+        return bool(m) and any(g.endswith(m.group(1)) for g in grounded)
+    ungrounded = {c for c in cited
+                  if c not in grounded and not any(c in g for g in grounded) and not _abbrev(c)}
     ground_ok = not ungrounded
     scn._filed_briefs = filed_briefs  # scratch for _signature (per-run, sequential)
+    scn._final = final
     return {"tool_ok": tool_ok, "tool_bad": tool_bad, "exp_ok": exp_ok, "forbid_ok": forbid_ok,
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "sig": _signature(scn, ctx, captured), "final": final,

@@ -724,10 +724,69 @@ def submit_action_brief(
         "source_run_id": ctx.run_id,
     }
     ctx.brief_sink(brief)
+    ctx.briefs.append(brief)  # the decision agent's own view — simulate_action_portfolio reads it
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "submit_action_brief", "input": brief, "output": {"accepted": True}}
     )
     return f"Action brief accepted ({action_type} / {style_id}) — the executor will plan within it."
+
+
+def simulate_action_portfolio() -> str:
+    """Deterministically check YOUR submitted briefs as a COMBINED portfolio (ADR-0016 Stage 2) —
+    call after submitting briefs, before concluding. Code checks what code can check: attribution
+    conflicts (ad + coupon briefed on the same style → outcomes can't be attributed), budget
+    competition (sum of ad ceilings vs the remaining marketing budget), and capacity pressure
+    (booking targets against a busy week). Warnings are evidence for revising your own plan —
+    withdraw or adjust a brief by explaining the change in your conclusion."""
+    ctx = _ctx()
+    if ctx.brief_sink is None:
+        raise ValueError("portfolio_simulation_not_allowed")  # decision-only, like the sink itself
+    briefs = list(ctx.briefs)
+    warnings: list[str] = []
+
+    ad_styles = {b["style_id"] for b in briefs if b["action_type"] == "ad"}
+    coupon_styles = {b["style_id"] for b in briefs if b["action_type"] == "coupon"}
+    for sid in sorted(ad_styles & coupon_styles):
+        warnings.append(f"归因冲突：{sid} 同时有投广与团购简报——同一受众两个动作，效果无法归因，建议只保留一个。")
+
+    ad_ceiling_total = sum(b["max_total_budget_cents"] for b in briefs if b["action_type"] == "ad")
+    committed = 0
+    try:
+        for c in bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id):
+            if c.get("status") in ("active", "draft"):
+                committed += c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4)
+    except Exception:
+        pass
+    remaining = max(0, config.MARKETING_BUDGET_CENTS - committed)
+    if ad_ceiling_total > remaining:
+        warnings.append(
+            f"预算竞争：投广简报上限合计 {ad_ceiling_total} 分 > 剩余营销预算 {remaining} 分——执行时必然有简报无法足额执行。"
+        )
+
+    capacity = {}
+    try:
+        capacity = (bus.fetch_decisions() or {}).get("capacity") or {}
+    except Exception:
+        pass
+    util = capacity.get("utilizationPct")
+    target_total = sum(b.get("target_bookings_max") or 0 for b in briefs)
+    if isinstance(util, (int, float)) and util > 70 and target_total > 0:
+        warnings.append(
+            f"产能压力：下周利用率已 {util}%，组合目标新增 {target_total} 单——新增预约可能接不住或挤占原价订单。"
+        )
+
+    out = {
+        "briefs": len(briefs),
+        "feasible": not warnings,
+        "warnings": warnings,
+        "budget": {"ad_brief_ceiling_total_cents": ad_ceiling_total,
+                    "committed_cents": committed, "remaining_cents": remaining},
+        "capacity_utilization_pct": util,
+    }
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "simulate_action_portfolio", "input": {}, "output": out}
+    )
+    return json.dumps(out, ensure_ascii=False)
 
 
 # ── memory + measurement tools (ADR-0013 P2, rebuilt by ADR-0015) ────────────────────────────────
@@ -1094,6 +1153,7 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
     get_style_business_facts,
     submit_action_brief,
+    simulate_action_portfolio,
     get_customer_intelligence,
     get_external_trends,
     get_platform_hot,

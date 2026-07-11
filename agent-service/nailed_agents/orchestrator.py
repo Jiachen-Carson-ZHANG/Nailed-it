@@ -43,7 +43,10 @@ LANE_TOOLS: dict[str, list[str]] = {k: v for k, v in _AGENT_TOOLS.items() if k !
 # their own grounded read tools, not the whole round.
 CONTEXT_POLICY: dict[str, list[str]] = {
     "decision": ["insight", "trend"],
-    "monitor": ["decision"],
+    "reviewer": ["decision"],
+    "ad": ["reviewer"],
+    "coupon": ["reviewer"],
+    "monitor": ["decision", "reviewer"],
 }
 
 # Lanes whose tools write agent_actions — after each of these concludes, the round's structured
@@ -221,6 +224,52 @@ def _skill(slug: str, fallback: str) -> str:
 _HINTS_PER_KIND = {"merchant_preference": 3, "round_verdict": 1, "calibration": 3, "action_outcome": 3}
 
 
+def _decision_context(sb) -> str:
+    """The decision agent's strategic environment (ADR-0016 Stage 2), injected deterministically:
+    mission, merchant policy snapshot, capacity summary, candidate style index (top signals only).
+    Full per-style facts stay behind get_style_business_facts — injection covers what EVERY decision
+    structurally needs; WHICH candidates to inspect in depth remains the agent's choice."""
+    try:
+        brain = bus.fetch_decisions() or {}
+    except Exception:
+        print("WARN decision brain unreachable — 决策 runs without the injected environment")
+        return ""
+    cap = brain.get("capacity") or {}
+    committed = 0
+    try:
+        for c in bus.fetch_campaign_outcomes(sb, config.MERCHANT_ID):
+            if c.get("status") in ("active", "draft"):
+                committed += c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4)
+    except Exception:
+        pass
+    ranked = sorted(brain.get("decisions") or [],
+                    key=lambda d: (d.get("scores") or {}).get("businessValue") or 0, reverse=True)
+    env = {
+        "mission": {
+            "goal": "在不牺牲周末原价订单的前提下，提升下周预约量与利润",
+            "planning_horizon": "next_7_days",
+        },
+        "merchant_policy": {
+            "marketing_budget_cents": config.MARKETING_BUDGET_CENTS,
+            "committed_budget_cents": committed,
+            "remaining_budget_cents": max(0, config.MARKETING_BUDGET_CENTS - committed),
+            "ad_auto_execute_daily_limit_cents": 5000,
+            "protected_periods": ["weekend"],
+            "approval_required_for": ["coupon_publish", "new_listing", "ad_above_auto_limit"],
+        },
+        "capacity_summary": {k: cap.get(k) for k in ("band", "utilizationPct", "largestGapMin") if k in cap},
+        "candidate_style_index": [
+            {"styleId": d.get("styleId"), "styleTitle": d.get("styleTitle"),
+             "signals": d.get("signals"), "businessValue": (d.get("scores") or {}).get("businessValue")}
+            for d in ranked[:5]
+        ],
+    }
+    return (
+        "\n\n[经营环境 — 系统注入｜任务目标、商家约束、产能摘要与候选索引；完整每款事实用 "
+        "get_style_business_facts 查询]\n" + json.dumps(env, ensure_ascii=False) + "\n[/经营环境]"
+    )
+
+
 def _memory_hints(sb, *, kinds: tuple[str, ...], limit: int = 8) -> str:
     """Deterministic pre-run memory hints (ADR-0015): code picks the few memories a lane structurally
     needs — newest rows per kind, capped by _HINTS_PER_KIND — so recall never depends on the model
@@ -289,7 +338,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         # monitor (outcomes + verdict + revision) and, since ADR-0016, decision (facts → briefs) and
         # ad (forecast loops). Short lanes stay cheap.
         model={"monitor": config.MONITOR_MODEL, "decision": config.DECISION_MODEL,
-               "ad": config.AD_MODEL}.get(slug),
+               "ad": config.AD_MODEL, "reviewer": config.REVIEWER_MODEL}.get(slug),
         max_iters=12 if slug in ("monitor", "ad", "decision") else 8,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
@@ -321,9 +370,14 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     if missing:
         task = f"{task}\n\n（上游 {', '.join(missing)} 本轮未运行——按信息缺失处理，不要臆造其结论。）"
     if slug == "decision":
-        # 决策 is the team's main memory consumer — the highest-relevance priors are injected, and
-        # search_memory remains its tool for candidate-specific digging (ADR-0015 two-stage retrieval).
+        # strategic environment first (ADR-0016 Stage 2), then memory priors (ADR-0015) — injection
+        # covers what every decision needs; the agent chooses what to inspect deeper.
+        task += _decision_context(sb)
         task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
+    if slug == "reviewer" and state.briefs:
+        # the reviewer judges the PORTFOLIO — every brief, verbatim, same formatter as executors
+        task = f"{task}\n\n{_brief_context(state.briefs)}"
+
     if slug in ("ad", "coupon"):
         # ADR-0016 §2: the executor's contract is the decision agent's Action Brief — objective +
         # hard boundaries, injected as structured JSON. The executor plans within it (or reports the

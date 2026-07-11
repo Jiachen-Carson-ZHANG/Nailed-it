@@ -94,6 +94,16 @@ export const AGENT_DEFINITIONS: Agent[] = [
     version: 3,
   },
   {
+    id: 'agent-reviewer',
+    slug: 'reviewer',
+    name: '风控 Agent',
+    role: 'reviewer',
+    instructions:
+      '你是风控与运营审查代理。审查决策的行动简报组合的软风险：动作冲突、集中度、蚕食、证据质量、可测性与信任边界。裁决以 [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED] 开头。硬规则由代码强制，你不检查数字合规，也不重设计计划。',
+    tools: AGENT_TOOLS.reviewer,
+    version: 1,
+  },
+  {
     id: 'agent-monitor',
     slug: 'monitor',
     name: 'Monitor Agent',

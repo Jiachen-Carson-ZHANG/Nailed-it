@@ -80,7 +80,7 @@ const TEAM_LANES: ReadonlyArray<{
     name: { 'zh-CN': '款式运营', en: 'Style ops' },
     stages: [
       { label: { 'zh-CN': '数据收集', en: 'Collect' }, slugs: ['trend', 'insight'] },
-      { label: { 'zh-CN': '商业决策', en: 'Decide' }, slugs: ['decision'] },
+      { label: { 'zh-CN': '商业决策 → 风控', en: 'Decide → Review' }, slugs: ['decision', 'reviewer'] },
       { label: { 'zh-CN': '动作', en: 'Act' }, slugs: ['ad', 'coupon', 'catalog'] },
       { label: { 'zh-CN': '监测', en: 'Monitor' }, slugs: ['monitor'] },
     ],

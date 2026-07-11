@@ -38,8 +38,8 @@ def test_registries_cover_the_same_tools():
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
         # 运营 (catalog) grounded-candidates read tool
         "get_catalog_actions",
-        # 决策 (ADR-0016) business-engine facts + the Action Brief output contract
-        "get_style_business_facts", "submit_action_brief",
+        # 决策 (ADR-0016) business-engine facts + the Action Brief output contract + portfolio sim
+        "get_style_business_facts", "submit_action_brief", "simulate_action_portfolio",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
         # 监测回流 + 记忆 v2 + 修订 (ADR-0013 P2/P3, ADR-0015)
@@ -57,7 +57,7 @@ def test_agent_tools_json_is_valid_against_the_registry():
     from nailed_agents import orchestrator
 
     assert set(orchestrator.LANE_TOOLS) == {
-        "insight", "trend", "decision", "ad", "coupon", "catalog", "customer_ops", "monitor",
+        "insight", "trend", "decision", "reviewer", "ad", "coupon", "catalog", "customer_ops", "monitor",
     }
     for lane, names in orchestrator.LANE_TOOLS.items():
         assert names, f"lane {lane} has an empty allow-list"
@@ -468,7 +468,7 @@ def test_monitor_snapshot_barrier_rejects_parallel_batch():
     state = RoundState(dispatch_fn=lambda s, t, p: (f"run-{s}", "ok"))
     with pytest.raises(ValueError, match="monitor_must_not_run_in_parallel"):
         state.reserve(["ad", "monitor"])
-    assert state.budget == 8 and not state._taken  # atomic: nothing reserved on rejection
+    assert state.budget == 9 and not state._taken  # atomic: nothing reserved on rejection
     state.reserve(["monitor"])  # alone is fine — prior dispatches are blocking, hence terminal
     assert "monitor" in state._taken
 
@@ -485,3 +485,35 @@ def test_execution_context_marks_revisionable_and_orders_fields():
     data = json.loads(text.split("：\n", 1)[1])
     assert data[0]["revisionable"] is True and data[1]["revisionable"] is False
     assert data[0]["created_at"] == "2026-07-11T01:00:00Z"
+
+
+# ── ADR-0016 Stage 2: portfolio simulation — deterministic conflict checks ────────────────────────
+
+def test_simulate_action_portfolio_flags_conflicts_budget_and_capacity(ctx, monkeypatch):
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [
+        {"status": "active", "total_budget_cents": 12000},
+    ])
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {"capacity": {"utilizationPct": 82}})
+    ctx.brief_sink = lambda b: None
+    ctx.briefs = [
+        {"action_type": "ad", "style_id": "s-1", "max_total_budget_cents": 10000, "target_bookings_max": 4},
+        {"action_type": "coupon", "style_id": "s-1", "max_total_budget_cents": 1, "target_bookings_max": 3},
+    ]
+    out = json.loads(tools.simulate_action_portfolio())
+    assert out["feasible"] is False
+    text = " ".join(out["warnings"])
+    assert "归因冲突" in text        # ad + coupon on the same style
+    assert "预算竞争" in text        # 10001 > 18000-12000=6000
+    assert "产能压力" in text        # 82% util with booking targets
+    assert out["budget"]["remaining_cents"] == 6000
+
+
+def test_simulate_action_portfolio_is_decision_only_and_passes_clean_plans(ctx, monkeypatch):
+    with pytest.raises(ValueError, match="portfolio_simulation_not_allowed"):
+        tools.simulate_action_portfolio()  # no brief_sink → not the decision agent
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [])
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {"capacity": {"utilizationPct": 40}})
+    ctx.brief_sink = lambda b: None
+    ctx.briefs = [{"action_type": "ad", "style_id": "s-1", "max_total_budget_cents": 9000, "target_bookings_max": 4}]
+    out = json.loads(tools.simulate_action_portfolio())
+    assert out["feasible"] is True and out["warnings"] == []

@@ -93,6 +93,8 @@ MONITOR_MODEL = os.environ.get("MONITOR_MODEL") or ORCHESTRATOR_MODEL
 # same measured failure class, same fix. Bounded cost: ≤4 strong-tier runs per round.
 DECISION_MODEL = os.environ.get("DECISION_MODEL") or ORCHESTRATOR_MODEL
 AD_MODEL = os.environ.get("AD_MODEL") or ORCHESTRATOR_MODEL
+# ADR-0016 Stage 2: soft-risk review is nuanced judgment over structured briefs — strong tier.
+REVIEWER_MODEL = os.environ.get("REVIEWER_MODEL") or ORCHESTRATOR_MODEL
 
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
 #   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).
@@ -139,7 +141,7 @@ MAX_PENDING_PROPOSALS = int(os.environ.get("MAX_PENDING_PROPOSALS", "5"))
 MARKETING_BUDGET_CENTS = int(os.environ.get("MARKETING_BUDGET_CENTS", "18000"))
 
 # ADR-0013 P1: per-round orchestration guardrails (the LLM chooses; code bounds).
-MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "8"))
+MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "9"))  # 9 lanes since the reviewer (ADR-0016 S2)
 
 # Sampling temperature for the OpenAI-compatible loop. Operations agents judge against bright-line
 # thresholds — low temperature is a feature (reproducible rounds, stable eval), not a limitation.

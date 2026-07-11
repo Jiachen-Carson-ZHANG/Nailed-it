@@ -2190,3 +2190,25 @@ Five code commits (5ff3e73 → 760b7e8) + this verification pass:
   10-minute shell cap with four strong-tier lanes). pytest 51/51, tsc clean, vitest 198/198.
 
 BLOCKED on live verification: USER must apply 0033_ad_sandbox.sql, then rounds + advance-clock.
+
+## 2026-07-11 — ADR-0016 Stage 2: decision environment, portfolio simulation, Risk Reviewer
+
+- **Decision context injection** (`_decision_context`): mission + merchant policy snapshot (budget
+  remaining vs committed, auto-execute limit, protected weekend, approval matrix) + capacity summary
+  + top-5 candidate style index (signals only) injected deterministically — the agent chooses which
+  candidates to inspect in depth via get_style_business_facts (two-stage, ADR-0014 rule).
+- **simulate_action_portfolio** (decision-only, capability-gated like the brief sink): deterministic
+  combined-plan checks — attribution conflicts (ad+coupon on one style: the live 8275 conflict class),
+  budget competition vs the remaining envelope, capacity pressure. Warnings are evidence for the
+  agent revising its own plan. pytest-pinned.
+- **Risk Reviewer agent** (风控, strong tier): judges the brief PORTFOLIO for soft risk only (hard
+  rules stay in code) — verdict tokens [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/
+  [MERCHANT_APPROVAL_REQUIRED]. Wired: CONTEXT_POLICY (reviewer sees decision; executors + monitor
+  see reviewer), orchestrator default plan step 4 (skip executors on REVISION_REQUIRED; skip reviewer
+  entirely when no briefs), dispatch budget 8→9, seed row + Decide→Review UI stage.
+- Eval: `final_regex` gate (verdict token, zero side effects; zero tool calls legitimate — the
+  reviewer judges injected briefs); grounding abbreviation check fixed to digit-tail matching
+  (style-8265 → style-melissa-img-8265 is shorthand, not hallucination). Scenarios:
+  `reviewer/conflicting-briefs-flagged` → REVISION_REQUIRED 2/2, `reviewer/clean-plan-approved` →
+  APPROVED 2/2 (no invented objections). 13 scenarios total, all green on gemini.
+- pytest 53/53; re-seeded (10 agents).
