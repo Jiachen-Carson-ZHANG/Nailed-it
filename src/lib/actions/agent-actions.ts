@@ -8,6 +8,44 @@ import { demoMerchantId } from '@/mock/merchants';
 import { agentActionTypes, canUndoAction, deriveRunDetail, type Agent, type AgentAction, type AgentActionType, type AgentRunDetail, type AgentRunView } from '@/domain/agents';
 import { groupbuyWithdrawTarget } from '@/domain/action-entity-contract';
 import { withdrawStyleAdCampaignAction } from '@/lib/actions/style-ad-actions';
+import { usesSupabaseBackend, getServiceClient } from '@/lib/db/client';
+
+/** One team-memory row for the panel (ADR-0015): the agent's claim + code-anchored evidence. */
+export type TeamMemoryView = {
+  id: string;
+  kind: string; // action_outcome | calibration | round_verdict | merchant_preference
+  claim: string;
+  confidence: string | null;
+  scopeId: string | null; // style/entity/merchant the conclusion is about
+  comparison: { ratio?: number; direction?: string } | null;
+  createdAt: string;
+  expiresAt: string | null;
+};
+
+/** The team's live memory (non-expired, newest first) — powers the 团队记忆 card on /merchant/agents.
+ *  Written ONLY by the monitor from measured outcomes (plus explicit merchant preferences); reading it
+ *  here is what makes "the team learns" inspectable instead of claimed. Memory-mode: empty (no table). */
+export async function listTeamMemoryAction(): Promise<TeamMemoryView[]> {
+  if (!usesSupabaseBackend()) return [];
+  const { data, error } = await getServiceClient()
+    .from('agent_memory')
+    .select('id, kind, claim, content, confidence, scope_id, comparison, created_at, expires_at')
+    .eq('merchant_id', demoMerchantId)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (error) return []; // pre-0030/0032 DB — the card simply doesn't render
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    kind: String(r.kind),
+    claim: String(r.claim ?? (r.content as { verdict?: string } | null)?.verdict ?? ''),
+    confidence: (r.confidence as string | null) ?? null,
+    scopeId: (r.scope_id as string | null) ?? null,
+    comparison: (r.comparison as { ratio?: number; direction?: string } | null) ?? null,
+    createdAt: String(r.created_at),
+    expiresAt: (r.expires_at as string | null) ?? null,
+  })).filter((m) => m.claim);
+}
 
 /** The agent team definitions for the panel. */
 export async function listAgentsAction(): Promise<Agent[]> {

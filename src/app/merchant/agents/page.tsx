@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { listAgentsAction, listAgentRunsAction, triggerAgentRoundAction } from '@/lib/actions/agent-actions';
+import { listAgentsAction, listAgentRunsAction, listTeamMemoryAction, triggerAgentRoundAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
@@ -18,6 +18,10 @@ const agentsCopy = {
     body: 'AI 团队按三条业务线运转：数据收集 → 商业决策 → 动作，动作效果由监测回流。',
     teamTitle: '团队成员',
     runsTitle: '最近运行',
+    memoryTitle: '团队记忆',
+    memoryBody: '监测 Agent 用实测结果写入，下一轮决策会引用——这是团队跨轮学习的证据。',
+    memoryKind: { action_outcome: '实测结论', calibration: '校准', round_verdict: '本轮结论', merchant_preference: '商家偏好' } as Record<string, string>,
+    memoryConfidence: { high: '置信度高', medium: '置信度中', low: '置信度低' } as Record<string, string>,
     runRound: '运行一轮',
     runningRound: '运行中…',
     runConfirm: '运行一轮会调用模型并产生少量费用，确认运行？',
@@ -39,6 +43,10 @@ const agentsCopy = {
     body: 'Three business lanes: data collection → business decision → action, with monitoring feeding back.',
     teamTitle: 'Team',
     runsTitle: 'Recent runs',
+    memoryTitle: 'Team memory',
+    memoryBody: 'Written by the monitor from measured outcomes; the next round\'s decisions cite it.',
+    memoryKind: { action_outcome: 'Measured', calibration: 'Calibration', round_verdict: 'Round verdict', merchant_preference: 'Preference' } as Record<string, string>,
+    memoryConfidence: { high: 'high confidence', medium: 'medium confidence', low: 'low confidence' } as Record<string, string>,
     runRound: 'Run a round',
     runningRound: 'Running…',
     runConfirm: 'Running a round calls the model (small cost). Proceed?',
@@ -111,15 +119,17 @@ export default function MerchantAgentsPage() {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [showAllRuns, setShowAllRuns] = useState(false);
+  const [memory, setMemory] = useState<TeamMemoryView[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let active = true;
-    Promise.all([listAgentsAction(), listAgentRunsAction()])
-      .then(([a, r]) => {
+    Promise.all([listAgentsAction(), listAgentRunsAction(), listTeamMemoryAction()])
+      .then(([a, r, m]) => {
         if (!active) return;
         setAgents(a);
         setRuns(r);
+        setMemory(m);
       })
       .catch(() => {/* leave empty */})
       .finally(() => active && setLoading(false));
@@ -146,6 +156,7 @@ export default function MerchantAgentsPage() {
       polls += 1;
       try {
         setRuns(await listAgentRunsAction());
+        setMemory(await listTeamMemoryAction());
       } catch {/* keep polling */}
       if (polls >= 30) {
         if (pollRef.current) clearInterval(pollRef.current);
@@ -222,6 +233,30 @@ export default function MerchantAgentsPage() {
               );
             })()}
           </section>
+
+          {memory.length > 0 ? (
+            <section className="detail-surface" aria-labelledby="agents-memory-title">
+              <div className="detail-surface-header">
+                <h2 id="agents-memory-title">{copy.memoryTitle}</h2>
+              </div>
+              <p className="agent-memory-hint">{copy.memoryBody}</p>
+              <ul className="agent-memory-list">
+                {memory.map((m) => (
+                  <li key={m.id} className="agent-memory-row">
+                    <span className={`agent-memory-kind agent-memory-kind-${m.kind}`}>
+                      {copy.memoryKind[m.kind] ?? m.kind}
+                    </span>
+                    <p className="agent-memory-claim">{m.claim}</p>
+                    <p className="agent-memory-meta">
+                      {m.confidence ? <span>{copy.memoryConfidence[m.confidence] ?? m.confidence}</span> : null}
+                      {m.comparison?.ratio ? <span>· 预测偏差 ×{m.comparison.ratio}</span> : null}
+                      <span>· {fmtTime(m.createdAt, language)}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="detail-surface" aria-labelledby="agents-runs-title">
             <div className="detail-surface-header">

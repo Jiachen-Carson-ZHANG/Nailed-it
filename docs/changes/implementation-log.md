@@ -2151,3 +2151,21 @@ not-executed call is visible in the row itself, not just a live debugger.
 Also: pytest no longer network-dependent (fetch_decisions stubbed in fixtures — the running dev
 server had silently added hypothesis payloads to test assertions). pytest 44/44; monitor eval 2/2×2
 green on the live tier.
+
+## 2026-07-11 — 团队记忆 surfaced in the merchant UI
+
+The learning loop was DB-only — a judge (or merchant) had no way to SEE it. Two additions:
+
+- **团队记忆 card** on /merchant/agents (between 团队成员 and 最近运行): live non-expired memory rows
+  with kind chips (实测结论/校准/本轮结论/商家偏好), the claim, confidence, and the code-computed
+  prediction deviation (预测偏差 ×3.5). Backed by `listTeamMemoryAction` (service-role read, empty on
+  pre-0032 DBs); refreshes during round polling so memory appears live as the monitor writes it.
+- **Transcript describers** for the memory v2 + orchestration tools (record_action_outcome,
+  record_round_verdict, search_memory, read_blackboard, get_campaign_outcomes, request_revision,
+  dispatch_agent) — monitor/orchestrator runs now render as merchant sentences instead of raw tool
+  names (写入记忆 / 要求修订 / 分派…), same pure-describer pattern, +4 tests.
+
+Verified in the browser (production build): card shows the live 3.5× verdict and the merchant
+preference. Ops note for the runbook: an orphaned `next-server` process was holding :3000 and serving
+a stale in-memory build (fresh starts died on EADDRINUSE, page rendered unstyled with 404 chunks) —
+`kill <pid from ss -ltnp>` then `next start`, and only rebuild after the port is actually free.

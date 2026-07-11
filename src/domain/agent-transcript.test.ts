@@ -166,3 +166,33 @@ describe('dedupeActionsByEntity', () => {
     expect(dedupeActionsByEntity(rows).map((a) => a.id)).toEqual(['b2']);
   });
 });
+
+describe('memory v2 tool describers (ADR-0015)', () => {
+  it('describes record_action_outcome with the assessment and confidence', () => {
+    const d = describeToolCall(
+      'record_action_outcome',
+      { actionId: 'act-1', assessment: '实测每单花费 280 元，决策预测 80 元——低估约 3.5 倍', confidence: 'high' },
+      { recorded: true },
+      'zh-CN',
+    );
+    expect(d.label).toBe('写入记忆');
+    expect(d.summary).toContain('280');
+    expect(d.summary).toContain('high');
+  });
+
+  it('describes request_revision with the numeric feedback', () => {
+    const d = describeToolCall('request_revision', { actionId: 'act-1', feedback: '日预算从 200 降到 80' }, {}, 'zh-CN');
+    expect(d.label).toBe('要求修订');
+    expect(d.summary).toContain('日预算从 200 降到 80');
+  });
+
+  it('describes search_memory with the hit count', () => {
+    const d = describeToolCall('search_memory', { scopeRefs: ['style-1'] }, { memories: [{}, {}] }, 'zh-CN');
+    expect(d.summary).toContain('2 条');
+  });
+
+  it('describes record_round_verdict and dispatch_agent', () => {
+    expect(describeToolCall('record_round_verdict', { verdict: '满产能时不应继续获客' }, {}, 'zh-CN').summary).toContain('满产能');
+    expect(describeToolCall('dispatch_agent', { agent: 'insight' }, { runId: 'r1' }, 'zh-CN').summary).toContain('insight');
+  });
+});

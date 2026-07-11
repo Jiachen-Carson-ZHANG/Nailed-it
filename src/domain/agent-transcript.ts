@@ -201,6 +201,59 @@ const SUMMARIZERS: Record<string, Summarizer> = {
       ? `以老板身份联系 ${String(input.customerName ?? '')}：${truncate(String(input.body ?? ''), 60)}`
       : `Messaged ${String(input.customerName ?? '')} as the boss: ${truncate(String(input.body ?? ''), 60)}`,
   }),
+
+  // ── 监测回流 + 记忆 v2 (ADR-0013 P2/P3, ADR-0015) ──────────────────────────────────────────
+
+  get_campaign_outcomes: (_i, output, lang) => {
+    const n = count(output);
+    const zh = lang === 'zh-CN';
+    return { label: zh ? '活动实测' : 'Campaign data', summary: zh ? `读取 ${n || '全部'} 个广告活动的实测指标` : `Read live metrics for ${n || 'all'} campaigns` };
+  },
+
+  record_action_outcome: (input, _o, lang) => {
+    const zh = lang === 'zh-CN';
+    const conf = String(input.confidence ?? '');
+    return {
+      label: zh ? '写入记忆' : 'Memory',
+      summary: zh
+        ? `记录动作实测结论（置信度 ${conf}）：${truncate(String(input.assessment ?? ''), 80)}`
+        : `Recorded a measured outcome (${conf}): ${truncate(String(input.assessment ?? ''), 80)}`,
+    };
+  },
+
+  record_round_verdict: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '本轮结论' : 'Round verdict',
+    summary: lang === 'zh-CN'
+      ? `记录经营结论：${truncate(String(input.verdict ?? ''), 80)}`
+      : `Recorded a round verdict: ${truncate(String(input.verdict ?? ''), 80)}`,
+  }),
+
+  search_memory: (_i, output, lang) => {
+    const n = isObj(output) ? count((output as { memories?: unknown }).memories) : 0;
+    const zh = lang === 'zh-CN';
+    return { label: zh ? '查记忆' : 'Memory search', summary: zh ? `检索团队记忆，返回 ${n} 条相关结论` : `Searched team memory — ${n} relevant conclusions` };
+  },
+
+  read_blackboard: (input, _o, lang) => {
+    const sections = Array.isArray(input.sections) && input.sections.length > 0 ? (input.sections as unknown[]).join(', ') : '';
+    const zh = lang === 'zh-CN';
+    return { label: zh ? '看白板' : 'Blackboard', summary: zh ? `查看本轮白板${sections ? `（${sections}）` : ''}` : `Read the round blackboard${sections ? ` (${sections})` : ''}` };
+  },
+
+  request_revision: (input, _o, lang) => {
+    const zh = lang === 'zh-CN';
+    return {
+      label: zh ? '要求修订' : 'Revision',
+      summary: zh
+        ? `实测打脸该动作 → 驳回并让执行者重做：${truncate(String(input.feedback ?? ''), 70)}`
+        : `Numbers contradict the action → sent it back: ${truncate(String(input.feedback ?? ''), 70)}`,
+    };
+  },
+
+  dispatch_agent: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '分派' : 'Dispatch',
+    summary: lang === 'zh-CN' ? `分派「${String(input.agent ?? '')}」执行任务` : `Dispatched "${String(input.agent ?? '')}"`,
+  }),
 };
 
 // The pre-Python demo seed used camelCase tool names with the same input shape — alias, don't special-case.
