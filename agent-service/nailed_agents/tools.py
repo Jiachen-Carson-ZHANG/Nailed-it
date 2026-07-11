@@ -60,6 +60,9 @@ class RunContext:
     # ADR-0013 P3: set ONLY on the monitor's context — the bounded revision port. None everywhere else,
     # so no other lane can trigger a revision.
     revision: Any = None
+    # ADR-0016 §2: set ONLY on the decision agent's context — a callable that files an Action Brief
+    # onto the round. None everywhere else, so no other lane can author briefs.
+    brief_sink: Any = None
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
@@ -440,21 +443,78 @@ def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str
     return json.dumps(out, ensure_ascii=False)
 
 
-def get_style_business_decisions() -> str:
-    """Grounded per-style business decisions (ADR-0012 decision brain). For each published style: its
-    economics (profit/hour, margin), demand + conversion scores, next-week capacity fit, ad economics
-    (`ad.expectedRoas` = contribution per ad dollar, `ad.costPerBookingCents`, `ad.exposureRatio` =
-    impressions received vs demand earned), and the lever the numbers point toward — place_ad /
-    set_group_buy_coupon / display_only / skip — with machine signal tags, plus the shared next-week
-    capacity band. A null expectedRoas means it could not be measured, which is a NO, not a maybe.
-    These are ADVISORY: SYNTHESISE across them + the briefing + 选品 trends to choose the actual actions;
-    do NOT re-derive the numbers. Doing nothing (skip) is valid."""
+def get_style_business_facts() -> str:
+    """Grounded per-style business FACTS (ADR-0016 business engine — facts, never verdicts). For each
+    published style: economics (profit/hour, margin), demand + conversion scores, next-week capacity
+    fit, ad economics (`ad.expectedRoas` = contribution per ad dollar, `ad.costPerBookingCents`,
+    `ad.exposureRatio` = impressions received vs demand earned), coupon economics
+    (`coupon.referencePriceCents` 20%-off anchor, `coupon.floorPriceCents` = lowest price clearing the
+    merchant's profit/hour floor), and machine SIGNAL tags — each an independently checkable fact
+    (underexposed / roas_above_target / low_conversion / full_capacity / below_coupon_floor …) — plus
+    the shared next-week capacity band. A null expectedRoas means it could not be measured, which is a
+    NO, not a maybe. WHAT to do about these facts is YOUR judgment: synthesise across styles + the
+    briefing + 选品 trends; do NOT re-derive the numbers. Doing nothing is valid."""
     ctx = _ctx()
     data = bus.fetch_decisions()
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "get_style_business_decisions", "input": {}, "output": data}
+        {"kind": "tool_call", "tool": "get_style_business_facts", "input": {}, "output": data}
     )
     return json.dumps(data, ensure_ascii=False)
+
+
+_BRIEF_ACTIONS = {"ad", "coupon"}
+
+
+def submit_action_brief(
+    action_type: str,
+    style_id: str,
+    objective: str,
+    max_total_budget_cents: int,
+    target_bookings_min: int = 0,
+    target_bookings_max: int = 0,
+    max_cost_per_booking_cents: int = 0,
+    max_booked_minutes: int = 0,
+    allowed_period: str = "weekday",
+    notes: str = "",
+) -> str:
+    """Submit ONE Action Brief (ADR-0016 §2) — the decision agent's output contract. A brief gives the
+    executor an OBJECTIVE and HARD BOUNDARIES, never exact execution parameters: the executor finds its
+    own audience/budget/duration inside them via forecast loops, and may report the objective
+    infeasible. action_type: ad | coupon. objective: the business problem this action solves, in one
+    sentence citing numbers. max_total_budget_cents: hard spend ceiling (ad) or price floor context
+    (coupon). target_bookings_min/max: the outcome range that would count as success.
+    max_cost_per_booking_cents: CAC ceiling. allowed_period: weekday | any (weekend stays protected).
+    Call once per action; multiple briefs are allowed; no briefs (do nothing) is a valid round."""
+    ctx = _ctx()
+    if ctx.brief_sink is None:
+        raise ValueError("briefs_not_allowed")  # only the decision agent's context carries the sink
+    action_type = _clean_text(action_type, field="action_type", max_chars=20)
+    if action_type not in _BRIEF_ACTIONS:
+        raise ValueError("action_type_invalid")
+    style_id = _clean_style_id(style_id)
+    objective = _clean_text(objective, field="objective", max_chars=300)
+    max_total_budget_cents = _bounded_int(max_total_budget_cents, field="max_total_budget_cents",
+                                          maximum=_MAX_AD_BUDGET_CENTS)
+    if allowed_period not in ("weekday", "any"):
+        raise ValueError("allowed_period_invalid")
+    brief = {
+        "action_type": action_type,
+        "style_id": style_id,
+        "objective": objective,
+        "max_total_budget_cents": max_total_budget_cents,
+        "target_bookings_min": target_bookings_min or None,
+        "target_bookings_max": target_bookings_max or None,
+        "max_cost_per_booking_cents": max_cost_per_booking_cents or None,
+        "max_booked_minutes": max_booked_minutes or None,
+        "allowed_period": allowed_period,
+        "notes": str(notes or "")[:300],
+        "source_run_id": ctx.run_id,
+    }
+    ctx.brief_sink(brief)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "submit_action_brief", "input": brief, "output": {"accepted": True}}
+    )
+    return f"Action brief accepted ({action_type} / {style_id}) — the executor will plan within it."
 
 
 # ── memory + measurement tools (ADR-0013 P2, rebuilt by ADR-0015) ────────────────────────────────
@@ -812,7 +872,8 @@ def dispatch_many(dispatches_json: str) -> str:
 
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
-    get_style_business_decisions,
+    get_style_business_facts,
+    submit_action_brief,
     get_customer_intelligence,
     get_external_trends,
     get_platform_hot,

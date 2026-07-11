@@ -96,7 +96,7 @@ def _due_context(actions: list[dict]) -> str:
 
 ORCH_TASK = (
     "编排今天这一轮门店运营（最近 {range_days} 天窗口）。\n"
-    "1) 先自己读数据：get_merchant_insights（简报）＋ get_style_business_decisions（每款分析与全店产能）。\n"
+    "1) 先自己读数据：get_merchant_insights（简报）＋ get_style_business_facts（每款经营事实与全店产能）。\n"
     "2) 按技能中的默认计划分派各 Agent（dispatch_agent / dispatch_many）。数分与决策每轮必须分派；其余环节根据信号决定跳过谁——"
     "跳过也是决策，必须给出可引用的数字理由。\n"
     "3) 相互独立的执行环节用 dispatch_many 并行。\n"
@@ -114,6 +114,7 @@ class RoundState:
     budget: int = config.MAX_DISPATCHES_PER_ROUND
     dispatched: dict[str, str] = field(default_factory=dict)  # slug -> run_id
     results: dict[str, str] = field(default_factory=dict)  # slug -> final text
+    briefs: list[dict] = field(default_factory=list)  # ADR-0016: Action Briefs filed by 决策
     _taken: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -250,6 +251,7 @@ def _prompt_sha(system: str) -> str:
 def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   slug: str, task: str, parent_run_id: str,
                   revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
+                  brief_sink: Callable[[dict], None] | None = None,
                   input_extra: dict | None = None) -> tuple[str, str]:
     """The lane-run core: open a running agent_run under an explicit parent, drive the lane's tool loop
     with its fixed allow-list, finalize, return (run_id, final_text). Used by both normal dispatch and
@@ -266,13 +268,17 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                            range_days=range_days, round_id=round_id, agent_slug=slug)
     if revision_port_factory is not None:
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
+    if brief_sink is not None:
+        ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
     text = runner.run_agent(
         system=system,
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
-        # the monitor drives a multi-step write chain (outcomes + verdict + revision) — flash narrates
-        # instead of calling (measured live); it runs the strong tier, other lanes stay cheap.
-        model=config.MONITOR_MODEL if slug == "monitor" else None,
-        max_iters=12 if slug == "monitor" else 8,
+        # long-chain lanes run the strong tier — flash narrates instead of calling (measured live):
+        # monitor (outcomes + verdict + revision) and, since ADR-0016, decision (facts → briefs) and
+        # ad (forecast loops). Short lanes stay cheap.
+        model={"monitor": config.MONITOR_MODEL, "decision": config.DECISION_MODEL,
+               "ad": config.AD_MODEL}.get(slug),
+        max_iters=12 if slug in ("monitor", "ad", "decision") else 8,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
     # toolAttempts persists the ATTEMPT log (incl. failed calls) — a lane that claims work in prose
@@ -306,6 +312,18 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         # 决策 is the team's main memory consumer — the highest-relevance priors are injected, and
         # search_memory remains its tool for candidate-specific digging (ADR-0015 two-stage retrieval).
         task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
+    if slug in ("ad", "coupon"):
+        # ADR-0016 §2: the executor's contract is the decision agent's Action Brief — objective +
+        # hard boundaries, injected as structured JSON. The executor plans within it (or reports the
+        # objective infeasible); it never receives exact execution parameters.
+        mine = [b for b in state.briefs if b.get("action_type") == slug]
+        if mine:
+            task = (
+                f"{task}\n\n[行动简报 — 来自决策 Agent｜目标与硬边界，执行参数由你决定]\n"
+                f"{json.dumps(mine, ensure_ascii=False)}\n[/行动简报]"
+            )
+        else:
+            task = f"{task}\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，不要调用任何执行工具，说明本轮不{('投广' if slug == 'ad' else '设团购')}。）"
     if slug == "monitor":
         current = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id) if round_id else []
         if current:
@@ -326,9 +344,14 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
                 ),
             )
 
+    def _sink(brief: dict) -> None:
+        with state._lock:
+            state.briefs.append(brief)
+
     return _run_lane_raw(
         sb, agents, range_days, round_id, slug, task, parent_run,
         revision_port_factory=factory,
+        brief_sink=_sink if slug == "decision" else None,
         # `task` here is the FINAL rendered task (after context injection) — persisted so a run's
         # behavior is attributable to what the model actually saw, not the pre-injection template.
         input_extra={"parentSlug": parent_slug, "dispatchedBy": orch_run_id,
@@ -370,6 +393,8 @@ def run_round(range_days: int = 7) -> dict[str, str]:
             # authoritative), refreshed after each executor lane.
             with bb_lock:
                 blackboard[slug] = text[:1500]
+                if slug == "decision" and state.briefs:
+                    blackboard["briefs"] = list(state.briefs)  # structured, code-written (ADR-0016)
                 if slug in _EXECUTOR_LANES:
                     blackboard["executions"] = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
                 bus.update_blackboard(sb, round_id, dict(blackboard))

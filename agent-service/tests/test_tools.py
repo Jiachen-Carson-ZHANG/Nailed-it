@@ -35,8 +35,8 @@ def test_registries_cover_the_same_tools():
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
         # 运营 (catalog) grounded-candidates read tool
         "get_catalog_actions",
-        # 决策 (ADR-0012) grounded decision-brain read tool
-        "get_style_business_decisions",
+        # 决策 (ADR-0016) business-engine facts + the Action Brief output contract
+        "get_style_business_facts", "submit_action_brief",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
         # 监测回流 + 记忆 v2 + 修订 (ADR-0013 P2/P3, ADR-0015)

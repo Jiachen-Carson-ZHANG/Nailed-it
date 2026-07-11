@@ -89,6 +89,11 @@ ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL") or _DEFAULT_ORCH_MODEL
 # revisions — the exact orchestrator failure class, so it gets the same fix. One run per round.
 MONITOR_MODEL = os.environ.get("MONITOR_MODEL") or ORCHESTRATOR_MODEL
 
+# ADR-0016: decision (facts → Action Briefs) and ad (forecast loops) become long-chain agents too —
+# same measured failure class, same fix. Bounded cost: ≤4 strong-tier runs per round.
+DECISION_MODEL = os.environ.get("DECISION_MODEL") or ORCHESTRATOR_MODEL
+AD_MODEL = os.environ.get("AD_MODEL") or ORCHESTRATOR_MODEL
+
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
 #   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).
 #   "concept" (opt-in):  VLM concept per style (cached in style_concept) → Cohere embed → pgvector top-k
