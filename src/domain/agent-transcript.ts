@@ -83,15 +83,16 @@ type Summarizer = (input: Record<string, unknown>, output: unknown, lang: AppLan
 /** The 决策大脑 payload: count candidates + quote utilization so the sentence carries the verdict. */
 function summarizeDecisions(_input: Record<string, unknown>, output: unknown, lang: AppLang) {
   const o = isObj(output) ? output : {};
-  const decisions = Array.isArray(o.decisions) ? (o.decisions as Array<{ candidate?: string }>) : [];
-  const by = (c: string) => decisions.filter((d) => d.candidate === c).length;
+  const decisions = Array.isArray(o.decisions) ? (o.decisions as Array<{ signals?: string[] }>) : [];
+  const withSignal = (s: string) => decisions.filter((d) => (d.signals ?? []).includes(s)).length;
   const util = isObj(o.capacity) ? Math.round(Number(o.capacity.utilizationPct) || 0) : null;
   const zh = lang === 'zh-CN';
-  const label = zh ? '决策大脑' : 'Decision brain';
-  if (decisions.length === 0) return { label, summary: zh ? '读取每款经营分析' : 'Read per-style analysis' };
+  const label = zh ? '经营事实' : 'Business facts';
+  if (decisions.length === 0) return { label, summary: zh ? '读取每款经营事实' : 'Read per-style business facts' };
+  // ADR-0016: the engine emits facts+signals, not verdicts — summarize the load-bearing signals.
   const parts = zh
-    ? `${decisions.length} 款分析：投广候选 ${by('ad')} · 团购候选 ${by('coupon')} · 只展示 ${by('display_only')} · 暂缓 ${by('skip')}`
-    : `${decisions.length} styles: ad ${by('ad')} · coupon ${by('coupon')} · display ${by('display_only')} · skip ${by('skip')}`;
+    ? `${decisions.length} 款事实：曝光不足 ${withSignal('underexposed')} · 高需求低转化 ${withSignal('low_conversion')} · ROAS 达标 ${withSignal('roas_above_target')}`
+    : `${decisions.length} styles: underexposed ${withSignal('underexposed')} · low-conversion ${withSignal('low_conversion')} · ROAS-clear ${withSignal('roas_above_target')}`;
   const cap = util === null ? '' : zh ? ` · 下周产能 ${util}%` : ` · next-week utilization ${util}%`;
   return { label, summary: parts + cap };
 }

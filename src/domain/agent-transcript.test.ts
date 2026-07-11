@@ -16,17 +16,19 @@ import {
 // payload shapes the Python service writes (tools.py transcript.append calls).
 
 describe('describeToolCall', () => {
-  it('summarizes the decision brain as candidate counts + utilization, never raw JSON', () => {
+  it('summarizes the business engine as signal counts + utilization, never raw JSON (ADR-0016)', () => {
     const output = {
       capacity: { band: 'very_idle', utilizationPct: 33.4 },
       decisions: [
-        { candidate: 'ad' }, { candidate: 'ad' }, { candidate: 'coupon' },
-        { candidate: 'display_only' }, { candidate: 'skip' },
+        { signals: ['underexposed', 'roas_above_target'] },
+        { signals: ['underexposed'] },
+        { signals: ['low_conversion', 'high_demand'] },
+        { signals: ['low_demand'] },
       ],
     };
     const d = describeToolCall('get_style_business_decisions', {}, output, 'zh-CN');
-    expect(d.label).toBe('决策大脑');
-    expect(d.summary).toBe('5 款分析：投广候选 2 · 团购候选 1 · 只展示 1 · 暂缓 1 · 下周产能 33%');
+    expect(d.label).toBe('经营事实');
+    expect(d.summary).toBe('4 款事实：曝光不足 2 · 高需求低转化 1 · ROAS 达标 1 · 下周产能 33%');
     expect(d.summary).not.toContain('{'); // the JSON stays in detail
     expect(d.detail).toContain('"utilizationPct"');
   });

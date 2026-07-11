@@ -1,8 +1,9 @@
-// Decision brain — T4: the 4 scores + rule engine (ADR-0012 Phase 1, PM spec steps 6-8, 12).
-// PURE and ADVISORY. Per ADR-0012 §5 the brain does NOT conclude or narrate — it returns each style's
-// scores, the lever the economics point toward (`candidate`), and machine SIGNAL TAGS. The LLM agent
-// synthesizes these across styles + briefing + capacity + the budget cap into the actual plan and writes
-// the reason. No prose here.
+// Business Engine — the 4 scores + per-style FACTS (ADR-0012 Phase 1, rebuilt by ADR-0016 §1).
+// PURE and FACTUAL. It no longer emits a `candidate` verdict — an engine that answers "what should
+// we do" leaves the decision agent restating it (observed live). It returns each style's scores,
+// machine SIGNAL TAGS (each one an independently checkable fact), ad economics, and coupon
+// economics (floor/reference prices). WHAT to do about them is 决策's judgment, expressed as
+// Action Briefs. No prose here.
 
 import type { StyleEconomics } from './economics';
 import { couponProfitPerHourCents } from './economics';
@@ -10,8 +11,6 @@ import type { FunnelScores, FunnelCounts } from './funnel';
 import type { CapacityBand } from './capacity';
 import type { AdEconomics, AdPeerTotals } from './ads';
 import { adPeerTotals, computeAdEconomics, passesRoasGate } from './ads';
-
-export type Recommendation = 'ad' | 'coupon' | 'display_only' | 'skip';
 
 export type DecisionSignal =
   | 'high_profit_per_hour' | 'low_profit_per_hour'
@@ -40,19 +39,32 @@ export type DecisionContext = {
   couponDiscountPct?: number; // suggested discount for a coupon candidate (default 0.2)
 };
 
+/** Coupon ECONOMICS as facts (ADR-0016): what a discount costs, never whether to run one. */
+export type CouponEconomics = {
+  /** 20%-off reference price — a comparison anchor, not a recommendation. */
+  referencePriceCents: number;
+  /** Profit/hour if sold at the reference price. */
+  profitPerHourAtReferenceCents: number;
+  /** The lowest coupon price that still clears the merchant's profit/hour floor (null = even full
+   *  price is below floor — discounting is structurally unprofitable for this style). */
+  floorPriceCents: number | null;
+  /** Whether the reference price clears the floor. */
+  referenceAboveFloor: boolean;
+};
+
 export type StyleDecision = {
   styleId: string;
   styleTitle: string;
   scores: { businessValue: number; demand: number; conversion: number; capacityFit: number };
-  candidate: Recommendation;
   signals: DecisionSignal[];
-  suggestedCouponCents: number | null; // set when candidate === 'coupon'
-  /** The money behind an ad verdict — the agent quotes these instead of trusting the label. */
+  /** The money behind any ad idea — the agent quotes these, no label decides for it. */
   ad: AdEconomics;
+  /** The money behind any coupon idea — floor and reference prices as facts. */
+  coupon: CouponEconomics;
 };
 
-const AD = { biz: 70, conv: 65, demand: 60, utilMax: 85 };
-const COUPON = { demand: 60, convBelow: 65, utilMax: 70 };
+const AD = { biz: 70, conv: 65 };
+const COUPON = { demand: 60, utilMax: 70 };
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const clamp100 = (n: number): number => Math.max(0, Math.min(100, n));
 const availableScore: Record<CapacityBand, number> = { very_idle: 100, normal: 70, near_full: 30, full: 0 };
@@ -103,40 +115,45 @@ export function decideStyle(input: StyleDecisionInput, ctx: DecisionContext, pee
         : 'roas_below_target',
   );
 
+  // Coupon economics as FACTS: the reference price (20% off), its profit/hour, and the lowest price
+  // that still clears the merchant's floor. Whether to discount at all is the agent's judgment.
   const discount = ctx.couponDiscountPct ?? 0.2;
-  const suggestedCoupon = Math.round(e.priceCents * (1 - discount));
-  const couponPPH = couponProfitPerHourCents(e.priceCents, suggestedCoupon, e.durationMin);
-  const couponAboveFloor = couponPPH >= ctx.minProfitPerHourCents;
-
-  let candidate: Recommendation;
-  if (
-    businessValue >= AD.biz && conversion >= AD.conv && demand >= AD.demand &&
-    ctx.capacityUtilizationPct <= AD.utilMax && input.fitsCapacity &&
-    ad.underexposed && passesRoasGate(ad, ctx.targetRoi)
-  ) {
-    // Already-profitable + converting + room to serve + genuinely under-surfaced + the money clears.
-    candidate = 'ad';
-  } else if (
-    demand >= COUPON.demand && conversion < COUPON.convBelow &&
-    ctx.capacityUtilizationPct <= COUPON.utilMax && input.fitsCapacity && couponAboveFloor
-  ) {
-    candidate = 'coupon'; // interested-but-stuck + idle + still profitable discounted
-  } else if (demand >= COUPON.demand) {
-    candidate = 'display_only'; // real interest, can't justify spend (full / no-fit / below floor / bad ROAS)
-    if (!couponAboveFloor) signals.push('below_coupon_floor');
-  } else {
-    candidate = 'skip';
-  }
+  const referencePriceCents = Math.round(e.priceCents * (1 - discount));
+  const profitAtReference = couponProfitPerHourCents(e.priceCents, referencePriceCents, e.durationMin);
+  const referenceAboveFloor = profitAtReference >= ctx.minProfitPerHourCents;
+  const floorPriceCents = couponFloorPriceCents(e, ctx.minProfitPerHourCents);
+  if (!referenceAboveFloor) signals.push('below_coupon_floor');
 
   return {
     styleId: input.styleId,
     styleTitle: input.styleTitle,
     scores: { businessValue, demand, conversion, capacityFit },
-    candidate,
     signals,
-    suggestedCouponCents: candidate === 'coupon' ? suggestedCoupon : null,
     ad,
+    coupon: {
+      referencePriceCents,
+      profitPerHourAtReferenceCents: profitAtReference,
+      floorPriceCents,
+      referenceAboveFloor,
+    },
   };
+}
+
+/** The lowest coupon price whose profit/hour still clears the floor — solved by inverting
+ *  couponProfitPerHourCents (linear in price). null when even the full price is below floor. */
+function couponFloorPriceCents(e: StyleEconomics, minProfitPerHourCents: number): number | null {
+  if (couponProfitPerHourCents(e.priceCents, e.priceCents, e.durationMin) < minProfitPerHourCents) {
+    return null;
+  }
+  // binary search keeps this robust to the economics formula's internals (fees, variable costs)
+  let lo = 0;
+  let hi = e.priceCents;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (couponProfitPerHourCents(e.priceCents, mid, e.durationMin) >= minProfitPerHourCents) hi = mid;
+    else lo = mid;
+  }
+  return hi;
 }
 
 /** Decide the whole style set — computes peer maxima + exposure totals once, then decides each. */
