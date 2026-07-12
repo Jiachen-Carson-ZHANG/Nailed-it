@@ -102,6 +102,17 @@ the ranking can't be post-hoc.
    and single-purpose read lanes (insight/trend/catalog/customer_ops) can be won by different models —
    the current pro/flash split is the incumbent in each.
 
+**Why the screen is gates-only (no LLM judge)**: judge models carry family bias (self-preference,
+verbosity, position) — and our judge pool overlaps the candidate families, so an MOS-ranked screen
+would have a referee playing for one team. Gates are family-blind, reproducible by any third party
+from the same transcripts, and statistically meaningful at n=3 where a ±0.5-point MOS is not.
+
+**Finalist round adds quality (amended before finalists ran)**: blind multi-judge MOS as a
+*reported, non-blocking* tiebreaker — judges drawn from families NOT among the finalists, strict
+parse (judge error ≠ low score), low/disagreeing samples escalated to human review. Catches the
+failure class gates cannot see: correct-but-bad output (boilerplate review checks, tone-deaf
+merchant drafts, weak Chinese fluency).
+
 **Budget protocol**: screen = judgment subset × n=3 per candidate; only the top two advance to the
 full suite × n=5. Candidate roster (2026-07-12): deepseek, qwen, newest gemini, claude sonnet,
 openai — all via OpenRouter so cost is reported per call. Incumbent baseline: gemini-2.5-pro/flash
