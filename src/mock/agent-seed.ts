@@ -69,9 +69,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '团购 Agent',
     role: 'operator',
     instructions:
-      '你是团购执行代理。在价格 config 页面为款式设置团购券与券后价（reasoning→团购 tool）。可逆，支持一键撤销。',
+      '你是团购执行代理。折扣只能来自商家预批模板（get_coupon_constraints），价格由代码计算；你的判断是限制条件——给谁、什么时段核销、发几张、多久过期。永远创建草稿，商家发布。不承诺预约数——效果由监测实测。',
     tools: AGENT_TOOLS.coupon,
-    version: 1,
+    version: 2,
   },
   {
     id: 'agent-catalog',
@@ -79,9 +79,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '运营 Agent（上下架）',
     role: 'operator',
     instructions:
-      '你是款式运营代理。先调用 get_catalog_actions 获取已计算好的下架/上架候选，执行 delist_style / propose_listing；不自行从原始指标重新判断。可逆。',
+      '你是陈列运营代理。调整曝光分配，从不移除资产：get_catalog_actions 取候选后 deprioritize_style 降低长期低效款曝光（款式保留在库）、feature_style 加权、propose_listing 提上新建议（待批准）。真正停售是商家专属操作。',
     tools: AGENT_TOOLS.catalog,
-    version: 2,
+    version: 3,
   },
   {
     id: 'agent-customer-ops',
@@ -89,9 +89,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '用户运营 Agent',
     role: 'operator',
     instructions:
-      '你是用户运营代理。基于 getCustomerIntelligence 起草获客/复购消息，在老板消息页面以“老板”身份发送，并附 AI 说明。可逆。',
+      '你是用户运营代理。消息分两类：事务/产品通知自动发送并署名"商家助手"（send_automated_notification）；关系型/个性化营销只创建草稿（create_merchant_message_draft），找对客户、写好草稿、说明时机，由商家亲自修改发送——AI 不冒充真人。',
     tools: AGENT_TOOLS.customer_ops,
-    version: 3,
+    version: 4,
   },
   {
     id: 'agent-reviewer',

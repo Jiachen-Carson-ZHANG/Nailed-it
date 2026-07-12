@@ -338,7 +338,8 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         # monitor (outcomes + verdict + revision) and, since ADR-0016, decision (facts → briefs) and
         # ad (forecast loops). Short lanes stay cheap.
         model={"monitor": config.MONITOR_MODEL, "decision": config.DECISION_MODEL,
-               "ad": config.AD_MODEL, "reviewer": config.REVIEWER_MODEL}.get(slug),
+               "ad": config.AD_MODEL, "reviewer": config.REVIEWER_MODEL,
+               "coupon": config.COUPON_MODEL}.get(slug),
         max_iters=12 if slug in ("monitor", "ad", "decision") else 8,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"

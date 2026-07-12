@@ -274,10 +274,13 @@ def _style_facts(style_id: str) -> dict[str, Any]:
                 "style_cvr": ad.get("clickToBookingRate") or 0.03,
                 "cvr_measured": ad.get("clickToBookingRate") is not None,
                 "service_minutes": d.get("durationMin") or 60,
+                "price_cents": d.get("priceCents") or 8800,
+                "coupon": d.get("coupon") or {},
                 "contribution_profit_cents": ad.get("expectedProfitPerBookingCents")
                     or round((d.get("priceCents") or 8800) * 0.79),
             }
     return {"style_cvr": 0.03, "cvr_measured": False, "service_minutes": 60,
+            "price_cents": 8800, "coupon": {},
             "contribution_profit_cents": 6900}
 
 
@@ -509,23 +512,93 @@ def pause_ad_campaign(campaign_id: str) -> str:
     return f"Campaign {campaign_id} paused."
 
 
-def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
-    """Propose a 团购 (group-buy) deal for a published style at a post-coupon price in cents. This creates a
-    REAL, editable draft deal — built from the style's title, its current price, and its catalog services —
-    which the merchant reviews and publishes in 团购管理. It does NOT pretend the deal is already live."""
+# ADR-0016 Stage 3: merchant-PRE-APPROVED offer templates. The agent never invents a discount — it
+# picks a template and configures RESTRICTIONS (audience, windows, count, expiry); code computes the
+# price. A merchant-policy surface later makes these editable.
+COUPON_TEMPLATES: dict[str, dict[str, Any]] = {
+    "weekday_10_off": {"discount_pct": 0.10, "description": "9 折——温和试价，利润损失最小"},
+    "weekday_15_off": {"discount_pct": 0.15, "description": "85 折——更强的转化推力"},
+    "new_customer_12_off": {"discount_pct": 0.12, "audience": "new_or_lapsed",
+                             "description": "88 折——仅新客/沉睡客，保护老客原价心智"},
+}
+_REDEMPTION_WINDOWS = {"weekday_afternoon": "周一至周四 12:00–17:00", "weekday_any": "周一至周五全天"}
+
+
+def get_coupon_constraints(style_id: str) -> str:
+    """The merchant's coupon guardrails for ONE style: the pre-approved offer templates (you may only
+    use these — inventing a discount is refused), the allowed redemption windows (weekends are
+    protected), and the style's coupon ECONOMICS from the business engine: floorPriceCents (the lowest
+    legal post-coupon price — below it the discount is unprofitable) and what each template's computed
+    price would be. Demand response is NOT predicted here — coupon effects are measured by the monitor
+    after publish, not promised before it."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
-    price_cents = _bounded_int(price_cents, field="price_cents", maximum=_MAX_COUPON_PRICE_CENTS)
+    facts = _style_facts(style_id)
+    price = facts["price_cents"]
+    coupon = facts["coupon"]
+    floor = coupon.get("floorPriceCents")
+    templates = []
+    for tid, t in COUPON_TEMPLATES.items():
+        computed = round(price * (1 - t["discount_pct"]))
+        templates.append({
+            "template_id": tid, "description": t["description"],
+            "computed_price_cents": computed,
+            "audience": t.get("audience", "any"),
+            "clears_profit_floor": floor is not None and computed >= floor,
+        })
+    out = {
+        "styleId": style_id, "listPriceCents": price,
+        "floorPriceCents": floor,
+        "floor_note": "null 表示原价本身已低于利润底线——该款不应打折" if floor is None else None,
+        "templates": templates,
+        "redemption_windows": _REDEMPTION_WINDOWS,
+        "max_coupons_limit": 10,
+    }
+    ctx.transcript.append({"kind": "tool_call", "tool": "get_coupon_constraints",
+                           "input": {"styleId": style_id}, "output": out})
+    return json.dumps(out, ensure_ascii=False)
+
+
+def set_group_buy_coupon(style_id: str, template_id: str, redemption_window: str = "weekday_afternoon",
+                         max_coupons: int = 4, valid_days: int = 7) -> str:
+    """Configure a 团购 draft from a merchant-approved TEMPLATE (get_coupon_constraints first). Your
+    judgment is the RESTRICTIONS — which template, redemption window, how many coupons, expiry — not
+    the price: code computes it from the template and refuses it below the style's profit floor.
+    Creates a REAL editable draft deal the merchant reviews and publishes in 团购管理; it never claims
+    the deal is live, and it never promises a precise booking count (the monitor measures that after
+    publish)."""
+    ctx = _ctx()
+    style_id = _clean_style_id(style_id)
+    if template_id not in COUPON_TEMPLATES:
+        raise ValueError("template_unknown")  # inventing a discount is not a capability
+    if redemption_window not in _REDEMPTION_WINDOWS:
+        raise ValueError("redemption_window_invalid")
+    max_coupons = _bounded_int(max_coupons, field="max_coupons", maximum=10)
+    valid_days = _bounded_int(valid_days, field="valid_days", maximum=30)
+
+    briefs = _my_briefs(ctx, "coupon")
+    if briefs and not any(b.get("style_id") == style_id for b in briefs):
+        raise ValueError("style_not_in_brief")
+
+    facts = _style_facts(style_id)
+    template = COUPON_TEMPLATES[template_id]
+    price_cents = round(facts["price_cents"] * (1 - template["discount_pct"]))
+    floor = (facts["coupon"] or {}).get("floorPriceCents")
+    if floor is None or price_cents < floor:
+        raise ValueError("price_below_profit_floor")  # discounting an unprofitable style is refused
 
     result = bus.post_propose_groupbuy(style_id, price_cents, ctx.run_id)
     if not result.get("ok"):
         raise ValueError(f"propose_groupbuy_failed: {result.get('errors')}")
     deal_id = result["deal"]["id"]
 
-    payload = {"styleId": style_id, "priceCents": price_cents}
-    hypothesis = _decision_hypothesis(style_id, lever="coupon")
-    if hypothesis:
-        payload["hypothesis"] = hypothesis  # prediction snapshot — the monitor's calibration baseline
+    payload = {
+        "styleId": style_id, "priceCents": price_cents, "templateId": template_id,
+        "redemptionWindow": redemption_window, "maxCoupons": max_coupons, "validDays": valid_days,
+        "audience": template.get("audience", "any"),
+        # economics-only hypothesis — coupon DEMAND is a post-publish measurement, never a promise
+        "hypothesis": {"floorPriceCents": floor, "listPriceCents": facts["price_cents"]},
+    }
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="set_group_buy_coupon", payload=payload,
         status="proposed", entity_type="groupbuy_deal", entity_id=deal_id,
@@ -536,37 +609,48 @@ def set_group_buy_coupon(style_id: str, price_cents: int) -> str:
     )
     ctx.transcript.append(
         {"kind": "action", "actionType": "set_group_buy_coupon", "status": "proposed",
-         "summary": f"团购草稿（待商家发布）：{style_id} · 券后 {price_cents / 100:g}"}
+         "summary": f"团购草稿（待商家发布）：{style_id} · {template_id} · 券后 {price_cents / 100:g} · "
+                    f"{_REDEMPTION_WINDOWS[redemption_window]} · 限 {max_coupons} 张"}
     )
-    return f"Group-buy draft {deal_id} proposed for {style_id} at {price_cents} cents — awaiting merchant publish."
+    return (f"Group-buy draft {deal_id} configured for {style_id}: template {template_id} "
+            f"({price_cents} cents), {redemption_window}, {max_coupons} coupons, {valid_days}d — "
+            f"awaiting merchant publish.")
 
 
-def list_style(style_id: str) -> str:
-    """Re-list (publish) an EXISTING style that is currently archived. Reversible — the merchant can
-    undo it from the panel. Use only for styles that already exist in the catalog."""
+def feature_style(style_id: str, reason: str) -> str:
+    """Give an EXISTING style more front-of-shop exposure (推荐位加权). Merchandising verbs change
+    EXPOSURE allocation, never the asset: the style stays in the library, stays searchable, keeps its
+    history. Reversible."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
-    payload = {"styleId": style_id}
-    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="list_style", payload=payload)
-    ctx.transcript.append({"kind": "tool_call", "tool": "list_style", "input": payload, "output": {"ok": True}})
+    reason = _clean_text(reason, field="reason")
+    payload = {"styleId": style_id, "reason": reason}
+    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="feature_style", payload=payload)
+    ctx.transcript.append({"kind": "tool_call", "tool": "feature_style", "input": payload, "output": {"ok": True}})
     ctx.transcript.append(
-        {"kind": "action", "actionType": "list_style", "status": "applied", "summary": f"上架：{style_id}"}
+        {"kind": "action", "actionType": "feature_style", "status": "applied",
+         "summary": f"推荐位加权：{style_id} — {reason}"}
     )
-    return f"Style listed: {style_id} (reversible)."
+    return f"Style featured: {style_id} (exposure up; asset untouched; reversible)."
 
 
-def delist_style(style_id: str) -> str:
-    """Delist (archive) an existing style that has been unproductive for a long time. Reversible — the
-    merchant can undo it from the panel."""
+def deprioritize_style(style_id: str, reason: str) -> str:
+    """Reduce an EXISTING style's front-of-shop exposure (降低曝光). This REPLACES delisting for
+    agents: the style stays in the library and searchable — future trends may bring it back, old
+    customers may still ask for it — it just stops occupying recommendation slots that better
+    converters have earned. Truly stopping sale of a style is MERCHANT-ONLY (materials/compliance).
+    Reversible."""
     ctx = _ctx()
     style_id = _clean_style_id(style_id)
-    payload = {"styleId": style_id}
-    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="delist_style", payload=payload)
-    ctx.transcript.append({"kind": "tool_call", "tool": "delist_style", "input": payload, "output": {"ok": True}})
+    reason = _clean_text(reason, field="reason")
+    payload = {"styleId": style_id, "reason": reason}
+    bus.write_action(ctx.sb, run_id=ctx.run_id, action_type="deprioritize_style", payload=payload)
+    ctx.transcript.append({"kind": "tool_call", "tool": "deprioritize_style", "input": payload, "output": {"ok": True}})
     ctx.transcript.append(
-        {"kind": "action", "actionType": "delist_style", "status": "applied", "summary": f"下架：{style_id}"}
+        {"kind": "action", "actionType": "deprioritize_style", "status": "applied",
+         "summary": f"降低曝光（资产保留）：{style_id} — {reason}"}
     )
-    return f"Style delisted: {style_id} (reversible)."
+    return f"Style deprioritized: {style_id} (exposure down; asset and history untouched; reversible)."
 
 
 def propose_listing(gap_tag: str, reason: str) -> str:
@@ -612,40 +696,83 @@ def propose_listing(gap_tag: str, reason: str) -> str:
     return f"Listing proposed for gap '{gap_tag}' (awaiting merchant approval — you cannot list it yourself)."
 
 
-def send_customer_message(customer_name: str, body: str) -> str:
-    """Send a re-engagement / acquisition message to a customer as the boss (老板), with an AI note.
-    IRREVERSIBLE — once sent, a message cannot be un-sent, so the UI must not offer an undo (it shows
-    view-only). customer_name: from the roster; body: the message text.
-    No style-card attachment: there is no grounded per-customer recommendation source yet, so we don't let
-    the model invent a style id — add a grounded recommendation tool before re-introducing style_id."""
+# ADR-0016 Stage 3: message classes. Transactional/product notices are auto-sent and LABELED as the
+# assistant (their value is timeliness, not authorship); relationship marketing is drafted for the
+# MERCHANT to edit and send — the AI never impersonates the boss.
+_NOTIFICATION_KINDS = {
+    "appointment_reminder": "预约提醒",
+    "schedule_change": "预约变更通知",
+    "aftercare": "护理提醒",
+    "coupon_expiry": "团购券到期提醒",
+    "product_update": "款式/档期更新通知",
+}
+_ASSISTANT_LABEL = "【Nailed-it 商家助手】"
+
+
+def send_automated_notification(customer_name: str, kind: str, body: str) -> str:
+    """Send a TRANSACTIONAL or product notification — auto-sendable because its value is timeliness
+    and accuracy, not personal authorship. kind: appointment_reminder | schedule_change | aftercare |
+    coupon_expiry | product_update. The message is LABELED as sent by the shop assistant (code
+    prefixes 【Nailed-it 商家助手】— the customer is never misled about who wrote it). IRREVERSIBLE
+    once sent. Relationship/marketing content is REFUSED here — use create_merchant_message_draft."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
+    if kind not in _NOTIFICATION_KINDS:
+        raise ValueError("notification_kind_invalid")
     body = _clean_text(body, field="body")
-    payload = {"customerName": customer_name, "body": body}
+    labeled = f"{_ASSISTANT_LABEL}{body}"
+    payload = {"customerName": customer_name, "kind": kind, "body": labeled}
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
     )
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "send_customer_message", "input": payload, "output": {"sent": True}}
+        {"kind": "tool_call", "tool": "send_automated_notification", "input": payload, "output": {"sent": True}}
     )
     ctx.transcript.append(
         {"kind": "action", "actionType": "send_customer_message", "status": "applied",
-         "summary": f"发送消息（以老板身份）：→ {customer_name}"}
+         "summary": f"自动通知（{_NOTIFICATION_KINDS[kind]}）：→ {customer_name}"}
     )
-    return f"Message sent to {customer_name} as boss (irreversible — cannot be un-sent)."
+    return f"Notification ({kind}) sent to {customer_name}, labeled as the shop assistant (irreversible)."
+
+
+def create_merchant_message_draft(customer_name: str, body: str, reason: str) -> str:
+    """Draft a RELATIONSHIP message (re-engagement, personal recommendation, win-back) for the
+    MERCHANT to review, edit, and send themselves. These messages derive their value from the real
+    merchant–customer relationship — the AI finds the right customer and the right moment, writes the
+    draft, and explains WHY now (reason); it never sends as the boss. Written status='proposed';
+    nothing reaches the customer until the merchant acts."""
+    ctx = _ctx()
+    customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
+    body = _clean_text(body, field="body")
+    reason = _clean_text(reason, field="reason")
+    payload = {"customerName": customer_name, "body": body, "reason": reason}
+    bus.write_action(
+        ctx.sb, run_id=ctx.run_id, action_type="draft_customer_message", payload=payload,
+        risk="reversible", status="proposed",
+    )
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "create_merchant_message_draft", "input": payload, "output": {"drafted": True}}
+    )
+    ctx.transcript.append(
+        {"kind": "action", "actionType": "draft_customer_message", "status": "proposed",
+         "summary": f"关系消息草稿（待商家亲自发送）：→ {customer_name} — {reason}"}
+    )
+    ctx.awaiting_approval = True
+    return f"Draft for {customer_name} awaiting the merchant's own review and send — not delivered."
 
 
 # ── registries: ONE list of functions → two backend representations + the executable impls ───────
 
 def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str:
-    """Grounded catalog candidates — styles to DELIST (long-term low-conversion & not on any rising trend)
-    + gap tags to PROPOSE. Uses the SAME shared report builder as 选品 (so prune/gap match the trend agent,
-    incl. MATCH_MODE=concept); ACT on these, do NOT re-judge delist decisions from raw metrics.
-    Returns {delist:[{styleId,title,reason}], propose:[{tag,reason}], matchMeta}."""
+    """Grounded catalog candidates — styles to DEPRIORITIZE (long-term low-conversion & not on any
+    rising trend → they stop earning recommendation slots; the asset itself is never removed) + gap
+    tags to PROPOSE. Uses the SAME shared report builder as 选品 (so prune/gap match the trend agent,
+    incl. MATCH_MODE=concept); ACT on these, do NOT re-judge from raw metrics.
+    Returns {deprioritize:[{styleId,title,reason}], propose:[{tag,reason}], matchMeta}."""
     ctx = _ctx()
     report = _trend_report(range_days, trend_type)
     out = {
-        "delist": report.get("prune", []),
+        "deprioritize": report.get("prune", []),
         "propose": [{"tag": o["trendLabel"], "reason": o["reason"]}
                     for o in report.get("opportunities", []) if o.get("action") == "gap"],
         "matchMeta": report.get("matchMeta"),
@@ -797,9 +924,10 @@ _CONFIDENCE = {"low", "medium", "high"}
 _ACTION_DOMAIN = {
     "place_ad": "ad", "update_ad_campaign": "ad", "pause_ad_campaign": "ad",
     "set_group_buy_coupon": "coupon",
-    "list_style": "catalog", "delist_style": "catalog",
+    "list_style": "catalog", "delist_style": "catalog",  # legacy rows
+    "feature_style": "catalog", "deprioritize_style": "catalog",
     "propose_listing": "catalog", "draft_upload": "catalog",
-    "send_customer_message": "customer_ops",
+    "send_customer_message": "customer_ops", "draft_customer_message": "customer_ops",
 }
 # Which memory DOMAINS each agent may search. Executors (投广/团购) get none by design: history is
 # synthesized into the plan by 决策 — an executor re-interpreting strategy mid-execution blurs who
@@ -1159,6 +1287,7 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_platform_hot,
     get_trend_opportunities,
     get_catalog_actions,
+    get_coupon_constraints,
     get_ad_account_state,
     list_available_audiences,
     forecast_ad_plan,
@@ -1166,10 +1295,11 @@ _FUNCTIONS: list[Callable[..., str]] = [
     update_ad_campaign,
     pause_ad_campaign,
     set_group_buy_coupon,
-    list_style,
-    delist_style,
+    feature_style,
+    deprioritize_style,
     propose_listing,
-    send_customer_message,
+    send_automated_notification,
+    create_merchant_message_draft,
     dispatch_agent,
     dispatch_many,
     get_campaign_outcomes,

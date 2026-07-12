@@ -2212,3 +2212,29 @@ BLOCKED on live verification: USER must apply 0033_ad_sandbox.sql, then rounds +
   `reviewer/conflicting-briefs-flagged` → REVISION_REQUIRED 2/2, `reviewer/clean-plan-approved` →
   APPROVED 2/2 (no invented objections). 13 scenarios total, all green on gemini.
 - pytest 53/53; re-seeded (10 agents).
+
+## 2026-07-12 — ADR-0016 Stage 3: coupon templates, message classes, merchandising verbs
+
+- **团购 templates**: discounts come only from merchant-pre-approved templates
+  (`COUPON_TEMPLATES` — 10%/15%/new-customer-12%); code computes the price and REFUSES it below the
+  style's profit floor (`price_below_profit_floor`, floor=null → the style must not be discounted at
+  all). The agent's judgment is the RESTRICTIONS: template, redemption window (weekends protected),
+  coupon count, expiry. `get_coupon_constraints` shows per-template computed prices + floor clearance.
+  No demand promises pre-publish — the monitor measures after. Coupon joined the strong tier
+  (measured flash narration flake on the judge-then-call chain).
+- **Message classes**: `send_customer_message` is dead as a tool. Transactional/product notices go
+  through `send_automated_notification` (kind whitelist; code prefixes 【Nailed-it 商家助手】— the
+  customer is never misled about authorship); relationship marketing goes through
+  `create_merchant_message_draft` (status=proposed, awaiting the merchant's own edit+send). The
+  boss-impersonation pattern is gone.
+- **Merchandising verbs**: `delist_style`/`list_style` replaced by `deprioritize_style` /
+  `feature_style` — exposure allocation changes, assets never removed by an agent (future trends
+  return, old customers still ask; true stop-sale is merchant-only). `get_catalog_actions` returns
+  `deprioritize[]` now.
+- Eval: `coupon/template-restrictions` (weekday_10_off + weekday_afternoon, 2/2 — brief disambiguated
+  so exactly one template fits: try-on prospects ≠ new-customer acquisition),
+  `customer_ops/lapsed-rachel-draft` (win-back → DRAFT for Rachel, forbid auto-send, 2/2),
+  `catalog/dead-8277-deprioritized` (2/2). 14 scenarios total.
+- pytest 55/55 (template price computed by code, invented-discount + below-floor refusals, labeled
+  notification + draft gate), vitest 238/238, tsc clean, re-seeded (coupon v2 / catalog v3 /
+  customer_ops v4).

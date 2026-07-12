@@ -22,8 +22,8 @@ def test_openai_schema_types_and_required():
 def test_openai_schema_optional_params_excluded_from_required():
     # range_days has a default → optional
     assert tools.OPENAI_TOOLS["get_merchant_insights"]["function"]["parameters"]["required"] == []
-    send = tools.OPENAI_TOOLS["send_customer_message"]["function"]["parameters"]
-    assert set(send["required"]) == {"customer_name", "body"}
+    send = tools.OPENAI_TOOLS["send_automated_notification"]["function"]["parameters"]
+    assert set(send["required"]) == {"customer_name", "kind", "body"}
     assert "style_id" not in send["properties"]  # removed — no grounded recommendation source (audit)
 
 
@@ -33,7 +33,9 @@ def test_registries_cover_the_same_tools():
         # 投广沙盒 (ADR-0016): forecast loop + in-place campaign mutation
         "get_ad_account_state", "list_available_audiences", "forecast_ad_plan",
         "update_ad_campaign", "pause_ad_campaign",
-        "list_style", "delist_style", "propose_listing", "send_customer_message",
+        # 团购模板 + 陈列动词 + 消息分级 (ADR-0016 Stage 3)
+        "get_coupon_constraints", "feature_style", "deprioritize_style", "propose_listing",
+        "send_automated_notification", "create_merchant_message_draft",
         # 选品 (trend) read tools
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
         # 运营 (catalog) grounded-candidates read tool
@@ -131,18 +133,53 @@ def test_place_ad_enforces_the_action_brief_as_law(ctx):
     assert ctx.writes[0]["payload"]["totalBudgetCents"] == 12000
 
 
-def test_set_group_buy_coupon_proposes_a_real_draft_never_pretends_it_is_live(ctx):
-    """ADR-0012: the coupon tool creates a REAL editable draft deal the merchant publishes — the action is
-    'proposed' and linked to the deal, not an 'applied' row claiming the deal already exists."""
-    out = tools.set_group_buy_coupon("style-1", 7040)
+def _coupon_facts(monkeypatch, floor=6000, price=8800):
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {"decisions": [
+        {"styleId": "style-1", "priceCents": price, "durationMin": 60,
+         "coupon": {"floorPriceCents": floor, "referencePriceCents": round(price * 0.8)},
+         "ad": {}},
+    ]})
+
+
+def test_set_group_buy_coupon_configures_from_merchant_template(ctx, monkeypatch):
+    """ADR-0016 Stage 3: the agent picks a TEMPLATE and restrictions; CODE computes the price. The
+    deal is a real draft the merchant publishes — never claimed live, never a promised booking count."""
+    _coupon_facts(monkeypatch)
+    out = tools.set_group_buy_coupon("style-1", "weekday_10_off", "weekday_afternoon", 4, 7)
     assert "gb-style-1" in out and "awaiting merchant publish" in out
-    assert ctx.writes == [{
-        "run_id": "run-test", "action_type": "set_group_buy_coupon",
-        "payload": {"styleId": "style-1", "priceCents": 7040},
-        "status": "proposed", "entity_type": "groupbuy_deal", "entity_id": "gb-style-1",
-    }]
-    assert [s["kind"] for s in ctx.transcript] == ["tool_call", "action"]
-    assert ctx.transcript[-1]["status"] == "proposed"
+    w = ctx.writes[0]
+    assert w["status"] == "proposed" and w["entity_id"] == "gb-style-1"
+    p = w["payload"]
+    assert p["priceCents"] == 7920           # 8800 × 0.9 — computed by code, not the model
+    assert p["templateId"] == "weekday_10_off" and p["redemptionWindow"] == "weekday_afternoon"
+    assert p["maxCoupons"] == 4 and p["hypothesis"]["floorPriceCents"] == 6000
+
+
+def test_set_group_buy_coupon_refuses_invented_discounts_and_below_floor(ctx, monkeypatch):
+    _coupon_facts(monkeypatch, floor=8500)  # even 10% off (7920) is below this floor
+    with pytest.raises(ValueError, match="template_unknown"):
+        tools.set_group_buy_coupon("style-1", "custom_13_7_off")  # inventing a discount is not a capability
+    with pytest.raises(ValueError, match="price_below_profit_floor"):
+        tools.set_group_buy_coupon("style-1", "weekday_10_off")
+    _coupon_facts(monkeypatch, floor=None)  # full price already below the profit floor
+    with pytest.raises(ValueError, match="price_below_profit_floor"):
+        tools.set_group_buy_coupon("style-1", "weekday_10_off")
+    assert ctx.writes == []
+
+
+def test_customer_messages_split_by_class(ctx):
+    """ADR-0016 Stage 3: transactional auto-send is LABELED as the assistant; relationship marketing
+    only ever creates a merchant draft — the boss-impersonation pattern is dead."""
+    tools.send_automated_notification("Amy Lim", "appointment_reminder", "明天 14:00 见！")
+    sent = ctx.writes[0]
+    assert sent["action_type"] == "send_customer_message" and sent["risk"] == "irreversible"
+    assert sent["payload"]["body"].startswith("【Nailed-it 商家助手】")  # authorship never misleads
+    with pytest.raises(ValueError, match="notification_kind_invalid"):
+        tools.send_automated_notification("Amy Lim", "win_back_marketing", "好久不见")
+    tools.create_merchant_message_draft("Amy Lim", "好久不见，新到金属感系列…", "60 天未到店＋偏好金属感")
+    draft = ctx.writes[1]
+    assert draft["action_type"] == "draft_customer_message" and draft["status"] == "proposed"
+    assert ctx.awaiting_approval is True  # the merchant gate — nothing reached the customer
 
 
 def test_action_tools_validate_model_supplied_payloads_before_write(ctx):
@@ -151,9 +188,9 @@ def test_action_tools_validate_model_supplied_payloads_before_write(ctx):
     with pytest.raises(ValueError, match="total_budget_cents_must_be_positive"):
         tools.place_ad("style-1", "try_on_no_booking", -1)
     with pytest.raises(ValueError, match="style_id_invalid"):
-        tools.set_group_buy_coupon("../style", 6800)
+        tools.set_group_buy_coupon("../style", "weekday_10_off")
     with pytest.raises(ValueError, match="body_too_long"):
-        tools.send_customer_message("Melissa Tan", "x" * 281)
+        tools.send_automated_notification("Melissa Tan", "aftercare", "x" * 281)
 
     assert ctx.writes == []
     assert ctx.transcript == []

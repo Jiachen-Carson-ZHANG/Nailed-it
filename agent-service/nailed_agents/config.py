@@ -95,6 +95,8 @@ DECISION_MODEL = os.environ.get("DECISION_MODEL") or ORCHESTRATOR_MODEL
 AD_MODEL = os.environ.get("AD_MODEL") or ORCHESTRATOR_MODEL
 # ADR-0016 Stage 2: soft-risk review is nuanced judgment over structured briefs — strong tier.
 REVIEWER_MODEL = os.environ.get("REVIEWER_MODEL") or ORCHESTRATOR_MODEL
+# Stage 3: coupon now judges templates + restrictions — measured flash narration flake → strong tier.
+COUPON_MODEL = os.environ.get("COUPON_MODEL") or ORCHESTRATOR_MODEL
 
 # 选品 trend↔catalog matching (design: docs/eval/2026-07-01-trend-matching-design.md).
 #   "tag"     (default): tag-overlap in trend_logic — cheap, no keys, brittle (broad-tag false positives).

@@ -41,8 +41,9 @@ if config.MODEL_PROVIDER not in ("openrouter", "gemini"):
 # the explicit target field per action type — compare THIS field, not a substring of the whole payload
 # (a message body mentioning "Rachel" must not satisfy a customerName target).
 _TARGET_FIELD = {
-    "send_customer_message": "customerName",
+    "send_customer_message": "customerName", "draft_customer_message": "customerName",
     "delist_style": "styleId", "list_style": "styleId",
+    "feature_style": "styleId", "deprioritize_style": "styleId",
     "set_group_buy_coupon": "styleId", "place_ad": "styleId",
     "draft_upload": "gapTag", "propose_listing": "gapTag",
 }
@@ -104,21 +105,45 @@ SCENARIOS = [
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "opportunity", "action": "price_test", "target": "style-melissa-img-8284"},
     ),
+    # ADR-0016 Stage 3: a win-back is RELATIONSHIP marketing → merchant draft, never an auto-send.
     Scenario(
-        id="customer_ops/lapsed-rachel", slug="customer_ops",
+        id="customer_ops/lapsed-rachel-draft", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
-        task="第一步必须调用 get_customer_intelligence 读取客户名册；挑一位最值得再营销的老客；最后必须调用 send_customer_message 真正发送（老板身份、简短回归消息）。",
+        task="读取客户名册，为最值得再营销的一位老客准备本轮触达（判断消息类型并走对应通道）。",
         customers=_ROSTER,
-        expect={"kind": "action", "action_type": "send_customer_message", "target": "Rachel Goh"},  # canonical full name
-        forbid=[{"action_type": "send_customer_message", "target": "Melissa Tan"}],  # don't message the active customer
+        expect={"kind": "action", "action_type": "draft_customer_message", "target": "Rachel Goh"},
+        forbid=[{"action_type": "draft_customer_message", "target": "Melissa Tan"},   # active customer
+                {"action_type": "send_customer_message", "target": "Rachel Goh"}],     # no auto-send win-backs
     ),
     Scenario(
-        id="catalog/dead-8277-delist", slug="catalog",
+        id="catalog/dead-8277-deprioritized", slug="catalog",
         tools=LANE_TOOLS["catalog"],
-        task="先调用 get_catalog_actions；对 delist[] 中每个款调用 delist_style；对 propose[] 中每个缺口调用 propose_listing。只执行清单里的候选，不要自行判断。",
+        task="先调用 get_catalog_actions；对 deprioritize[] 中每个款调用 deprioritize_style；对 propose[] 中每个缺口调用 propose_listing。只执行清单里的候选，不要自行判断。",
         briefing=_LOWCONV_BRIEFING,
-        expect={"kind": "action", "action_type": "delist_style", "target": "style-melissa-img-8277"},
-        forbid=[{"action_type": "delist_style", "target": "style-melissa-img-8284"}],  # high-interest low-conv → keep
+        expect={"kind": "action", "action_type": "deprioritize_style", "target": "style-melissa-img-8277"},
+        forbid=[{"action_type": "deprioritize_style", "target": "style-melissa-img-8284"}],  # high-interest low-conv → keep
+    ),
+    # ADR-0016 Stage 3: the coupon agent's judgment is the RESTRICTIONS — template + window + count —
+    # never the price (code computes it) and never a promised booking figure.
+    Scenario(
+        id="coupon/template-restrictions", slug="coupon",
+        tools=LANE_TOOLS["coupon"],
+        task="根据注入的行动简报处理本轮团购。",
+        briefing=_LOWCONV_BRIEFING,
+        decisions={"capacity": {"band": "very_idle", "utilizationPct": 40},
+                   "decisions": [{"styleId": "style-melissa-img-8284", "durationMin": 60, "priceCents": 8800,
+                                  "coupon": {"floorPriceCents": 6000, "referencePriceCents": 7040},
+                                  "ad": {}}]},
+        # the target audience is EXISTING try-on prospects — the new-customer template mismatches, and
+        # the skill says pick the mildest template that meets the goal → weekday_10_off is the one
+        # right answer; window/count stay judged too.
+        briefs=[{"action_type": "coupon", "style_id": "style-melissa-img-8284",
+                 "objective": "用受限团购把高意向零成单款的已试戴客户转成工作日下午预约，保护周末原价",
+                 "max_total_budget_cents": 6000, "target_bookings_min": 2, "target_bookings_max": 4,
+                 "allowed_period": "weekday",
+                 "notes": "受众为已试戴未预约的意向客户（非新客拉新），用最温和且够用的折扣"}],
+        expect={"kind": "action", "action_type": "set_group_buy_coupon", "target": "style-melissa-img-8284",
+                "sig_keys": ["styleId", "templateId", "redemptionWindow"]},
     ),
     # ADR-0016: no brief → no action. The 投广 agent must not spend just because it has the tools.
     Scenario(
@@ -449,7 +474,7 @@ def _run_once(scn: Scenario) -> dict:
         with _stub_bus(scn, captured):
             model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
                      "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
-                     "reviewer": config.REVIEWER_MODEL}.get(scn.slug)
+                     "reviewer": config.REVIEWER_MODEL, "coupon": config.COUPON_MODEL}.get(scn.slug)
             long_chain = scn.slug in ("orchestrator", "monitor", "decision", "ad")
             final = runner.run_agent(system=_skill(scn.slug), tool_names=scn.tools, task=task, ctx=ctx,
                                      max_iters=12 if long_chain else 8, model=model)

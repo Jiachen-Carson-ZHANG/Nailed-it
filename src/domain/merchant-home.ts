@@ -204,6 +204,9 @@ const ACTION_META: Record<AgentActionType, { icon: string; agent: string; title:
   send_customer_message: { icon: '💬', agent: '用户运营', title: (p) => `唤回 · ${str(p.customerName) || str(p.name) || ''}`.trim() },
   list_style: { icon: '✨', agent: '选品助手', title: (p, name) => `上架 · ${name(str(p.styleId))}` },
   delist_style: { icon: '✨', agent: '选品助手', title: (p, name) => `下架 · ${name(str(p.styleId))}` },
+  feature_style: { icon: '✨', agent: '陈列助手', title: (p, name) => `推荐加权 · ${name(str(p.styleId))}` },
+  deprioritize_style: { icon: '✨', agent: '陈列助手', title: (p, name) => `降低曝光 · ${name(str(p.styleId))}` },
+  draft_customer_message: { icon: '💬', agent: '用户运营', title: (p) => `消息草稿 · ${str(p.customerName) || ''}`.trim() },
 };
 
 function str(v: unknown): string {

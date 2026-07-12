@@ -40,8 +40,11 @@ export const agentActionTypes = [
   'set_group_buy_coupon',
   'list_style',
   'delist_style',
+  'feature_style',
+  'deprioritize_style',
   'draft_upload',
   'send_customer_message',
+  'draft_customer_message',
 ] as const;
 export type AgentActionType = (typeof agentActionTypes)[number];
 

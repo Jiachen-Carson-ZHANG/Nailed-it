@@ -33,18 +33,20 @@
     "pause_ad_campaign"
   ],
   "coupon": [
+    "get_coupon_constraints",
     "set_group_buy_coupon"
   ],
   "catalog": [
     "get_catalog_actions",
-    "list_style",
-    "delist_style",
+    "feature_style",
+    "deprioritize_style",
     "propose_listing",
     "search_memory"
   ],
   "customer_ops": [
     "get_customer_intelligence",
-    "send_customer_message",
+    "send_automated_notification",
+    "create_merchant_message_draft",
     "search_memory"
   ],
   "monitor": [

@@ -270,6 +270,43 @@ const SUMMARIZERS: Record<string, Summarizer> = {
       : `Messaged ${String(input.customerName ?? '')} as the boss: ${truncate(String(input.body ?? ''), 60)}`,
   }),
 
+  // ── Stage 3 (ADR-0016): message classes + merchandising verbs + coupon templates ──────────
+
+  send_automated_notification: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '自动通知' : 'Notification',
+    summary: lang === 'zh-CN'
+      ? `以商家助手署名发送${String(input.kind ?? '')}通知 → ${String(input.customerName ?? '')}`
+      : `Sent a labeled ${String(input.kind ?? '')} notification → ${String(input.customerName ?? '')}`,
+  }),
+
+  create_merchant_message_draft: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '消息草稿' : 'Message draft',
+    summary: lang === 'zh-CN'
+      ? `为 ${String(input.customerName ?? '')} 起草关系消息（待你亲自发送）：${truncate(String(input.reason ?? ''), 50)}`
+      : `Drafted a relationship message for ${String(input.customerName ?? '')} (awaiting your send)`,
+  }),
+
+  get_coupon_constraints: (input, output, lang) => {
+    const o = isObj(output) ? output : {};
+    const n = count(o.templates);
+    const zh = lang === 'zh-CN';
+    return { label: zh ? '团购约束' : 'Coupon rules', summary: zh ? `读取 ${n || '可用'} 个预批模板与利润底线` : `Read ${n || 'approved'} templates + profit floor` };
+  },
+
+  feature_style: (input, _o, lang, titles) => ({
+    label: lang === 'zh-CN' ? '推荐加权' : 'Feature',
+    summary: lang === 'zh-CN'
+      ? `提高${styleLabel(input.styleId, lang, titles)}的推荐位曝光`
+      : `Featured ${styleLabel(input.styleId, lang, titles)}`,
+  }),
+
+  deprioritize_style: (input, _o, lang, titles) => ({
+    label: lang === 'zh-CN' ? '降低曝光' : 'Deprioritize',
+    summary: lang === 'zh-CN'
+      ? `降低${styleLabel(input.styleId, lang, titles)}的推荐曝光（款式保留在库）`
+      : `Deprioritized ${styleLabel(input.styleId, lang, titles)} (asset kept)`,
+  }),
+
   // ── 监测回流 + 记忆 v2 (ADR-0013 P2/P3, ADR-0015) ──────────────────────────────────────────
 
   get_campaign_outcomes: (_i, output, lang) => {
@@ -361,6 +398,9 @@ export function stepTone(kind: TranscriptStep['kind']): 'thinking' | 'tool' | 'a
 const TOOL_ACTION_TYPE: Record<string, AgentActionType> = {
   place_ad: 'place_ad', placeAd: 'place_ad',
   update_ad_campaign: 'update_ad_campaign', pause_ad_campaign: 'pause_ad_campaign',
+  feature_style: 'feature_style', deprioritize_style: 'deprioritize_style',
+  send_automated_notification: 'send_customer_message',
+  create_merchant_message_draft: 'draft_customer_message',
   set_group_buy_coupon: 'set_group_buy_coupon', setGroupBuyCoupon: 'set_group_buy_coupon',
   list_style: 'list_style', delist_style: 'delist_style',
   propose_listing: 'draft_upload', send_customer_message: 'send_customer_message',
@@ -385,8 +425,11 @@ const ACTION_LABELS: Record<AgentActionType, { 'zh-CN': string; en: string }> = 
   set_group_buy_coupon: { 'zh-CN': '团购券', en: 'Coupon' },
   list_style: { 'zh-CN': '上架', en: 'List' },
   delist_style: { 'zh-CN': '下架', en: 'Delist' },
+  feature_style: { 'zh-CN': '推荐加权', en: 'Feature' },
+  deprioritize_style: { 'zh-CN': '降低曝光', en: 'Deprioritize' },
   draft_upload: { 'zh-CN': '上新草稿', en: 'Draft' },
-  send_customer_message: { 'zh-CN': '老板消息', en: 'Message' },
+  send_customer_message: { 'zh-CN': '客户通知', en: 'Message' },
+  draft_customer_message: { 'zh-CN': '消息草稿', en: 'Message draft' },
 };
 
 export function actionTypeLabel(type: AgentActionType, lang: AppLang): string {
