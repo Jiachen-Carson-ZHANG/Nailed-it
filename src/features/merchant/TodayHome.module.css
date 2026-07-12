@@ -11,9 +11,25 @@
 }
 
 /* ---- stat strip (light orientation, not a hero) ---- */
-.titlebar { display: flex; align-items: baseline; gap: var(--space-3); margin: 0 var(--space-1) var(--space-1); }
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-1) var(--space-1);
+}
 .titlebar h1 { font-size: var(--text-lg); font-weight: 800; margin: 0; }
 .titlebar .date { font-size: var(--text-xs); color: var(--color-muted); font-weight: 600; }
+.titleCta {
+  font-size: var(--text-xs);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-pill);
+  padding: 4px var(--space-3);
+  line-height: 1.5;
+}
 .statStrip {
   display: flex;
   background: var(--color-surface-strong);
@@ -22,8 +38,18 @@
   box-shadow: var(--shadow-soft);
   overflow: hidden;
 }
-.stat { flex: 1; padding: var(--space-2) var(--space-3); border-right: 1px solid var(--color-border); }
+.stat {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--motion-fast) var(--motion-ease);
+}
 .stat:last-child { border-right: 0; }
+.stat:hover { background: var(--color-bg); }
+.stat:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .statN { font-size: var(--text-md); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .statUp { font-size: var(--text-xs); color: var(--color-success-ink); font-weight: 800; margin-left: 2px; }
 .statL { font-size: var(--text-xs); color: var(--color-muted); margin-top: 3px; font-weight: 600; }
