@@ -447,6 +447,7 @@ def run_round(range_days: int = 7) -> dict[str, str]:
     if missing:
         raise SystemExit(f"agents missing ({', '.join(sorted(missing))}) — run `npm run seed:agents` after migration 0022")
 
+    bus.sweep_stale_runs(sb, config.MERCHANT_ID)  # crash hygiene — zombie 'running' rows die here
     round_id = bus.start_round(sb, config.MERCHANT_ID)  # None when 0030 unapplied (degrades loudly)
     orch_system = _skill("orchestrator", agents["orchestrator"]["instructions"])
     orch_task = ORCH_TASK.format(range_days=range_days) + _memory_hints(

@@ -180,6 +180,31 @@ def _is_missing_column(err: Exception) -> bool:
     return "PGRST204" in msg or "does not exist" in msg or "schema cache" in msg
 
 
+def sweep_stale_runs(sb: Client, merchant_id: str, older_than_minutes: int = 30) -> int:
+    """Crash hygiene: a process that dies mid-round leaves its runs 'running' in the DB forever —
+    there is deliberately no worker/lease/heartbeat system at demo scale (ADR-0007/0013), so the
+    sweep at the next round start is the whole recovery story. Marks them failed with a reason the
+    UI can show instead of a zombie spinner."""
+    from datetime import timedelta
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)).isoformat()
+    try:
+        res = (
+            sb.table("agent_runs")
+            .update({"status": "failed", "finished_at": now_iso(),
+                     "output": {"text": "", "error": "stale_run_swept: process died mid-round"}})
+            .eq("merchant_id", merchant_id).eq("status", "running").lt("started_at", cutoff)
+            .execute()
+        )
+        n = len(res.data or [])
+        if n:
+            print(f"WARN swept {n} stale 'running' run(s) → failed (previous process died mid-round)")
+        return n
+    except Exception as e:  # noqa: BLE001 — hygiene must never block the round itself
+        print(f"WARN stale-run sweep failed: {e}")
+        return 0
+
+
 def start_round(sb: Client, merchant_id: str) -> str | None:
     """Open the round row. Degrades to None when migration 0030 is unapplied — the round still runs,
     just without blackboard/round grouping (a loud print, not a silent swallow)."""
