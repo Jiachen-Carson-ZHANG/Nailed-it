@@ -63,6 +63,22 @@ def test_delivery_respects_budget_caps():
     assert empty == {"impressions": 0, "clicks": 0, "bookings": 0, "spend_cents": 0}
 
 
+def test_committed_budget_counts_asks_not_history():
+    """Wallet semantics (ADR-0016): drafts commit their full ask, active campaigns only their
+    unspent remainder — spent money is history, not a commitment. Paused/ended commit nothing
+    (pausing a failing campaign is exactly how the monitor frees budget for an alternative)."""
+    campaigns = [
+        {"status": "draft", "total_budget_cents": 12000, "spend_cents": 0},
+        {"status": "active", "total_budget_cents": 20000, "spend_cents": 15000},   # commits 5000
+        {"status": "active", "total_budget_cents": 8000, "spend_cents": 9000},     # overspent → 0
+        {"status": "ended", "total_budget_cents": 80000, "spend_cents": 56000},    # history → 0
+        {"status": "paused", "total_budget_cents": 6000, "spend_cents": 1000},     # freed → 0
+        {"status": "draft", "daily_budget_cents": 1000, "duration_days": 3},       # 3000 via daily
+    ]
+    assert sandbox.committed_budget_cents(campaigns) == 12000 + 5000 + 3000
+    assert sandbox.committed_budget_cents([]) == 0
+
+
 def test_campaign_state_machine():
     assert sandbox.can_transition("draft", "active")
     assert sandbox.can_transition("active", "paused")

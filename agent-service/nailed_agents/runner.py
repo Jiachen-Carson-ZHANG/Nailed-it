@@ -92,10 +92,12 @@ def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.Ru
             ctx.transcript.append({"kind": "reasoning", "text": msg.content})
             final_text = msg.content
         if not msg.tool_calls:
-            if final_text or retried_empty:
-                break
+            if (msg.content and msg.content.strip()) or retried_empty:
+                break  # a real conclusion — or the retry also came back dead; end with what we have
             # empty content AND no tool calls — a dead response (thinking ate the budget, or a
-            # transient provider hiccup). One retry; a second empty response ends the run honestly.
+            # transient provider hiccup). Keyed on THIS response, not accumulated text: mid-loop
+            # narration must not disable the retry, else stale narration becomes the "conclusion"
+            # (observed live: 决策 died right after a tool result and returned its apology text).
             retried_empty = True
             continue
         messages.append({

@@ -2238,3 +2238,50 @@ BLOCKED on live verification: USER must apply 0033_ad_sandbox.sql, then rounds +
 - pytest 55/55 (template price computed by code, invented-discount + below-floor refusals, labeled
   notification + draft gate), vitest 238/238, tsc clean, re-seeded (coupon v2 / catalog v3 /
   customer_ops v4).
+
+## 2026-07-12 — Live v3 proof on finals-a + the hard rules the live rounds forced
+
+Migration 0033 applied → first live sandbox rounds. Three rounds on `finals-a` produced the doc-08
+trace (rewritten from these runs; per-lane dumps in `docs/eval/live-v3/`, local). Every live failure
+became a code rule the same day:
+
+- **Wallet semantics** (`sandbox.committed_budget_cents`): committed = draft full ask + active
+  unspent remainder; spent money is history; paused/ended commit nothing. The old sum-of-totals let
+  finished history campaigns eat the whole ¥180 wallet (决策 rationally briefed "no ads" — round dead).
+  Shared by `get_ad_account_state`, `simulate_action_portfolio`, `_decision_context`.
+- **place_ad hard rules** (all refuse pre-side-effect): `budget_exceeds_wallet` (brief ceilings
+  compete for ONE budget — measured: agent placed ¥160 against a ¥130 wallet, each placement
+  in-brief), `campaign_exists_for_style` (a live campaign must be revised, never silently
+  reconfigured), ended→fresh-run (version++, measured history archived to zero — the upsert used to
+  resurrect ended campaigns with their old metrics), `no_ad_brief_filed`/`no_coupon_brief_filed`
+  (executor dispatched with an EMPTY brief set must not spend — see narration entry below).
+  `RunContext.briefs` became `list | None`: a list (even empty) means "dispatched under the briefs
+  contract"; None = outside it (decision itself, revision re-runs, tests).
+- **Strong-tier narration is real**: 决策 (gemini-2.5-pro) once produced a full prose plan claiming
+  "已提交" ×3 with ZERO `submit_action_brief` calls; the ad lane then executed the prose as if it
+  were law (only the wallet held). The no-brief refusals make that failure inert — the round degrades
+  to named skips instead of prose-driven spend. Two more gemini modes measured: dead response
+  mid-loop (runner's retry was keyed on accumulated text and never fired after any narration — now
+  keyed on the CURRENT response) and a raw thinking leak as final text (monitor, one round; visible
+  by construction via `toolAttempts`).
+- **dispatch_many resilience**: per-lane isolation (one lane's crash no longer erases its siblings'
+  completed results — pool.map used to throw everything away and send the orchestrator into blind
+  retries that exhausted its iterations) + one retry on connection-class errors (a whole 4-lane batch
+  died on `RemoteProtocolError` when the shared httpx pool handed stale sockets to parallel threads).
+  Orchestrator max_iters 14→18.
+- **Mission channel**: `pref-weekly-focus` merchant preference is lifted into
+  `mission.merchant_weekly_focus` in 决策's injected environment — as a rankable memory hint the
+  merchant's 拉新 goal lost to CAC anchoring in 2 of 3 rounds; as mission state it shaped the next
+  round's brief (CAC ceiling 2000 → 4500, cited).
+- **Seed coherence** (`seed:agent-history`): history campaigns are `ended` (finished runs hold no
+  wallet commitments; keeping the healthy one active collided with fresh briefs — lifetime spend
+  swallowed the new run's budget through update_ad_campaign); stale/legacy open campaigns are ended
+  by the seed; 2 merchant preferences (团购底线 + 拉新重点).
+- **The trace itself** (doc 08 §2): briefs→[APPROVED]→forecast loop→placement + an infeasible report
+  (8274: all three audiences under the target floor, refused with numbers) → 72h delivery diverges
+  (35 clicks on-forecast, CAC 1800 vs hypothesis 808–1211) → ad lane revises the SAME campaign to v8
+  (audience switch, evidence-cited) → monitor writes 3 outcome memories incl. the 2× calibration miss
+  and REFUSES a revision citing its bright lines → next 决策 cites the monitor's memory (mem id) in
+  fresh briefs.
+- Verification: pytest 61/61; affected eval scenarios re-run post-hardening (ad ×3, coupon, decision,
+  reviewer ×2) — all gates green at n=2 (`docs/eval/live-v3/regression-post-hardrules.log`, local).

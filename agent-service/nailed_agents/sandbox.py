@@ -173,6 +173,23 @@ def deliver(
     }
 
 
+def committed_budget_cents(campaigns: list[dict]) -> int:
+    """Money the marketing wallet must still honor. Drafts commit their full ask (the merchant may
+    launch them at any moment); active campaigns commit only their unspent remainder — spent money
+    is history, not a commitment. Paused and ended campaigns commit nothing: the monitor pauses a
+    failing campaign precisely to free its budget for an alternative."""
+    committed = 0
+    for c in campaigns:
+        status = c.get("status")
+        total = int(c.get("total_budget_cents")
+                    or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4))
+        if status == "draft":
+            committed += total
+        elif status == "active":
+            committed += max(0, total - int(c.get("spend_cents") or 0))
+    return committed
+
+
 # ── campaign state machine (ADR-0016 §3) ─────────────────────────────────────────────────────────
 
 CAMPAIGN_TRANSITIONS: dict[str, set[str]] = {

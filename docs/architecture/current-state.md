@@ -15,6 +15,13 @@ The agent service moved from restate-and-execute to **facts → briefs → bound
   `simulate_action_portfolio` checks the combined plan deterministically (attribution conflicts,
   budget competition, capacity pressure). Briefs land on the blackboard and are injected verbatim
   into executors; tools enforce them as law (`budget_exceeds_brief` refused pre-side-effect).
+  Live-hardened (2026-07-12): the marketing **wallet** is law too (`committed_budget_cents` = draft
+  asks + active unspent remainder; spent money is history), one campaign per style (live → revise
+  in place; ended → fresh run with version++ and measured history archived to zero), and an
+  executor dispatched with an EMPTY brief set refuses to spend (`no_ad_brief_filed`) — the strong
+  tier was measured narrating brief submissions it never made; prose can never become spend. The
+  merchant's weekly focus (`pref-weekly-focus` preference row) is lifted into
+  `mission.merchant_weekly_focus` — deterministic mission state, not a rankable memory hint.
 - **Ad sandbox** (`nailed_agents/sandbox.py`, migration `0033`): 3 audiences, deterministic forecast
   (ranges + saturation + frequency fatigue) from public priors, delivery from **hidden scenario
   state** (same seed → same divergence), campaign state machine with versioned in-place revisions,
@@ -39,6 +46,10 @@ The agent service moved from restate-and-execute to **facts → briefs → bound
   insight, trend, catalog, customer_ops. Provider fallback `MODEL_PROVIDER=gemini` (direct Google
   endpoint) with bounded reasoning and temperature 0.2.
 - Eval: 14 scenarios, five blocking gates, all green at n=2 on gemini-direct. Migrations `0030`–`0033`.
+- **Live-verified** (2026-07-12, finals-a, doc 08 §2): briefs → `[APPROVED]` → forecast loop →
+  placement + an infeasible report → delivery diverged from the hypothesis (CAC ~2×) → same-entity
+  revision to v8 → monitor outcome memories + a bright-line-cited non-revision → next 决策 cites
+  the memory by id.
 
 ## Stack
 

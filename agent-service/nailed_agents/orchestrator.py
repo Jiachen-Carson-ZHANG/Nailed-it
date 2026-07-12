@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from . import bus, config, runner, tools
+from . import bus, config, runner, sandbox, tools
 
 _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 
@@ -237,18 +237,31 @@ def _decision_context(sb) -> str:
     cap = brain.get("capacity") or {}
     committed = 0
     try:
-        for c in bus.fetch_campaign_outcomes(sb, config.MERCHANT_ID):
-            if c.get("status") in ("active", "draft"):
-                committed += c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4)
+        committed = sandbox.committed_budget_cents(bus.fetch_campaign_outcomes(sb, config.MERCHANT_ID))
     except Exception:
         pass
     ranked = sorted(brain.get("decisions") or [],
                     key=lambda d: (d.get("scores") or {}).get("businessValue") or 0, reverse=True)
+    # The merchant's CURRENT weekly focus is mission, not memory: as a rankable hint it loses to
+    # cost anchoring (measured live — 决策 briefed the cheap-CAC plan over the acquisition goal in
+    # 2 of 3 rounds). A `pref-weekly-focus` preference row is merchant-set state; injecting it into
+    # the mission block makes the goal a deterministic input, same channel as budget and capacity.
+    weekly_focus = None
+    try:
+        for r in bus.fetch_memory(sb, config.MERCHANT_ID):
+            if r.get("kind") == "merchant_preference" and r.get("key") == "pref-weekly-focus":
+                weekly_focus = r.get("claim") or (r.get("content") or {}).get("verdict")
+                break
+    except Exception:
+        pass
+    mission: dict[str, object] = {
+        "goal": "在不牺牲周末原价订单的前提下，提升下周预约量与利润",
+        "planning_horizon": "next_7_days",
+    }
+    if weekly_focus:
+        mission["merchant_weekly_focus"] = weekly_focus
     env = {
-        "mission": {
-            "goal": "在不牺牲周末原价订单的前提下，提升下周预约量与利润",
-            "planning_horizon": "next_7_days",
-        },
+        "mission": mission,
         "merchant_policy": {
             "marketing_budget_cents": config.MARKETING_BUDGET_CENTS,
             "committed_budget_cents": committed,
@@ -329,8 +342,10 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     if brief_sink is not None:
         ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
-    if briefs:
-        ctx.briefs = briefs  # executor lanes — place_ad/update enforce the brief ceilings as law
+    if briefs is not None:
+        # executor lanes — place_ad/set_group_buy_coupon enforce the brief law; an EMPTY list is
+        # itself the contract ("决策 filed nothing for you"), which the spend tools refuse to breach.
+        ctx.briefs = briefs
     text = runner.run_agent(
         system=system,
         tool_names=LANE_TOOLS[slug], task=task, ctx=ctx,
@@ -476,7 +491,7 @@ def run_round(range_days: int = 7) -> dict[str, str]:
             system=orch_system,
             tool_names=ORCHESTRATOR_TOOLS,
             task=orch_task,
-            ctx=ctx, max_tokens=3000, max_iters=14, model=config.ORCHESTRATOR_MODEL,
+            ctx=ctx, max_tokens=3000, max_iters=18, model=config.ORCHESTRATOR_MODEL,
         )
         bus.finish_run(sb, orch_run, output={"text": text, "dispatched": dict(state.dispatched)},
                        transcript=ctx.transcript, status="completed")

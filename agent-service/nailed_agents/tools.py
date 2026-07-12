@@ -63,9 +63,11 @@ class RunContext:
     # ADR-0016 §2: set ONLY on the decision agent's context — a callable that files an Action Brief
     # onto the round. None everywhere else, so no other lane can author briefs.
     brief_sink: Any = None
-    # ADR-0016 §2: the briefs governing THIS executor run (ad/coupon lanes) — place_ad/update enforce
-    # their ceilings as hard law; empty for non-executor lanes and revision re-runs predating briefs.
-    briefs: list[dict[str, Any]] = field(default_factory=list)
+    # ADR-0016 §2: the briefs governing THIS executor run. A LIST (even empty) means the lane was
+    # dispatched under the briefs contract — spend tools refuse when their action_type has no brief
+    # (an empty list is "决策 filed nothing", not "no law"). None = context outside the contract
+    # (decision itself, monitor revision re-runs, tests) where brief law doesn't apply.
+    briefs: list[dict[str, Any]] | None = None
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
@@ -295,10 +297,7 @@ def get_ad_account_state() -> str:
     modify it with update_ad_campaign instead)."""
     ctx = _ctx()
     campaigns = bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)
-    committed = sum(
-        (c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4))
-        for c in campaigns if c.get("status") in ("active", "draft")
-    )
+    committed = sandbox.committed_budget_cents(campaigns)
     state = {
         "marketing_budget_cents": config.MARKETING_BUDGET_CENTS,
         "committed_budget_cents": committed,
@@ -367,7 +366,8 @@ def forecast_ad_plan(style_id: str, audience: str, total_budget_cents: int, dura
 def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_days: int = 4) -> str:
     """Create the campaign for your CHOSEN plan (run forecast_ad_plan first — the winning plan's
     forecast is snapshotted as the hypothesis the monitor later measures against). Hard rules enforced
-    here: the Action Brief's budget ceiling, audience validity, one campaign per style (use
+    here: the Action Brief's budget ceiling, the merchant's remaining marketing wallet (briefs compete
+    for ONE budget — check get_ad_account_state), audience validity, one campaign per style (use
     update_ad_campaign to modify an existing one). Daily budget = total/duration; within the
     merchant's auto-execute limit it launches as a withdrawable drip, above it it lands as a draft the
     merchant must launch. If no viable plan exists inside the brief, do NOT place — report the
@@ -380,14 +380,34 @@ def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_day
     duration_days = _bounded_int(duration_days, field="duration_days", maximum=30)
 
     # Action Brief = hard law for the executor (ADR-0016 §2): when briefs exist, the target style
-    # must be briefed and the budget must sit inside its ceiling.
+    # must be briefed and the budget must sit inside its ceiling. When the lane was dispatched as an
+    # executor (ctx.briefs is a list) but 决策 filed NO ad brief, there is nothing lawful to execute —
+    # prose in the upstream conclusion is not a brief (a decision run once NARRATED submissions it
+    # never made; this refusal is what keeps that failure harmless).
     briefs = _my_briefs(ctx, "ad")
+    if ctx.briefs is not None and not briefs:
+        raise ValueError("no_ad_brief_filed")
     if briefs:
         mine = next((b for b in briefs if b.get("style_id") == style_id), None)
         if mine is None:
             raise ValueError("style_not_in_brief")
         if total_budget_cents > mine["max_total_budget_cents"]:
             raise ValueError("budget_exceeds_brief")
+
+    # The wallet is a hard rule too (ADR-0016): brief ceilings bound each action separately, but
+    # they compete for ONE marketing budget — placement refuses what the wallet can't honor.
+    campaigns = bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id)
+    remaining = config.MARKETING_BUDGET_CENTS - sandbox.committed_budget_cents(campaigns)
+    if total_budget_cents > remaining:
+        raise ValueError(f"budget_exceeds_wallet:remaining_cents={max(0, remaining)}")
+
+    # One campaign per style is a hard rule, not a docstring plea: a live campaign must be revised
+    # (update_ad_campaign), never silently reconfigured by a second placement. A style whose last
+    # campaign ENDED may be advertised again — that's a fresh run of the same stable entity, so its
+    # old metrics are archived to zero below, never inherited as a head start.
+    prior = next((c for c in campaigns if c.get("merchant_style_id") == style_id), None)
+    if prior is not None and prior.get("status") in ("active", "draft", "paused"):
+        raise ValueError("campaign_exists_for_style:use_update_ad_campaign")
 
     daily_budget_cents = max(1, round(total_budget_cents / duration_days))
     result = bus.post_propose_ad(style_id, daily_budget_cents, ctx.run_id)
@@ -397,10 +417,13 @@ def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_day
     action_status = "applied" if entity_status == "active" else "proposed"
 
     # persist sandbox config on the campaign (audience/total budget/version) — pre-0033 degrades
+    sandbox_fields: dict[str, Any] = {"audience": audience, "total_budget_cents": total_budget_cents,
+                                      "duration_days": duration_days}
+    if prior is not None:  # fresh run of an ended campaign: version up, measured history reset
+        sandbox_fields.update({"version": int(prior.get("version") or 1) + 1,
+                               "impressions": 0, "clicks": 0, "bookings": 0, "spend_cents": 0})
     try:
-        bus.update_campaign(ctx.sb, entity_id, ctx.merchant_id,
-                            {"audience": audience, "total_budget_cents": total_budget_cents,
-                             "duration_days": duration_days})
+        bus.update_campaign(ctx.sb, entity_id, ctx.merchant_id, sandbox_fields)
     except Exception:
         print("WARN campaign sandbox columns missing — apply migration 0033_ad_sandbox.sql")
 
@@ -466,6 +489,10 @@ def update_ad_campaign(campaign_id: str, total_budget_cents: int = 0, audience: 
         for b in _my_briefs(ctx, "ad"):
             if b.get("style_id") == cur.get("merchant_style_id") and total_budget_cents > b["max_total_budget_cents"]:
                 raise ValueError("budget_exceeds_brief")
+        others = [c for c in campaigns.values() if c["id"] != campaign_id]
+        remaining = config.MARKETING_BUDGET_CENTS - sandbox.committed_budget_cents(others)
+        if max(0, total_budget_cents - int(cur.get("spend_cents") or 0)) > remaining:
+            raise ValueError(f"budget_exceeds_wallet:remaining_cents={max(0, remaining)}")
         days = duration_days or cur.get("duration_days") or 4
         fields["total_budget_cents"] = total_budget_cents
         fields["daily_budget_cents"] = max(1, round(total_budget_cents / days))
@@ -577,6 +604,8 @@ def set_group_buy_coupon(style_id: str, template_id: str, redemption_window: str
     valid_days = _bounded_int(valid_days, field="valid_days", maximum=30)
 
     briefs = _my_briefs(ctx, "coupon")
+    if ctx.briefs is not None and not briefs:
+        raise ValueError("no_coupon_brief_filed")  # dispatched as executor, but 决策 filed no coupon brief
     if briefs and not any(b.get("style_id") == style_id for b in briefs):
         raise ValueError("style_not_in_brief")
 
@@ -851,6 +880,8 @@ def submit_action_brief(
         "source_run_id": ctx.run_id,
     }
     ctx.brief_sink(brief)
+    if ctx.briefs is None:
+        ctx.briefs = []
     ctx.briefs.append(brief)  # the decision agent's own view — simulate_action_portfolio reads it
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "submit_action_brief", "input": brief, "output": {"accepted": True}}
@@ -868,7 +899,7 @@ def simulate_action_portfolio() -> str:
     ctx = _ctx()
     if ctx.brief_sink is None:
         raise ValueError("portfolio_simulation_not_allowed")  # decision-only, like the sink itself
-    briefs = list(ctx.briefs)
+    briefs = list(ctx.briefs or [])
     warnings: list[str] = []
 
     ad_styles = {b["style_id"] for b in briefs if b["action_type"] == "ad"}
@@ -879,9 +910,7 @@ def simulate_action_portfolio() -> str:
     ad_ceiling_total = sum(b["max_total_budget_cents"] for b in briefs if b["action_type"] == "ad")
     committed = 0
     try:
-        for c in bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id):
-            if c.get("status") in ("active", "draft"):
-                committed += c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4)
+        committed = sandbox.committed_budget_cents(bus.fetch_campaign_outcomes(ctx.sb, ctx.merchant_id))
     except Exception:
         pass
     remaining = max(0, config.MARKETING_BUDGET_CENTS - committed)
@@ -1263,15 +1292,33 @@ def dispatch_many(dispatches_json: str) -> str:
         ))
     rnd.reserve([slug for slug, _, _ in cleaned])  # validate the whole batch before any run starts
 
-    def _one(args: tuple[str, str, str]) -> tuple[str, str, str, str]:
+    _CONNECTION_ERRORS = ("RemoteProtocolError", "ConnectError", "ReadError", "ConnectionError")
+
+    def _one(args: tuple[str, str, str]) -> tuple[str, str, str | None, str | None, str | None]:
         slug, task, parent = args
-        run_id, text = rnd.dispatch(slug, task, parent or None, reserved=True)
-        return slug, parent, run_id, text
+        # one retry on connection-class errors: a shared httpx pool hands stale sockets to parallel
+        # threads after idling (measured live: all 4 lanes of a batch died on RemoteProtocolError);
+        # the reconnect gets a fresh socket. Anything else fails straight to the per-lane report.
+        for attempt in (1, 2):
+            try:
+                run_id, text = rnd.dispatch(slug, task, parent or None, reserved=True)
+                return slug, parent, run_id, text, None
+            except Exception as e:  # noqa: BLE001 — one lane's crash must never erase its siblings' results
+                if attempt == 1 and type(e).__name__ in _CONNECTION_ERRORS:
+                    print(f"WARN dispatch_many lane {slug}: {type(e).__name__} — retrying on a fresh connection")
+                    continue
+                return slug, parent, None, None, f"{type(e).__name__}: {e}"
+        return slug, parent, None, None, "unreachable"
 
     with ThreadPoolExecutor(max_workers=len(cleaned)) as pool:
         results = list(pool.map(_one, cleaned))
     out_lines = []
-    for slug, parent, run_id, text in results:
+    for slug, parent, run_id, text, err in results:
+        if err is not None:
+            print(f"WARN dispatch_many lane {slug} failed: {err}")
+            out_lines.append(f"[{slug}] FAILED ({err[:300]}) — only THIS lane did not run; "
+                             "the other lanes in the batch DID run, do not dispatch them again.")
+            continue
         _record_dispatch(ctx, slug, parent, run_id, text)
         out_lines.append(f"[{slug}] run {run_id} finished:\n{text[:800]}")
     return "\n\n".join(out_lines)

@@ -1,15 +1,11 @@
 # 08 — Demo Walkthrough: Scenarios, Agent I/O, Tool Usage, Contracts
 
 Everything in this document is taken from **real persisted runs** (queryable in `agent_runs` /
-`agent_actions` / `style_ad_campaign` / `groupbuy_deal`), not from design intent. Primary trace: the
-dynamic round of 2026-07-10, orchestrator run `e9a4ff93…`.
-
-> **v3 note (2026-07-12, ADR-0016):** the architecture has since moved to Action Briefs + the ad
-> sandbox (executors find parameters via forecast loops inside 决策's boundaries; a Risk Reviewer
-> judges the portfolio; coupons configure merchant-approved templates; relationship messages become
-> merchant-send drafts). The trace below predates that rebuild — per-agent I/O shapes are superseded
-> by the tool tables in this doc and ADR-0016; a fresh v3 trace replaces this section after the first
-> live sandbox round (migration 0033).
+`agent_actions` / `style_ad_campaign` / `agent_memory` / `agent_rounds`), not from design intent.
+Primary trace: the **three-round finals-a sandbox sequence of 2026-07-12** (ADR-0016 v3 runtime),
+orchestrator runs `d61b73ea…` (round 1) → `f0257db6…` (round 2) → `ea2a45d1…` (round 3), with
+`advance-clock 72` and `advance-clock 96` between them. Console + per-lane dumps: `docs/eval/live-v3/`
+(local).
 
 ---
 
@@ -29,113 +25,89 @@ npm run seed:intelligence -- --capacity=idle   # or busy | full
 | **Customers** | roster seed | Personas with visit history — e.g. Amy Lim (lapsed 48 days, 金属感 taste, ~SGD 110 budget), Rachel Goh |
 | **External trends** | fixture (CN-flavored) or live Pinterest via `TREND_SOURCE` | Trend labels + tags matched against the catalog (tag-overlap fallback; VLM-concept matcher opt-in) |
 
-**Why scenario-controlled capacity matters** — it's how we prove the gates move (verified live):
-
-| scenario | measured utilization | brain output across the same styles |
-|---|---|---|
-| idle | 39% | 4 ad candidates · 4 coupon candidates |
-| busy | 79% | 4 ad · **0 coupon** (coupons blocked > 70% — don't discount chair time you'll sell anyway) |
-| full | 86% | **0 ad · 0 coupon** — everything demoted to display_only |
-
-Same styles, same funnel — only capacity changed. Style 8284's journey across scenarios
-(`coupon → display_only → display_only`) is the single-slide proof the decisions are data-driven.
+**Why scenario-controlled capacity matters** — it's how we prove the gates move. The seeder hits
+measured utilizations (idle 39% · busy 79% · full 86%); the same styles then flow through three
+capacity-sensitive layers: the engine's **signals** flip (`idle_capacity` ↔ capacity-pressure), the
+injected `capacity_summary` reframes 决策's brief portfolio (a 22% week justified spend actions; a
+tight week wouldn't), and the **orchestrator skip rule** is eval-pinned — at 91% utilization the
+spend lanes must not be dispatched at all. Same styles, same funnel — only capacity changed.
 
 ---
 
-## 2. The round, agent by agent (real I/O)
+## 2. The trace: three rounds against a hidden market (real I/O, 2026-07-12)
 
-**Trigger**: 运行一轮 button on `/merchant/agents` (or `python -m nailed_agents`). The orchestrator run
-opens; everything below is dispatched by its tool loop.
+**Setup** (operator commands, never agent tools): `npm run seed:agent-history` (backdated finished
+campaigns + hypotheses + merchant preferences; memory itself is never seeded),
+`python -m nailed_agents set-scenario finals-a` (hidden state: competition 1.15, broad quality 0.55,
+retargeting quality 1.35, booking friction 1.40 — forecast never sees these). Wallet opens at ¥180.
 
-### 运营助手 orchestrator — gemini-2.5-pro
+### Round 1 — facts → briefs → review → forecast loop → one placement, one refusal
 
-- **Input**: `{"rangeDays": 7}` + task template (`ORCH_TASK`)
-- **Tools available**: `get_merchant_insights`, `get_style_business_decisions`, `dispatch_agent`, `dispatch_many` — dispatch tools work ONLY here (capability object)
-- **Actually did**: read both grounded sources itself → dispatched 8 lanes sequentially/parallel → final summary
-- **Runtime decision**: capacity 33% `very_idle` → "全面启动" (no skips) — with the eval-pinned counterfactual that at 91% it must not wake ad/coupon
-- **Output** (excerpt): *"已并行分派 ad, coupon, catalog, customer_ops… ad: 决策大脑选出 3 款高 ROAS（>3.8）且曝光不足（<0.76 exposureRatio）的潜力款"*
+- **决策 (pro)** — injected environment (mission incl. `merchant_weekly_focus` = 拉新 + ¥45 CAC
+  tolerance, policy snapshot, capacity 22%, candidate index) + memory hints. Filed **3 briefs via
+  `submit_action_brief`** (schema-enforced tool, prose is not a channel): coupon 8284 price-test;
+  ad 8249 (target 5–10, ≤¥100, CAC ≤2040); ad 8274 (target 4–8, ≤¥80, CAC ≤3360). Cited the seeded
+  history in its reasoning: *"历史记忆强烈警告不要对此类款式投放广告，因实测成本远高于预期"* (8284 → coupon, not ad).
+- **风控 (pro)** — read the brief portfolio verbatim → `[APPROVED]` with six numbered checks
+  (conflicts / concentration / cannibalization / evidence / measurability / trust boundary).
+- **投广 (pro)** — the forecast loop, live: `get_ad_account_state` → `list_available_audiences` →
+  `forecast_ad_plan` ×3 across audiences →
+  - 8249: chose `saved_or_viewed`, ¥60/5d — forecast **4.8–7.1 bookings @ CAC 808–1211**, snapshotted
+    as the hypothesis on the action → campaign `ad-style-melissa-img-8249` (fresh run of the ended
+    seed entity: version++, measured history archived to zero). Daily ¥12 ≤ ¥50 envelope → auto-launched.
+  - 8274: **reported infeasible with evidence** — all three audiences forecast under the 4-booking
+    floor inside the ¥80 ceiling (*"最乐观的预测也只能带来 2.4–3.6 单…判定此简报目标不可行"*). No placement. A refused
+    action with cited forecasts, not a silent skip.
+- **团购 (pro)** — `get_coupon_constraints` → `set_group_buy_coupon(8284, weekday_10_off,
+  weekday_afternoon)`: picked the mildest merchant template, code computed 券后价 7920 > profit floor
+  6191 → draft deal awaiting the merchant.
+- **监测 (pro)** — measured the **seeded due list** (injected by code): `record_action_outcome` ×2 —
+  8284 *"实测 CAC 28000 分 vs 预测 8000 —— 经济失败"* (high confidence), 8265 符合预测. Memory born on stage
+  from queryable rows, never seeded.
 
-### 数分 insight — flash
+### advance-clock 72 (operator) — the market answers
 
-- **Input**: `{"parentSlug": null, "dispatchedBy": "e9a4ff93…"}` + task
-- **Tools**: `get_merchant_insights` (only)
-- **Tool call**: `get_merchant_insights({rangeDays: 7})` → snapshot + catalogGaps + designPerformance JSON
-- **Output**: headline + 3 alerts + `focusStyleIds: [8284, 8265]` — e.g. *"「金属感」搜索量 35 次，在售款式 0 —— 品类缺口"*
+`deliver()` runs the hidden scenario against the active campaign:
+**+35 clicks (on-forecast — delivery and engagement healthy), +2 bookings, ¥36 spent → measured CAC
+1800 vs hypothesis 808–1211.** Conversion under-delivers while clicks don't — the layered-diagnosis
+input the forecast could not have predicted.
 
-### 选品 trend — flash
+### Round 2 — the merchant goal beats cost anchoring; the executor revises itself
 
-- **Input**: `{"parentSlug": "insight", …}` + task **+ insight's conclusion appended verbatim by Python**
-- **Tools**: `get_trend_opportunities`, `get_platform_hot`, `get_external_trends`
-- **Tool output** (excerpt): `{"opportunities": [...], "prune": [{"styleId": "…8273", "reason": "长期低转化且不在任何上升趋势上 → 下架候选"}, …8275, …8266], "matchMeta": {...}}`
-- **Output**: ranked list — amplify 8265, price_test 8284, gaps (金属感 + external trends), prune ×3
+- **决策** re-briefed 8249 citing the mission channel: *"商家本周重点是拉新，并为新客设置了 4500 分的获客成本上限（引用记忆
+  mem 90a69578）"* → ad brief with CAC ≤4500 (round 1 had anchored to measured CAC ~2000; the weekly
+  focus is mission state, injected deterministically — see `_decision_context`).
+- **风控** `[APPROVED]` (*"一个是经过验证的优等生，另一个是需要验证的潜力股，这是平衡的投资组合"*).
+- **投广** forecast-compared **keep vs raise-budget vs re-target** on the live campaign and executed
+  `update_ad_campaign` — **the SAME entity, version 8**: audience `saved_or_viewed → try_on_no_booking`,
+  ¥50/5d, citing the measured miss (*"维持原状预测成本 808–1211 vs 实测已 1800"*). A revision never forks a
+  parallel campaign.
+- **监测** failed this round (model returned its raw thinking as the final text; two read calls, no
+  writes). The run is persisted as-is — `toolAttempts` makes narrated-but-not-performed work visible
+  by construction. Round 3 covers the gap; the failure mode and its code-level mitigations are
+  recorded in the implementation log.
 
-### 决策 decision — flash (the synthesis point)
+### advance-clock 96 → Round 3 — memory closes the loop
 
-- **Input**: parent=trend; since ADR-0014 the injection is multi-source — 数分's *and* 选品's
-  conclusions arrive in-context every round (`CONTEXT_POLICY`), regardless of which one is the parent
-- **Tools**: `get_style_business_decisions`, `get_merchant_insights`, `search_memory` (ADR-0015; memory hints are also pre-injected), `read_blackboard` (optional)
-- **Tool output** (the brain, excerpt): `{"capacity": {"band": "very_idle", "utilizationPct": 33, "largestGapMin": 300}, "decisions": [{"styleId": …, "candidate": "ad|coupon|display_only|skip", "scores": {...}, "signals": [...], "ad": {"expectedRoas": …, "exposureRatio": …, "costPerBookingCents": …}, "suggestedCouponCents": …}, ×42]}`
-- **Runtime decisions actually made this round** (all with cited numbers):
-  - **Overrode the trend agent** on 8265: trend said *amplify*, brain said `display_only` (ROAS 6.09 fine but `exposureRatio 1.575` — over-saturated) → 决策 sided with the brain: *"继续放大反而会降低效率，本轮不采取任何动作"*
-  - 8284: ROAS null + exposure 1.94 → no ad; but high-demand-zero-conversion + trend's price_test → **coupon**
-  - Chose 3 ad targets (8274 / 8254 / 8249 — the under-exposed, ROAS-clearing set) + 2 coupons
-- **In an earlier round it overrode the brain the other way** (declined brain-candidate coupons on 8275/8273 because the briefing flagged them as delist candidates) — the synthesis layer is demonstrably not a rubber stamp in either direction
+- Delivery: +10 clicks, +1 booking, ¥14 (the revised config spends its remaining lifetime budget).
+- **监测 (clean pass)** — `record_action_outcome` ×3: 8284 (3.5× worse than hypothesis, high),
+  8265 (符合预测, high), and the live campaign 8249 — *"实测获客单价 1667 分，约为预测区间上限 (825 分) 的 2 倍 —— 成本高于预期"*
+  (medium). **Explicitly declined a revision, citing its bright lines**: *"实测点击 45 次、获客 3 单，未满足
+  '点击≥50 且无转化' 或 '高预算且单价超 200 元' 的修订标准"* — the trigger-happy revision the eval forbids, refused
+  live with named thresholds.
+- **决策** cited the monitor's memory in its next plan: *"不适合投放广告（遵循 mem 6c29cb92）"* plus the weekly
+  focus (mem 90a69578) — agent-written memory, code-anchored to an action id, changing the next
+  round's briefs. Every hop is a queryable row.
 
-### 投广 ad — flash (executor)
+### What this trace deliberately shows failing
 
-- **Input**: parent=decision; the decision text appended verbatim; instructed *"若决策未选择投广则不要调用任何工具"*
-- **Tools**: `place_ad` (only)
-- **Tool calls** (real):
-  ```
-  place_ad({styleId: "style-melissa-img-8274", slot: "top_funnel", budgetCents: 10000})
-    → {entityId: "ad-style-melissa-img-8274", campaignStatus: "draft"}     (×3 styles)
-  ```
-- **Envelope fired**: agent chose ¥100/day > ¥50 cap → all three campaigns landed as **drafts awaiting
-  the merchant** (`超出预算上限，待商家启动`), actions written `proposed`. The previous round it chose
-  ¥200/day — same result. The envelope, not the model, decides what goes live.
-
-### 团购 coupon — flash (executor)
-
-- **Tools**: `set_group_buy_coupon` (only)
-- **Tool calls**: `set_group_buy_coupon({styleId: "…8284", priceCents: 7040})` → `{dealId: "gb-style-melissa-img-8284", dealStatus: "draft"}` (+ 8275)
-- Deals are REAL rows: title from the style, original price ¥88 → coupon ¥70.4, 7 relational service
-  items — editable/publishable in 团购管理. **Always drafts**; agents cannot publish a storefront offer.
-
-### 上下架 catalog — flash
-
-- **Tools**: `get_catalog_actions`, `list_style`, `delist_style`, `propose_listing`
-- **Tool calls** (real, note the hygiene machinery firing):
-  ```
-  get_catalog_actions → {delist: [8273, 8275, 8266], propose: [金属感 + 4 external gaps]}
-  delist_style ×3 → {ok: true}
-  propose_listing(supersede) → {expiredPriorProposals: 22}     ← P0 cleaned 22 stale proposals
-  propose_listing ×5 → {proposed: true}                        ← capped at MAX_PENDING_PROPOSALS=5
-  ```
-- 上新建议 are `proposed` + `irreversible` — the one human gate (merchant must supply the image)
-
-### 用户运营 customer_ops — flash
-
-- **Tools**: `get_customer_intelligence`, `send_customer_message`
-- **Tool calls**: roster read → picked the most-lapsed persona-matched customer →
-  `send_customer_message({customerName: "Amy Lim", body: "Amy好久不见！…金属感新款…我请你喝咖啡☕️"})` → `{sent: true}`
-- Note the grounding: the message references her actual last style (Creamy French) and her taste tags
-  (金属感) from the roster — and 金属感 is this week's real demand gap. Action is `irreversible` → no undo offered anywhere.
-
-### 监测 monitor — flash
-
-- **Tools (P2/P3, memory v2)**: `get_merchant_insights`, `get_campaign_outcomes`, `record_action_outcome`, `record_round_verdict`, `search_memory`, `request_revision`, `read_blackboard` — revision and memory writes work ONLY here
-- **Injected input (ADR-0014)**: the round's structured execution list from `agent_actions` —
-  `[{id, type, status, risk, entity_id, payload}, …]` — the `id` field is what `request_revision` takes.
-  Sourced from the table by Python, never parsed from another agent's prose.
-- This round predates the P2 tables; behavior under P2/P3 is pinned by eval instead: over-spender
-  (¥200/day, spend/booking ¥280) → exactly one `request_revision`; healthy campaign → verdict recorded, zero revisions (both 2/2 stable). The eval injects the execution list through the same formatter as the live path.
-
-### One honest finding this trace surfaced
-
-**Cross-lane conflict**: 团购 created a deal for 8275 while 上下架 delisted 8275 — in parallel, each
-correct per its own upstream (决策 chose the coupon; the trend prune list chose the delist). This is a
-real coordination gap the round blackboard now makes detectable (both conclusions land in shared state),
-and the designed fix is a deterministic cross-check before executor dispatch — queued, not hidden.
+- **8274's brief died in forecast** — objective infeasible, reported with numbers (stronger evidence
+  of agency than a placement).
+- **The forecast was honestly wrong** — hidden friction made real CAC ~2× the range; the monitor
+  measured it against the snapshotted hypothesis and wrote calibration memory instead of panicking.
+- **One lane failure per ~10 runs is real** (gemini: dead responses, thought-leaks) — the round
+  degrades honestly: skips are named, `toolAttempts` expose unexecuted claims, spend tools refuse
+  prose-driven execution (`no_ad_brief_filed`), and the orchestrator reports which lanes did not run.
 
 ---
 
@@ -147,17 +119,18 @@ execution** (a side effect must never fire before a gate can catch it). *Within*
 freely chooses which tools, in what order, how many times, with what arguments — that's where judgment
 lives, bounded by per-argument validation.
 
-| Agent | Allow-list | Freedom in practice |
+| Agent | Allow-list (`agent-tools.json`, single source) | Freedom in practice |
 |---|---|---|
-| orchestrator | 2 reads + dispatch_agent + dispatch_many | which lanes, order, parallelism, skips |
+| orchestrator | 2 reads + dispatch_agent + dispatch_many + search_memory | which lanes, order, parallelism, skips |
 | insight | get_merchant_insights + search_memory | range window; whether an anomaly is first-time or repeat |
-| trend | 3 trend reads | which sources to corroborate with |
-| decision | brain + insights + search_memory + read_blackboard | read order; the entire action plan (0..N) |
-| ad | place_ad | targets, slots, budgets — or refuse to call at all |
-| coupon | set_group_buy_coupon | targets, prices — or refuse |
-| catalog | catalog reads + list/delist/propose | which candidates to act on (instructed: only the computed list) |
-| customer_ops | roster read + send message | who to contact, what to write |
-| monitor | insights + outcomes + memory writers + search_memory + request_revision + read_blackboard | assessments + confidence; whether numbers justify a revision |
+| trend | 3 trend reads + search_memory | which sources to corroborate with |
+| decision | get_style_business_facts + insights + search_memory + read_blackboard + **submit_action_brief** + **simulate_action_portfolio** | which candidates to inspect; the entire brief portfolio (0..N briefs is a valid round) |
+| reviewer | read_blackboard + get_merchant_insights | verdict token + conditions; free to approve cleanly |
+| ad | get_ad_account_state + list_available_audiences + forecast_ad_plan + place_ad + update_ad_campaign + pause_ad_campaign | audience, budget, duration inside the brief — or report the objective infeasible |
+| coupon | get_coupon_constraints + set_group_buy_coupon | which merchant template + restrictions (window, count, expiry) — never the price |
+| catalog | get_catalog_actions + feature/deprioritize + propose_listing + search_memory | which candidates to act on; exposure allocation only, assets never removed |
+| customer_ops | roster read + send_automated_notification + create_merchant_message_draft + search_memory | who + what; relationship messages stop at a merchant-send draft |
+| monitor | insights + outcomes + record_action_outcome + record_round_verdict + search_memory + request_revision + read_blackboard | assessments + confidence; whether numbers justify a revision (bright lines in skill) |
 
 Two tools are additionally gated by **capability objects** (not names): `dispatch_*` requires
 `ctx.round` (only the orchestrator's context has one), `request_revision` requires `ctx.revision`
@@ -173,33 +146,46 @@ Anthropic `beta_tool` and OpenAI function schemas simultaneously; pinned by sche
 ```jsonc
 // dispatch (orchestrator only)
 dispatch_agent  {"agent": "coupon", "task": "…中文任务…", "parent": "decision"}
-dispatch_many   {"dispatches_json": "[{\"agent\":\"ad\",\"task\":\"…\",\"parent\":\"decision\"}, …]"}  // 1–4, atomic validation
+dispatch_many   {"dispatches_json": "[{\"agent\":\"ad\",\"task\":\"…\",\"parent\":\"decision\"}, …]"}
+                // 1–4; batch validated atomically BEFORE any run; mid-run failures reported per-lane
 
-// execution tools → real entities
-place_ad             {"styleId": str, "slot": "top_funnel|mid_funnel|lower_funnel", "budgetCents": int ≤ 200000}
-  → {"entityId": "ad-<styleId>", "campaignStatus": "active"|"draft"}     // envelope decides which
-set_group_buy_coupon {"styleId": str, "priceCents": int ≤ 100000}
-  → {"dealId": "gb-<styleId>", "dealStatus": "draft"}                    // always draft
-propose_listing      {"gap_tag": str ≤ 40, "reason": str ≤ 280}          // gated, deduped, capped
+// the Action Brief (决策 only, via submit_action_brief — ADR-0016 §2)
+{"action_type": "ad|coupon", "style_id": str, "objective": "一句话+引用数字",
+ "max_total_budget_cents": int, "target_bookings_min/max": int,
+ "max_cost_per_booking_cents": int, "allowed_period": "weekday|any", "notes": str,
+ "source_run_id": "<decision run>"}   // stored on the blackboard by code; injected verbatim into executors
 
-// action row (agent_actions) — the audit contract (ADR-0012)
+// ad toolset (sandbox) — plan, then commit
+forecast_ad_plan {"style_id", "audience": "broad_local_interest|saved_or_viewed|try_on_no_booking",
+                  "total_budget_cents", "duration_days"}
+  → ranges + saturation + warnings, never point estimates
+place_ad         (same args) → {"entityId": "ad-<styleId>", "campaignStatus": "active"|"draft"}
+  // hard refusals, pre-side-effect: style_not_in_brief · budget_exceeds_brief ·
+  // budget_exceeds_wallet · campaign_exists_for_style (live one) · no_ad_brief_filed (empty brief set)
+  // the CHOSEN plan's forecast is snapshotted as the action's hypothesis
+update_ad_campaign {"campaign_id", …} → same entity, version++   // revisions never fork
+set_group_buy_coupon {"style_id", "template_id": "<merchant template>", "redemption_window", …}
+  → draft deal; code computes the price and refuses below the profit floor
+
+// action row (agent_actions) — the audit contract (ADR-0012/0015)
 {"type": "place_ad", "risk": "reversible", "status": "proposed|applied|undone|approved",
- "payload": {"styleId": …, "slot": …, "budgetCents": …},
+ "payload": {…, "hypothesis": {"expectedBookings": [lo,hi], "expectedCostPerBookingCents": [lo,hi], "audience"}},
  "entity_type": "style_ad", "entity_id": "ad-<styleId>"}                  // forward link
 // …and the entity carries source_run_id back to the run                  // backward link
 
-// memory row (agent_memory, P2) — verdicts, never raw metrics
-{"kind": "ad_outcome|coupon_outcome|round_verdict", "key": "<campaign id>",
- "content": {"verdict": "7 天实测 ROAS 2.1，估算 4.1 —— 高估约 2 倍"},
- "entity_type": "style_ad", "entity_id": …, "window_start": …, "window_end": …,
- "evidence_run_id": …, "expires_at": now+30d}                              // unique(merchant,kind,key) → upsert
+// memory row (agent_memory v2, ADR-0015) — the agent judges, code anchors
+{"kind": "action_outcome|round_verdict|calibration|merchant_preference", "key": "<action id | …>",
+ "claim": "实测每单 1667 分，约为预测上限 825 的 2 倍 —— 成本高于预期", "confidence": "high|medium|low",
+ "domain": "ad|coupon|…", "scope_type": "style|merchant", "source_action_id": …, "entity_id": …,
+ "content": {…code-derived measured-vs-predicted…}, "expires_at": …}       // unique(merchant,kind,key) → upsert
 
 // round blackboard (agent_rounds.blackboard) — written by Python as lanes conclude
-{"insight": "<conclusion>", "trend": "…", "decision": "…", "orchestrator": "…"}
+{"insight": "<conclusion>", …, "briefs": [<structured briefs>], "executions": [<agent_actions snapshot>]}
 ```
 
-**Stable entity ids** (`ad-<styleId>`, `gb-<styleId>`) are themselves a contract: re-proposing updates
-the same entity (no duplicates), and a monitor revision is an in-place upsert (no forked entities).
+**Stable entity ids** (`ad-<styleId>`, `gb-<styleId>`) are themselves a contract: one campaign per
+style is code-enforced (a live one must be revised via `update_ad_campaign`; an ended one re-placed
+as a fresh run — version++ with measured history archived to zero, never inherited).
 
 ---
 
@@ -207,15 +193,18 @@ the same entity (no duplicates), and a monitor revision is an in-place upsert (n
 
 | Bound | Value | Where enforced |
 |---|---|---|
+| Marketing wallet | `MARKETING_BUDGET_CENTS` (¥180 demo) − committed (draft asks + active unspent) | `place_ad`/`update_ad_campaign` refuse `budget_exceeds_wallet` |
+| Brief ceilings | per-brief budget / CAC / period / style | `place_ad`/`update_ad_campaign` refuse pre-side-effect |
+| No brief, no spend | executor dispatched with an empty brief set → spend tools refuse | `no_ad_brief_filed` / `no_coupon_brief_filed` |
+| One campaign per style | live → must revise; ended → fresh run (version++, metrics archived) | `place_ad` (`campaign_exists_for_style`) |
 | Ad auto-launch cap | ¥50/day (`5000` cents) — above → draft for merchant | TS server action (`AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS`) |
-| Ad budget hard max | ¥2,000/day (`200000`) — above → tool rejects | Python tool validation |
-| Coupon price max | ¥1,000 (`100000`) | Python tool validation |
-| Coupon profit floor | ≥ ¥30/hour at the discounted price | decision brain (`minProfitPerHourCents`) |
-| Ad ROI gate | `expectedRoas ≥ 2.0` (merchant `targetRoi`) | decision brain |
+| Ad budget hard max | `200000` cents total — above → tool rejects | Python tool validation |
+| Coupon price | code-computed from a merchant template; below profit floor → refused | `set_group_buy_coupon` (`template_unknown` / `price_below_profit_floor`) |
+| Campaign transitions | draft→active→paused/ended; no resurrection | `sandbox.CAMPAIGN_TRANSITIONS` |
 | Pending 上架建议 | ≤ 5, new round supersedes old | Python tool (`MAX_PENDING_PROPOSALS`) |
-| Dispatches per round | ≤ 8, one per agent | `RoundState` |
+| Dispatches per round | ≤ 9, one per agent; monitor never in a parallel batch | `RoundState` (snapshot barrier) |
 | Revisions | ≤ 1 per action, ≤ 2 per round | `RevisionPort` |
-| Message length | ≤ 280 chars | Python tool validation |
+| Customer messages | auto-sends labeled 商家助手, whitelisted kinds; relationship marketing stops at a draft | `send_automated_notification` / `create_merchant_message_draft` |
 | Group-buy publish | never by an agent | entity state machine (draft-only creation) |
 
 The envelope philosophy in one line: **gate by blast radius, not by "AI did it"** — a withdrawable

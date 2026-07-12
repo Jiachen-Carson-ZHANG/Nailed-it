@@ -12,8 +12,15 @@
 // The two seeded campaigns are chosen to sit on either side of the monitor's bright lines:
 //   8284 (over-spender): budget ¥200/day > ¥100 line, spend/booking = 56000/2 = ¥280 > ¥200 line,
 //        hypothesis said ¥80/booking → measured 3.5× worse → outcome memory + a live revision.
+//        Its run is FINISHED — seeded as `ended` so the failure lives in metrics + memory, not as
+//        an open commitment against the current marketing wallet (ADR-0016 budget semantics).
 //   8265 (healthy):      spend/booking = 15000/9 ≈ ¥17 vs predicted ¥18 → 符合预测 → memory only,
-//        revising it would be the trigger-happy failure the eval forbids.
+//        revising it would be the trigger-happy failure the eval forbids. Also `ended` (see the
+//        HEALTHY constant for why keeping it active collided with the live demo).
+//
+// The seed also ENDS every other draft/active campaign for the merchant (stale drafts from earlier
+// test rounds, legacy slot-based demo campaigns): the demo opens with a coherent wallet — the full
+// MARKETING_BUDGET_CENTS is available; history holds no commitments.
 
 import { config } from 'dotenv';
 config({ path: '.env.local' });
@@ -41,6 +48,7 @@ const OVERSPENDER = {
   styleId: LOW_CONVERSION_ID, // 8284 金属感
   campaignId: `ad-${LOW_CONVERSION_ID}`,
   budgetCents: 20_000,
+  status: 'ended', // run finished — history, not an open wallet commitment
   metrics: { impressions: 4_000, clicks: 120, bookings: 2, spend_cents: 56_000 },
   hypothesis: { expectedRoas: 4.1, exposureRatio: 0.61, costPerBookingCents: 8_000, capacityBand: 'idle' },
 };
@@ -48,6 +56,11 @@ const HEALTHY = {
   styleId: TOP_CONVERTER_ID, // 8265 法式碎钻
   campaignId: `ad-${TOP_CONVERTER_ID}`,
   budgetCents: 5_000,
+  // ended like the over-spender: BOTH runs are finished history. Keeping it active collided with
+  // the live demo — 8265 has the best facts, so 决策 briefs it again, and a live campaign forces
+  // the executor onto update_ad_campaign where lifetime spend (¥150) swallows the new run's budget.
+  // Ended → place_ad's fresh-run path (version++, metrics archived to zero) carries the new run.
+  status: 'ended',
   metrics: { impressions: 3_000, clicks: 150, bookings: 9, spend_cents: 15_000 },
   hypothesis: { expectedRoas: 4.0, exposureRatio: 0.72, costPerBookingCents: 1_800, capacityBand: 'idle' },
 };
@@ -67,6 +80,18 @@ async function main() {
     .eq('merchant_id', demoMerchantId)
     .eq('input->>seedHistory', 'true');
   if (delErr) throw new Error(`delete prior history: ${delErr.message}`);
+
+  // 0) end every other open campaign — stale drafts from earlier test rounds and legacy slot-based
+  //    demo campaigns must not hold commitments against the demo's marketing wallet
+  const { data: endedRows, error: endErr } = await db
+    .from('style_ad_campaign')
+    .update({ status: 'ended', updated_at: iso(0) })
+    .eq('merchant_id', demoMerchantId)
+    .in('status', ['draft', 'active'])
+    .not('id', 'in', `(${OVERSPENDER.campaignId},${HEALTHY.campaignId})`)
+    .select('id');
+  if (endErr) throw new Error(`end stale campaigns: ${endErr.message}`);
+  const endedCount = (endedRows ?? []).length;
 
   // 1) the backdated decision run (7 days ago) — the lineage root for both executor runs
   const { data: decisionRun, error: decErr } = await db
@@ -124,7 +149,7 @@ async function main() {
         id: c.campaignId,
         merchant_id: demoMerchantId,
         merchant_style_id: c.styleId,
-        status: 'active',
+        status: c.status,
         daily_budget_cents: c.budgetCents,
         source_run_id: adRunId,
         ...c.metrics,
@@ -157,33 +182,59 @@ async function main() {
     seeded[c.styleId] = (actionRow as { id: string }).id;
   }
 
-  // 3) merchant preference — the one legitimately seedable memory kind (it represents merchant
+  // 3) merchant preferences — the one legitimately seedable memory kind (they represent merchant
   //    settings, not agent experience). Needs 0030+0032; skipped loudly when absent.
-  const { error: prefErr } = await db.from('agent_memory').upsert(
+  //    `pref-acquisition-focus` is the demo's honest trap-setter: 拉新 is a real merchant goal that
+  //    rationally forces top-funnel targeting (broad_local_interest is the only new-customer pool) —
+  //    which is exactly the audience finals-a's hidden state punishes. The agent walks into the
+  //    surprise for the RIGHT reason; the monitor's diagnosis is the payoff.
+  const PREFS = [
     {
-      merchant_id: demoMerchantId,
-      agent_slug: 'merchant_ui',
-      kind: 'merchant_preference',
       key: 'pref-groupbuy-floor',
-      domain: 'merchant',
-      scope_type: 'merchant',
-      scope_id: demoMerchantId,
       claim: '商家偏好：团购券后价不得低于原价的 60%；30 天内到过店的客户不发召回消息。',
-      content: { verdict: '商家偏好：团购券后价不得低于原价的 60%；30 天内到过店的客户不发召回消息。' },
-      confidence: 'high',
-      expires_at: null,
     },
-    { onConflict: 'merchant_id,kind,key' },
-  );
-  const prefNote = prefErr
-    ? `merchant_preference SKIPPED (apply 0030+0032): ${prefErr.message}`
-    : 'merchant_preference seeded';
+    {
+      // pref-weekly-focus is special: _decision_context lifts it into mission.merchant_weekly_focus
+      // (deterministic injection) — as a mere memory hint the goal lost to CAC anchoring live.
+      key: 'pref-weekly-focus',
+      claim:
+        '商家本周经营重点是拉新：广告优先触达尚未到店的新客群体，其次才是转化已有意向的老访客。' +
+        '商家理解新客获客天然更贵，可接受的新客获客成本上限约 45 元/单。',
+    },
+  ];
+  // deprecated key from an earlier seed shape — remove so the same claim isn't hinted twice
+  await db.from('agent_memory').delete()
+    .eq('merchant_id', demoMerchantId).eq('kind', 'merchant_preference').eq('key', 'pref-acquisition-focus');
+  let prefErrMsg: string | null = null;
+  for (const p of PREFS) {
+    const { error: prefErr } = await db.from('agent_memory').upsert(
+      {
+        merchant_id: demoMerchantId,
+        agent_slug: 'merchant_ui',
+        kind: 'merchant_preference',
+        key: p.key,
+        domain: 'merchant',
+        scope_type: 'merchant',
+        scope_id: demoMerchantId,
+        claim: p.claim,
+        content: { verdict: p.claim },
+        confidence: 'high',
+        expires_at: null,
+      },
+      { onConflict: 'merchant_id,kind,key' },
+    );
+    if (prefErr) prefErrMsg = prefErr.message;
+  }
+  const prefNote = prefErrMsg
+    ? `merchant_preference SKIPPED (apply 0030+0032): ${prefErrMsg}`
+    : `merchant_preference seeded (${PREFS.length}: 团购底线 + 拉新重点)`;
 
   console.log(
     [
       'Seeded backdated history (7 days ago):',
-      `  over-spender ${OVERSPENDER.styleId}: ¥200/day, 120 clicks, 2 bookings, ¥560 spent — action ${seeded[OVERSPENDER.styleId]}`,
-      `  healthy      ${HEALTHY.styleId}: ¥50/day, 150 clicks, 9 bookings, ¥150 spent — action ${seeded[HEALTHY.styleId]}`,
+      `  over-spender ${OVERSPENDER.styleId} (ended): ¥200/day, 120 clicks, 2 bookings, ¥560 spent — action ${seeded[OVERSPENDER.styleId]}`,
+      `  healthy      ${HEALTHY.styleId} (ended): ¥50/day, 150 clicks, 9 bookings, ¥150 spent — action ${seeded[HEALTHY.styleId]}`,
+      `  ended ${endedCount} stale/legacy campaign(s) — wallet opens clean`,
       `  ${prefNote}`,
       'Demo: round 1 → monitor measures these live (memory + one revision); round 2 → 决策 cites the memory.',
     ].join('\n'),

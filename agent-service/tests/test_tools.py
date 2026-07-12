@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from nailed_agents import bus, tools
+from nailed_agents import bus, config, tools
 
 
 # ── schema derivation (the auto-generated OpenAI schemas — single source of truth) ──────────────
@@ -131,6 +131,54 @@ def test_place_ad_enforces_the_action_brief_as_law(ctx):
     assert ctx.writes == []
     tools.place_ad("style-1", "try_on_no_booking", 12000, 4)  # at the ceiling is legal
     assert ctx.writes[0]["payload"]["totalBudgetCents"] == 12000
+    # dispatched as an executor lane (briefs list present) with NO ad brief filed → nothing lawful
+    # to execute; a decision run's prose claims must never become spend (observed live: 决策
+    # narrated "已提交" with zero submit_action_brief calls).
+    ctx.briefs = [{"action_type": "coupon", "style_id": "style-1", "max_total_budget_cents": 7000}]
+    with pytest.raises(ValueError, match="no_ad_brief_filed"):
+        tools.place_ad("style-1", "try_on_no_booking", 6000)
+
+
+def test_place_ad_refuses_what_the_wallet_cannot_honor(ctx, monkeypatch):
+    """ADR-0016: brief ceilings bound each action separately, but they compete for ONE marketing
+    wallet — placement (and a budget-raising revision) refuse an ask beyond what remains. Committed
+    = draft full ask + active unspent remainder; spent money is history, not a commitment."""
+    monkeypatch.setattr(config, "MARKETING_BUDGET_CENTS", 18000)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [
+        {"id": "ad-live", "merchant_style_id": "style-live", "status": "active",
+         "total_budget_cents": 12000, "spend_cents": 2000},   # commits 10000 → remaining 8000
+        {"id": "ad-done", "merchant_style_id": "style-done", "status": "ended",
+         "total_budget_cents": 80000, "spend_cents": 56000},  # history commits nothing
+    ])
+    with pytest.raises(ValueError, match="budget_exceeds_wallet:remaining_cents=8000"):
+        tools.place_ad("style-1", "try_on_no_booking", 9000)
+    assert ctx.writes == []
+    tools.place_ad("style-1", "try_on_no_booking", 8000, 4)  # exactly the remainder is legal
+    # raising a live campaign's budget re-checks the wallet against its own unspent delta
+    with pytest.raises(ValueError, match="budget_exceeds_wallet"):
+        tools.update_ad_campaign("ad-live", total_budget_cents=40000)
+
+
+def test_place_ad_one_campaign_per_style_is_law(ctx, monkeypatch):
+    """A live campaign must be revised (update_ad_campaign), never silently reconfigured by a second
+    placement. A style whose campaign ENDED may run again — a fresh run of the same stable entity:
+    version bumps and the old run's measured history resets instead of being inherited."""
+    monkeypatch.setattr(config, "MARKETING_BUDGET_CENTS", 18000)
+    updates = []
+    monkeypatch.setattr(bus, "update_campaign", lambda sb, cid, m, fields: updates.append((cid, fields)))
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [
+        {"id": "ad-style-1", "merchant_style_id": "style-1", "status": "active",
+         "total_budget_cents": 4000, "spend_cents": 4000, "version": 1},
+        {"id": "ad-style-2", "merchant_style_id": "style-2", "status": "ended",
+         "total_budget_cents": 9000, "spend_cents": 9000, "version": 2, "clicks": 52},
+    ])
+    with pytest.raises(ValueError, match="campaign_exists_for_style"):
+        tools.place_ad("style-1", "try_on_no_booking", 3000)
+    assert ctx.writes == []
+    tools.place_ad("style-2", "saved_or_viewed", 6000, 4)
+    cid, fields = updates[-1]
+    assert cid == "ad-style-2" and fields["version"] == 3
+    assert fields["clicks"] == 0 and fields["spend_cents"] == 0
 
 
 def _coupon_facts(monkeypatch, floor=6000, price=8800):
@@ -306,6 +354,54 @@ def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
     with pytest.raises(ValueError, match="duplicate_agents_in_batch"):
         tools.dispatch_many(_json.dumps([{"agent": "ad", "task": "x"}, {"agent": "ad", "task": "y"}]))
     assert ctx2_round.calls == []
+
+
+def test_dispatch_many_reports_per_lane_and_never_loses_siblings(ctx):
+    """A lane crashing MID-RUN must not erase its siblings' completed work (pool.map used to raise
+    and drop everything, sending the orchestrator into blind retries that burned its iteration
+    budget). The batch reports per-lane: successes recorded, the failure named."""
+    ctx.round = _round_state()
+    real = ctx.round.dispatch_fn
+
+    def flaky(slug, task, parent):
+        if slug == "coupon":
+            raise RuntimeError("model_dead_response")
+        return real(slug, task, parent)
+
+    ctx.round.dispatch_fn = flaky
+    import json as _json
+    out = tools.dispatch_many(_json.dumps([
+        {"agent": "ad", "task": "落地投广", "parent": "decision"},
+        {"agent": "coupon", "task": "落地团购", "parent": "decision"},
+    ]))
+    assert "run-ad" in out                      # the survivor's result is kept and recorded
+    assert "[coupon] FAILED" in out and "model_dead_response" in out
+    assert "do not dispatch them again" in out  # the model is told exactly what not to retry
+    assert ctx.round.dispatched.get("ad") == "run-ad"
+
+
+def test_dispatch_many_retries_stale_connections_once(ctx):
+    """Connection-class errors get ONE retry on a fresh socket (a shared httpx pool hands stale
+    connections to parallel threads after idling — measured live: a whole batch died on
+    RemoteProtocolError). Non-connection errors do not retry."""
+    ctx.round = _round_state()
+    real = ctx.round.dispatch_fn
+    attempts = {"ad": 0}
+
+    class RemoteProtocolError(Exception):
+        pass
+
+    def flaky(slug, task, parent):
+        if slug == "ad":
+            attempts["ad"] += 1
+            if attempts["ad"] == 1:
+                raise RemoteProtocolError("Server disconnected")
+        return real(slug, task, parent)
+
+    ctx.round.dispatch_fn = flaky
+    import json as _json
+    out = tools.dispatch_many(_json.dumps([{"agent": "ad", "task": "投广", "parent": "decision"}]))
+    assert attempts["ad"] == 2 and "run-ad" in out  # died once, retried, succeeded
 
 
 # ── ADR-0015: memory v2 tools — agent judges, code anchors identity + evidence ───────────────────

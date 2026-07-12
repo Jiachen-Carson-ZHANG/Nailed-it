@@ -191,9 +191,19 @@ decision, ad, coupon, reviewer, monitor; insight/trend/catalog/customer_ops stay
 14 scenarios, all gates green at n=2 on gemini-direct. Two scenarios needed *brief disambiguation*
 (not prompt-forcing) to be deterministically judgeable — recorded in the scenarios as comments.
 
-**Still open**: live verification requires migration `0033` (user-applied); docs 08 demo trace to be
-re-captured from the first live v3 round; deferred from the review: creative objects, frequency caps,
-placement targeting, coupon cannibalization simulation (`scenario estimate` ranges only).
+**Live verification (2026-07-12, migration 0033 applied)**: three rounds on `finals-a` — briefs →
+`[APPROVED]` → forecast loop → placement + an infeasible report; 72h delivery diverged from the
+hypothesis (CAC ~2×); the same campaign was revised in place to v8; the monitor wrote outcome
+memories (incl. the calibration miss) and refused a revision citing its bright lines; the next
+decision run cited the monitor's memory by id. Doc 08's trace re-captured from these runs. The live
+rounds forced additional hard rules — wallet law (committed = draft asks + active unspent),
+one-campaign-per-style with ended→fresh-run archival, and no-brief→no-spend refusals after the
+strong tier was measured narrating brief submissions it never made (the failure class flash showed
+is tier-independent; the mitigation is code law, not model choice). Recorded in the implementation
+log (2026-07-12).
+
+**Still deferred** from the review: creative objects, frequency caps, placement targeting, coupon
+cannibalization simulation (`scenario estimate` ranges only).
 
 ## References
 

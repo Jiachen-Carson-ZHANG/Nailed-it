@@ -26,6 +26,8 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     # place_ad now creates a REAL StyleAd campaign through the TS route (ADR-0012); stub that hop.
     monkeypatch.setattr(bus, "post_propose_ad", lambda *a, **k: {"ok": True, "id": "ad-s-1", "status": "active"})
     monkeypatch.setattr(bus, "fetch_decisions", lambda: {})  # hypothesis hop (ADR-0015) — offline
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [])  # wallet check (ADR-0016) — offline
+    monkeypatch.setattr(config, "MARKETING_BUDGET_CENTS", 18000)
 
     # fake client: 1st turn → call place_ad; 2nd turn → final text, no tool_calls
     responses = iter([
@@ -93,6 +95,26 @@ def test_openrouter_loop_feeds_tool_errors_back_instead_of_crashing(monkeypatch)
     assert any("error" in r for r in sent_tool_results)  # the error was surfaced to the model
     # the invalid-arg attempt is recorded as an error (so the tool-call gate sees it)
     assert ctx.tool_attempts and ctx.tool_attempts[0]["tool"] == "place_ad" and ctx.tool_attempts[0]["status"] == "error"
+
+
+def test_openrouter_loop_retries_dead_response_even_after_midloop_narration(monkeypatch):
+    """A dead response (no content, no tool calls) AFTER the model has narrated mid-loop must still
+    trigger the one retry — the stale narration is not a conclusion. Observed live: 决策 narrated
+    between tool calls, gemini returned an empty response, and the run ended on the narration."""
+    monkeypatch.setattr(config, "MODEL_PROVIDER", "openrouter")
+    monkeypatch.setattr(config, "AGENT_MODEL", "x")
+    monkeypatch.setattr(bus, "fetch_briefing", lambda range_days=7: {"insights": {}})
+    responses = iter([
+        _msg("我先查看数据。", [_tool_call("c1", "get_merchant_insights", '{"range_days":7}')]),
+        _msg(None),            # dead response mid-loop — must retry, not conclude on the narration
+        _msg("最终结论：本轮无需行动。"),
+    ])
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kw: next(responses))))
+    monkeypatch.setattr(runner, "_openai", lambda: fake)
+
+    ctx = tools.RunContext(sb=object(), run_id="run-d", merchant_id="m-d")
+    final = runner.run_agent(system="s", tool_names=["get_merchant_insights"], task="t", ctx=ctx)
+    assert final == "最终结论：本轮无需行动。"
 
 
 def test_openrouter_off_allowlist_tool_is_not_executed(monkeypatch):
