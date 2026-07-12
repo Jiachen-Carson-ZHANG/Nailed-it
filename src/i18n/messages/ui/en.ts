@@ -89,7 +89,7 @@ const enMessages = {
   'messages.chat.viewStyle': 'View style ›',
   'messages.merchant.opsTitle': 'Nailed AI Ops Assistant',
   'messages.merchant.opsPreview': 'Today\'s studio briefing is ready · demand, gaps, conversion',
-  'messages.merchant.opsPageBody': 'Daily and weekly studio briefings · powered by live analytics',
+  'messages.merchant.opsPageBody': 'Daily team debrief · live analytics + agent runs',
   'messages.merchant.opsBack': '← Back to messages',
   'common.cancel': 'Cancel',
   'common.save': 'Save',

@@ -272,7 +272,7 @@ const zhCNMessages = {
   'messages.chat.viewStyle': '查看款式 ›',
   'messages.merchant.opsTitle': 'Nailed AI 运营助手',
   'messages.merchant.opsPreview': '今日门店简报已就绪 · 需求、缺口、转化',
-  'messages.merchant.opsPageBody': '每日 / 每周门店简报 · 数据来自真实埋点',
+  'messages.merchant.opsPageBody': '每日团队晨报 · 真实埋点与 Agent 运行',
   'messages.merchant.opsBack': '← 返回消息',
   'common.cancel': '取消',
   'common.save': '保存',
