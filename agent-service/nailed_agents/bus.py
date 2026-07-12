@@ -31,10 +31,10 @@ def fetch_briefing(range_days: int = 7) -> dict[str, Any]:
 
 
 def fetch_decisions() -> dict[str, Any]:
-    """The 决策 agent's grounded per-style decision input (ADR-0012 decision brain): each published style's
-    economics + demand/conversion scores + next-week capacity fit + the lever the numbers point toward
-    (ad/coupon/display_only/skip) with signal tags, plus the shared capacity band. Deterministic — the agent
-    SYNTHESISES across it + the briefing/trends, and never re-derives the numbers."""
+    """The business engine's per-style FACTS (ADR-0016: facts + signals, never a verdict): each
+    published style's economics + demand/conversion scores + signal tags + ad/coupon economics,
+    plus the shared next-week capacity band. Deterministic — the agent SYNTHESISES across it + the
+    briefing/trends, and never re-derives the numbers."""
     resp = httpx.get(f"{config.APP_URL}/api/agent/decisions", timeout=30.0)
     resp.raise_for_status()
     return resp.json()

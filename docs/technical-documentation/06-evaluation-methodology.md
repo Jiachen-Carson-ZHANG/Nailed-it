@@ -74,6 +74,42 @@ result is inspected in the database, not the console. Examples that changed the 
    lanes and flagged legitimate optional-lane variance as instability; the fix (sign only the judged
    lanes) is itself recorded — the eval is versioned and criticized like any other code.
 
+## Model selection protocol (defined before the comparison runs — 2026-07-12)
+
+The same suite doubles as the model-choice referee (GB/T 45288.2-style method loop: define criteria →
+measure → choose → re-measure on change). Criteria are fixed here **before** any candidate runs, so
+the ranking can't be post-hoc.
+
+**Measured per candidate model, per scenario, over n runs:**
+
+| Axis | Metric | Source |
+|---|---|---|
+| Task quality | blocking-gate pass rate (verdict/expect, grounding, brief compliance, stability) | existing gates |
+| Reliability | flake rate — runs ending in dead response, zero-call narration, thought-leak, or invalid tool args | `toolAttempts` + run outcome |
+| Tool discipline | invalid/off-schema call rate | `toolAttempts` |
+| Chinese output | format/verdict gates are Chinese-language (`final_regex`, grounding on Chinese conclusions) — a model that can't write grounded Chinese fails quality directly | existing gates |
+| Cost | ¥ per scenario run → extrapolated ¥/round (lane-weighted) | OpenRouter usage/cost per call |
+| Latency | seconds per lane run | harness timing |
+
+**Ranking rule — lexicographic with a hard floor, not a weighted soup:**
+
+1. **Floor**: all blocking gates green on the judgment subset (the 7 decision/ad/reviewer/monitor/coupon
+   scenarios) at n=3. Below the floor a model is out, regardless of price — a cheap model that files
+   briefs it never submitted is not cheap.
+2. Among floor-passers, rank by **flake rate** (the ~10%-class lane failures are what actually
+   endangers a stage demo), then **¥/round**, then **latency**.
+3. **Tiers ranked separately**: judge-then-act lanes (orchestrator/decision/ad/coupon/reviewer/monitor)
+   and single-purpose read lanes (insight/trend/catalog/customer_ops) can be won by different models —
+   the current pro/flash split is the incumbent in each.
+
+**Budget protocol**: screen = judgment subset × n=3 per candidate; only the top two advance to the
+full suite × n=5. Candidate roster (2026-07-12): deepseek, qwen, newest gemini, claude sonnet,
+openai — all via OpenRouter so cost is reported per call. Incumbent baseline: gemini-2.5-pro/flash
+(direct), already green at n=2 with measured failure modes on record.
+
+**Results land in** `docs/eval/model-matrix/` (local, raw) with the summary table + decision recorded
+in this doc once the runs exist. Until then no model claim beyond the incumbent's record is made.
+
 ## What we deliberately do NOT claim
 
 - No statistical significance at n=2–4 — the gates are **regression tripwires and demo-stability
