@@ -50,6 +50,30 @@ function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
+// Strong-tier (gemini-pro) reasoning is raw model prose: it leaks markdown (`###`, `**`, backticks) and
+// internal action UUIDs the merchant can't read. Judges scrutinize the thinking chain, so normalize it —
+// resolve style ids to names, drop internal UUIDs, strip markdown syntax. Clean prose passes through.
+const REASONING_UUID_RE = /`?\b[0-9a-f]{8}-[0-9a-f]{4}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\b`?/gi;
+const REASONING_STYLE_ID_RE = /`?\b((?:ad-)?(?:style-)?[a-z]+(?:-[a-z]+)*-img-\d+)\b`?/gi;
+
+export function humanizeReasoning(text: string, lang: AppLang, titles?: StyleTitleMap): string {
+  return (text ?? '')
+    .replace(REASONING_STYLE_ID_RE, (_m, id: string) => styleLabel(id, lang, titles))
+    .replace(REASONING_UUID_RE, '')
+    .replace(/\s*#{1,6}\s*/g, '\n')       // markdown headings (inline or block) -> line break
+    .replace(/\*\*([^*]+)\*\*/g, '$1')    // **bold** -> bold
+    .replace(/\s\*\s+/g, '\n· ')          // inline "* item" bullet -> newline bullet
+    .replace(/^\s*[*-]\s+/gm, '· ')       // leading "* " / "- " bullet -> "· "
+    .replace(/\*+/g, '')                  // stray emphasis asterisks
+    .replace(/`/g, '')                    // stray backticks
+    .replace(/\(\s*\)/g, '')              // empty parens left by UUID removal
+    .replace(/[ \t]{2,}/g, ' ')           // collapse space runs
+    .replace(/[ \t]+([:：,，.。])/g, '$1') // no space before punctuation
+    .replace(/\n{3,}/g, '\n\n')           // cap blank lines
+    .replace(/[ \t]*\n[ \t]*/g, '\n')     // trim around line breaks
+    .trim();
+}
+
 function compactJson(value: unknown, max = 120): string {
   if (value == null) return '';
   if (typeof value === 'string') return truncate(value, max);
@@ -380,7 +404,7 @@ export function describeToolCall(tool: string, input: unknown, output: unknown, 
 /** One transcript step → its merchant-facing description. */
 export function describeStep(step: TranscriptStep, lang: AppLang, titles?: StyleTitleMap): StepDescription {
   if (step.kind === 'reasoning') {
-    return { label: lang === 'zh-CN' ? '推理' : 'Reasoning', summary: step.text, detail: null };
+    return { label: lang === 'zh-CN' ? '推理' : 'Reasoning', summary: humanizeReasoning(step.text, lang, titles), detail: null };
   }
   if (step.kind === 'tool_call') return describeToolCall(step.tool, step.input, step.output, lang, titles);
   return { label: actionTypeLabel(step.actionType, lang), summary: step.summary, detail: null };

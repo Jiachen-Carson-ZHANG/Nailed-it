@@ -79,6 +79,18 @@ describe('describeStep / stepTone', () => {
     expect(describeStep(step, 'zh-CN').summary).toBe('8284 意向高但零转化 → 团购试价');
     expect(stepTone(step.kind)).toBe('thinking');
   });
+  it('sanitizes strong-tier reasoning: strips markdown, drops internal UUIDs, resolves style ids', () => {
+    const step = {
+      kind: 'reasoning',
+      text: '本轮监测已完成。 ### 记忆写入 * **动作 `0c9fb3b3-f3f8`(广告-8284)**: 写入高置信度结论。 广告活动 `ad-style-melissa-img-8249` 表现中等。',
+    } as const;
+    const s = describeStep(step, 'zh-CN').summary;
+    expect(s).not.toMatch(/[#*`]/);       // no leaked markdown syntax
+    expect(s).not.toContain('0c9fb3b3');  // internal UUID dropped
+    expect(s).toContain('款式 8249');      // style id resolved to a readable name
+    expect(s).toContain('· 动作');         // bullet normalized
+    expect(s).toContain('(广告-8284)');    // the human label kept
+  });
   it('action steps use the action label + summary with the action tone', () => {
     const step = { kind: 'action', actionType: 'place_ad', status: 'applied', summary: '投广：8274' } as const;
     expect(describeStep(step, 'zh-CN')).toMatchObject({ label: '投广', summary: '投广：8274', detail: null });

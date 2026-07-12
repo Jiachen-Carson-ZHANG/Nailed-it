@@ -13,7 +13,7 @@ import { isGenericTag } from '@/domain/catalog-tags';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { MerchantInsights, StylePerformance } from '@/domain/intelligence';
-import type { AISummary } from '@/nail-ai/insights-summary';
+import { fallbackSummary, type AISummary } from '@/nail-ai/insights-fallback';
 
 const insightsCopy = {
   'zh-CN': {
@@ -125,12 +125,18 @@ export default function MerchantInsightsPage() {
     setLoading(true);
     setSummary(null);
     getMerchantInsightsAction(rangeDays)
-      .then((data) => active && setInsights(data))
+      .then((data) => {
+        if (!active) return;
+        setInsights(data);
+        // Show the grounded deterministic card immediately — never gate the demo on the slow/optional
+        // AI call. The AI narration below upgrades it (source→'ai') if and when it returns.
+        setSummary((cur) => cur ?? fallbackSummary(data, language));
+      })
       .catch(() => active && setInsights(null))
       .finally(() => active && setLoading(false));
     summarizeInsightsAction(rangeDays, language)
       .then((data) => active && setSummary(data))
-      .catch(() => {/* card stays in its loading state */});
+      .catch(() => {/* the deterministic fallback already populated the card */});
     return () => {
       active = false;
     };
