@@ -1,5 +1,52 @@
 # Implementation Log
 
+## 2026-07-12 — Demo UIUX polish: business clock + agent-chain / insights / currency fixes
+
+Branch `feat/demo-uiux-polish`. Merchant-side demo-readiness pass over the multi-agent surfaces.
+
+What changed:
+- **业务时钟 (P1)** — new `BusinessClock` on `/merchant/agents` (`src/domain/business-clock.ts` pure +
+  `src/features/merchant/BusinessClock.tsx`). A stage-safe sprint clock: an always-clickable "推进" button
+  steps a sim clock through a curated spine faithful to the real finals-a trace (决策 → 实测背离 72h →
+  修订+记忆), then a deterministic procedural tail (seeded PRNG) so it never dead-ends. Procedural periods
+  are tagged 模拟. Revealed count persisted in localStorage. Keeps live gemini rounds off the on-stage
+  critical path (advance-clock stays a terminal-only operator control).
+- **Thinking-chain sanitizer (P2b)** — `humanizeReasoning` in `agent-transcript.ts`: strong-tier reasoning
+  leaked raw markdown (`###`/`**`/backticks) + internal action UUIDs into the merchant-facing chain. Now
+  resolves style ids → names, drops UUIDs, strips markdown; clean prose passes through. Regression added.
+- **Insights summary no longer hangs (P2c)** — the grounded card renders the deterministic fallback
+  immediately (computed client-side from the loaded metrics via new client-safe `nail-ai/insights-fallback.ts`)
+  and upgrades to the AI narration only if it returns. Previously gated on the AI action, which stalls (the
+  OpenRouter→Ark wrapper is fed an OpenRouter model id Ark won't serve) → stuck on "AI 摘要生成中" forever.
+  Badge reads 规则生成 until real OpenRouter narration is wired.
+- **Currency conversion (P3)** — `formatCurrency` now CONVERTS SGD-base cents to the chosen display currency
+  via a frozen `FX_FROM_SGD` table + `Intl.NumberFormat` (symbol + per-currency decimals; NBSP normalized to
+  keep the old `SGD 12.34` form byte-stable). FRF dropped (retired 2002; Intl throws). Display-only; merchant
+  edit inputs still author in the base currency.
+- **Density + dev polish (P2a/P2d)** — `devIndicators:false` (the dev badge overlapped the 今日 tab, and live
+  agent demos run in dev); `/merchant/agents` 团队记忆 capped to 4 with a toggle (page 7786px → 3442px).
+- **Judge-first multi-agent framing** — `/merchant/agents` now opens with a compact closed-loop proof strip
+  (configured agents, auditable runs, cross-round memories, and the 主控→数分/选品→决策→风控→执行→监测 chain),
+  then the team lane map, then the business clock. This keeps the architecture visible before the timeline
+  proof and avoids a first-screen "timeline only" read.
+- **Friendly nail names** — known Melissa demo anchors now render as nail names in 今日 action cards,
+  agent transcripts, and the business clock (`薄荷青法式`, `碎冰玫瑰猫眼`, `鎏金奢华`, etc.) instead of
+  bare numbers or generic "Melissa Design ####" titles. Unknown/deleted styles still fall back to the id
+  so the UI remains honest.
+
+Aligned assumptions:
+- Logo left untouched (owner decision).
+- Demo-data hygiene (≈205 accumulated runs / 36 pending from eval test rounds) is a reseed step owned by the
+  eval workstream — run `seed:agents` + `seed:agent-history` right before the demo; not done here to avoid
+  disrupting in-flight eval data.
+
+Verification:
+- tsc clean. New tests: `business-clock.test.ts` (5), `agent-transcript` sanitizer regression, `format`
+  currency-conversion cases. Pre-existing failures in `style/[id]` + `booking/confirm` page tests are
+  unrelated (stale description/heading assertions; `SGD 28.00` itself renders) — confirmed via stash-run.
+- Visual (Playwright, localhost, 430px): clock steps Day 0→3→7 then 模拟 tail; dev indicator gone; insights
+  card settles with grounded numbers; agents page height halved.
+
 ## 2026-07-02 — Demo analytics reset + 暗黑 gap wording
 
 What changed:
@@ -2285,3 +2332,17 @@ became a code rule the same day:
   fresh briefs.
 - Verification: pytest 61/61; affected eval scenarios re-run post-hardening (ad ×3, coupon, decision,
   reviewer ×2) — all gates green at n=2 (`docs/eval/live-v3/regression-post-hardrules.log`, local).
+
+## 2026-07-12 — mission theater removed; weekly cron entry (the honest "Autopilot")
+
+- **决策 injected environment simplified**: the hardcoded `mission.goal` string and
+  `planning_horizon` are gone — the standing objective is the skill's job description, weekend
+  protection already lives in `protected_periods`, and the planning window is in the task text.
+  A synthetic goal string was structure theater; the one load-bearing field survives as top-level
+  `merchant_weekly_focus` (read fresh each round from the merchant-owned `pref-weekly-focus`
+  preference row; absent when the merchant set nothing). pytest 65/65; env live-verified.
+- **Weekly cron implemented** (`agent-service/scripts/run-weekly-round.sh` + one crontab line,
+  documented in the script header): a round reads all input from the DB at start, so a dumb cron
+  is the whole scheduler. Monitor follow-up needs no second entry — matured actions (≥72h window)
+  are pulled into the next round's due-review list; the weekly round naturally opens by measuring
+  last week. Doc 08 gains the demo "rhythm line" saying exactly this on stage.

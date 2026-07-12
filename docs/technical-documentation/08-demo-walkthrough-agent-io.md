@@ -41,9 +41,15 @@ campaigns + hypotheses + merchant preferences; memory itself is never seeded),
 `python -m nailed_agents set-scenario finals-a` (hidden state: competition 1.15, broad quality 0.55,
 retargeting quality 1.35, booking friction 1.40 — forecast never sees these). Wallet opens at ¥180.
 
+**The rhythm line (say it before Round 1)**: *"业务节奏 = 每周一个计划轮（cron，
+`scripts/run-weekly-round.sh`）+ 动作 72 小时观测窗 —— 周度轮天然以衡量上一周开场，
+所以你们马上会看到 R1 的监测在写上周历史的记忆；台上的时钟推进只是把这一周压缩成三分钟。"*
+The monitor's follow-up trigger is pull, not push: matured actions land in the next round's
+due-review list — no scheduler entry needed beyond the weekly cron.
+
 ### Round 1 — facts → briefs → review → forecast loop → one placement, one refusal
 
-- **决策 (pro)** — injected environment (mission incl. `merchant_weekly_focus` = 拉新 + ¥45 CAC
+- **决策 (pro)** — injected environment (`merchant_weekly_focus` = 拉新 + ¥45 CAC
   tolerance, policy snapshot, capacity 22%, candidate index) + memory hints. Filed **3 briefs via
   `submit_action_brief`** (schema-enforced tool, prose is not a channel): coupon 8284 price-test;
   ad 8249 (target 5–10, ≤¥100, CAC ≤2040); ad 8274 (target 4–8, ≤¥80, CAC ≤3360). Cited the seeded

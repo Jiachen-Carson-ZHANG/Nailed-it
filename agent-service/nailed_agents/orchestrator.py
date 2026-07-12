@@ -242,10 +242,13 @@ def _decision_context(sb) -> str:
         pass
     ranked = sorted(brain.get("decisions") or [],
                     key=lambda d: (d.get("scores") or {}).get("businessValue") or 0, reverse=True)
-    # The merchant's CURRENT weekly focus is mission, not memory: as a rankable hint it loses to
-    # cost anchoring (measured live — 决策 briefed the cheap-CAC plan over the acquisition goal in
-    # 2 of 3 rounds). A `pref-weekly-focus` preference row is merchant-set state; injecting it into
-    # the mission block makes the goal a deterministic input, same channel as budget and capacity.
+    # The merchant's CURRENT weekly focus is a task parameter, not memory: as a rankable hint it
+    # loses to cost anchoring (measured live — 决策 briefed the cheap-CAC plan over the acquisition
+    # goal in 2 of 3 rounds). It reads the `pref-weekly-focus` preference row — merchant-owned state
+    # (seed writes it for the demo; a settings page writes the same row in the product).
+    # There is deliberately NO synthetic "mission.goal/horizon" wrapper: the standing objective is
+    # the skill's job description, weekend protection lives in protected_periods, and the planning
+    # window is already in the task text — a hardcoded goal string was structure theater.
     weekly_focus = None
     try:
         for r in bus.fetch_memory(sb, config.MERCHANT_ID):
@@ -254,14 +257,10 @@ def _decision_context(sb) -> str:
                 break
     except Exception:
         pass
-    mission: dict[str, object] = {
-        "goal": "在不牺牲周末原价订单的前提下，提升下周预约量与利润",
-        "planning_horizon": "next_7_days",
-    }
+    env: dict[str, object] = {}
     if weekly_focus:
-        mission["merchant_weekly_focus"] = weekly_focus
-    env = {
-        "mission": mission,
+        env["merchant_weekly_focus"] = weekly_focus
+    env |= {
         "merchant_policy": {
             "marketing_budget_cents": config.MARKETING_BUDGET_CENTS,
             "committed_budget_cents": committed,
@@ -278,7 +277,7 @@ def _decision_context(sb) -> str:
         ],
     }
     return (
-        "\n\n[经营环境 — 系统注入｜任务目标、商家约束、产能摘要与候选索引；完整每款事实用 "
+        "\n\n[经营环境 — 系统注入｜商家周重点、政策约束、产能摘要与候选索引；完整每款事实用 "
         "get_style_business_facts 查询]\n" + json.dumps(env, ensure_ascii=False) + "\n[/经营环境]"
     )
 
