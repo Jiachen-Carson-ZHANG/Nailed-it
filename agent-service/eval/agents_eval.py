@@ -553,7 +553,22 @@ def _run_once(scn: Scenario) -> dict:
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "sig": _signature(scn, ctx, captured), "final": final,
             "captured": captured, "tool_attempts": list(ctx.tool_attempts),
-            "usage": dict(ctx.usage)}
+            "usage": dict(ctx.usage), "trace": _compact_trace(ctx, final)}
+
+
+def _compact_trace(ctx: tools.RunContext, final: str) -> str:
+    """The run as a judge-readable trajectory: reasoning + tool calls with truncated I/O + conclusion.
+    Process judging scores THIS, not just the final prose — endpoint gates can't tell reasoning from
+    luck; the trace can."""
+    parts = []
+    for s in ctx.transcript:
+        if s.get("kind") == "reasoning":
+            parts.append(f"[思考] {(s.get('text') or '')[:400]}")
+        elif s.get("kind") == "tool_call":
+            parts.append(f"[工具] {s.get('tool')} 输入={json.dumps(s.get('input'), ensure_ascii=False)[:250]} "
+                         f"输出={json.dumps(s.get('output'), ensure_ascii=False)[:300]}")
+    parts.append(f"[最终结论] {final[:1200]}")
+    return "\n".join(parts[-40:])
 
 
 def evaluate(scn: Scenario, n: int) -> dict:
@@ -576,6 +591,7 @@ def evaluate(scn: Scenario, n: int) -> dict:
         "run_signatures": [str(s) for s in sigs],
         # model-selection metrics: per-run pass/fail (flake-rate numerator) + usage/latency/cost
         "runs_passed": [_run_passed(r) for r in runs],
+        "traces": [r["trace"] for r in runs],
         "tool_error_count": sum(1 for r in runs for a in r["tool_attempts"] if a.get("status") != "ok"),
         "usage": {
             "prompt_tokens": sum(r["usage"].get("prompt_tokens", 0) for r in runs),
@@ -644,6 +660,53 @@ def quality_judge(scn: Scenario, final: str) -> dict:
             "errored": errored, "flagged": bool(reason), "reason": reason}
 
 
+# Process judging (trajectory quality): cross-family panel so self-preference is MEASURABLE — each
+# judge's family is recorded and its delta vs the panel mean is reported, not hidden. Non-blocking:
+# deterministic gates stay the floor; this scores the reasoning that endpoint gates cannot see.
+_PROCESS_JUDGES = ["google/gemini-2.5-flash", "openai/gpt-5.4-mini", "qwen/qwen3.6-flash"]
+
+_PROCESS_RUBRIC = (
+    "你是智能体运行轨迹的严格评审。下面是任务与完整运行轨迹（思考、工具调用及其真实输出、最终结论）。"
+    "按 1-5 打分（5=优秀，3=及格，1=差），只依据轨迹证据：\n"
+    "1. 证据使用：每个判断是否引用了工具输出中的真实数字/事实，而不是断言。\n"
+    "2. 工具逻辑：调用是否必要且充分——先查再动、先预测再执行、无冗余或缺失的关键调用。\n"
+    "3. 备选比较：是否比较过至少一个备选方案，或说明了为何没有备选。\n"
+    "4. 结论与下一步：结论是否与证据一致；提出的行动/不行动是否可辩护。\n"
+    '只输出 JSON：{"证据使用":n,"工具逻辑":n,"备选比较":n,"结论下一步":n,"overall":n,"why":"≤20字"}'
+)
+
+
+def process_judge(scn: Scenario, traces: list[str]) -> dict:
+    """Blind trajectory judging over every run of the scenario. Returns per-judge per-run scores +
+    panel aggregate. STRICT parse like quality_judge: judge errors are stored, never averaged as 0."""
+    from openai import OpenAI
+    client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+    per_judge: dict[str, list[float]] = {m: [] for m in _PROCESS_JUDGES}
+    errors: list[str] = []
+    for trace in traces:
+        for m in _PROCESS_JUDGES:
+            try:
+                r = client.chat.completions.create(model=m, max_tokens=300,
+                    response_format={"type": "json_object"},
+                    messages=[{"role": "user", "content":
+                               f"{_PROCESS_RUBRIC}\n\n任务：{scn.task[:800]}\n\n运行轨迹：\n{trace[:6000]}"}])
+                raw = (r.choices[0].message.content or "").strip()
+                t = raw.removeprefix("```json").removeprefix("```").removesuffix("```")
+                ov = json.loads(t[t.find("{"): t.rfind("}") + 1]).get("overall")
+                if isinstance(ov, (int, float)) and 1 <= ov <= 5:
+                    per_judge[m].append(float(ov))
+                else:
+                    errors.append(f"{m}: overall out of range {ov!r}")
+            except Exception as e:  # noqa: BLE001 — a judge failing is data, not a crash
+                errors.append(f"{m}: {type(e).__name__}: {e}")
+    judge_avgs = {m: round(sum(v) / len(v), 2) for m, v in per_judge.items() if v}
+    panel = round(sum(judge_avgs.values()) / len(judge_avgs), 2) if judge_avgs else None
+    # self-preference visibility: each judge's delta vs the panel mean (candidate family known upstream)
+    deltas = {m: round(a - panel, 2) for m, a in judge_avgs.items()} if panel is not None else {}
+    return {"panel_avg": panel, "per_judge_avg": judge_avgs, "per_judge_delta": deltas,
+            "n_scored": {m: len(v) for m, v in per_judge.items()}, "errors": errors[:6]}
+
+
 _CATEGORIES = [  # first matching → suggested failure category for triage
     ("tool_call", lambda g: "tool-call correctness" in g),
     ("expectation", lambda g: any(x.startswith("expectation") for x in g)),
@@ -685,6 +748,8 @@ def main() -> int:
     ap.add_argument("--judge", action="store_true", help="Phase C: LLM-judge open-ended quality (non-blocking)")
     ap.add_argument("--only", default="", help="run only scenarios whose id contains any of these comma-separated substrings")
     ap.add_argument("--json-report", default="", help="write a machine-readable per-scenario report (model screen reads it)")
+    ap.add_argument("--process-judge", action="store_true",
+                    help="cross-family trajectory judging on every run (non-blocking, reported)")
     args = ap.parse_args()
     n, judge = args.n, args.judge
     _key = config.GEMINI_API_KEY if config.MODEL_PROVIDER == "gemini" else config.OPENROUTER_API_KEY
@@ -737,11 +802,18 @@ def main() -> int:
         gate_fail = [name for name, passed in gates.items() if not passed]
         if gate_fail or (jr and jr["flagged"]):
             _log_regression(scn, gate_fail, r, jr)
+        pj = None
+        if args.process_judge:
+            pj = process_judge(scn, r["traces"])
+            deltas = " ".join(f"{m.split('/')[-1]}{d:+.1f}" for m, d in pj["per_judge_delta"].items())
+            print(f"       process MOS: panel {pj['panel_avg']} | judge deltas: {deltas}"
+                  + (f" | judge errors: {len(pj['errors'])}" if pj["errors"] else ""))
         report.append({
             "id": scn.id, "n": n, "gates": {k: bool(v) for k, v in gates.items()}, "all_gates": ok,
             "runs_passed": r["runs_passed"], "tool_error_count": r["tool_error_count"],
             "usage": r["usage"], "run_signatures": r["run_signatures"],
             "tool_bad": r["tool_bad"], "ungrounded": r["ungrounded"],
+            "process": pj,
         })
     print("\n" + "=" * 80)
     print("RESULT:", "ALL BLOCKING GATES PASS" if all_pass else "FAILURES (blocking)")

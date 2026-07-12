@@ -107,11 +107,20 @@ verbosity, position) — and our judge pool overlaps the candidate families, so 
 would have a referee playing for one team. Gates are family-blind, reproducible by any third party
 from the same transcripts, and statistically meaningful at n=3 where a ±0.5-point MOS is not.
 
-**Finalist round adds quality (amended before finalists ran)**: blind multi-judge MOS as a
-*reported, non-blocking* tiebreaker — judges drawn from families NOT among the finalists, strict
-parse (judge error ≠ low score), low/disagreeing samples escalated to human review. Catches the
-failure class gates cannot see: correct-but-bad output (boilerplate review checks, tone-deaf
-merchant drafts, weak Chinese fluency).
+**Process judging (amended before its runs)**: endpoint gates cannot tell reasoning from luck — two
+models can file the same correct brief while only one's trajectory justifies it. A separate
+**process-judge pass** scores each run's full trace (reasoning + tool calls with real outputs +
+conclusion) on a fixed rubric: 证据使用 / 工具逻辑 (read-before-act, forecast-before-place, no
+redundant loops) / 备选比较 / 结论与下一步. Protocol: 5 scenarios (decision, ad ×2, **monitor ×2** —
+diagnosis quality is exactly what endpoint gates miss) × n=2 per candidate; a **cross-family judge
+panel** (gemini-flash, gpt-mini, qwen-flash) with each judge's delta vs the panel mean *reported* —
+self-preference is measured, not assumed away. Non-blocking: gates remain the floor; process scores
+are a ranked-report axis beside flake/cost/latency.
+
+**Finalist round adds output quality**: blind multi-judge MOS as a *reported, non-blocking*
+tiebreaker — strict parse (judge error ≠ low score), low/disagreeing samples escalated to human
+review. Catches correct-but-bad output (boilerplate review checks, tone-deaf merchant drafts, weak
+Chinese fluency).
 
 **Budget protocol**: screen = judgment subset × n=3 per candidate; only the top two advance to the
 full suite × n=5. Candidate roster (2026-07-12): deepseek, qwen, newest gemini, claude sonnet,
