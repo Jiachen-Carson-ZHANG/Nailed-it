@@ -94,10 +94,12 @@ export function TodayHome() {
 
   const load = useCallback(() => {
     setLoading(true);
-    // Never an infinite spinner (DESIGN.md interaction-state rule): if the read model doesn't resolve in
-    // 8s (e.g. the data source is unreachable), fall back to the error state instead of hanging forever.
+    // Never an infinite spinner (DESIGN.md interaction-state rule): if the read model doesn't resolve,
+    // fall back to the error state instead of hanging forever. The reads now run in one parallel batch
+    // (~1–2s warm); the headroom is for a cold dev first-load, where Next compiles the route + server
+    // action on demand (~10s). Prod is precompiled and never approaches this.
     const fallback: TodayHomeData = { stats: null, pending: [], recent: [], technicians: [], agents: [], errors: ['stats', 'actions', 'technicians'] };
-    const timeout = new Promise<TodayHomeData>((resolve) => setTimeout(() => resolve(fallback), 8000));
+    const timeout = new Promise<TodayHomeData>((resolve) => setTimeout(() => resolve(fallback), 15000));
     Promise.race([getMerchantTodayHomeAction(), timeout])
       .then((d) => setData(d))
       .catch(() => setData(fallback))
