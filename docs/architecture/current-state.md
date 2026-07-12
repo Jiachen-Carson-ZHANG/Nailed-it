@@ -1,6 +1,44 @@
 # Architecture: Current State
 
-Last updated: 2026-07-10
+Last updated: 2026-07-12
+
+## Agent runtime v3 (ADR-0014 → 0016, 2026-07-11/12) — supersedes parts of "Recent additions" below
+
+The agent service moved from restate-and-execute to **facts → briefs → bounded executor autonomy**:
+
+- **Business engine emits facts, never verdicts** (`src/domain/decision/decision.ts`): 4 scores +
+  signal tags + ad economics + coupon economics (floor price binary-searched from the profit/hour
+  floor). The `candidate: ad|coupon|display_only|skip` output is gone (ADR-0016 §1).
+- **Action Briefs**: 决策 (strong tier) receives an injected strategic environment (mission /
+  policy snapshot / capacity / candidate index — `_decision_context`) + memory hints, and submits
+  briefs (objective + hard boundaries) via the schema-enforced `submit_action_brief` tool;
+  `simulate_action_portfolio` checks the combined plan deterministically (attribution conflicts,
+  budget competition, capacity pressure). Briefs land on the blackboard and are injected verbatim
+  into executors; tools enforce them as law (`budget_exceeds_brief` refused pre-side-effect).
+- **Ad sandbox** (`nailed_agents/sandbox.py`, migration `0033`): 3 audiences, deterministic forecast
+  (ranges + saturation + frequency fatigue) from public priors, delivery from **hidden scenario
+  state** (same seed → same divergence), campaign state machine with versioned in-place revisions,
+  and an accelerated business clock (`python -m nailed_agents advance-clock` — operator control,
+  never an agent tool). 投广 runs a forecast-compare loop and may report a brief **infeasible**.
+- **Risk Reviewer** (10th agent, strong tier): soft-risk verdicts over the brief portfolio
+  (`[APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED]`);
+  the orchestrator gates executors on REVISION_REQUIRED and skips the reviewer when no briefs exist.
+- **Coupon templates**: discounts only from merchant-pre-approved templates; code computes prices and
+  refuses below the floor; the agent configures restrictions (window/count/expiry/audience).
+- **Message classes**: transactional notices auto-send labeled 【Nailed-it 商家助手】; relationship
+  marketing only ever creates a merchant-send draft (`draft_customer_message`, human gate).
+- **Merchandising verbs**: `deprioritize_style`/`feature_style` adjust exposure allocation; agents
+  never remove assets (true stop-sale is merchant-only).
+- **Memory v2 + context routing** (ADR-0014/0015, 2026-07-11): deterministic context injection
+  (CONTEXT_POLICY + execution/due lists with real action ids), monitor-only anchored memory writes
+  (`record_action_outcome` — code derives identity/comparison/expiry), relevance-scored
+  `search_memory` with per-agent domain access, prompt identity on every run (`prompt_sha` +
+  final rendered task persisted), 团队记忆 card on `/merchant/agents`.
+- **Model tiers (measured)**: strong tier (gemini-2.5-pro) = orchestrator, decision, ad, coupon,
+  reviewer, monitor — each moved after a measured flash chain-abandonment/narration failure; flash =
+  insight, trend, catalog, customer_ops. Provider fallback `MODEL_PROVIDER=gemini` (direct Google
+  endpoint) with bounded reasoning and temperature 0.2.
+- Eval: 14 scenarios, five blocking gates, all green at n=2 on gemini-direct. Migrations `0030`–`0033`.
 
 ## Stack
 
