@@ -8,9 +8,15 @@ math lives in a pure TypeScript module (`src/domain/decision/`) with 40+ unit te
 what LLMs are good at: **synthesis across signals** (brain output × briefing × trends × memory) and
 writing the merchant-readable reason.
 
-The brain is **advisory, not command** (ADR-0012 §5). It returns, per style: four scores, a candidate
-lever (`ad | coupon | display_only | skip`), and machine signal tags — never prose, never a final plan.
-The 决策 agent has overridden it in live rounds, with reasons; that's the design working, not failing.
+The engine is **factual, not advisory** (ADR-0016, superseding ADR-0012's `candidate` output). It
+returns, per style: four scores, machine signal tags (each an independently checkable fact —
+`underexposed`, `roas_above_target`, `below_coupon_floor`…), ad economics, and coupon economics
+(the floor price that still clears the merchant's profit/hour floor, binary-searched from the same
+formulas). It deliberately does NOT say `ad | coupon | display_only | skip` anymore — an external
+review demonstrated that as long as the engine emits a verdict, the decision agent structurally
+regresses to restating it. What to do with the facts is 决策's judgment, expressed as **Action
+Briefs** (objective + hard boundaries via a schema-enforced tool call); executors then find their own
+parameters inside the brief through the sandbox's forecast loop, and code enforces the brief as law.
 
 ## The economics, and the three decisions inside them
 
@@ -34,7 +40,7 @@ floor per hour of chair time.
 
 Two defects were fixed the day we found them (ADR-0012 amendment 2026-07-10):
 
-- **No money in the gate.** The ad candidate used to fire on scores + capacity. A style can score
+- **No money in the gate.** The ad signals used to fire on scores + capacity. A style can score
   beautifully and still be a bad buy. Now: `expectedRoas = contribution / costPerBooking`, where
   `costPerBooking = CPC ÷ measured click→booking rate` from the style's own funnel. Gate:
   `expectedRoas ≥ merchant targetRoi` (default 2.0).

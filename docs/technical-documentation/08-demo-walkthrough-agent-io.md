@@ -4,6 +4,13 @@ Everything in this document is taken from **real persisted runs** (queryable in 
 `agent_actions` / `style_ad_campaign` / `groupbuy_deal`), not from design intent. Primary trace: the
 dynamic round of 2026-07-10, orchestrator run `e9a4ff93…`.
 
+> **v3 note (2026-07-12, ADR-0016):** the architecture has since moved to Action Briefs + the ad
+> sandbox (executors find parameters via forecast loops inside 决策's boundaries; a Risk Reviewer
+> judges the portfolio; coupons configure merchant-approved templates; relationship messages become
+> merchant-send drafts). The trace below predates that rebuild — per-agent I/O shapes are superseded
+> by the tool tables in this doc and ADR-0016; a fresh v3 trace replaces this section after the first
+> live sandbox round (migration 0033).
+
 ---
 
 ## 1. The demo scenario & mock data

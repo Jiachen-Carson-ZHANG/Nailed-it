@@ -80,12 +80,19 @@ monitor's revision power (`RunContext.revision`, doc 05).
 
 ### 3. Judgment in loops, legality in code (the division of labor, ADR-0012 §5)
 
-The single most important line we drew. Everything that must be *correct* is deterministic code:
-arithmetic, state machines, budget caps, allow-lists, transitions. Everything that must be *judged* is
-an LLM tool loop: which lanes to wake, whether the brain's per-style candidate survives contact with the
-briefing, what to tell the merchant. Live proof that the loop adds judgment rather than noise: the 决策
-agent **overrode the deterministic brain** on two styles — the brain said "coupon candidate", the trend
-briefing said "delist candidate", and the agent declined the coupons with both numbers cited.
+The single most important line we drew — and ADR-0016 moved it to its final position. Everything
+that must be *correct* is deterministic code: arithmetic, forecast formulas, state machines, budget
+caps, brief ceilings, allow-lists, transitions. Everything that must be *judged* is an LLM tool loop,
+and the judgments now stack in layers: the engine emits **facts** (never verdicts — the `candidate`
+output died when a review showed the decision agent restating it); 决策 turns facts into **Action
+Briefs** (objective + hard boundaries, schema-enforced tool call); the **Risk Reviewer** judges the
+brief portfolio for soft risk (conflicts, cannibalization, attribution — hard rules stay in code);
+executors find their own parameters inside the brief through the ad sandbox's forecast loop — free to
+choose audience/budget/duration, free to report the objective **infeasible** with forecast evidence,
+never free to breach a ceiling (refused pre-side-effect). The eval pins each layer: a brief for the
+underexposed earner and none for the below-floor style; broad traffic failing the CAC ceiling in
+forecast and the agent finding retargeting itself; a conflicting portfolio drawing
+`[REVISION_REQUIRED]` while a clean one draws `[APPROVED]` with no invented objections.
 
 ### 4. Deterministic context passing — no LLM copying
 

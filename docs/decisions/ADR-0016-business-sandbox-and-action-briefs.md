@@ -169,6 +169,32 @@ divergence gives the monitor real diagnosis work; the demo gets a reproducible, 
 between stages; two more strong-tier lanes per round (cost + latency); the sandbox is more surface
 to keep honest — mitigated by pytest on the engine's math and seeds; migration 0033 (user-applied).
 
+## Amendment (2026-07-12) — implementation record, all three stages
+
+**Stage 1** (`5ff3e73`…`3c6aef2`): sandbox engine (forecast/delivery split, hidden scenario state,
+frequency fatigue — all pytest-pinned), brain de-verdicted (facts + signals + coupon economics),
+`submit_action_brief` capability, ad toolset (account/audiences/forecast/place/update/pause),
+`advance-clock` CLI, skills v3, eval on the new contract.
+
+**Stage 2** (`81c0385`): decision environment injection (mission/policy/capacity/candidate index),
+`simulate_action_portfolio` (attribution/budget/capacity checks), Risk Reviewer lane with verdict
+tokens, orchestrator plan gating executors on `[REVISION_REQUIRED]`.
+
+**Stage 3** (`5c9b20b`): coupon templates (code computes prices, refuses below floor; the agent
+configures restrictions), message classes (labeled auto notifications vs merchant-send drafts —
+boss impersonation removed), merchandising verbs (deprioritize/feature replace delist/list; agents
+never remove assets).
+
+**Measured along the way**: the flash narration failure (claiming calls it never made) reappeared on
+the coupon lane the moment its job became judge-then-call — strong tier now covers orchestrator,
+decision, ad, coupon, reviewer, monitor; insight/trend/catalog/customer_ops stay flash. Eval:
+14 scenarios, all gates green at n=2 on gemini-direct. Two scenarios needed *brief disambiguation*
+(not prompt-forcing) to be deterministically judgeable — recorded in the scenarios as comments.
+
+**Still open**: live verification requires migration `0033` (user-applied); docs 08 demo trace to be
+re-captured from the first live v3 round; deferred from the review: creative objects, frequency caps,
+placement targeting, coupon cannibalization simulation (`scenario estimate` ranges only).
+
 ## References
 
 - `agent-service/nailed_agents/sandbox.py` (Stage 1), migration `0033_ad_sandbox.sql`
