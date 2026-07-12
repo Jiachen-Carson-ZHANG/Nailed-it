@@ -5,6 +5,7 @@
 // payload demoted to an expandable detail. Pure + tested; the React side stays a dumb renderer.
 
 import type { AgentAction, AgentActionType, TranscriptStep } from './agents';
+import { demoStyleCodePattern, demoStyleName, isGenericDemoTitle, styleCodeFromId } from './demo-style-labels';
 import { getMerchantManagePath } from './session';
 
 export type AppLang = 'zh-CN' | 'en';
@@ -31,18 +32,20 @@ function money(cents: unknown, currency = 'SGD'): string {
   return `${currency} ${Number.isInteger(units) ? units : units.toFixed(1)}`;
 }
 
-/** styleId → what the merchant calls it. Styles have real titles ("Melissa Design 8284") — pass a
- *  `titles` map (from getStyleTitleMapAction) and the label IS the title. The id-derived form is only
- *  the fallback for rows whose style no longer exists. */
+/** styleId → what the merchant calls it. Prefer the DB title when it is meaningful; if live/demo rows
+ *  still carry a generic "Melissa Design 8284" title, use the curated nail name instead. The numeric
+ *  id-derived form is only the fallback for rows whose style no longer exists. */
 export type StyleTitleMap = Readonly<Record<string, string>>;
 
 export function styleLabel(id: unknown, lang: AppLang, titles?: StyleTitleMap): string {
   const s = String(id ?? '').trim();
   if (!s) return '—';
-  const title = titles?.[s];
+  const title = titles?.[s]?.trim();
+  if (title && !isGenericDemoTitle(title)) return lang === 'zh-CN' ? `「${title}」` : `"${title}"`;
+  const demoName = demoStyleName(s, lang);
+  if (demoName) return lang === 'zh-CN' ? `「${demoName}」` : `"${demoName}"`;
   if (title) return lang === 'zh-CN' ? `「${title}」` : `"${title}"`;
-  const trailingDigits = /(\d{3,})$/.exec(s)?.[1];
-  const core = trailingDigits ?? (s.length > 18 ? s.replace(/^style-/, '') : s);
+  const core = styleCodeFromId(s) ?? (s.length > 18 ? s.replace(/^style-/, '') : s);
   return lang === 'zh-CN' ? `款式 ${core}` : `style ${core}`;
 }
 
@@ -59,6 +62,7 @@ const REASONING_STYLE_ID_RE = /`?\b((?:ad-)?(?:style-)?[a-z]+(?:-[a-z]+)*-img-\d
 export function humanizeReasoning(text: string, lang: AppLang, titles?: StyleTitleMap): string {
   return (text ?? '')
     .replace(REASONING_STYLE_ID_RE, (_m, id: string) => styleLabel(id, lang, titles))
+    .replace(demoStyleCodePattern(), (_m, code: string) => styleLabel(code, lang, titles))
     .replace(REASONING_UUID_RE, '')
     .replace(/\s*#{1,6}\s*/g, '\n')       // markdown headings (inline or block) -> line break
     .replace(/\*\*([^*]+)\*\*/g, '$1')    // **bold** -> bold
@@ -66,6 +70,7 @@ export function humanizeReasoning(text: string, lang: AppLang, titles?: StyleTit
     .replace(/^\s*[*-]\s+/gm, '· ')       // leading "* " / "- " bullet -> "· "
     .replace(/\*+/g, '')                  // stray emphasis asterisks
     .replace(/`/g, '')                    // stray backticks
+    .replace(/」\s+([\u4e00-\u9fff])/g, '」$1') // 8284 意向高 -> 「鎏金奢华」意向高
     .replace(/\(\s*\)/g, '')              // empty parens left by UUID removal
     .replace(/[ \t]{2,}/g, ' ')           // collapse space runs
     .replace(/[ \t]+([:：,，.。])/g, '$1') // no space before punctuation
@@ -249,14 +254,15 @@ const SUMMARIZERS: Record<string, Summarizer> = {
     summary: lang === 'zh-CN' ? `止损暂停广告 ${String(input.campaignId ?? '')}（可恢复）` : `Paused campaign ${String(input.campaignId ?? '')} (resumable)`,
   }),
 
-  submit_action_brief: (input, _o, lang) => {
+  submit_action_brief: (input, _o, lang, titles) => {
     const zh = lang === 'zh-CN';
     const kind = input.action_type === 'ad' ? (zh ? '投广' : 'ad') : (zh ? '团购' : 'coupon');
+    const style = styleLabel(input.style_id, lang, titles);
     return {
       label: zh ? '行动简报' : 'Brief',
       summary: zh
-        ? `提交${kind}简报：${String(input.style_id ?? '')} · 预算上限 ${money(input.max_total_budget_cents)} · ${truncate(String(input.objective ?? ''), 50)}`
-        : `Filed ${kind} brief: ${String(input.style_id ?? '')} · budget ≤ ${money(input.max_total_budget_cents)}`,
+        ? `提交${kind}简报：${style} · 预算上限 ${money(input.max_total_budget_cents)} · ${truncate(String(input.objective ?? ''), 50)}`
+        : `Filed ${kind} brief: ${style} · budget ≤ ${money(input.max_total_budget_cents)}`,
     };
   },
 
@@ -407,7 +413,7 @@ export function describeStep(step: TranscriptStep, lang: AppLang, titles?: Style
     return { label: lang === 'zh-CN' ? '推理' : 'Reasoning', summary: humanizeReasoning(step.text, lang, titles), detail: null };
   }
   if (step.kind === 'tool_call') return describeToolCall(step.tool, step.input, step.output, lang, titles);
-  return { label: actionTypeLabel(step.actionType, lang), summary: step.summary, detail: null };
+  return { label: actionTypeLabel(step.actionType, lang), summary: humanizeReasoning(step.summary, lang, titles), detail: null };
 }
 
 /** Multica-style tone per step kind: thinking=violet, tool=blue, action=emerald (CSS maps the colors). */
@@ -469,6 +475,37 @@ export function describeAction(type: AgentActionType, payload: Record<string, un
       return zh
         ? `为${styleLabel(p.styleId, lang, titles)}投放广告 · ${slotLabel(p.slot, lang)} · 日预算 ${money(p.budgetCents)}`
         : `Ad for ${styleLabel(p.styleId, lang, titles)} · ${slotLabel(p.slot, lang)} · ${money(p.budgetCents)}/day`;
+    case 'update_ad_campaign': {
+      // tools.py payload: { campaignId, changes: {audience?/total_budget_cents?/daily_budget_cents?/
+      // duration_days?/version}, styleId } — narrate the changes; raw JSON never reaches the card.
+      const ch = isObj(p.changes) ? p.changes : {};
+      const parts: string[] = [];
+      if (ch.audience) parts.push(zh ? `受众改为「${audienceLabel(String(ch.audience), lang)}」` : `audience → ${audienceLabel(String(ch.audience), lang)}`);
+      if (ch.total_budget_cents) parts.push(zh ? `总预算 ${money(ch.total_budget_cents)}` : `${money(ch.total_budget_cents)} total`);
+      if (ch.daily_budget_cents) parts.push(zh ? `日预算 ${money(ch.daily_budget_cents)}` : `${money(ch.daily_budget_cents)}/day`);
+      if (ch.duration_days) parts.push(zh ? `投放 ${String(ch.duration_days)} 天` : `${String(ch.duration_days)}d run`);
+      const v = Number(ch.version) || null;
+      const head = zh
+        ? `原地修改${styleLabel(p.styleId, lang, titles)}的广告${v ? `（第 ${v} 版）` : ''}`
+        : `Revised the ad for ${styleLabel(p.styleId, lang, titles)} in place${v ? ` (v${v})` : ''}`;
+      return parts.length ? `${head}：${parts.join(zh ? '、' : ', ')}` : head;
+    }
+    case 'pause_ad_campaign':
+      return zh
+        ? `暂停${styleLabel(p.styleId, lang, titles)}的广告（可恢复）`
+        : `Paused the ad for ${styleLabel(p.styleId, lang, titles)} (resumable)`;
+    case 'feature_style':
+      return zh
+        ? `提高${styleLabel(p.styleId, lang, titles)}的推荐曝光${p.reason ? `：${truncate(String(p.reason), 60)}` : ''}`
+        : `Featured ${styleLabel(p.styleId, lang, titles)}${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
+    case 'deprioritize_style':
+      return zh
+        ? `降低${styleLabel(p.styleId, lang, titles)}的推荐曝光（款式保留在库）${p.reason ? `：${truncate(String(p.reason), 60)}` : ''}`
+        : `Deprioritized ${styleLabel(p.styleId, lang, titles)} (asset kept)${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
+    case 'draft_customer_message':
+      return zh
+        ? `为 ${String(p.customerName ?? '')} 起草关系消息（待你亲自发送）：${truncate(String(p.body ?? p.reason ?? ''), 70)}`
+        : `Drafted a message for ${String(p.customerName ?? '')} (awaiting your send): ${truncate(String(p.body ?? p.reason ?? ''), 70)}`;
     case 'set_group_buy_coupon':
       return zh
         ? `为${styleLabel(p.styleId, lang, titles)}设置团购券 · 券后 ${money(p.priceCents)}`

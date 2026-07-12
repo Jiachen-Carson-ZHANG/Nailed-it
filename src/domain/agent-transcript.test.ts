@@ -40,7 +40,7 @@ describe('describeToolCall', () => {
       { entityId: 'ad-style-melissa-img-8274', campaignStatus: 'draft' },
       'zh-CN',
     );
-    expect(d.summary).toBe('为款式 8274创建广告 · 首页推荐位 · 日预算 SGD 200（草稿，待你启动）');
+    expect(d.summary).toBe('为「碎冰玫瑰猫眼」创建广告 · 首页推荐位 · 日预算 SGD 200（草稿，待你启动）');
   });
 
   it('summarizes set_group_buy_coupon with the after-coupon price', () => {
@@ -50,7 +50,7 @@ describe('describeToolCall', () => {
       { dealId: 'gb-style-melissa-img-8284', dealStatus: 'draft' },
       'zh-CN',
     );
-    expect(d.summary).toBe('为款式 8284创建团购草稿 · 券后 SGD 70.4（待你发布）');
+    expect(d.summary).toBe('为「鎏金奢华」创建团购草稿 · 券后 SGD 70.4（待你发布）');
   });
 
   it('handles the legacy camelCase seed tool names via aliases', () => {
@@ -76,7 +76,7 @@ describe('describeToolCall', () => {
 describe('describeStep / stepTone', () => {
   it('reasoning renders its text with the thinking tone', () => {
     const step = { kind: 'reasoning', text: '8284 意向高但零转化 → 团购试价' } as const;
-    expect(describeStep(step, 'zh-CN').summary).toBe('8284 意向高但零转化 → 团购试价');
+    expect(describeStep(step, 'zh-CN').summary).toBe('「鎏金奢华」意向高但零转化 → 团购试价');
     expect(stepTone(step.kind)).toBe('thinking');
   });
   it('sanitizes strong-tier reasoning: strips markdown, drops internal UUIDs, resolves style ids', () => {
@@ -87,13 +87,13 @@ describe('describeStep / stepTone', () => {
     const s = describeStep(step, 'zh-CN').summary;
     expect(s).not.toMatch(/[#*`]/);       // no leaked markdown syntax
     expect(s).not.toContain('0c9fb3b3');  // internal UUID dropped
-    expect(s).toContain('款式 8249');      // style id resolved to a readable name
+    expect(s).toContain('「薄荷青法式」'); // style id resolved to a readable name
     expect(s).toContain('· 动作');         // bullet normalized
-    expect(s).toContain('(广告-8284)');    // the human label kept
+    expect(s).toContain('(广告-「鎏金奢华」)'); // the human label kept
   });
   it('action steps use the action label + summary with the action tone', () => {
     const step = { kind: 'action', actionType: 'place_ad', status: 'applied', summary: '投广：8274' } as const;
-    expect(describeStep(step, 'zh-CN')).toMatchObject({ label: '投广', summary: '投广：8274', detail: null });
+    expect(describeStep(step, 'zh-CN')).toMatchObject({ label: '投广', summary: '投广：「碎冰玫瑰猫眼」', detail: null });
     expect(stepTone(step.kind)).toBe('action');
   });
 });
@@ -101,27 +101,47 @@ describe('describeStep / stepTone', () => {
 describe('describeAction', () => {
   it('renders a human sentence, not JSON.stringify(payload)', () => {
     const s = describeAction('set_group_buy_coupon', { styleId: 'style-melissa-img-8284', priceCents: 7040 }, 'zh-CN');
-    expect(s).toBe('为款式 8284设置团购券 · 券后 SGD 70.4');
+    expect(s).toBe('为「鎏金奢华」设置团购券 · 券后 SGD 70.4');
   });
   it('keeps short human style ids readable', () => {
     expect(styleLabel('minimal-solid', 'zh-CN')).toBe('款式 minimal-solid');
-    expect(styleLabel('style-melissa-img-8249', 'en')).toBe('style 8249');
+    expect(styleLabel('style-melissa-img-8249', 'en')).toBe('"Mint French"');
+  });
+  it('narrates update_ad_campaign changes instead of dumping the payload JSON', () => {
+    // The real tools.py payload shape — this used to hit the default compactJson branch and render
+    // `{"changes":{"version":8,...` on the 执行动作 card.
+    const s = describeAction('update_ad_campaign', {
+      campaignId: 'ad-style-melissa-img-8249',
+      styleId: 'style-melissa-img-8249',
+      changes: { version: 8, audience: 'try_on_no_booking', duration_days: 5, daily_budget_cents: 1000 },
+    }, 'zh-CN');
+    expect(s).not.toContain('{');
+    expect(s).toContain('第 8 版');
+    expect(s).toContain('试戴未预约');
+    expect(s).toContain('投放 5 天');
+  });
+  it('narrates pause/feature/deprioritize/draft-message actions as sentences', () => {
+    expect(describeAction('pause_ad_campaign', { campaignId: 'ad-x', styleId: 'style-melissa-img-8249' }, 'zh-CN')).not.toContain('{');
+    expect(describeAction('feature_style', { styleId: 'style-melissa-img-8249', reason: '转化最高' }, 'zh-CN')).toContain('推荐曝光');
+    expect(describeAction('deprioritize_style', { styleId: 'style-melissa-img-8249', reason: '低需求' }, 'zh-CN')).toContain('保留在库');
+    expect(describeAction('draft_customer_message', { customerName: 'Amy', body: '好久不见' }, 'zh-CN')).toContain('待你亲自发送');
   });
 });
 
 describe('style titles (merchants see names, not machine ids)', () => {
   const titles = { 'style-melissa-img-8284': 'Melissa Design 8284' };
 
-  it('styleLabel uses the real title when the map has it', () => {
-    expect(styleLabel('style-melissa-img-8284', 'zh-CN', titles)).toBe('「Melissa Design 8284」');
+  it('styleLabel prefers a meaningful title and hides generic Melissa Design titles', () => {
+    expect(styleLabel('style-melissa-img-8284', 'zh-CN', titles)).toBe('「鎏金奢华」');
+    expect(styleLabel('style-melissa-img-8284', 'zh-CN', { 'style-melissa-img-8284': '金色猫眼样片' })).toBe('「金色猫眼样片」');
     expect(styleLabel('style-melissa-img-9999', 'zh-CN', titles)).toBe('款式 9999'); // fallback survives
   });
 
   it('threads titles through tool-call and action sentences', () => {
     const d = describeToolCall('set_group_buy_coupon', { styleId: 'style-melissa-img-8284', priceCents: 7040 }, {}, 'zh-CN', titles);
-    expect(d.summary).toContain('「Melissa Design 8284」');
+    expect(d.summary).toContain('「鎏金奢华」');
     expect(describeAction('delist_style', { styleId: 'style-melissa-img-8284' }, 'zh-CN', titles))
-      .toBe('下架「Melissa Design 8284」');
+      .toBe('下架「鎏金奢华」');
   });
 });
 
