@@ -8,8 +8,11 @@ import pytest
 from nailed_agents import bus, config, runner, tools
 
 
-def _msg(content, tool_calls=None):
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=tool_calls))])
+def _msg(content, tool_calls=None, usage=None):
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=tool_calls))],
+        usage=usage or SimpleNamespace(prompt_tokens=100, completion_tokens=20, cost=0.0005),
+    )
 
 
 def _tool_call(call_id, name, arguments):
@@ -42,6 +45,9 @@ def test_openrouter_loop_executes_tool_then_returns_final_text(monkeypatch):
     final = runner.run_agent(system="sys", tool_names=["place_ad"], task="go", ctx=ctx)
 
     assert final == "Placed the ad."
+    # usage accounting: 2 API calls' tokens + measured cost accumulated onto the context
+    assert ctx.usage["api_calls"] == 2 and ctx.usage["prompt_tokens"] == 200
+    assert abs(ctx.usage["cost_usd"] - 0.001) < 1e-9 and ctx.usage["seconds"] >= 0
     # the real place_ad body ran → one captured action write
     assert len(writes) == 1 and writes[0]["action_type"] == "place_ad"
     assert writes[0]["payload"]["styleId"] == "s-1" and writes[0]["payload"]["totalBudgetCents"] == 16000

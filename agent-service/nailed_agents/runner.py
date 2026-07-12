@@ -12,6 +12,7 @@ orchestrator, skills, tools, and panel are provider-agnostic — only the model 
 from __future__ import annotations
 
 import json
+import time
 
 from . import config, tools
 
@@ -80,13 +81,26 @@ def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.Ru
         {"role": "user", "content": task},
     ]
     extra = {"reasoning_effort": config.GEMINI_REASONING_EFFORT} if config.MODEL_PROVIDER == "gemini" else {}
+    if config.MODEL_PROVIDER == "openrouter":
+        extra["extra_body"] = {"usage": {"include": True}}  # OpenRouter returns measured cost per call
     final_text = ""
     retried_empty = False
+    # usage/latency accounting (model-selection eval reads this; ~free to keep on for live runs)
+    started = time.monotonic()
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "api_calls": 0, "cost_usd": 0.0}
     for _ in range(max_iters):
         resp = client.chat.completions.create(
             model=model or config.AGENT_MODEL, max_tokens=max_tokens, messages=messages, tools=schemas,
             temperature=config.AGENT_TEMPERATURE, **extra,
         )
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+            usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+            usage["cost_usd"] += float(getattr(u, "cost", 0) or 0)
+        usage["api_calls"] += 1
+        usage["seconds"] = round(time.monotonic() - started, 2)
+        ctx.usage = usage
         msg = resp.choices[0].message
         if msg.content and msg.content.strip():
             ctx.transcript.append({"kind": "reasoning", "text": msg.content})

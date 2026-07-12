@@ -68,6 +68,9 @@ class RunContext:
     # (an empty list is "决策 filed nothing", not "no law"). None = context outside the contract
     # (decision itself, monitor revision re-runs, tests) where brief law doesn't apply.
     briefs: list[dict[str, Any]] | None = None
+    # token/latency/cost accounting for THIS run, written by the runner loop (model-selection eval
+    # reads it; persists in finish_run output for live spend audit)
+    usage: dict[str, Any] = field(default_factory=dict)
     # every tool invocation ATTEMPTED (name + args + ok/error), recorded by the runner around execution
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).

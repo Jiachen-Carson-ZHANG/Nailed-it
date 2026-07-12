@@ -552,7 +552,8 @@ def _run_once(scn: Scenario) -> dict:
     return {"tool_ok": tool_ok, "tool_bad": tool_bad, "exp_ok": exp_ok, "forbid_ok": forbid_ok,
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "sig": _signature(scn, ctx, captured), "final": final,
-            "captured": captured, "tool_attempts": list(ctx.tool_attempts)}
+            "captured": captured, "tool_attempts": list(ctx.tool_attempts),
+            "usage": dict(ctx.usage)}
 
 
 def evaluate(scn: Scenario, n: int) -> dict:
@@ -573,6 +574,15 @@ def evaluate(scn: Scenario, n: int) -> dict:
         # this, a regression seed could store a clean run's transcript while run 3/4 was the failing one.
         "rep": _pick_rep(runs), "rep_index": next((i for i, rr in enumerate(runs) if not _run_passed(rr)), 0),
         "run_signatures": [str(s) for s in sigs],
+        # model-selection metrics: per-run pass/fail (flake-rate numerator) + usage/latency/cost
+        "runs_passed": [_run_passed(r) for r in runs],
+        "tool_error_count": sum(1 for r in runs for a in r["tool_attempts"] if a.get("status") != "ok"),
+        "usage": {
+            "prompt_tokens": sum(r["usage"].get("prompt_tokens", 0) for r in runs),
+            "completion_tokens": sum(r["usage"].get("completion_tokens", 0) for r in runs),
+            "cost_usd": round(sum(r["usage"].get("cost_usd", 0.0) for r in runs), 6),
+            "seconds_per_run": [r["usage"].get("seconds", 0.0) for r in runs],
+        },
     }
 
 
@@ -673,22 +683,26 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=4, help="runs per scenario for stability (4/4)")
     ap.add_argument("--judge", action="store_true", help="Phase C: LLM-judge open-ended quality (non-blocking)")
-    ap.add_argument("--only", default="", help="run only scenarios whose id contains this substring")
+    ap.add_argument("--only", default="", help="run only scenarios whose id contains any of these comma-separated substrings")
+    ap.add_argument("--json-report", default="", help="write a machine-readable per-scenario report (model screen reads it)")
     args = ap.parse_args()
     n, judge = args.n, args.judge
     _key = config.GEMINI_API_KEY if config.MODEL_PROVIDER == "gemini" else config.OPENROUTER_API_KEY
     if not _key:  # bus is stubbed → no Supabase needed, just the model key
         raise SystemExit(f"Missing model API key in .env.local for MODEL_PROVIDER={config.MODEL_PROVIDER}.")
-    scenarios = [s for s in SCENARIOS if args.only in s.id]
+    only_tokens = [t for t in args.only.split(",") if t]
+    scenarios = [s for s in SCENARIOS if not only_tokens or any(t in s.id for t in only_tokens)]
     print(f"Agent eval (Phase A+B{'+C' if judge else ''}) — provider={config.MODEL_PROVIDER} "
           f"model={config.AGENT_MODEL} n={n} scenarios={len(scenarios)}"
           f"{' judges=' + ','.join(_JUDGE_MODELS) if judge else ''}\n" + "=" * 80)
     all_pass = True
+    report: list[dict] = []
     for scn in scenarios:
         try:
             r = evaluate(scn, n)
         except Exception as ex:
-            print(f"\n✗ {scn.id}  ERROR: {type(ex).__name__}: {ex}"); all_pass = False; continue
+            print(f"\n✗ {scn.id}  ERROR: {type(ex).__name__}: {ex}"); all_pass = False
+            report.append({"id": scn.id, "error": f"{type(ex).__name__}: {ex}"}); continue
         # blocking gates: tool-correctness, expectation (all n), negative assertion, grounding, stability
         gates = {
             "tool-call correctness": r["tool_ok"],
@@ -723,8 +737,26 @@ def main() -> int:
         gate_fail = [name for name, passed in gates.items() if not passed]
         if gate_fail or (jr and jr["flagged"]):
             _log_regression(scn, gate_fail, r, jr)
+        report.append({
+            "id": scn.id, "n": n, "gates": {k: bool(v) for k, v in gates.items()}, "all_gates": ok,
+            "runs_passed": r["runs_passed"], "tool_error_count": r["tool_error_count"],
+            "usage": r["usage"], "run_signatures": r["run_signatures"],
+            "tool_bad": r["tool_bad"], "ungrounded": r["ungrounded"],
+        })
     print("\n" + "=" * 80)
     print("RESULT:", "ALL BLOCKING GATES PASS" if all_pass else "FAILURES (blocking)")
+    if args.json_report:
+        payload = {
+            "provider": config.MODEL_PROVIDER, "n": n,
+            "models": {"agent": config.AGENT_MODEL, "orchestrator": config.ORCHESTRATOR_MODEL,
+                       "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
+                       "reviewer": config.REVIEWER_MODEL, "coupon": config.COUPON_MODEL,
+                       "monitor": config.MONITOR_MODEL},
+            "all_pass": all_pass, "scenarios": report,
+        }
+        Path(args.json_report).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.json_report).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"report → {args.json_report}")
     if judge:
         print(f"(quality MOS judged by {len(_JUDGE_MODELS)} models — non-blocking; low/disagreeing flagged for human review)")
     return 0 if all_pass else 1
