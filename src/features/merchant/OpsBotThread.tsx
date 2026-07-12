@@ -141,7 +141,9 @@ export function OpsBotThread() {
     Promise.allSettled([
       getInsightsDailySeriesAction(14),
       getMerchantTodayHomeAction(),
-      listTeamMemoryAction(),
+      // Measured kinds only, filtered server-side — a burst of round_verdict rows must not crowd the
+      // newest outcomes out of the window (they did, live, during a parallel eval run).
+      listTeamMemoryAction(2, ['action_outcome', 'calibration']),
       listAgentRunsAction(),
     ])
       .then(([s, h, m, r]) => {
@@ -165,8 +167,8 @@ export function OpsBotThread() {
   const roundFailed = roundRuns.filter((r) => r.status === 'failed').length;
   const recentActions = (home?.recent ?? []).slice(0, 3);
   const pending = home?.pending ?? [];
-  // Measured conclusions only — the monitor's evidence layer (outcomes + calibration), not preferences.
-  const measured = memory.filter((m) => m.kind === 'action_outcome' || m.kind === 'calibration').slice(0, 2);
+  // Already server-filtered to measured kinds (outcomes + calibration) — the monitor's evidence layer.
+  const measured = memory;
 
   return (
     <div className="opsbot-thread" aria-label={copy.threadAria}>

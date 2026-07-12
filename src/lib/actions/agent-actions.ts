@@ -20,20 +20,27 @@ export type TeamMemoryView = {
   comparison: { ratio?: number; direction?: string } | null;
   createdAt: string;
   expiresAt: string | null;
+  agentSlug: string | null; // 来源 agent (monitor writes them; merchant_ui for preferences)
+  sourceActionId: string | null; // the action row this conclusion is anchored to (evidence)
+  entityId: string | null; // the campaign/deal the conclusion is about
 };
 
 /** The team's live memory (non-expired, newest first) — powers the 团队记忆 card on /merchant/agents.
  *  Written ONLY by the monitor from measured outcomes (plus explicit merchant preferences); reading it
  *  here is what makes "the team learns" inspectable instead of claimed. Memory-mode: empty (no table). */
-export async function listTeamMemoryAction(): Promise<TeamMemoryView[]> {
+export async function listTeamMemoryAction(limit = 12, kinds?: string[]): Promise<TeamMemoryView[]> {
   if (!usesSupabaseBackend()) return [];
-  const { data, error } = await getServiceClient()
+  let q = getServiceClient()
     .from('agent_memory')
-    .select('id, kind, claim, content, confidence, scope_id, comparison, created_at, expires_at')
+    .select('id, kind, claim, content, confidence, scope_id, comparison, created_at, expires_at, agent_slug, source_action_id, entity_id')
     .eq('merchant_id', demoMerchantId)
-    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+  // 晨报 asks for measured kinds only — filtering server-side keeps the newest OUTCOMES visible even
+  // when a burst of round_verdict rows would otherwise crowd them out of the newest-N window.
+  if (kinds && kinds.length > 0) q = q.in('kind', kinds);
+  const { data, error } = await q
     .order('created_at', { ascending: false })
-    .limit(12);
+    .limit(limit);
   if (error) return []; // pre-0030/0032 DB — the card simply doesn't render
   return (data ?? []).map((r) => ({
     id: r.id as string,
@@ -44,12 +51,89 @@ export async function listTeamMemoryAction(): Promise<TeamMemoryView[]> {
     comparison: (r.comparison as { ratio?: number; direction?: string } | null) ?? null,
     createdAt: String(r.created_at),
     expiresAt: (r.expires_at as string | null) ?? null,
+    agentSlug: (r.agent_slug as string | null) ?? null,
+    sourceActionId: (r.source_action_id as string | null) ?? null,
+    entityId: (r.entity_id as string | null) ?? null,
   })).filter((m) => m.claim);
 }
 
 /** The agent team definitions for the panel. */
 export async function listAgentsAction(): Promise<Agent[]> {
   return getRepositories().agents.listAgents();
+}
+
+/** One brief's contribution to the week's objective, plus what it has actually delivered so far. */
+export type WeeklyObjectiveItem = {
+  actionType: string; // ad | coupon
+  styleId: string;
+  styleTitle: string;
+  targetMin: number;
+  targetMax: number;
+  measuredBookings: number; // from the real campaign/deal row
+  status: string; // draft | active | paused | ended | pending — the entity's live state
+};
+
+/** The week's objective as a DERIVED view (never stored — it can't diverge from the entities it sums).
+ *  Goal = Σ the latest round's action briefs (target booking ranges); progress = Σ measured bookings on
+ *  the real style_ad_campaign rows for those briefed styles. Returns null in memory-mode / pre-migration
+ *  / when no round has filed briefs yet — the card then shows the "no plan yet" state. */
+export async function getWeeklyObjectiveAction(): Promise<{
+  targetMin: number;
+  targetMax: number;
+  measuredBookings: number;
+  items: WeeklyObjectiveItem[];
+} | null> {
+  if (!usesSupabaseBackend()) return null;
+  const db = getServiceClient();
+  const round = await db
+    .from('agent_rounds')
+    .select('blackboard, started_at')
+    .eq('merchant_id', demoMerchantId)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (round.error) return null;
+  const briefs = ((round.data?.blackboard as { briefs?: unknown[] } | null)?.briefs ?? []) as Array<{
+    action_type?: string;
+    style_id?: string;
+    target_bookings_min?: number | null;
+    target_bookings_max?: number | null;
+  }>;
+  if (briefs.length === 0) return null;
+
+  const titles = await getStyleTitleMapAction();
+  const camps = await db
+    .from('style_ad_campaign')
+    .select('merchant_style_id, bookings, status')
+    .eq('merchant_id', demoMerchantId);
+  const bookingsByStyle = new Map<string, { bookings: number; status: string }>();
+  for (const c of camps.data ?? []) {
+    bookingsByStyle.set(String(c.merchant_style_id), {
+      bookings: Number(c.bookings ?? 0),
+      status: String(c.status ?? 'draft'),
+    });
+  }
+
+  const items: WeeklyObjectiveItem[] = briefs.map((b) => {
+    const styleId = String(b.style_id ?? '');
+    const camp = bookingsByStyle.get(styleId);
+    return {
+      actionType: String(b.action_type ?? ''),
+      styleId,
+      styleTitle: titles[styleId] ?? styleId,
+      targetMin: Number(b.target_bookings_min ?? 0),
+      targetMax: Number(b.target_bookings_max ?? 0),
+      measuredBookings: camp?.bookings ?? 0,
+      status: camp?.status ?? 'pending', // coupon deals + un-placed briefs have no campaign row yet
+    };
+  });
+
+  return {
+    targetMin: items.reduce((s, i) => s + i.targetMin, 0),
+    targetMax: items.reduce((s, i) => s + i.targetMax, 0),
+    measuredBookings: items.reduce((s, i) => s + i.measuredBookings, 0),
+    items,
+  };
 }
 
 /** styleId → title for the demo merchant. Transcript/action surfaces render real style names

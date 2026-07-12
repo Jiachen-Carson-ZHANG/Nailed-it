@@ -32,10 +32,11 @@ vi.mock('@/lib/actions/merchant-home-actions', () => ({
 }));
 
 vi.mock('@/lib/actions/agent-actions', () => ({
-  listTeamMemoryAction: vi.fn(async () => [
-    { id: 'm-1', kind: 'action_outcome', claim: '广告款式 8249 实测获客单价 1667 分，略低于预测 1800 分。', confidence: 'high', scopeId: null, comparison: { ratio: 0.93 }, createdAt: '2026-07-12T12:00:00Z', expiresAt: null },
-    { id: 'm-2', kind: 'merchant_preference', claim: '团购底线：不低于成本价。', confidence: null, scopeId: null, comparison: null, createdAt: '2026-07-11T12:00:00Z', expiresAt: null },
-  ]),
+  // The thread requests measured kinds server-side — the mock is the already-filtered response.
+  listTeamMemoryAction: vi.fn(async (_limit?: number, kinds?: string[]) =>
+    kinds?.includes('action_outcome')
+      ? [{ id: 'm-1', kind: 'action_outcome', claim: '广告款式 8249 实测获客单价 1667 分，略低于预测 1800 分。', confidence: 'high', scopeId: null, comparison: { ratio: 0.93 }, createdAt: '2026-07-12T12:00:00Z', expiresAt: null }]
+      : [{ id: 'm-2', kind: 'merchant_preference', claim: '团购底线：不低于成本价。', confidence: null, scopeId: null, comparison: null, createdAt: '2026-07-11T12:00:00Z', expiresAt: null }]),
   listAgentRunsAction: vi.fn(async () => [
     { id: 'run-7', agentSlug: 'ad', agentName: '投广 Agent', agentRole: 'operator', merchantId: 'm', triggerSource: 'event', parentRunId: null, status: 'completed', input: {}, output: {}, transcript: [], startedAt: '2026-07-12T09:00:00Z', actions: [{}, {}] },
     { id: 'run-8', agentSlug: 'monitor', agentName: 'Monitor Agent', agentRole: 'reviewer', merchantId: 'm', triggerSource: 'event', parentRunId: null, status: 'completed', input: {}, output: {}, transcript: [], startedAt: '2026-07-12T08:45:00Z', actions: [] },
@@ -70,11 +71,13 @@ describe('OpsBotThread team debrief', () => {
     expect(screen.getByRole('link', { name: '查看推理 →' })).toHaveAttribute('href', '/merchant/agents/runs/run-7');
   });
 
-  it('surfaces measured outcomes (not preferences) with the deviation badge', async () => {
+  it('requests measured kinds server-side and shows the deviation badge', async () => {
     renderThread();
     expect(await screen.findByText(/实测获客单价 1667/)).toBeInTheDocument();
     expect(screen.getByText('预测偏差 ×0.93')).toBeInTheDocument();
-    expect(screen.queryByText(/团购底线/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/团购底线/)).not.toBeInTheDocument(); // preferences never requested
+    const { listTeamMemoryAction } = await import('@/lib/actions/agent-actions');
+    expect(vi.mocked(listTeamMemoryAction)).toHaveBeenCalledWith(2, ['action_outcome', 'calibration']);
   });
 
   it('pins the approval gate and links to the 今日 home', async () => {
