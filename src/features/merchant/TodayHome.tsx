@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { approveAgentActionAction, rejectAgentActionAction } from '@/lib/actions/agent-actions';
 import { getMerchantTodayHomeAction } from '@/lib/actions/merchant-home-actions';
-import type { HomeActionView, TodayHomeData } from '@/domain/merchant-home';
+import type { HomeActionView, TechnicianLabel, TodayHomeData } from '@/domain/merchant-home';
 import { useLanguage } from '@/i18n/context';
 import { AgentRunSheet } from './AgentRunSheet';
 import styles from './TodayHome.module.css';
@@ -35,6 +35,11 @@ const copy = {
     loading: '加载中…', calm: '今日无新动作', calmBody: 'AI 团队在后台监测中，需要你决定的会钉在这里。',
     errActions: '最近动作加载失败 · 重试', errStats: '数据暂不可用',
     more: (n: number) => `还有 ${n} 条待确认`, less: '收起',
+    techs: '美甲师管理', fullCal: '完整日历 →', errTechs: '排班加载失败 · 重试',
+    noTechs: '今日无排班', busy: '忙碌', free: '空闲', off: '下班',
+    techLoad: (n: number) => `今日 ${n} 单`,
+    tServing: (s: string) => `接待中 · ${s}`, tNext: (time: string, s: string) => `下一场 ${time} · ${s}`,
+    tDone: '今日已完成', tIdle: '当前空闲，可插单', tOff: '今日未排班',
   },
   en: {
     title: 'Today',
@@ -46,6 +51,11 @@ const copy = {
     loading: 'Loading…', calm: 'Nothing new today', calmBody: 'The AI team is monitoring; anything needing your call will be pinned here.',
     errActions: 'Failed to load actions · retry', errStats: 'Data unavailable',
     more: (n: number) => `${n} more to confirm`, less: 'Collapse',
+    techs: 'Nail tech management', fullCal: 'Full calendar →', errTechs: 'Failed to load schedule · retry',
+    noTechs: 'No shifts today', busy: 'Busy', free: 'Open', off: 'Off',
+    techLoad: (n: number) => `${n} today`,
+    tServing: (s: string) => `With a client · ${s}`, tNext: (time: string, s: string) => `Next ${time} · ${s}`,
+    tDone: 'Done for today', tIdle: 'Free now', tOff: 'Not scheduled today',
   },
 } as const;
 
@@ -78,10 +88,27 @@ function hhmm(iso: string, locale: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+const techStateClass: Record<string, string> = {
+  busy: styles.tstateBusy,
+  free: styles.tstateFree,
+  off: styles.tstateOff,
+};
+
 export function TodayHome() {
   const { language } = useLanguage();
   const t = copy[language];
   const locale = language === 'zh-CN' ? 'zh-CN' : 'en';
+
+  // Format the technician's structured status per-language (the domain stays i18n-free).
+  const techLabelText = (label: TechnicianLabel): string => {
+    switch (label.kind) {
+      case 'serving': return t.tServing(label.styleTitle);
+      case 'next': return t.tNext(label.time, label.styleTitle);
+      case 'done': return t.tDone;
+      case 'idle': return t.tIdle;
+      case 'off': return t.tOff;
+    }
+  };
   const [data, setData] = useState<TodayHomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAllPending, setShowAllPending] = useState(false);
@@ -130,6 +157,7 @@ export function TodayHome() {
   const err = (key: string) => data?.errors.includes(key) ?? false;
   const pending = data?.pending ?? [];
   const recent = data?.recent ?? [];
+  const technicians = data?.technicians ?? [];
 
   return (
     <div className={styles.home}>
@@ -173,15 +201,20 @@ export function TodayHome() {
             <span className={styles.pinAgent}>{pending[0].agentLabel}</span>
             <span className={styles.pinState}>⚠ {t.pending}</span>
           </div>
-          <div className={styles.pinTitle}>{pending[0].title}</div>
-          <div className={styles.ctl}>
-            {pending[0].controls.includes('approve') && (
-              <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => act(pending[0], 'approve')}>{t.approve}</button>
-            )}
-            {pending[0].controls.includes('reject') && (
-              <button type="button" className={styles.btn} onClick={() => act(pending[0], 'reject')}>{t.reject}</button>
-            )}
-            <button type="button" className={`${styles.btn} ${styles.btnFixed}`} onClick={() => setSheetRunId(pending[0].runId)}>{t.view}</button>
+          {/* Content first: title reads full-width; the gates sit small on the right (商家建议-row style). */}
+          <div className={styles.pinBody}>
+            <div className={styles.pinTitle}>{pending[0].title}</div>
+            <div className={styles.gateRow}>
+              {pending[0].controls.includes('approve') && (
+                <button type="button" className={`${styles.gateSm} ${styles.gateSmPrimary}`} onClick={() => act(pending[0], 'approve')}>{t.approve}</button>
+              )}
+              {pending[0].controls.includes('reject') && (
+                <button type="button" className={styles.gateSm} onClick={() => act(pending[0], 'reject')}>{t.reject}</button>
+              )}
+            </div>
+          </div>
+          <div className={styles.pinFoot}>
+            <button type="button" className={styles.gateSm} onClick={() => setSheetRunId(pending[0].runId)}>{t.view}</button>
             {pending.length > 1 ? (
               <button type="button" className={styles.moreBtn} aria-expanded={showAllPending} onClick={() => setShowAllPending((v) => !v)}>
                 {showAllPending ? `${t.less} ▴` : `${t.more(pending.length - 1)} ▾`}
@@ -200,10 +233,10 @@ export function TodayHome() {
                 <span className={styles.miniPinTitle}>{a.title}</span>
               </button>
               {a.controls.includes('approve') && (
-                <button type="button" className={`${styles.btn} ${styles.btnMini} ${styles.btnPrimary}`} onClick={() => act(a, 'approve')}>{t.approve}</button>
+                <button type="button" className={`${styles.gateSm} ${styles.gateSmPrimary}`} onClick={() => act(a, 'approve')}>{t.approve}</button>
               )}
               {a.controls.includes('reject') && (
-                <button type="button" className={`${styles.btn} ${styles.btnMini}`} onClick={() => act(a, 'reject')}>{t.reject}</button>
+                <button type="button" className={styles.gateSm} onClick={() => act(a, 'reject')}>{t.reject}</button>
               )}
             </div>
           ))}
@@ -237,6 +270,33 @@ export function TodayHome() {
                 <span className={styles.cardGo}>{t.reason}</span>
               </div>
             </button>
+          ))}
+        </div>
+      )}
+
+      {/* 3 · 今日 · 技师 roll — the single calendar entry */}
+      <div className={styles.laneH}>
+        <h2>{t.techs}</h2>
+        <Link className={styles.more} href={FULL_CALENDAR_PATH}>{t.fullCal}</Link>
+      </div>
+      {loading && !data ? (
+        <div className={styles.calm}>{t.loading}</div>
+      ) : err('technicians') ? (
+        <div className={styles.calm}><b>{t.errTechs}</b></div>
+      ) : technicians.length === 0 ? (
+        <div className={styles.calm}>{t.noTechs}</div>
+      ) : (
+        <div className={styles.techRoll} role="group" aria-label={t.techs}>
+          {technicians.map((tech) => (
+            <Link key={tech.id} href={FULL_CALENDAR_PATH} className={`${styles.tcard} ${tech.state === 'off' ? styles.tcardOff : ''}`} aria-label={`${tech.name} · ${t[tech.state]} · ${techLabelText(tech.label)}`}>
+              <div className={styles.trow}>
+                <span className={styles.tav} aria-hidden>{tech.initials}</span>
+                <span className={styles.tnm}>{tech.name}</span>
+                <span className={`${styles.tstate} ${techStateClass[tech.state]}`}>{t[tech.state]}</span>
+              </div>
+              <div className={styles.tnext}>{techLabelText(tech.label)}</div>
+              {tech.load > 0 ? <div className={styles.tload}>{t.techLoad(tech.load)}</div> : null}
+            </Link>
           ))}
         </div>
       )}

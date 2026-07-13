@@ -913,18 +913,20 @@ select {
 }
 
 .sheet-backdrop {
-  position: fixed;
+  /* Scoped to the .mobile-shell phone frame (nearest positioned ancestor), NOT the viewport: on desktop
+   * the shell is a centered simulated device (--desktop-shell-width) and the sheet must live inside it.
+   * The static .mobile-content scroller doesn't clip abs-positioned children whose containing block is
+   * the shell, and the shell's own overflow:hidden crops the sheet to the frame exactly. */
+  position: absolute;
   inset: 0;
   z-index: 40;
   display: grid;
   align-items: end;
-  /* Phone-width sheet everywhere: the app is a phone product, so on desktop the sheet stays a centered
-   * phone column instead of stretching laptop-wide (matches the page shell max width). */
   justify-items: center;
   background: var(--color-overlay);
 }
 
-.bottom-sheet { width: min(100%, var(--shell-max-width)); }
+.bottom-sheet { width: 100%; }
 
 .bottom-sheet {
   overflow: hidden;
