@@ -5097,6 +5097,21 @@ select {
 .agent-memory-anchor { margin: 2px 0 0; font-size: 10px; color: var(--color-muted); }
 .agent-memory-anchor code { font-size: 10px; word-break: break-all; }
 
+/* Run audit grouped by round — a round is one dispatch tree, so the audit reads round-by-round. */
+.agent-rounds { display: flex; flex-direction: column; gap: var(--space-3); }
+.agent-round-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border); }
+.agent-round-title { display: flex; align-items: center; gap: var(--space-2); }
+.agent-round-n { font-weight: 800; color: var(--color-text); font-size: var(--text-md); }
+.agent-round-meta { font-size: var(--text-xs); color: var(--color-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.agent-run-row--compact { padding: var(--space-2) var(--space-3); }
+/* Role dot: analyst=blue, planner=amber, operator=green, reviewer=violet, lead=accent — scan a round's shape at a glance. */
+.agent-run-roledot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--color-border); }
+.agent-run-roledot-lead { background: var(--color-accent-strong); }
+.agent-run-roledot-analyst { background: #2f6df0; }
+.agent-run-roledot-planner { background: var(--color-warning); }
+.agent-run-roledot-operator { background: var(--color-success); }
+.agent-run-roledot-reviewer { background: #7a4ed6; }
+
 /* Thinking chain (shared TranscriptChain renderer). Multica-inspired tone mapping: thinking=violet,
  * tool=blue, action=emerald. One human sentence per step; raw payloads live in the <details> expander. */
 .agent-chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
