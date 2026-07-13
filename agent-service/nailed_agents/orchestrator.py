@@ -211,11 +211,25 @@ class RevisionPort:
         return self.dispatch_fn(slug, task, self.monitor_run_id)
 
 
+# The reasoning prose we persist to the transcript IS the model's message content (runner.py), shown to
+# the merchant/judges as 推理. Strong-tier models (gemini-2.5-pro) reason in English by default even under
+# Chinese task instructions, leaking an English "thought …" chain into the UI. Force Simplified Chinese at
+# the one choke point every persona flows through, so all output + reasoning is 简体中文.
+_LANG_DIRECTIVE = (
+    "\n\n## 语言要求（最高优先级）\n"
+    "全程使用简体中文。你的所有输出——包括推理、分析、思考过程和结论——都必须是简体中文，"
+    "不得出现英文句子或英文段落。工具名、字段名、款式 ID 等标识符可保留原文，"
+    "但对它们的解释必须用简体中文。"
+)
+
+
 def _skill(slug: str, fallback: str) -> str:
     """Load the agent's process skill file we own (agent-service/skills/<slug>.md); fall back to the
-    agent row's `instructions` if the file is absent."""
+    agent row's `instructions` if the file is absent. A global Simplified-Chinese directive is appended
+    so every persona (and the reasoning prose we persist) stays 中文 regardless of the underlying model."""
     path = _SKILLS_DIR / f"{slug}.md"
-    return path.read_text(encoding="utf-8") if path.exists() else fallback
+    base = path.read_text(encoding="utf-8") if path.exists() else fallback
+    return base + _LANG_DIRECTIVE
 
 
 # how many hint rows each kind may contribute — measured lesson from the first live round-2: taking
