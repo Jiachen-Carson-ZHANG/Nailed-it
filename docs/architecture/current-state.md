@@ -1,6 +1,52 @@
 # Architecture: Current State
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
+
+## Mission layer & the Multica delta (2026-07-13)
+
+**Mission is a function, not an object.** Every round, before any model speaks, code assembles the
+injected 经营环境 (Operating Context) that answers "why this round · under what constraints · toward
+what focus". It is **mission-as-context, not mission-as-entity**: there is deliberately no Mission
+row, lifecycle, or state machine (a hardcoded `goal` string was removed as structure theater). The
+context is recomputed each round from source state, so it **cannot drift** from the truth — the same
+principle as the derived weekly-objective roll-up.
+
+What the context carries, by owner:
+
+| Field | Owner | Configured or derived |
+|---|---|---|
+| `merchant_weekly_focus` | merchant (`pref-weekly-focus` row) | configured (optional — the steering wheel) |
+| `merchant_policy` (budget, ¥50 auto-limit, protected periods, approval matrix) | merchant settings | configured |
+| `capacity_summary`, `candidate_style_index`, `open_commitments` | real bookings/campaigns | derived, never configured |
+
+The standing objective (提升预约与利润) is the **product premise**, baked into the skill prompts —
+not a configurable field. So a merchant steers with a few settings + one focus row; the system
+assembles the situational rest.
+
+**Triggers are business events, evaluated at runtime** (`nailed_agents/triggers.py`): cadence (weekly
+cron), evidence-matured (an action's observation window filled → eligible to judge), threshold-alarm
+(a live campaign burning budget with zero conversion, or CAC > 2× hypothesis → fire a round now).
+Thresholds are merchant-owned data; the evaluation is code. `check-triggers [--run]` is the watch-cron
+entry point; `advance-clock` reports which triggers the settled numbers tripped.
+
+**The Multica delta** (the pattern we adopted vs the runtime we rejected). Multica is a general,
+multi-tenant, durable AI-teammate platform; this is a domain-specific, single-merchant operations
+runtime. We took its pattern (agents-as-data, an orchestrator dispatching targeted runs, a live
+transcript dashboard, presence) and rejected its infrastructure:
+
+| Multica | Here | Why |
+|---|---|---|
+| Durable task/issue table with its own lifecycle | **The business entity IS the task** — a campaign carries the state machine, versions, hypothesis, observation window, outcome | One ledger, and it's the real object the merchant sees — no second table to sync |
+| Worker queue: claim / lease / heartbeat / stale-recovery | **None** — one process, one round, ~4 min synchronous | Nothing concurrent to claim; durability lives in entity state (draft/active awaiting merchant), not a claiming daemon |
+| Mission as a persistent object grouping tasks | **Mission-as-context**, assembled per round | Can't drift from source state |
+| A daemon polling for work | **Business-event triggers**, cron-invoked | No persistent watcher needed to fire one round |
+| General agents spawning teams freely | **Five bounded channels** (dispatch · blackboard · brief-as-law · revision edge · memory), no agent chatroom; legality in code, judgment in loops | Reproducible, auditable, cost-bounded |
+
+Pattern over framework: at single-merchant demo scale the business entity already **is** the durable
+task, and every async wait (merchant approval, monitor-due) is carried by entity state, not a process.
+The worker-queue machinery earns its place only under three named conditions — work with no natural
+entity, concurrent multi-worker claiming, cross-entity aggregate objectives — none of which exist yet.
+Building it now would be the same premature structure as the deleted `goal` string.
 
 ## Agent runtime v3 (ADR-0014 → 0016, 2026-07-11/12) — supersedes parts of "Recent additions" below
 
