@@ -28,8 +28,6 @@ const merchantProfileCopy = {
     technicianWorkload: '美甲师状态',
     unreadConversations: '未读对话',
     unreadConversationsDetail: '仍在等待你回复的顾客消息。',
-    workspaceCopy: '在此快速了解门店概况，再前往日历或定价设置继续处理。',
-    workspaceEyebrow: '你的工作台',
   },
   en: {
     agentTeam: 'Operations agent team',
@@ -45,8 +43,6 @@ const merchantProfileCopy = {
     technicianWorkload: 'Nail artist status',
     unreadConversations: 'Unread conversations',
     unreadConversationsDetail: 'Conversations waiting for your reply.',
-    workspaceCopy: 'Get a quick overview here, then head to your calendar or pricing settings.',
-    workspaceEyebrow: 'Your workspace',
   },
 } as const;
 
@@ -84,9 +80,7 @@ function MerchantProfileContent() {
       title="Nailed-it"
     >
       <section className="profile-hero">
-        <p className="section-eyebrow">{copy.workspaceEyebrow}</p>
         <h1>{copy.studioProfile}</h1>
-        <p className="section-copy">{copy.workspaceCopy}</p>
       </section>
 
       <section className="analytics-grid" aria-label={copy.analyticsLabel}>

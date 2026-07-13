@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import {
   listAgentsAction,
@@ -22,11 +21,10 @@ import type { Agent, AgentRole, AgentRunView, RunStatus, TriggerSource } from '@
 const agentsCopy = {
   'zh-CN': {
     eyebrow: 'Nailed AI · 运营团队',
+    back: '‹ 返回今日',
     title: '运营 Agent 团队',
     body: 'AI 团队按三条业务线运转：数据收集 → 商业决策 → 动作，动作效果由监测回流。',
     proofTitle: '闭环运行证据',
-    proofBody: '主控调度、多代理执行、风控审批、监测记忆都落在同一条链路里。点击查看。',
-    flowSteps: ['主控调度', '数分 / 选品', '商业决策', '风控', '执行动作', '监测记忆'],
     proofAgents: '已配置 Agent',
     proofRuns: '可审计运行',
     proofMemory: '跨轮记忆',
@@ -43,14 +41,10 @@ const agentsCopy = {
     runsEntry: '运行审计',
     runsEntryBody: '每次运行的思考链与动作',
     demoEntry: '演示控制台',
-    latestTitle: '最新动态',
-    seeAll: '查看全部',
     runRound: '生成本周经营计划',
     runSubline: '支持每周五自动运行（定时任务）',
     runningRound: '运行中…',
     runConfirm: '生成本周经营计划会调用模型并产生少量费用，确认运行？',
-    emptyTitle: '暂无运行记录',
-    emptyBody: '运营团队运行后，这里会显示每次运行的思考链与动作。',
     loading: '正在加载…',
     planned: '规划中',
     plannedBooking: '预约全程跟踪 Bot · 满意度调研 → 技师月报 / 补偿折扣券',
@@ -61,11 +55,10 @@ const agentsCopy = {
   },
   en: {
     eyebrow: 'Nailed AI · Agent team',
+    back: '‹ Back to Today',
     title: 'Operations agent team',
     body: 'Three business lanes: data collection → business decision → action, with monitoring feeding back.',
     proofTitle: 'Closed-loop proof',
-    proofBody: 'Dispatch, agent execution, risk review, and measured memory live in one traceable chain. Tap to explore.',
-    flowSteps: ['Orchestrate', 'Analyze / source', 'Decide', 'Review', 'Act', 'Remember'],
     proofAgents: 'Agents',
     proofRuns: 'Auditable runs',
     proofMemory: 'Memories',
@@ -82,14 +75,10 @@ const agentsCopy = {
     runsEntry: 'Run audit',
     runsEntryBody: 'Every run’s thinking chain and actions',
     demoEntry: 'Demo console',
-    latestTitle: 'Latest activity',
-    seeAll: 'See all',
     runRound: 'Generate this week’s plan',
     runSubline: 'Auto-runs every Friday (scheduled)',
     runningRound: 'Running…',
     runConfirm: 'Generating this week’s plan calls the model (small cost). Proceed?',
-    emptyTitle: 'No runs yet',
-    emptyBody: 'Once the team runs, each run’s thinking chain and actions show here.',
     loading: 'Loading…',
     planned: 'Planned',
     plannedBooking: 'Booking-journey bot · satisfaction survey → tech monthly report / compensation coupon',
@@ -99,8 +88,6 @@ const agentsCopy = {
     actionsN: (n: number) => `${n} action${n === 1 ? '' : 's'}`,
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
-
-const LATEST_PREVIEW = 3;
 
 const TEAM_LANES: ReadonlyArray<{
   key: 'style' | 'customer' | 'booking';
@@ -166,21 +153,16 @@ function AgentProofStrip({
   loading: boolean;
 }) {
   const copy = agentsCopy[language];
-  const steps = copy.flowSteps as string[];
   const placeholder = loading ? '…' : '—';
   const stats: Array<{ label: string; value: number | string; href: string }> = [
     { label: copy.proofAgents as string, value: agents.length || placeholder, href: '#agents-team-title' },
     { label: copy.proofRuns as string, value: runs.length || placeholder, href: '/merchant/agents/runs' },
     { label: copy.proofMemory as string, value: memory.length || placeholder, href: '/merchant/agents/memory' },
   ];
+  // The stats ARE the proof (auditable counts, each a link); the old narrative + flow-chip strip
+  // restated what the 团队成员 lanes already show.
   return (
     <section className="agent-proof" aria-label={copy.proofTitle as string}>
-      <div className="agent-proof-head">
-        <div>
-          <p className="section-eyebrow">{copy.proofTitle}</p>
-          <p className="agent-proof-body">{copy.proofBody}</p>
-        </div>
-      </div>
       <div className="agent-proof-stats">
         {stats.map((s) => (
           <Link key={s.label} className="agent-proof-stat agent-proof-stat--link" href={s.href}>
@@ -189,14 +171,6 @@ function AgentProofStrip({
           </Link>
         ))}
       </div>
-      <ol className="agent-flow-strip agent-flow-strip--scroll">
-        {steps.map((step, index) => (
-          <li key={step} className="agent-flow-step">
-            <span>{step}</span>
-            {index < steps.length - 1 ? <b aria-hidden="true">→</b> : null}
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }
@@ -300,6 +274,7 @@ export default function MerchantAgentsPage() {
 
   return (
     <MobileLayout role="merchant" title="Nailed-it">
+      <Link className="merchant-review-back" href="/merchant/calendar">{copy.back as string}</Link>
       <section className="profile-hero">
         <p className="section-eyebrow">{copy.eyebrow as string}</p>
         <h1>{copy.title as string}</h1>
@@ -405,40 +380,6 @@ export default function MerchantAgentsPage() {
               <span className="agent-entry-arrow" aria-hidden="true">→</span>
             </Link>
           </nav>
-
-          <section className="detail-surface" aria-labelledby="agents-latest-title">
-            <div className="detail-surface-header">
-              <h2 id="agents-latest-title">{copy.latestTitle as string}</h2>
-              <Link className="agent-seeall-link" href="/merchant/agents/runs">{copy.seeAll as string} →</Link>
-            </div>
-            {runs.length === 0 ? (
-              <EmptyState title={copy.emptyTitle as string} body={copy.emptyBody as string} />
-            ) : (
-              <ul className="agent-run-list">
-                {runs.slice(0, LATEST_PREVIEW).map((run) => (
-                  <li key={run.id}>
-                    <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
-                      <div className="agent-run-main">
-                        <span className="agent-run-name">{run.agentName}</span>
-                        <span className={`agent-run-status agent-run-status-${run.status}`}>{copy.status[run.status]}</span>
-                      </div>
-                      <div className="agent-run-meta">
-                        <span>{copy.trigger[run.triggerSource]}</span>
-                        <span>·</span>
-                        <span>{fmtTime(run.startedAt, language)}</span>
-                        {run.actions.length > 0 ? (
-                          <>
-                            <span>·</span>
-                            <span className="agent-run-actions-count">{copy.actionsN(run.actions.length)}</span>
-                          </>
-                        ) : null}
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
 
           <Link className="agent-demo-link" href="/merchant/agents/demo">{copy.demoEntry as string} →</Link>
         </>

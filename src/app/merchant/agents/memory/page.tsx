@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { listTeamMemoryAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
+import { getStyleTitleMapAction, listTeamMemoryAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
+import { humanizeReasoning, type StyleTitleMap } from '@/domain/agent-transcript';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 
@@ -56,11 +57,13 @@ export default function MerchantAgentMemoryPage() {
   const { language } = useLanguage();
   const c = copy[language];
   const [memory, setMemory] = useState<TeamMemoryView[]>([]);
+  const [titles, setTitles] = useState<StyleTitleMap>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     let active = true;
+    void getStyleTitleMapAction().then((t) => active && setTitles(t)).catch(() => {});
     listTeamMemoryAction(50)
       .then((m) => active && setMemory(m))
       .catch(() => {/* leave empty */})
@@ -121,7 +124,7 @@ export default function MerchantAgentMemoryPage() {
                     <span className={`agent-memory-conf agent-memory-conf-${m.confidence}`}>{c.confidence[m.confidence] ?? m.confidence}</span>
                   ) : null}
                 </div>
-                <p className="agent-memory-claim">{m.claim}</p>
+                <p className="agent-memory-claim">{humanizeReasoning(m.claim, language, titles)}</p>
                 <div className="agent-memory-meta">
                   {m.agentSlug ? <span>{c.fromAgent}: {m.agentSlug}</span> : null}
                   {m.comparison?.ratio ? <span>· {c.deviation(m.comparison.ratio)}</span> : null}
