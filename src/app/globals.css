@@ -3542,6 +3542,21 @@ select {
   letter-spacing: 0.04em;
 }
 
+/* Placeholder while the merchant price sheet loads — prevents the catalog-list-price flash. */
+.analyze-summary-skeleton {
+  display: inline-block;
+  width: 5.5em;
+  height: 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  animation: analyze-summary-skeleton-pulse 1.2s ease-in-out infinite;
+}
+@keyframes analyze-summary-skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.analyze-row-skeleton { width: 4em; height: 0.9rem; }
+
 .analyze-summary-value {
   font-size: 1.25rem;
   font-weight: 700;
