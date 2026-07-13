@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { getAgentRunDetailAction, getStyleTitleMapAction } from '@/lib/actions/agent-actions';
+import {
+  approveAgentActionAction,
+  getAgentRunDetailAction,
+  getStyleTitleMapAction,
+  rejectAgentActionAction,
+} from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import { formatCurrency } from '@/i18n/format';
@@ -21,14 +26,14 @@ const copy = {
   'zh-CN': {
     title: '智能体推理', loading: '正在加载推理链路…', notFound: '未找到该运行记录',
     why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
-    actions: '动作设置',
+    actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
     actionStatus: { proposed: '待你确认', applied: '已执行', approved: '已批准', undone: '已撤销' } as Record<ActionStatus, string>,
     status: { running: '运行中', completed: '已完成', failed: '失败', awaiting_approval: '待批准' } as Record<RunStatus, string>,
   },
   en: {
     title: 'Agent reasoning', loading: 'Loading the reasoning chain…', notFound: 'Run not found',
     why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', audits: 'Auditing', full: 'Full record →',
-    actions: 'Action settings',
+    actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
     actionStatus: { proposed: 'Awaiting you', applied: 'Applied', approved: 'Approved', undone: 'Undone' } as Record<ActionStatus, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Awaiting approval' } as Record<RunStatus, string>,
   },
@@ -86,26 +91,65 @@ function headline(output: unknown, fallback: string): string {
   return s.length > 140 ? `${s.slice(0, 139)}…` : s;
 }
 
-export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: string | null; onClose: () => void }) {
+export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
+  open: boolean;
+  runId: string | null;
+  onClose: () => void;
+  /** Fired after an in-sheet 批准/拒绝 lands, so the opener can refresh its queue. */
+  onActionsChanged?: () => void;
+}) {
   const { language } = useLanguage();
   const t = copy[language];
   const [detail, setDetail] = useState<AgentRunDetail | null>(null);
   const [titles, setTitles] = useState<StyleTitleMap>({});
   const [loading, setLoading] = useState(false);
+  // In-sheet lineage navigation: tapping an 上下游 chip loads THAT run here (with ‹返回), instead of
+  // yanking the merchant off to the AI-team page. The full record stays one explicit link away.
+  const [viewRunId, setViewRunId] = useState<string | null>(runId);
+  const [stack, setStack] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!open || !runId) return;
+    // (Re)opening resets the drill-down to the tapped run.
+    setViewRunId(runId);
+    setStack([]);
+  }, [open, runId]);
+
+  useEffect(() => {
+    if (!open || !viewRunId) return;
     let active = true;
     setLoading(true);
     setDetail(null);
-    Promise.all([getAgentRunDetailAction(runId), getStyleTitleMapAction().catch(() => ({}))])
+    Promise.all([getAgentRunDetailAction(viewRunId), getStyleTitleMapAction().catch(() => ({}))])
       .then(([d, t]) => { if (active) { setDetail(d); setTitles(t); } })
       .catch(() => { if (active) setDetail(null); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, runId]);
+  }, [open, viewRunId]);
 
   const run = detail?.run ?? null;
+
+  const hop = (targetRunId: string) => {
+    setStack((s) => (viewRunId ? [...s, viewRunId] : s));
+    setViewRunId(targetRunId);
+  };
+  const hopBack = () => {
+    setStack((s) => {
+      const prev = s[s.length - 1];
+      if (prev) setViewRunId(prev);
+      return s.slice(0, -1);
+    });
+  };
+
+  const resolve = (action: AgentAction, kind: 'approve' | 'reject') => {
+    // Optimistic: flip the card's status locally; the opener refreshes its own queue via the callback.
+    const nextStatus: ActionStatus = kind === 'approve' ? 'approved' : 'undone';
+    setDetail((d) => d ? {
+      ...d,
+      run: { ...d.run, actions: d.run.actions.map((a) => (a.id === action.id ? { ...a, status: nextStatus } : a)) },
+    } : d);
+    const fn = kind === 'approve' ? approveAgentActionAction : rejectAgentActionAction;
+    void fn(action.id).then(() => onActionsChanged?.()).catch(() => onActionsChanged?.());
+  };
 
   return (
     <BottomSheet open={open} onClose={onClose} title={t.title}>
@@ -115,6 +159,9 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
         <p className={styles.state}>{t.notFound}</p>
       ) : (
         <>
+          {stack.length > 0 ? (
+            <button type="button" className={styles.backBtn} onClick={hopBack}>{t.back}</button>
+          ) : null}
           <header className={styles.head}>
             <div className={styles.eyebrow}>
               <span>{run.agentName}</span>
@@ -139,6 +186,12 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
                   </div>
                   <p className={styles.actionSummary}>{describeAction(a.type, a.payload, language, titles)}</p>
                   <ActionParams action={a} language={language} />
+                  {a.status === 'proposed' ? (
+                    <div className={styles.actionCtl}>
+                      <button type="button" className={`${styles.gateBtn} ${styles.gateApprove}`} onClick={() => resolve(a, 'approve')}>{t.approve}</button>
+                      <button type="button" className={styles.gateBtn} onClick={() => resolve(a, 'reject')}>{t.reject}</button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </section>
@@ -152,18 +205,18 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
                   <span className={styles.lineLabel}>{t.audits}</span>
                   <div className={styles.chips}>
                     {detail.auditTargets.map((tgt) => (
-                      <Link key={tgt.id} className={styles.chipLink} href={getMerchantAgentRunPath(tgt.id)} onClick={onClose}>
+                      <button key={tgt.id} type="button" className={styles.chipLink} onClick={() => hop(tgt.id)}>
                         {tgt.agentName}
-                      </Link>
+                      </button>
                     ))}
                   </div>
                 </div>
               ) : detail?.parent ? (
                 <div className={styles.lineRow}>
                   <span className={styles.lineLabel}>{t.from}</span>
-                  <Link className={styles.chipLink} href={getMerchantAgentRunPath(detail.parent.id)} onClick={onClose}>
+                  <button type="button" className={styles.chipLink} onClick={() => detail.parent && hop(detail.parent.id)}>
                     ↑ {detail.parent.agentName}
-                  </Link>
+                  </button>
                 </div>
               ) : null}
               {detail && detail.children.length > 0 ? (
@@ -171,9 +224,9 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
                   <span className={styles.lineLabel}>{t.spawned}</span>
                   <div className={styles.chips}>
                     {detail.children.map((c) => (
-                      <Link key={c.id} className={styles.chipLink} href={getMerchantAgentRunPath(c.id)} onClick={onClose}>
+                      <button key={c.id} type="button" className={styles.chipLink} onClick={() => hop(c.id)}>
                         ↓ {c.agentName}
-                      </Link>
+                      </button>
                     ))}
                   </div>
                 </div>

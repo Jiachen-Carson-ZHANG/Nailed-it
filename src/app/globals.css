@@ -923,7 +923,7 @@ select {
   background: var(--color-overlay);
 }
 
-.bottom-sheet { width: min(100%, 480px); }
+.bottom-sheet { width: min(100%, var(--shell-max-width)); }
 
 .bottom-sheet {
   overflow: hidden;
