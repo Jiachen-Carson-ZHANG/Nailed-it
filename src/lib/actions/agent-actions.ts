@@ -25,6 +25,61 @@ export type TeamMemoryView = {
   entityId: string | null; // the campaign/deal the conclusion is about
 };
 
+/** Merchant-owned team configuration — stored as agent_memory merchant_preference rows the decision
+ *  agent ALREADY injects (orchestrator reads key=pref-weekly-focus into merchant_weekly_focus), so
+ *  editing these genuinely steers the next round rather than being display theater. */
+export type TeamConfig = {
+  goalMin: number;
+  goalMax: number;
+  focusText: string;
+  cadenceDay: string; // 一/二/三/四/五/六/日
+};
+
+const CADENCE_KEY = 'pref-run-cadence';
+const FOCUS_KEY = 'pref-weekly-focus';
+const GOAL_RE = /本周经营目标：预约 (\d+)–(\d+) 单。?/;
+
+export async function getTeamConfigAction(): Promise<TeamConfig> {
+  const fallback: TeamConfig = { goalMin: 8, goalMax: 16, focusText: '', cadenceDay: '五' };
+  if (!usesSupabaseBackend()) return fallback;
+  const { data } = await getServiceClient()
+    .from('agent_memory')
+    .select('key, claim')
+    .eq('merchant_id', demoMerchantId)
+    .eq('kind', 'merchant_preference')
+    .in('key', [FOCUS_KEY, CADENCE_KEY]);
+  const byKey = new Map((data ?? []).map((r: { key: string; claim: string | null }) => [r.key, r.claim ?? '']));
+  const focusClaim = byKey.get(FOCUS_KEY) ?? '';
+  const goal = GOAL_RE.exec(focusClaim);
+  const day = /每周([一二三四五六日])/.exec(byKey.get(CADENCE_KEY) ?? '')?.[1];
+  return {
+    goalMin: goal ? Number(goal[1]) : fallback.goalMin,
+    goalMax: goal ? Number(goal[2]) : fallback.goalMax,
+    focusText: focusClaim.replace(GOAL_RE, '').trim() || focusClaim,
+    cadenceDay: day ?? fallback.cadenceDay,
+  };
+}
+
+export async function setTeamConfigAction(cfg: TeamConfig): Promise<boolean> {
+  if (!usesSupabaseBackend()) return false;
+  const sb = getServiceClient();
+  const upsertPref = async (key: string, claim: string) => {
+    const { data } = await sb.from('agent_memory')
+      .update({ claim }).eq('merchant_id', demoMerchantId).eq('kind', 'merchant_preference').eq('key', key)
+      .select('id');
+    if (!data || data.length === 0) {
+      await sb.from('agent_memory').insert({
+        merchant_id: demoMerchantId, agent_slug: 'merchant_ui', kind: 'merchant_preference',
+        key, claim, scope_type: 'merchant', scope_id: demoMerchantId,
+      });
+    }
+  };
+  const focus = `本周经营目标：预约 ${cfg.goalMin}–${cfg.goalMax} 单。${cfg.focusText.trim()}`.trim();
+  await upsertPref(FOCUS_KEY, focus);
+  await upsertPref(CADENCE_KEY, `每周${cfg.cadenceDay}自动运行一轮经营计划。`);
+  return true;
+}
+
 /** The team's live memory (non-expired, newest first) — powers the 团队记忆 card on /merchant/agents.
  *  Written ONLY by the monitor from measured outcomes (plus explicit merchant preferences); reading it
  *  here is what makes "the team learns" inspectable instead of claimed. Memory-mode: empty (no table). */

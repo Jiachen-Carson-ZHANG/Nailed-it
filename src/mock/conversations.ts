@@ -7,12 +7,12 @@ export const seedConversationThreads: BookingConversationThread[] = [
     customerName: 'Melissa Tan',
     merchantName: 'Nailed-it Studio',
     relatedBookingTime: 'Today 14:00',
-    customerLanguage: 'en',
+    customerLanguage: 'zh-CN',
     messages: [
       {
         id: 'm1',
         authorRole: 'system',
-        body: 'Appointment confirmed for Today 14:00 with Mei Chen.',
+        body: '预约已确认，技师 Mei Chen，时间 今天 14:00。',
         sentAt: '13:10'
       }
     ]
@@ -23,12 +23,12 @@ export const seedConversationThreads: BookingConversationThread[] = [
     customerName: 'Amy Lim',
     merchantName: 'Nailed-it Studio',
     relatedBookingTime: 'Today 16:00',
-    customerLanguage: 'en',
+    customerLanguage: 'zh-CN',
     messages: [
       {
         id: 'a1',
         authorRole: 'system',
-        body: 'Appointment confirmed for Today 16:00 with Lina Park.',
+        body: '预约已确认，技师 Lina Park，时间 今天 16:00。',
         sentAt: '10:09'
       }
     ]
@@ -44,7 +44,7 @@ export const seedConversationThreads: BookingConversationThread[] = [
       {
         id: 'r1',
         authorRole: 'system',
-        body: 'Appointment pending review for Tomorrow 15:30 with Mei Chen.',
+        body: '你的预约正在等待商家确认，技师 Mei Chen，时间 明天 15:30。',
         sentAt: '18:41'
       }
     ]
