@@ -245,3 +245,39 @@ export async function triggerAgentRoundAction(): Promise<{ ok: boolean; error?: 
     return { ok: false, error: e instanceof Error ? e.message : 'failed to start the agent service' };
   }
 }
+
+/**
+ * The LIVE demo path (demo console): advance the business clock (settlement — deterministic, no AI),
+ * THEN fire a real agent round so the team reasons about the just-settled numbers. This is the two-step
+ * truth the scripted BusinessClock collapses: 推进时钟 = 市场结算（产生数据）→ run_round = 团队推理.
+ * advance-clock is fast (settlement math), so we await it; the round is detached + polled like a manual
+ * trigger. Localhost-only (no Python runtime in prod). Each round spends model credits.
+ */
+export async function advanceClockAndRunAction(hours: number): Promise<{ ok: boolean; error?: string }> {
+  if (process.env.NODE_ENV === 'production') {
+    return { ok: false, error: 'The live clock+round path only runs from a local dev run.' };
+  }
+  const serviceDir = path.join(process.cwd(), 'agent-service');
+  const python = path.join(serviceDir, '.venv', 'bin', 'python');
+  if (!existsSync(python)) {
+    return { ok: false, error: 'agent-service/.venv not found — run `pip install -e .` in agent-service first.' };
+  }
+  const safeHours = Math.max(1, Math.min(240, Math.round(hours)));
+  try {
+    // 1) settlement — await it (seconds); the round must react to the NEW numbers, not the old ones
+    await new Promise<void>((resolve, reject) => {
+      const clock = spawn(python, ['-m', 'nailed_agents', 'advance-clock', String(safeHours)], {
+        cwd: serviceDir,
+        stdio: 'ignore',
+      });
+      clock.on('error', reject);
+      clock.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`advance-clock exited ${code}`))));
+    });
+    // 2) the round — detached, the panel polls Supabase for running→completed
+    const round = spawn(python, ['-m', 'nailed_agents'], { cwd: serviceDir, detached: true, stdio: 'ignore' });
+    round.unref();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'failed to advance the clock / start the round' };
+  }
+}
