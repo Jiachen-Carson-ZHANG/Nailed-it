@@ -55,7 +55,7 @@
    - 实现:`background-size: 200% 200%` + `@keyframes` 位移 `background-position`,只动 GPU 友好属性。
 
 2. **印花壁纸层**:emoji 印花,`opacity` 基线 ~0.12,`pointer-events:none`。
-   - 元素池:💅 ✨ 🩷 ⭐ 🎀 💎
+   - 元素池:💅 ✨ 🩷 ⭐ 🎀 
    - 约 10-12 个散布四周(避开中央游戏区),大小 `1.2rem–2.4rem`。
    - 每个动画:**上下浮动(±8px)+ 清晰度渐变**(opacity 在 ~0.06↔0.18 之间、配合极轻微 blur 呼吸),`7-9s` 随机周期,`ease-in-out`,交错 `animation-delay`。
    - **不做旋转。不做单独的星星闪烁。**
