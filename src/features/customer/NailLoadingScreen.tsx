@@ -135,12 +135,29 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
     return () => clearInterval(id);
   }, []);
 
+  const [leaving, setLeaving] = useState(false);
+
+  // When generation completes: brief pause so the bar can visibly reach 100%,
+  // then trigger the exit animation. onTransitionEnd fires when that animation ends.
   useEffect(() => {
-    if (done) onTransitionEnd();
-  }, [done, onTransitionEnd]);
+    if (!done) return;
+    const pause = window.setTimeout(() => setLeaving(true), 450);
+    return () => window.clearTimeout(pause);
+  }, [done]);
+
+  const handleExitAnimEnd = (e: React.AnimationEvent) => {
+    // Only the exit animation should fire the callback (ignore the looping bg breathe).
+    if (leaving && e.animationName === 'nailLoadingExit') onTransitionEnd();
+  };
 
   return (
-    <div className="nail-loading" role="status" aria-label="正在生成美甲效果图" aria-live="polite">
+    <div
+      className={`nail-loading${leaving ? ' is-leaving' : ''}`}
+      role="status"
+      aria-label="正在生成美甲效果图"
+      aria-live="polite"
+      onAnimationEnd={handleExitAnimEnd}
+    >
       <BgPrintLayer />
       <PolishGame />
       <div className="nail-loading-status">
