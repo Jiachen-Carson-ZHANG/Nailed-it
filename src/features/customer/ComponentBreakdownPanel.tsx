@@ -65,8 +65,12 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
       texture = item.glossaryId;
     } else if (cat === 'color') {
       colorIds.add(item.glossaryId);
+      if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     } else if (cat === 'color_effect') {
+      // Per-finger colour effects (腮红甲 ×4 …) carry quantity exactly like art/deco — dropping it here
+      // made the detail recompute cheaper than the stored card price (feed said ¥503.50, detail ¥424).
       colorEffectIds.add(item.glossaryId);
+      if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     } else if (cat === 'art') {
       artIds.add(item.glossaryId);
       if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
@@ -141,8 +145,8 @@ function catalogSelectionsFromChipState(
   if (nailShape) selections.push({ catalogItemId: nailShape, quantity: 1 });
   if (nailLength) selections.push({ catalogItemId: nailLength, quantity: 1 });
   if (texture) selections.push({ catalogItemId: texture, quantity: 1 });
-  for (const id of colorIds) selections.push({ catalogItemId: id, quantity: 1 });
-  for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: 1 });
+  for (const id of colorIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
+  for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   for (const id of artIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   for (const id of decoIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   return withBaseManicure(selections);
