@@ -1,162 +1,135 @@
-# 07 — Anticipated Judge Q&A
+# 07 — 预判评委问答
 
-The questions we'd ask if we were judging this, with the answers we can actually back. Where the honest
-answer is "known limit", it says so — a defensible limit beats an indefensible claim.
+如果我们是评委，会问的问题，配上我们真能兜底的回答。凡是诚实答案是「已知边界」的地方就写明——
+一个可辩护的边界胜过一个不可辩护的主张。
 
 ---
 
-## Architecture & agents
+## 架构与 Agent
 
-**Q1. "Strip the buzzwords. Isn't this just a pipeline calling an LLM eight times?"**
-It was — we said so in the ADR and rebuilt it (ADR-0013). Now: the orchestrator is itself a tool-loop
-that reads the shop's state and *decides* the round — the eval pins that at 91% utilization it must not
-wake the spend lanes, and the live transcript shows dispatch reasons with cited numbers. Below it, each
-lane is a multi-turn tool loop that can and does override its inputs (决策 declined the brain's coupon
-candidates on delist-flagged styles, citing both signals). Skips, parallel fan-out, cross-round memory,
-and a monitor that can force a bounded re-run — remove any of these and behavior degrades nameably.
-That's our bar for "multi-agent", and we'd apply the same bar to anyone else's demo.
+**Q1. 「去掉黑话。这不就是一个管线调了十次 LLM 吗？」**
+它曾经是——我们在 ADR 里明说了并重建了它（ADR-0013）。现在：编排器本身是一个工具循环，它读门店状态、
+*决定*这一轮——评测钉住了「91% 利用率时它必须不唤醒花钱环节」，实时思考链展示带引用数字的分派理由。
+它之下，每个环节是一个多轮工具循环，能够也确实会覆盖自己的输入（决策把引擎的事实转成行动简报，
+自己判断该给谁投广、给谁试价，而不是复述一个预设结论）。跳过、并行扇出、跨轮记忆、以及一个能强制
+有界重跑的监测——拿掉其中任何一个，行为都会可点名地退化。这就是我们对「多智能体」的标准，
+我们也会用同一标准去衡量别人的演示。
 
-**Q2. "Why didn't you use LangGraph / CrewAI / AutoGen? That's the industry standard."**
-Because the runner is ~100 lines (`runner.py`) driving two provider backends over one set of tool
-bodies, and everything a judge scores here — guardrail objects, grounding gates, entity contracts,
-lineage — lives in *our* layer no matter what runs the loop. A framework would add a dependency and a
-debugging surface and contribute none of the judged behavior. We'd rather defend 100 lines we fully
-understand than 100k lines we don't. Pattern over framework.
+**Q2. 「为什么不用 LangGraph / CrewAI / AutoGen？那是业界标准。」**
+因为运行器只有约 100 行（`runner.py`），用一套工具体驱动两种 provider 后端，而评委在这里打分的一切——
+护栏对象、有据性闸门、实体契约、血缘——无论用什么跑循环，都住在**我们**这一层。框架只会加一层依赖
+和一个调试面，对被评的行为毫无贡献。我们宁可捍卫 100 行完全理解的代码，也不愿捍卫 10 万行不理解的。
+模式高于框架。
 
-**Q3. "Agents don't talk to each other. Where's the 'multi' in multi-agent?"**
-They interact through three persisted, visible channels: dispatch (with upstream conclusions passed
-deterministically by code), a round blackboard, and cross-round memory — plus one adversarial edge where
-监测 rejects an action and its executor re-runs with feedback. What we refused is free-form chat, on
-grounds we'll defend: unbounded cost, loop risk, unreproducible demos, invisible coordination. Every
-interaction here appears in the lineage tree the merchant sees. If "agents chatting" is the criterion,
-we think the criterion is wrong — interaction should exist where it changes outcomes, and each edge
-should be auditable.
+**Q3. 「Agent 之间不说话。多智能体的『多』在哪？」**
+它们通过五条持久化、可见的通道交互：分派（上游结论由代码确定性传递）、轮次黑板、行动简报（即法律）、
+一条对抗性修订边（监测否决一个动作、其执行者带反馈重跑）、以及跨轮记忆。我们拒绝的是自由聊天，
+理由我们捍卫：成本无界、循环风险、演示不可复现、暗中协调。这里每一次交互都出现在商家看到的血缘树里。
+如果「Agent 互聊」是评判标准，我们认为标准错了——交互应存在于它改变结果的地方，且每条边都可审计。
 
-**Q4. "Why is Postgres your message bus? That doesn't scale."**
-One writer (the Python service), one reader (the panel), and the panel needs to render exactly what the
-agents wrote — same rows, live, zero extra infrastructure. At multi-merchant scale with concurrent
-rounds, the dispatch layer becomes a queue and the bus gets revisited; the seams for that (round rows,
-run parenting, per-merchant scoping) already exist. Choosing Kafka for a single-merchant demo would have
-been resume-driven engineering.
+**Q4. 「为什么拿 Postgres 当消息总线？那不 scale。」**
+一个写者（Python 服务）、一个读者（面板），而面板需要如实渲染 Agent 写入的东西——同一批行、实时、
+零额外基建。到多商户、并发轮次的规模时，分派层会变成队列、总线会被重议；为此准备的接缝（轮次行、
+run 挂父、按商家维度的作用域）已经存在。给单商户演示上 Kafka 会是简历驱动型工程。
 
-**Q5. "Two Gemini tiers — sounds like guesswork. Why pro for one agent and flash for the rest?"**
-Measured, not guessed. Flash abandoned the orchestrator's multi-step dispatch chain after one tool call
-— eval signature `('insight',)` across runs — and prompt hardening did not fix it; the tier did (2/2
-stable immediately after). Lanes are 1–3 call loops where flash is reliable *if* judgment sits above
-bright lines (Q14). So the expensive model runs exactly once per round, where chain depth demands it.
+**Q5. 「两档模型——听着像拍脑袋。为什么一个 Agent 用高配、其余用轻量？」**
+实测，不是拍脑袋。轻量模型跑一次工具调用后就放弃了编排器的多步分派链——评测签名 `('insight',)`
+反复出现——prompt 硬化无效、换档立愈（换后 2/2 立即稳定）。短读环节是 1–3 次调用的循环，
+只要判断建立在明码红线之上（Q14），轻量模型就可靠。所以高配模型每轮恰好在链条深度需要它的地方跑
+（决策、投广、团购、风控、监测、编排器），其余用轻量。
 
-## Money & economics
+## 钱与经济学
 
-**Q6. "Your ROAS is fake — you don't know CPC and you assume every booking is incremental."**
-Correct on both counts, and both are written down (doc 03, ADR-0012 amendment). CPC is a named config
-assumption (¥1.2, beauty-category-typical); incrementality makes the estimate an **upper bound**. Our
-answer isn't a fabricated lift factor — it's the feedback loop: 监测 writes *measured* outcomes per
-campaign into memory, 决策 reads them next round, and measured verdicts outrank the estimate. The
-estimate's job is to rank spend candidates on day one; the measurement's job is to correct it from day
-seven. Meanwhile the gate already blocked the objectively bad buys on live data (61 clicks, zero
-bookings → no spend) — a wrong-in-magnitude estimate still gets direction right when the alternative
-converts nothing.
+**Q6. 「你的 ROAS 是假的——你不知道 CPC，还假设每一单都是增量。」**
+两点都对，两点都写在案（doc 03，ADR-0012 修订）。CPC 是一个具名的配置假设（¥1.2，美业典型值）；
+增量性使这个估算成为一个**上界**。我们的答案不是编一个虚假的 lift 系数——而是反馈闭环：监测把每个
+广告活动的*实测*结果写进记忆，决策下一轮读取它，实测结论压过估算。估算的职责是第一天给花钱候选排序；
+实测的职责是从第七天起纠正它。同时闸门已经在真实数据上拦住了客观上糟糕的投放（61 次点击、零预约 →
+不花钱）——一个量级错但方向对的估算，在替代方案零转化时仍然对。
 
-**Q7. "The agent picks the budget. What stops it from picking ¥2,000/day?"**
-Nothing stops it from *picking*; three layers stop it from *spending*: a hard input bound in the tool
-(≤ ¥2,000 rejects), the merchant envelope in the server action (> ¥50/day lands as a draft the merchant
-must launch; ≤ ¥50 auto-launches as a withdrawable daily drip with a one-tap pause), and entity-first
-undo (doc 04). The demo round proves the envelope: the agent chose ¥200/day and all three campaigns
-correctly landed as drafts awaiting the merchant.
+**Q7. 「Agent 自己挑预算。什么拦住它挑 ¥2000/天？」**
+没什么拦住它*挑*；三层拦住它*花*：工具里的硬输入上界（> ¥2000 拒绝）、server action 里的商家边界
+（> ¥50/天落成草稿、需商家启动；≤ ¥50 自动上线为可随时暂停、可撤回的每日小额投放），以及实体优先的
+撤销（doc 04）。此外简报天花板与营销钱包也在工具层拦截（见 Q13 的法律清单）。演示轮证明了这个边界：
+Agent 挑了 ¥200/天，三个活动全部正确地落成待商家启动的草稿。
 
-**Q8. "Why is 'unknown ROAS = don't spend' right? You'll never learn about new styles."**
-Deliberate asymmetry: a false 'spend' costs real money; a false 'unknown' costs a round. And "never
-learn" is wrong in this system — new styles earn organic impressions through the feed, accumulate funnel
-data, and become measurable within days; the coupon lever (gated on demand, not ROAS) can also generate
-signal. Exploration budgets are a legitimate future feature — as a *merchant opt-in envelope*, not a
-default gamble.
+**Q8. 「为什么『ROAS 未知 = 不花钱』是对的？你永远学不到新款。」**
+刻意的不对称：一次错误的『花』是真金白银的损失，一次错误的『未知』只是一轮的代价。而「永远学不到」
+在这个系统里是错的——新款通过信息流赚到自然曝光、积累漏斗数据、几天内变得可测；团购杠杆（以需求
+而非 ROAS 为闸）也能产生信号。探索预算是一个合理的未来功能——作为*商家自主开启的边界*，而非默认赌博。
 
-**Q9. "Variable cost 15%, fee 6%, CTR target 8% — where do these numbers come from?"**
-Config assumptions, centralized and named (`economics.ts`, `funnel.ts`), documented as tunable. The
-structural decisions don't depend on them: profit-per-hour as the metric, absolute (not %) variable cost
-so break-even is a real floor, scale-free ROAS. Relative rankings between styles are robust to target
-values; absolute scores are not, and nothing gates on absolute scores alone.
+**Q9. 「变动成本 15%、抽佣 6%、CTR 目标 8%——这些数字哪来的？」**
+配置假设，集中且具名（`economics.ts`、`funnel.ts`），文档标注为可调。结构性决策不依赖它们：
+以每小时利润为指标、用绝对（非百分比）变动成本使保本成为真实底线、无量纲 ROAS。款式之间的相对排序
+对目标值稳健；绝对分数不稳健，且没有任何闸门只凭绝对分数。
 
-## Safety & trust
+## 安全与信任
 
-**Q10. "What happens when the model hallucinates a style id or a tool?"**
-It has, and the layers caught it. Off-allow-list tools are refused *before execution* in the runner.
-Tool inputs are validated before side effects (regex, bounds, whitelists). The eval's grounding gate
-fails any run citing an entity that doesn't exist in the grounded inputs — and it reads *attempted*
-calls, so a validation-rejected hallucination still shows up in evaluation. Server actions revalidate
-everything again in TS. The one real incident class we hit — the model passing `parent: null` — crashed
-into a `ValueError`, not a side effect, and became a pinned test.
+**Q10. 「模型幻觉出一个款式 id 或一个工具时会怎样？」**
+它幻觉过，各层都接住了。白名单外的工具在运行器里*执行前*被拒绝。工具输入在副作用前被校验
+（正则、边界、白名单）。评测的有据性闸门会让任何引用了「有据输入里不存在的实体」的运行失败——
+且它读的是*尝试过*的调用，所以一个被校验拒绝的幻觉仍会在评测里现身。server action 在 TS 里再次
+全部重校验。我们真正遇到的一类事故——模型传 `parent: null`——撞进了一个 `ValueError`、而非副作用，
+并变成了一个钉住的测试。
 
-**Q11. "Undo is fake in most AI demos. Prove yours isn't."**
-Ordering: entity first, status second — a mid-way failure leaves the campaign paused but the pill stale
-(self-correcting from the authoritative entity), never the reverse (claiming "undone" while spending).
-Typed reversibility: sent messages refuse undo at the repository guard, and the UI never offers it.
-Tested end-to-end against the memory bundle, including idempotent double-undo, and exercised live. Also:
-rejected group-buy proposals are *shelved*, not deleted — audit trail preserved.
+**Q11. 「大多数 AI 演示的撤销是假的。证明你的不是。」**
+顺序：实体先、状态后——中途失败会留下活动已暂停、但标签陈旧（从权威实体自我纠正），绝不会反过来
+（一边宣称「已撤销」一边还在花钱）。带类型的可逆性：已发送的消息在仓储守卫处拒绝撤销，UI 也从不提供。
+端到端对着记忆包测试过，包括幂等的双次撤销，并在实机上跑过。另外：被拒的团购提案是*归档*、不是删除——
+审计线索保留。
 
-**Q12. "The merchant sees a wall of AI activity. How is this not a black box?"**
-Every run renders a merchant-readable thinking chain (per-tool one-sentence summaries with the real
-numbers; raw JSON only behind a 查看数据 expander), a task-context line ("由「决策 Agent」的结论触发本次
-任务") with upstream/downstream chips, and every commercial object links back to the run that proposed
-it. The transcript describers are pure, tested functions — not the model summarizing itself.
+**Q12. 「商家看到一墙 AI 活动。这怎么不是黑箱？」**
+每个 run 渲染一条商家可读的思考链（逐工具一句话总结，带真实数字；原始 JSON 只在「查看数据」展开里），
+一行任务上下文（「由『决策 Agent』的结论触发本次任务」）配上游/下游标签，且每个经营对象都链回提出它的
+run。思考链的描述器是纯的、被测过的函数——不是模型自己总结自己。
 
-**Q13. "What's your blast radius if the whole agent service goes rogue for a round?"**
-Bounded by construction: ≤ 8 dispatches, ≤ ¥50/day auto-launched per campaign (everything above is a
-draft), ≤ 5 pending proposals, ≤ 2 revisions, messages capped in length and count per round, group-buys
-can't self-publish. Worst realistic case: a few ¥50/day drips the merchant pauses with one tap, all
-attributed to a visible run. The failure we engineered against hardest is not overspend — it's *lying
-about state*, which is why atomicity and undo ordering got RPC-level treatment.
+**Q13. 「如果整个 Agent 服务在某一轮失控，你的爆炸半径是多大？」**
+由构造所界定：≤ 9 次分派、每个活动 ≤ ¥50/天自动上线（更高的都是草稿）、≤ 5 个待处理提案、≤ 2 次修订、
+消息按长度和每轮数量封顶、团购不能自发布。且副作用前的硬法律拦一切：营销钱包
+（`budget_exceeds_wallet`）、简报天花板（`budget_exceeds_brief`）、无简报不花钱（`no_ad_brief_filed`）、
+一款一活动、团购价低于利润底线拒绝。最坏的现实情形：几笔 ¥50/天的小额投放、商家一键暂停，全部归因到
+一个可见的 run。我们防得最狠的失败不是超支——是*谎报状态*，所以原子性和撤销顺序拿到了 RPC 级的处理。
 
-**Q14. "You gave a cheap model authority over money judgments. Why is that OK?"**
-Because judgment only exists above bright lines. The monitor eval flaked in both directions until the
-skill got explicit thresholds and a worked division example; after, 2/2 stable. Our rule, generalized:
-cheap models judge only where code-verifiable bright lines exist; otherwise the tier goes up (orchestrator)
-or the decision moves into deterministic code (the brain). "Use good judgment" is not an instruction we
-give flash with money on the table.
+**Q14. 「你把花钱的判断权交给了一个廉价模型。凭什么这样可以？」**
+因为判断只存在于明码红线之上。监测的评测在两个方向都抖过，直到技能里给了明确阈值和一个算过的除法示例；
+之后 2/2 稳定。我们的规则，一般化：廉价模型只在有代码可核验的红线处做判断；否则要么升档（编排器），
+要么把决策搬进确定性代码（引擎）。「用好你的判断力」不是我们会在有钱押注时对轻量模型下的指令。
 
-## Evaluation & rigor
+## 评测与严谨
 
-**Q15. "n=2 or n=4 runs is not statistics."**
-Agreed, and we don't claim it is (doc 06). The gates are regression tripwires with an all-N blocking
-rule — a single deviant run fails the scenario, which at small n is a *stricter* bar than averaging.
-Deterministic properties aren't sampled at all; they're unit tests. What n=4 buys is exactly what a demo
-needs: confidence the judged decision is stable, and a pinned reproduction when it isn't.
+**Q15. 「n=2 或 n=4 次运行不是统计学。」**
+同意，我们也不声称它是（doc 06）。闸门是带「全 N 阻断规则」的回归绊线——单个偏差 run 就让场景失败，
+这在小 n 下是比取平均*更严*的标准。确定性性质根本不采样；它们是单元测试。n=4 买到的正是演示需要的：
+对「被评的决策是稳定的」有信心，以及不稳定时有一个钉住的复现。
 
-**Q16. "Your data is synthetic. Everything downstream is fiction."**
-The *volumes* are synthetic; the *structure* is not — seeded PRNG over real funnel semantics, capacity
-scenarios that provably move the gates (idle 39% / busy 79% / full 86% produced 4-ad/4-coupon →
-4-ad/0-coupon → 0/0 respectively). Synthetic data is how you test decision logic against conditions you
-can't order up on demand (a fully-booked week). What synthetic data cannot prove — market outcomes,
-real CPC — is exactly what the memory loop is built to measure once real traffic exists.
+**Q16. 「你的数据是合成的。下游一切都是虚构。」**
+*量*是合成的，*结构*不是——种子 PRNG 跑在真实漏斗语义上，产能场景可证地移动闸门（空闲 39% / 繁忙 79%
+/ 满档 86% 分别产出「4广告/4团购 → 4广告/0团购 → 0/0」）。合成数据正是你测试决策逻辑对抗「无法随点随到的
+条件」（一个订满的周）的方式。合成数据不能证明的——市场结果、真实 CPC——正是记忆闭环被造出来、
+在真实流量存在后去衡量的东西。
 
-## Scale & business
+## 规模与商业
 
-**Q17. "What breaks first at 1,000 merchants?"**
-In order: (1) round concurrency — the Python service runs one round at a time; the dispatch layer needs
-a queue and per-merchant workers. (2) Compute-on-read analytics — event-log scans per read want
-materialized rollups around 10⁶ events per merchant. (3) The model bill — mitigations already built:
-lanes on flash, skips make rounds cheaper, and orchestration frequency can be event-driven instead of
-scheduled. The seams for all three exist (merchant-scoped everything, round rows, repository seam);
-none required rework to date because we scoped them early.
+**Q17. 「1000 个商家时什么会先崩？」**
+按顺序：(1) 轮次并发——Python 服务一次跑一轮；分派层需要一个队列和按商家的 worker。(2) 读时计算的
+分析——每次读扫事件日志，在每商家约 10⁶ 事件时需要物化汇总。(3) 模型账单——缓解措施已建：短环节用轻量、
+跳过让轮次更便宜、编排频率可事件驱动而非定时。三者的接缝都已存在（一切按商家维度、轮次行、仓储接缝）；
+至今无一需要返工，因为我们早就为它们划好了边界。
 
-**Q18. "Why would a merchant pay for this instead of doing it themselves?"**
-The 今日 home is the answer: the merchant's job collapses to reviewing a short needs-you queue and
-keeping a pause button. The team reads funnels nobody reads (8284: 26% of impressions, 61 clicks, zero
-bookings — invisible in any dashboard a busy owner checks), prices coupons against a profit-per-hour
-floor instead of gut feel, and refuses spend a human would have wasted. The pitch isn't "AI does
-marketing"; it's "the shop gets an operations analyst whose every action is reversible and explained."
+**Q18. 「商家为什么要为此付费，而不是自己干？」**
+今日首页就是答案：商家的工作坍缩成「审一条短的待你确认队列 + 留一个暂停按钮」。团队读没人读的漏斗
+（8284：占 26% 曝光、61 次点击、零预约——在任何忙碌老板会看的看板里都隐形），按每小时利润底线而非
+凭感觉给团购定价，拒绝一个人会浪费掉的花费。卖点不是「AI 做营销」；是「门店得到一个经营分析师，
+它的每个动作都可逆、可解释」。
 
-**Q19. "What's actually novel here versus any agent demo from the last year?"**
-Three things we'd defend as genuinely uncommon: (1) actions create *real, reversible commercial objects*
-through the app's own validated write path, with a two-way audit contract — not log-line theater; (2)
-the measured feedback loop — the system stores what its estimates *got wrong* and demotes them next
-round; (3) the discipline artifacts themselves: capability-object guardrails, entity-first undo
-ordering, bright-line skill thresholds — each one exists because an eval or an audit caught the failure
-it prevents, and the paper trail (ADRs 0004–0013) shows it.
+**Q19. 「相比过去一年的任何 Agent 演示，这里真正新颖的是什么？」**
+三件我们敢辩护为真正少见的：(1) 动作通过应用自己的已校验写入路径创建*真实、可逆的经营对象*，
+带双向审计契约——不是日志行表演；(2) 实测反馈闭环——系统存下它的估算*错在哪*、下一轮降权它；
+(3) 纪律产物本身：能力对象护栏、实体优先的撤销顺序、明码红线的技能阈值——每一个都因为某次评测或审计
+接住了它所防范的失败而存在，且纸面线索（ADR 0004–0016）为证。
 
-**Q20. "If you had two more weeks, what's first?"**
-(1) Multi-merchant: N shops competing on one platform feed — the architecture's designed-for case and
-the strongest demo of decision divergence (same platform data, different capacity/economics → different
-rounds). (2) Real coupon redemption + booking attribution so `coupon_outcome` memory rows measure as
-well as ads do. (3) An exploration envelope (Q8) as merchant policy. Deliberately *not* first: more
-agents. Eight lanes with sharp contracts beat fifteen with mush.
+**Q20. 「再给你两周，先做什么？」**
+(1) 多商户：N 家店在同一平台信息流上竞争——架构为之设计的场景，也是决策分化最有力的演示
+（同样的平台数据、不同的产能/经济学 → 不同的轮次）。(2) 真实团购核销 + 预约归因，让 `coupon_outcome`
+记忆行像广告一样可测。(3) 探索边界（Q8）作为商家策略。刻意*不*先做的：更多 Agent。
+十个契约锋利的环节胜过十五个含糊的。
