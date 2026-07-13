@@ -78,8 +78,6 @@ const DRAWER_ITEMS: Record<DrawerZoneId, DrawerItem[]> = {
   ],
 };
 
-const LOADING_EMOJIS = ['💜', '🍒', '🌸', '💎', '✨', '🎀', '🌙', '🦋', '🌺', '💫'];
-
 let keySeq = 0;
 function nextKey() { return `dk-${++keySeq}`; }
 
@@ -474,38 +472,6 @@ const STUDIO_LAYOUT_HAND = {
   width: '32%',
   transform: 'translate(-50%, -50%)',
 };
-
-// ── Loading screen ────────────────────────────────────────────────────────────
-function LoadingScreen() {
-  const ORBIT_EMOJIS = LOADING_EMOJIS.slice(0, 6);
-  return (
-    <div className="collage-house-overlay collage-loading-screen" aria-label="正在生成美甲效果图" aria-live="polite">
-      <div className="collage-bg-sparkles" aria-hidden="true">
-        {['✦','✧','✦','✧','✦','✧','✦','✧','✦','✧'].map((s, i) => (
-          <span key={i} className="collage-bg-sparkle" style={{ '--i': i } as React.CSSProperties}>{s}</span>
-        ))}
-      </div>
-      <div className="collage-loading-topbar">
-        <span className="collage-loading-eyebrow">NAIL STUDIO</span>
-        <h1 className="collage-loading-title">AI Style Studio</h1>
-      </div>
-      <div className="collage-loading-orbit-wrap" aria-hidden="true">
-        <div className="collage-loading-rainbow-ring" />
-        <div className="collage-loading-disc" />
-        <div className="collage-loading-orbit-track">
-          {ORBIT_EMOJIS.map((emoji, i) => (
-            <span key={i} className="collage-loading-orbit-arm" style={{ '--orbit-i': i } as React.CSSProperties}>
-              <span className="collage-loading-orbit-emoji">{emoji}</span>
-            </span>
-          ))}
-        </div>
-        <span className="collage-loading-center-emoji" aria-hidden="true">💅</span>
-      </div>
-      <p className="collage-loading-headline">Mixing your magic...</p>
-      <p className="collage-loading-sub">Our nail fairy is crafting your look ✨</p>
-    </div>
-  );
-}
 
 // ── Result screen ─────────────────────────────────────────────────────────────
 type ResultScreenProps = {
