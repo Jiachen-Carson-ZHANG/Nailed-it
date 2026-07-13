@@ -19,6 +19,7 @@
   margin: 0 var(--space-1) var(--space-1);
 }
 .titlebar h1 { font-size: var(--text-lg); font-weight: 800; margin: 0; }
+.titleGroup { display: flex; align-items: baseline; gap: var(--space-2); }
 .titlebar .date { font-size: var(--text-xs); color: var(--color-muted); font-weight: 600; }
 .titleCta {
   font-size: var(--text-xs);
@@ -40,19 +41,45 @@
 }
 .stat {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 78px;
   padding: var(--space-2) var(--space-3);
   border-right: 1px solid var(--color-border);
   cursor: pointer;
   text-decoration: none;
   color: inherit;
+  /* Soft rose wash toward the base so the strip reads warm, not grey-grid. */
+  background: linear-gradient(170deg, var(--color-surface-strong) 55%, var(--color-accent-soft) 165%);
   transition: background var(--motion-fast) var(--motion-ease);
 }
 .stat:last-child { border-right: 0; }
-.stat:hover { background: var(--color-bg); }
+.stat:hover { background: var(--color-accent-soft); }
 .stat:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.statN { font-size: var(--text-md); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.statN { font-size: var(--text-md); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; }
+/* Text-valued stat (夏季清透感): smaller face, max two lines — never pushes the CTA row out of line. */
+.statNText {
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .statUp { font-size: var(--text-xs); color: var(--color-success-ink); font-weight: 800; margin-left: 2px; }
-.statL { font-size: var(--text-xs); color: var(--color-muted); margin-top: 3px; font-weight: 600; }
+/* CTA row: pinned to the card's bottom edge (labels always on ONE shared line across cards) and
+ * accent-colored with a chevron — it reads as a link, not a caption. */
+.statL {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-accent-strong);
+  font-weight: 700;
+}
+.statL::after { content: '›'; font-weight: 800; font-size: var(--text-sm); line-height: 1; }
 
 /* ---- section headers (aligned to the manage page's .manage-section-heading: quiet uppercase micro
  * label — the cards carry the visual weight, not the label) ---- */
@@ -80,6 +107,50 @@
 .pinState { font-size: var(--text-xs); font-weight: 800; color: var(--color-warning-ink); margin-left: auto; }
 .pinTitle { font-size: var(--text-sm); font-weight: 700; line-height: 1.35; margin-bottom: var(--space-2); }
 .ctl { display: flex; gap: var(--space-2); }
+
+/* Expandable overflow of the approval queue (the pin shows one; this reveals the rest inline). */
+.moreBtn {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-accent-strong);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.miniPins { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-1); }
+.miniPin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+}
+.miniPinFace {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: 0;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  text-align: left;
+}
+.miniPinTitle {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btnMini { min-height: 34px; flex: 0 0 auto; padding: 0 var(--space-2); }
 
 /* ---- done roll (state color left-stripe + chip) ---- */
 .strip { display: flex; gap: var(--space-3); overflow-x: auto; padding: 2px var(--space-1) var(--space-2); scroll-snap-type: x mandatory; }

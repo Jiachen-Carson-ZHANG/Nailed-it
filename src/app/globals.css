@@ -917,8 +917,13 @@ select {
   z-index: 40;
   display: grid;
   align-items: end;
+  /* Phone-width sheet everywhere: the app is a phone product, so on desktop the sheet stays a centered
+   * phone column instead of stretching laptop-wide (matches the page shell max width). */
+  justify-items: center;
   background: var(--color-overlay);
 }
+
+.bottom-sheet { width: min(100%, 480px); }
 
 .bottom-sheet {
   overflow: hidden;

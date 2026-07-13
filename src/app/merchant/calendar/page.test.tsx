@@ -52,7 +52,7 @@ describe('MerchantHomePage (今日 home)', () => {
   it('renders the 今日 home (agent-first), not the calendar heading', async () => {
     await renderPage();
 
-    expect(screen.getByRole('heading', { name: /^summary$/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^today$/i })).toBeInTheDocument();
     // The full calendar heading must not be on the home anymore — it moved to /schedule.
     expect(screen.queryByRole('heading', { name: /appointment calendar/i })).not.toBeInTheDocument();
   });
