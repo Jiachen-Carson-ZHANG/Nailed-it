@@ -7,6 +7,9 @@
 // historical CVR, fatigue); the hidden scenario state that makes reality diverge lives ONLY in the Python
 // sandbox and is never modelled here (that divergence is what the 广告中心 "实际 vs 预测" then reveals).
 
+import type { AudienceMode, StyleAdCustomAudience } from './style-ad';
+import { MIN_AUDIENCE_AGE, MAX_AUDIENCE_AGE } from './style-ad';
+
 export type AdAudience = 'broad_local_interest' | 'saved_or_viewed' | 'try_on_no_booking';
 
 type AudiencePrior = {
@@ -69,6 +72,37 @@ export type AdForecastInput = {
 
 function band(x: number): [number, number] {
   return [Math.max(0, Math.round(x * (1 - RANGE))), Math.max(0, Math.round(x * (1 + RANGE)))];
+}
+
+/** Demographic narrowing (0..1): a tighter 年龄/标签/频次/单价 filter shrinks reachable size. */
+export function audienceReach(custom: StyleAdCustomAudience): number {
+  const ageFrac = Math.max(1, custom.ageMax - custom.ageMin) / (MAX_AUDIENCE_AGE - MIN_AUDIENCE_AGE);
+  const tagNarrow = 0.75 ** custom.preferenceTags.length;
+  const freqNarrow = custom.visitFrequency ? 0.8 : 1;
+  const priceNarrow = custom.unitPrice ? 0.8 : 1;
+  return Math.min(1, Math.max(0.08, ageFrac * tagNarrow * freqNarrow * priceNarrow));
+}
+
+/**
+ * Map the merchant's audience UI to the sandbox's forecast inputs — the honest bridge between the two
+ * vocabularies. Behavioral POOL (funnel stage → CTR/CVR/CAC) comes from purchase-intent signals
+ * (消费习惯/标签); the demographic filter (年龄/标签 count) only narrows REACH. 智能推荐 = the platform
+ * auto-selects engaged, likely-to-book users → the mid engaged pool at full reach.
+ */
+export function deriveAdAudience(mode: AudienceMode, custom?: StyleAdCustomAudience): { pool: AdAudience; reachMultiplier: number } {
+  if (mode !== 'custom' || !custom) return { pool: 'saved_or_viewed', reachMultiplier: 1 };
+  const highIntent = custom.visitFrequency === 'high' || custom.unitPrice === 'high';
+  const someSignal = !!custom.visitFrequency || !!custom.unitPrice || custom.preferenceTags.length > 0;
+  const pool: AdAudience = highIntent ? 'try_on_no_booking' : someSignal ? 'saved_or_viewed' : 'broad_local_interest';
+  return { pool, reachMultiplier: audienceReach(custom) };
+}
+
+/** Forecast ROI band = booking value × expected bookings ÷ spend. Needs the style's per-booking value. */
+export function forecastRoi(f: AdForecast, bookingValueCents: number, spendCents: number): [number, number] | null {
+  if (spendCents <= 0 || bookingValueCents <= 0) return null;
+  const lo = (f.expectedBookings[0] * bookingValueCents) / spendCents;
+  const hi = (f.expectedBookings[1] * bookingValueCents) / spendCents;
+  return [Number(lo.toFixed(1)), Number(hi.toFixed(1))];
 }
 
 function fatigue(impressions: number, audienceSize: number): number {

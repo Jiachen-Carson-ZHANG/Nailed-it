@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { forecastAd, AD_AUDIENCES } from './ad-forecast';
+import { forecastAd, deriveAdAudience, forecastRoi, AD_AUDIENCES } from './ad-forecast';
+import { DEFAULT_CUSTOM_AUDIENCE } from './style-ad';
 
 // This math must stay identical to the agent sandbox's forecast() (sandbox.py) — the whole point of the
 // port is that the merchant editor and the 投广 Agent read the same promise from the same priors.
@@ -50,5 +51,30 @@ describe('forecastAd', () => {
   it('exposes the three sandbox audiences with bilingual labels', () => {
     expect(Object.keys(AD_AUDIENCES)).toEqual(['broad_local_interest', 'saved_or_viewed', 'try_on_no_booking']);
     expect(AD_AUDIENCES.try_on_no_booking.label['zh-CN']).toBe('试戴未预约');
+  });
+});
+
+describe('deriveAdAudience (audience UI → sandbox forecast inputs)', () => {
+  it('smart mode = the engaged pool at full reach (platform auto-selects likely bookers)', () => {
+    expect(deriveAdAudience('smart')).toEqual({ pool: 'saved_or_viewed', reachMultiplier: 1 });
+  });
+  it('purchase-intent signals lift the behavioral pool; a wide filter keeps reach ~full', () => {
+    const highSpend = deriveAdAudience('custom', { ...DEFAULT_CUSTOM_AUDIENCE, ageMin: 18, ageMax: 60, unitPrice: 'high' });
+    expect(highSpend.pool).toBe('try_on_no_booking');
+    const plain = deriveAdAudience('custom', { ...DEFAULT_CUSTOM_AUDIENCE, ageMin: 18, ageMax: 60, preferenceTags: [], visitFrequency: null, unitPrice: null });
+    expect(plain.pool).toBe('broad_local_interest');
+  });
+  it('tighter demographics shrink reach below 1', () => {
+    const narrow = deriveAdAudience('custom', { ...DEFAULT_CUSTOM_AUDIENCE, ageMin: 24, ageMax: 30, preferenceTags: ['french', 'cat_eye'] });
+    expect(narrow.reachMultiplier).toBeLessThan(1);
+  });
+});
+
+describe('forecastRoi', () => {
+  it('ROI = booking value × bookings ÷ spend', () => {
+    const f = forecastAd({ audience: 'saved_or_viewed', totalBudgetCents: 6000, durationDays: 5, styleCvr: 0.06 });
+    // bookings 2.4–3.6, value ¥120 (12000c), spend 6000c → 4.8–7.2×
+    expect(forecastRoi(f, 12000, 6000)).toEqual([4.8, 7.2]);
+    expect(forecastRoi(f, 0, 6000)).toBeNull(); // unpriced style
   });
 });

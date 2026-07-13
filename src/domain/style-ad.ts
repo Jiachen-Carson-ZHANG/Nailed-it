@@ -173,6 +173,8 @@ export type StyleAdView = {
   dailyBudgetCents: number | null;
   notes: string;
   updatedAt: string;
+  /** The style's per-booking value (its priced quote) — drives the forecast ROI. 0 when unpriced. */
+  bookingValueCents: number;
 };
 
 // ── Agent-proposed campaigns (ADR-0012 Phase 2) ────────────────────────────────────────────────

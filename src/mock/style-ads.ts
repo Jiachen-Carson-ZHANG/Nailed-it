@@ -82,6 +82,7 @@ export function getMockStyleAdView(styleId: string): StyleAdView | null {
       dailyBudgetCents: active.dailyBudgetCents,
       notes: '',
       updatedAt: active.updatedAt,
+      bookingValueCents: 12000,
     };
   }
 
@@ -104,6 +105,7 @@ export function getMockStyleAdView(styleId: string): StyleAdView | null {
     dailyBudgetCents: null,
     notes: '',
     updatedAt: SEEDED_AT,
+    bookingValueCents: 12000,
   };
 }
 

@@ -175,6 +175,7 @@ function campaignToView(style: MerchantStyleView | null, campaign: StyleAdCampai
     dailyBudgetCents: campaign?.daily_budget_cents ?? null,
     notes: campaign?.notes ?? '',
     updatedAt: campaign?.updated_at ?? style.updatedAt,
+    bookingValueCents: style.previewPriceCents ?? 0,
   };
 }
 
