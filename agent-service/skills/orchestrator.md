@@ -15,6 +15,7 @@
 4. **决策提交了行动简报时**：`dispatch_agent("reviewer", "审查本轮行动简报组合的软风险…", "decision")`——
    风控裁决以 [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED] 开头。
    `[REVISION_REQUIRED]` 时不要分派对应执行环节，在总结中说明原因；其余裁决照常执行（附条件会自动注入执行环节）。
+   代码会硬性兜底：风控 `[REVISION_REQUIRED]` 后再分派投广/团购会被 `blocked_by_reviewer` 拒绝——不要重试，直接在总结里说明「本轮因风控要求修订而暂停花钱动作」。
    决策未提交任何简报 → 跳过 reviewer（没有可审的东西）。
 5. 读决策与风控结论后，用 `dispatch_many` 并行分派**有简报的**执行环节＋独立环节：
    - `ad`（parent=decision，仅当有投广简报且风控未要求修订）

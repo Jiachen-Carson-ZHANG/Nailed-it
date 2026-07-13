@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -117,6 +118,17 @@ ORCH_TASK = (
 )
 
 
+# 花钱执行者——风控裁决 REVISION_REQUIRED 时被硬门拦住（catalog/customer_ops 不花营销钱包，放行）。
+_SPEND_LANES = {"ad", "coupon"}
+_VERDICT_RE = re.compile(r"\[(APPROVED_WITH_CONDITIONS|APPROVED|REVISION_REQUIRED|MERCHANT_APPROVAL_REQUIRED)\]")
+
+
+def _parse_verdict(text: str | None) -> str | None:
+    """风控结论首行是裁决 token（reviewer 技能强制）。抽出它，供 RoundState 硬门用。"""
+    m = _VERDICT_RE.search(text or "")
+    return m.group(1) if m else None
+
+
 @dataclass
 class RoundState:
     """The round's dispatch registry + guardrails. The dispatch tools (tools.py) drive this; only the
@@ -127,6 +139,7 @@ class RoundState:
     dispatched: dict[str, str] = field(default_factory=dict)  # slug -> run_id
     results: dict[str, str] = field(default_factory=dict)  # slug -> final text
     briefs: list[dict] = field(default_factory=list)  # ADR-0016: Action Briefs filed by 决策
+    reviewer_verdict: str | None = None  # ADR-0016 §6: 风控裁决 token，代码据此硬门花钱执行者
     _taken: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -160,11 +173,17 @@ class RoundState:
                 self._validate(slug)
                 self._taken.add(slug)
                 self.budget -= 1
+        # ADR-0016 §6 硬门：风控裁决 [REVISION_REQUIRED] 时，代码拒绝分派花钱执行者——不再只靠模型
+        # 读懂上游结论后自觉遵守。软风险裁决因此有了 runtime 牙齿；硬规则（钱包/简报）仍在工具层兜底。
+        if slug in _SPEND_LANES and self.reviewer_verdict == "REVISION_REQUIRED":
+            raise ValueError("blocked_by_reviewer:revision_required")
         assert self.dispatch_fn is not None
         run_id, text = self.dispatch_fn(slug, task, parent)
         with self._lock:
             self.dispatched[slug] = run_id
             self.results[slug] = text
+            if slug == "reviewer":
+                self.reviewer_verdict = _parse_verdict(text)
         return run_id, text
 
 

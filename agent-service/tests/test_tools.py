@@ -432,6 +432,40 @@ def test_dispatch_many_retries_stale_connections_once(ctx):
     assert attempts["ad"] == 2 and "run-ad" in out  # died once, retried, succeeded
 
 
+def test_reviewer_revision_required_blocks_spend_lanes():
+    """ADR-0016 §6 硬门：风控 [REVISION_REQUIRED] 后，代码拒绝分派花钱执行者（ad/coupon），
+    不再只靠模型读懂上下文自觉遵守。不花营销钱包的 catalog/customer_ops 放行。"""
+    from nailed_agents.orchestrator import RoundState
+
+    def fake(slug, task, parent):
+        text = "[REVISION_REQUIRED] 广告与团购争抢同一下午产能" if slug == "reviewer" else f"{slug} 完成"
+        return f"run-{slug}", text
+
+    st = RoundState(dispatch_fn=fake, budget=9)
+    st.dispatch("decision", "定策", None)
+    st.dispatch("reviewer", "审查简报组合", "decision")
+    assert st.reviewer_verdict == "REVISION_REQUIRED"
+    with pytest.raises(ValueError, match="blocked_by_reviewer:revision_required"):
+        st.dispatch("ad", "投广", "reviewer")
+    with pytest.raises(ValueError, match="blocked_by_reviewer"):
+        st.dispatch("coupon", "团购", "reviewer")
+    _, t = st.dispatch("catalog", "陈列", "reviewer")  # 不花钱，放行
+    assert "catalog" in t
+
+
+def test_reviewer_approved_lets_spend_through():
+    from nailed_agents.orchestrator import RoundState
+
+    def fake(slug, task, parent):
+        return f"run-{slug}", ("[APPROVED] 无软风险" if slug == "reviewer" else f"{slug} done")
+
+    st = RoundState(dispatch_fn=fake, budget=9)
+    st.dispatch("reviewer", "审", "decision")
+    assert st.reviewer_verdict == "APPROVED"
+    _, t = st.dispatch("ad", "投广", "reviewer")  # 清白裁决放行
+    assert "ad" in t
+
+
 # ── ADR-0015: memory v2 tools — agent judges, code anchors identity + evidence ───────────────────
 
 _ACTION_ROW = {
