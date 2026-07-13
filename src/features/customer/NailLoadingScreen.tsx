@@ -30,6 +30,61 @@ const LOADING_PHRASES = [
   '马上就要完成啦…',
 ];
 
+const BOTTLE_COLORS = [
+  ['#ec5d7b', '#c73963'], // 粉
+  ['#e6c9a8', '#c99a63'], // 裸
+  ['#e5484d', '#b91c1c'], // 红
+  ['#a78bda', '#7c5bd0'], // 紫
+];
+
+function PolishGame() {
+  const [fill, setFill] = useState(0);        // 0..100
+  const [colorIdx, setColorIdx] = useState(0);
+  const [shake, setShake] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  const onPoke = () => {
+    setShake(true);
+    timers.current.push(window.setTimeout(() => setShake(false), 220));
+    setFill((prev) => {
+      const next = prev + 12;
+      if (next >= 100) {
+        // full → highlight breathe → reset + next colour
+        setFlash(true);
+        timers.current.push(window.setTimeout(() => {
+          setFlash(false);
+          setFill(0);
+          setColorIdx((c) => (c + 1) % BOTTLE_COLORS.length);
+        }, 500));
+        return 100;
+      }
+      return next;
+    });
+  };
+
+  const [top, bottom] = BOTTLE_COLORS[colorIdx];
+
+  return (
+    <button
+      type="button"
+      className={`nail-loading-bottle nail-loading-bottle-btn${shake ? ' is-shaking' : ''}${flash ? ' is-flashing' : ''}`}
+      onClick={onPoke}
+      aria-label="点击摇一摇指甲油"
+    >
+      <span className="nail-loading-bottle-cap" aria-hidden="true" />
+      <span className="nail-loading-bottle-body" aria-hidden="true">
+        <span
+          className="nail-loading-bottle-fill"
+          style={{ height: `${fill}%`, backgroundImage: `linear-gradient(180deg, ${top}, ${bottom})` }}
+        />
+      </span>
+    </button>
+  );
+}
+
 function BgPrintLayer() {
   return (
     <div className="nail-loading-prints" aria-hidden="true">
@@ -86,12 +141,7 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
   return (
     <div className="nail-loading" role="status" aria-label="正在生成美甲效果图" aria-live="polite">
       <BgPrintLayer />
-      <div className="nail-loading-bottle" aria-hidden="true">
-        <div className="nail-loading-bottle-cap" />
-        <div className="nail-loading-bottle-body">
-          <div className="nail-loading-bottle-fill" style={{ height: '55%' }} />
-        </div>
-      </div>
+      <PolishGame />
       <div className="nail-loading-status">
         <span className="nail-loading-eyebrow">NAIL STUDIO</span>
         <h1 className="nail-loading-title">拼贴小屋</h1>

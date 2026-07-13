@@ -6336,6 +6336,7 @@ button.xhs-card-shape {
   align-items: center;
 }
 .nail-loading-bottle-cap {
+  display: block;
   width: 26px;
   height: 34px;
   border-radius: 6px 6px 4px 4px;
@@ -6358,6 +6359,28 @@ button.xhs-card-shape {
   width: 100%;
   background: linear-gradient(180deg, #ec5d7b, #c73963);
   transition: height 0.25s ease;
+}
+.nail-loading-bottle-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.nail-loading-bottle-btn.is-shaking {
+  animation: nailBottleShake 0.22s ease-in-out;
+}
+@keyframes nailBottleShake {
+  0%, 100% { transform: rotate(0); }
+  25%      { transform: rotate(-7deg); }
+  75%      { transform: rotate(7deg); }
+}
+.nail-loading-bottle-btn.is-flashing .nail-loading-bottle-body {
+  animation: nailBottleFlash 0.5s ease-in-out;
+}
+@keyframes nailBottleFlash {
+  0%, 100% { box-shadow: var(--shadow-raised); filter: brightness(1); }
+  50%      { box-shadow: 0 0 16px 4px rgba(255, 220, 150, 0.9); filter: brightness(1.12); }
 }
 
 /* ── Loading screen ─────────────────────────────────────────────────────── */
