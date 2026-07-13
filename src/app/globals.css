@@ -6261,6 +6261,22 @@ button.xhs-card-shape {
   0%, 100% { opacity: 0; }
   50%      { opacity: 0.6; }
 }
+.nail-loading-prints {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.nail-loading-print {
+  position: absolute;
+  line-height: 1;
+  will-change: transform, opacity, filter;
+  animation: nailPrintFloat 8s ease-in-out infinite;
+}
+@keyframes nailPrintFloat {
+  0%, 100% { transform: translateY(0);     opacity: 0.06; filter: blur(1.2px); }
+  50%      { transform: translateY(-8px);  opacity: 0.18; filter: blur(0);     }
+}
 
 /* ── Loading screen ─────────────────────────────────────────────────────── */
 .collage-loading-screen {
