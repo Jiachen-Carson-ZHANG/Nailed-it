@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { computeFakeProgress } from './loading-progress';
 
 type NailLoadingScreenProps = {
@@ -136,18 +136,28 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
   }, []);
 
   const [leaving, setLeaving] = useState(false);
+  const finishedRef = useRef(false);
+
+  const finish = useCallback(() => {
+    if (finishedRef.current) return; // fire once
+    finishedRef.current = true;
+    onTransitionEnd();
+  }, [onTransitionEnd]);
 
   // When generation completes: brief pause so the bar can visibly reach 100%,
-  // then trigger the exit animation. onTransitionEnd fires when that animation ends.
+  // then trigger the exit animation. `finish` runs when the exit animation ends
+  // (or via the safety-net timeout below if animations are disabled).
   useEffect(() => {
     if (!done) return;
     const pause = window.setTimeout(() => setLeaving(true), 450);
-    return () => window.clearTimeout(pause);
-  }, [done]);
+    // Safety net: if the exit animation is disabled (e.g. prefers-reduced-motion),
+    // no animationend fires — advance anyway so the user is never stranded.
+    const safety = window.setTimeout(finish, 1150);
+    return () => { window.clearTimeout(pause); window.clearTimeout(safety); };
+  }, [done, finish]);
 
   const handleExitAnimEnd = (e: React.AnimationEvent) => {
-    // Only the exit animation should fire the callback (ignore the looping bg breathe).
-    if (leaving && e.animationName === 'nailLoadingExit') onTransitionEnd();
+    if (e.animationName === 'nailLoadingExit') finish();
   };
 
   return (
