@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-07-14 — Style library enrichment: own 中文名 + per-photo 建构/延长 (data, via gemini)
+
+All 38 published styles carried the importer's placeholder title ("Melissa Design 8251") and no
+structure items (the June import never detected 延长/建构). Enriched via a temp route (deleted after):
+
+- **Names** — 11 curated demo labels (`src/domain/demo-style-labels.ts` — keeps agent-narrative names
+  like 鎏金奢华 aligned) promoted into `merchant_style.title`; the other 27 named by gemini vision from
+  their own photo (蓝星点点, 珍珠钻饰法式, 落英缤纷 …). One collision deduped with a shape qualifier
+  (星河闪耀·杏仁). Feed/detail/booking now show each style's own name — zero "Melissa" remains.
+- **建构/延长** — the general recognizer only names the container (延长服务), so a focused per-photo
+  classifier asked: natural | builder_gel | which tip type. 29/38 got a concrete structure item added to
+  `merchant_style_item` (20 建构, 6 浅贴, 3 全贴), 9 read as 本甲 and honestly got none. Previews
+  resynced through `buildQuote` → item-traced ¥40–170 spread; card↔detail verified matching live, 建构
+  chip lights on both sides.
+- Currency context: prices are CNY-base since `0fdcd07` (no SGD conversion) — the enrichment prices
+  land in that base.
+
 ## 2026-07-13 — "Reseed scare" triage: feed scoping, breakdown qty round-trip, gemini provider routing
 
 Branch `feat/demo-uiux-polish` → main. User reported "breakdowns gone / images wrong / prices random"
