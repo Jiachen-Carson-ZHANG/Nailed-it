@@ -216,13 +216,10 @@ function str(v: unknown): string {
 }
 
 /** What the UI may offer, from what setActionStatus() can actually do (agent-repository.ts):
- *  - a proposed `draft_upload` is the one human gate → 批准 / 拒绝.
- *  - everything else → 查看 only. No stop/unlist API exists; never fake-undo a sent/spent action. */
+ *  - every PROPOSED action is the human gate → 批准 / 拒绝 (coupon/ad proposals included).
+ *  - resolved actions → 查看 only. No stop/unlist API exists; never fake-undo a sent/spent action. */
 export function controlCapabilities(action: Pick<AgentAction, 'type' | 'status'>): ControlKind[] {
-  if (action.status === 'proposed') {
-    return action.type === 'draft_upload' ? ['approve', 'reject'] : ['view'];
-  }
-  return ['view'];
+  return action.status === 'proposed' ? ['approve', 'reject'] : ['view'];
 }
 
 export function toActionView(action: AgentAction, styleTitles: Record<string, string> = {}): HomeActionView {

@@ -155,7 +155,9 @@ export function createSupabaseAgentRepository(): AgentRepository {
         .eq('merchant_id', merchantId);
 
       if (status === 'approved') {
-        query = query.eq('status', 'proposed').eq('type', 'draft_upload');
+        // Any PROPOSED action is a human gate: approving records the merchant's yes (proposed →
+        // approved). Was draft_upload-only; coupon/ad proposals gate the same way now.
+        query = query.eq('status', 'proposed');
       } else {
         query = query.in('status', ['applied', 'proposed']).or('risk.eq.reversible,status.eq.proposed');
       }

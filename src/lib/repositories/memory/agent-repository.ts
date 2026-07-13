@@ -42,7 +42,8 @@ export function createMemoryAgentRepository(
 
   function canTransition(action: AgentAction, status: ActionStatus): boolean {
     if (status === 'approved') {
-      return action.status === 'proposed' && action.type === 'draft_upload';
+      // Mirrors the supabase repo: any proposed action is approvable (the human gate).
+      return action.status === 'proposed';
     }
     if (status === 'undone') return canUndoAction(action);
     return false;
