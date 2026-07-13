@@ -224,11 +224,33 @@ def _skill(slug: str, fallback: str) -> str:
 _HINTS_PER_KIND = {"merchant_preference": 3, "round_verdict": 1, "calibration": 3, "action_outcome": 3}
 
 
+def _open_commitments(campaigns: list[dict]) -> list[dict]:
+    """The in-flight spend the next plan must reckon with: active/draft campaigns with what they've
+    delivered so far vs their budget. Lets 决策 hold a near-target campaign instead of re-briefing it."""
+    out = []
+    for c in campaigns:
+        if c.get("status") not in ("active", "draft"):
+            continue
+        total = int(c.get("total_budget_cents") or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4))
+        spent = int(c.get("spend_cents") or 0)
+        out.append({
+            "campaignId": c.get("id"),
+            "styleId": c.get("merchant_style_id"),
+            "status": c.get("status"),
+            "audience": c.get("audience"),
+            "bookings": int(c.get("bookings") or 0),
+            "spent_cents": spent,
+            "remaining_budget_cents": max(0, total - spent),
+        })
+    return out
+
+
 def _decision_context(sb) -> str:
     """The decision agent's strategic environment (ADR-0016 Stage 2), injected deterministically:
-    mission, merchant policy snapshot, capacity summary, candidate style index (top signals only).
-    Full per-style facts stay behind get_style_business_facts — injection covers what EVERY decision
-    structurally needs; WHICH candidates to inspect in depth remains the agent's choice."""
+    merchant weekly focus + policy snapshot, capacity summary, candidate style index (top signals),
+    and open commitments (in-flight campaigns → hold-vs-push). Full per-style facts stay behind
+    get_style_business_facts — injection covers what EVERY decision structurally needs; WHICH
+    candidates to inspect in depth remains the agent's choice."""
     try:
         brain = bus.fetch_decisions() or {}
     except Exception:
@@ -236,8 +258,10 @@ def _decision_context(sb) -> str:
         return ""
     cap = brain.get("capacity") or {}
     committed = 0
+    campaigns: list[dict] = []
     try:
-        committed = sandbox.committed_budget_cents(bus.fetch_campaign_outcomes(sb, config.MERCHANT_ID))
+        campaigns = bus.fetch_campaign_outcomes(sb, config.MERCHANT_ID)
+        committed = sandbox.committed_budget_cents(campaigns)
     except Exception:
         pass
     ranked = sorted(brain.get("decisions") or [],
@@ -275,6 +299,10 @@ def _decision_context(sb) -> str:
              "signals": d.get("signals"), "businessValue": (d.get("scores") or {}).get("businessValue")}
             for d in ranked[:5]
         ],
+        # What is already IN FLIGHT this week — so 决策 can tell HOLD (targets nearly met, let it finish)
+        # from PUSH (gap remains, spend the wallet). Without this it sees only remaining budget and
+        # re-briefs styles already working. Derived, not stored; measured bookings come from the real rows.
+        "open_commitments": _open_commitments(campaigns),
     }
     return (
         "\n\n[经营环境 — 系统注入｜商家周重点、政策约束、产能摘要与候选索引；完整每款事实用 "
