@@ -14,5 +14,6 @@ why** — every design claim cites the code path or the measured evidence behind
 | [06 — Evaluation methodology](06-evaluation-methodology.md) | How do we know any of it works? |
 | [07 — Anticipated judge Q&A](07-judge-qa.md) | The hard questions, answered before they're asked |
 | [08 — Demo walkthrough: agent I/O & contracts](08-demo-walkthrough-agent-io.md) | The real round, agent by agent: inputs, outputs, tool usage, JSON contracts, the envelope |
+| [09 — 模型选型报告](09-模型选型报告.md) | 用我方评测框架实测选定基座模型：矩阵、指标、评分、方法、决策依据（中文，评委版） |
 
-Reading order for a 15-minute review: 01 → 02 → 07. For the live-demo script: 08.
+Reading order for a 15-minute review: 01 → 02 → 07. For the live-demo script: 08. For model selection: 09.

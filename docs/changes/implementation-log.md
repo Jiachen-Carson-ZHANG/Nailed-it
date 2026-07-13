@@ -2346,3 +2346,29 @@ became a code rule the same day:
   is the whole scheduler. Monitor follow-up needs no second entry — matured actions (≥72h window)
   are pulled into the next round's due-review list; the weekly round naturally opens by measuring
   last week. Doc 08 gains the demo "rhythm line" saying exactly this on stage.
+
+## 2026-07-13 — Model selection: gpt-5.6-terra chosen (screen + partial finalist); budget-out recorded
+
+- **Selection**: `gpt-5.6-terra` as the strong-tier base; backup `gemini-3.1-pro`. Full judge-facing
+  report in `docs/technical-documentation/09-模型选型报告.md` (Chinese).
+- **Screen** (6 families × 7 judgment scenarios × n=3, ~$3.10): only terra and gemini-3.1 cleared the
+  all-gates floor. terra 7/7 · 0 flake · $0.24 · 7.0s/run · 10.8k completion tokens (acts, doesn't
+  narrate); gemini-3.1 7/7 · 0 flake · $0.74 · 21.1s. qwen 6/7 (stability), incumbent gemini-2.5-pro
+  6/7 / 9.5% flake (reproduced its live rate), claude-sonnet-5 4/7 / 19% (BFCL-top ≠ our CN scenarios),
+  deepseek 4/7 / 14%. Cost cross-checked per-call vs OpenRouter ledger within 8%.
+- **Judge pass** (cross-family panel, non-blocking): terra process 4.44, gemini-3.1 3.86; both 合规率
+  1.0. Family bias MEASURED and reported (gemini judge +0.39 on the gemini candidate). 幻觉率 column
+  flagged as a trace-truncation artifact (deterministic grounding passed 42/42) — the eval criticizing
+  itself, on record.
+- **Finalist round** (full 14 × n=5 + judges on the two finalists): **budget ran out mid-run**.
+  OpenRouter $20 credit exhausted (20.19 used, −0.19) after terra's 13/14 scenarios → terra's 14th +
+  all of gemini-3.1 returned 402. Graceful (errors recorded, no crash, no overcharge). terra partial:
+  12/14 gates green, ~3% flake, $0.82, 9.3s/run, process 3.95 — reinforces the pick; gemini-3.1's
+  screen data stands on its own. No top-up: the screen already decided it.
+- **Two honest engineering notes**: (1) a failed process-kill left two finalist jobs briefly
+  double-spending, accelerating the credit drain — fixed via a single `scripts/run-finalist.sh` job;
+  (2) I reassured the user "bounded ~$3-4" from lifetime usage without checking the $20 credit LIMIT,
+  which had only ~$0.40 headroom — the loop was finite but the account wasn't. Both recorded in the
+  report's honest-boundary section.
+- Decision applied via the provider seam (env vars); live re-verification on terra pending (eval-live
+  parity). Doc: 09-模型选型报告.md; methodology frozen pre-run in doc 06.
