@@ -6327,6 +6327,38 @@ button.xhs-card-shape {
   background: linear-gradient(90deg, rgba(196, 146, 42, 0.5), #c4922a);
   transition: width 0.15s linear;
 }
+.nail-loading-bottle {
+  position: relative;
+  z-index: 2;
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.nail-loading-bottle-cap {
+  width: 26px;
+  height: 34px;
+  border-radius: 6px 6px 4px 4px;
+  background: linear-gradient(180deg, #d8b25a, #b98e2e);
+  box-shadow: 0 2px 6px rgba(120, 80, 20, 0.25);
+}
+.nail-loading-bottle-body {
+  width: 72px;
+  height: 96px;
+  margin-top: -4px;
+  border-radius: 10px 10px 14px 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1.5px solid rgba(196, 146, 42, 0.4);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+.nail-loading-bottle-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #ec5d7b, #c73963);
+  transition: height 0.25s ease;
+}
 
 /* ── Loading screen ─────────────────────────────────────────────────────── */
 .collage-loading-screen {

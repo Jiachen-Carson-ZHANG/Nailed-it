@@ -98,6 +98,7 @@ export function CollageHousePanel() {
   const [open, setOpen]       = useState(false);
   const [shellEl, setShellEl] = useState<Element | null>(null);
   const [genState, setGenState] = useState<GenState>({ phase: 'idle' });
+  const [showResult, setShowResult] = useState(false);
 
   // Drawer
   const [openDrawer, setOpenDrawer] = useState<DrawerZoneId | null>(null);
@@ -277,22 +278,27 @@ export function CollageHousePanel() {
     );
   }
 
-  if (genState.phase === 'loading') {
-    const ls = <NailLoadingScreen done={false} onTransitionEnd={() => {}} />;
-    return shellEl ? createPortal(ls, shellEl) : ls;
-  }
-
-  if (genState.phase === 'done') {
-    const rs = (
-      <ResultScreen
-        imageBase64={genState.imageBase64}
-        onRetry={() => { setGenState({ phase: 'idle' }); setDecals([]); setExtraText(''); }}
-        onBreakdown={() => router.push(getCustomerBookingPath())}
-        onTryOn={() => router.push(getCustomerTryOnPath())}
-        onClose={() => { setOpen(false); setGenState({ phase: 'idle' }); }}
+  if (genState.phase === 'loading' || genState.phase === 'done') {
+    // Once the loading screen signals its transition is complete AND we have the image, show the result.
+    if (showResult && genState.phase === 'done') {
+      const rs = (
+        <ResultScreen
+          imageBase64={genState.imageBase64}
+          onRetry={() => { setGenState({ phase: 'idle' }); setDecals([]); setExtraText(''); setShowResult(false); }}
+          onBreakdown={() => router.push(getCustomerBookingPath())}
+          onTryOn={() => router.push(getCustomerTryOnPath())}
+          onClose={() => { setOpen(false); setGenState({ phase: 'idle' }); setShowResult(false); }}
+        />
+      );
+      return shellEl ? createPortal(rs, shellEl) : rs;
+    }
+    const ls = (
+      <NailLoadingScreen
+        done={genState.phase === 'done'}
+        onTransitionEnd={() => setShowResult(true)}
       />
     );
-    return shellEl ? createPortal(rs, shellEl) : rs;
+    return shellEl ? createPortal(ls, shellEl) : ls;
   }
 
   // ── Main studio overlay ───────────────────────────────────────────────────

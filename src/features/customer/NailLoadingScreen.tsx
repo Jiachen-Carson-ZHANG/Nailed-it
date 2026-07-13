@@ -79,12 +79,19 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
     return () => clearInterval(id);
   }, []);
 
-  void onTransitionEnd; // wired in a later task
+  useEffect(() => {
+    if (done) onTransitionEnd();
+  }, [done, onTransitionEnd]);
 
   return (
     <div className="nail-loading" role="status" aria-label="正在生成美甲效果图" aria-live="polite">
       <BgPrintLayer />
-      {/* PolishGame — later task */}
+      <div className="nail-loading-bottle" aria-hidden="true">
+        <div className="nail-loading-bottle-cap" />
+        <div className="nail-loading-bottle-body">
+          <div className="nail-loading-bottle-fill" style={{ height: '55%' }} />
+        </div>
+      </div>
       <div className="nail-loading-status">
         <span className="nail-loading-eyebrow">NAIL STUDIO</span>
         <h1 className="nail-loading-title">拼贴小屋</h1>
