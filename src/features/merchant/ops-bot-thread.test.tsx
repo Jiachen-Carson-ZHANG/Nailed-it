@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { LanguageProvider } from '@/i18n/context';
 import { OpsBotThread } from './OpsBotThread';
@@ -42,6 +42,9 @@ vi.mock('@/lib/actions/agent-actions', () => ({
     { id: 'run-8', agentSlug: 'monitor', agentName: 'Monitor Agent', agentRole: 'reviewer', merchantId: 'm', triggerSource: 'event', parentRunId: null, status: 'completed', input: {}, output: {}, transcript: [], startedAt: '2026-07-12T08:45:00Z', actions: [] },
     { id: 'run-1', agentSlug: 'ad', agentName: '投广 Agent', agentRole: 'operator', merchantId: 'm', triggerSource: 'event', parentRunId: null, status: 'completed', input: {}, output: {}, transcript: [], startedAt: '2026-07-10T09:00:00Z', actions: [] },
   ]),
+  // The 查看推理 sheet lazily fetches these only when opened — stubbed so the mount is clean.
+  getAgentRunDetailAction: vi.fn(async () => null),
+  getStyleTitleMapAction: vi.fn(async () => ({})),
 }));
 
 function renderThread() {
@@ -63,12 +66,30 @@ describe('OpsBotThread team debrief', () => {
     expect(container.querySelectorAll('svg.sparkline').length).toBe(2);
   });
 
-  it('shows the latest round (tight run cluster, not the whole calendar day) + a reasoning deep-link', async () => {
+  it('shows the latest round (tight run cluster) + a 查看推理 button that opens the drill-down sheet', async () => {
     renderThread();
     // run-7 (09:00) + run-8 (08:45) cluster within 30min; run-1 (two days earlier) must NOT count.
     expect(await screen.findByText('最近一轮：2 次运行 · 2 个动作 · 全部成功')).toBeInTheDocument();
     expect(screen.getByText('修改广告 · 薄荷青法式')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看推理 →' })).toHaveAttribute('href', '/merchant/agents/runs/run-7');
+    // 查看推理 is now a button (opens the popup sheet), not a page link.
+    expect(screen.getByRole('button', { name: '查看推理 →' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看推理 →' })).not.toBeInTheDocument();
+  });
+
+  it('toggles 今日/本周: week view swaps 昨日经营 for 本周经营 (week totals vs last week)', async () => {
+    renderThread();
+    expect(await screen.findByText('昨日经营')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '本周' }));
+    expect(await screen.findByText('本周经营')).toBeInTheDocument();
+    expect(screen.queryByText('昨日经营')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/较上周|与上周持平/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('has no legacy footer links (完整报告 / AI团队 dropped)', async () => {
+    renderThread();
+    await screen.findByText('昨日经营');
+    expect(screen.queryByRole('link', { name: /完整数据报告|完整报告/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('AI 团队 →')).not.toBeInTheDocument();
   });
 
   it('requests measured kinds server-side and shows the deviation badge', async () => {

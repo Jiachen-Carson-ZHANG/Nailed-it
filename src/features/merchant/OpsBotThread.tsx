@@ -5,23 +5,28 @@ import Link from 'next/link';
 import { getInsightsDailySeriesAction } from '@/lib/actions/insights-actions';
 import { getMerchantTodayHomeAction } from '@/lib/actions/merchant-home-actions';
 import { listAgentRunsAction, listTeamMemoryAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
-import { getMerchantAgentRunPath, getMerchantAgentsPath, getMerchantInsightsPath, homePathForRole } from '@/domain/session';
+import { homePathForRole } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { DailyPoint } from '@/domain/intelligence';
 import type { TodayHomeData } from '@/domain/merchant-home';
 import type { AgentRunView } from '@/domain/agents';
 import { Sparkline } from '@/features/merchant/insights/Sparkline';
+import { AgentRunSheet } from '@/features/merchant/AgentRunSheet';
 
 const opsBotCopy = {
   'zh-CN': {
     loading: '运营助手正在生成晨报…',
     threadAria: '运营助手团队晨报',
-    greeting: '早 👋 这是你的团队晨报：昨天门店发生了什么、AI 团队做了什么、哪些事在等你。',
+    greeting: '早 👋 这是你的团队简报：门店发生了什么、AI 团队做了什么、哪些事在等你。',
+    rangeToday: '今日',
+    rangeWeek: '本周',
     yesterdayTitle: '昨日经营',
+    weekTitle: '本周经营',
     asOf: (date: string) => `（最近有数据：${date.slice(5).replace('-', '月')}日）`,
     metric: { tryOns: '试戴', bookings: '预约', searches: '搜索' },
     vsPrior: (d: number) => (d > 0 ? `较前日 +${d}` : d < 0 ? `较前日 ${d}` : '与前日持平'),
+    vsPriorWeek: (d: number) => (d > 0 ? `较上周 +${d}` : d < 0 ? `较上周 ${d}` : '与上周持平'),
     sparkTryOns: '试戴',
     sparkBookings: '预约',
     last14: '近 14 天',
@@ -42,11 +47,15 @@ const opsBotCopy = {
   en: {
     loading: 'Preparing the team debrief…',
     threadAria: 'Ops assistant team debrief',
-    greeting: 'Morning 👋 Your team debrief: what happened yesterday, what the AI team did, and what needs you.',
+    greeting: 'Morning 👋 Your team briefing: what happened, what the AI team did, and what needs you.',
+    rangeToday: 'Today',
+    rangeWeek: 'This week',
     yesterdayTitle: 'Yesterday',
+    weekTitle: 'This week',
     asOf: (date: string) => ` (latest data: ${date.slice(5)})`,
     metric: { tryOns: 'Try-ons', bookings: 'Bookings', searches: 'Searches' },
     vsPrior: (d: number) => (d > 0 ? `+${d} vs prior day` : d < 0 ? `${d} vs prior day` : 'flat vs prior day'),
+    vsPriorWeek: (d: number) => (d > 0 ? `+${d} vs last week` : d < 0 ? `${d} vs last week` : 'flat vs last week'),
     sparkTryOns: 'Try-ons',
     sparkBookings: 'Bookings',
     last14: 'last 14 days',
@@ -99,6 +108,18 @@ function yesterdayDelta(series: DailyPoint[]): { y: DailyPoint; isYesterday: boo
   };
 }
 
+/** This-week totals vs the prior week, from the daily series (last 7 days vs the 7 before). */
+function weekTotals(series: DailyPoint[]): { totals: Record<'tryOns' | 'bookings' | 'searches', number>; delta: Record<'tryOns' | 'bookings' | 'searches', number> } | null {
+  if (series.length < 8) return null;
+  const last7 = series.slice(-7);
+  const prior7 = series.slice(-14, -7);
+  const sum = (arr: DailyPoint[], k: 'tryOns' | 'bookings' | 'searches') => arr.reduce((n, p) => n + p[k], 0);
+  const keys = ['tryOns', 'bookings', 'searches'] as const;
+  const totals = Object.fromEntries(keys.map((k) => [k, sum(last7, k)])) as Record<'tryOns' | 'bookings' | 'searches', number>;
+  const delta = Object.fromEntries(keys.map((k) => [k, sum(last7, k) - sum(prior7, k)])) as Record<'tryOns' | 'bookings' | 'searches', number>;
+  return { totals, delta };
+}
+
 /** The latest ROUND, reconstructed from the runs list (newest-first) by the round's own domain rule:
  *  RoundState dispatches each agent AT MOST ONCE per round — so the newest round ends where a slug
  *  repeats. A 30-min time gap is the secondary cut (rounds complete in minutes). Grouping by calendar
@@ -135,6 +156,8 @@ export function OpsBotThread() {
   const [memory, setMemory] = useState<TeamMemoryView[]>([]);
   const [runs, setRuns] = useState<AgentRunView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<'today' | 'week'>('today');
+  const [sheetRunId, setSheetRunId] = useState<string | null>(null); // 查看推理 opens the drill-down sheet
 
   useEffect(() => {
     let active = true;
@@ -162,6 +185,7 @@ export function OpsBotThread() {
   if (loading) return <p className="helper-copy">{copy.loading}</p>;
 
   const yd = series ? yesterdayDelta(series) : null;
+  const wk = series ? weekTotals(series) : null;
   const roundRuns = latestRound(runs);
   const roundActions = roundRuns.reduce((n, r) => n + r.actions.length, 0);
   const roundFailed = roundRuns.filter((r) => r.status === 'failed').length;
@@ -174,7 +198,48 @@ export function OpsBotThread() {
     <div className="opsbot-thread" aria-label={copy.threadAria}>
       <Bubble>{copy.greeting}</Bubble>
 
-      {yd ? (
+      <div className="insights-range-toggle" role="tablist" aria-label={copy.rangeToday}>
+        {(['today', 'week'] as const).map((r) => (
+          <button
+            key={r}
+            role="tab"
+            type="button"
+            aria-selected={range === r}
+            className={`insights-range-tab${range === r ? ' insights-range-tab-on' : ''}`}
+            onClick={() => setRange(r)}
+          >
+            {r === 'today' ? copy.rangeToday : copy.rangeWeek}
+          </button>
+        ))}
+      </div>
+
+      {range === 'week' && wk ? (
+        <Bubble title={copy.weekTitle}>
+          <ul className="opsbot-pulse">
+            {(['tryOns', 'bookings', 'searches'] as const).map((k) => (
+              <li key={k} className="opsbot-pulse-row">
+                <span className="opsbot-pulse-label">{copy.metric[k]}</span>
+                <strong className="opsbot-pulse-value">{wk.totals[k]}</strong>
+                <span className={`opsbot-pulse-delta${wk.delta[k] > 0 ? ' ok' : wk.delta[k] < 0 ? ' bad' : ''}`}>
+                  {copy.vsPriorWeek(wk.delta[k])}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {series ? (
+            <div className="opsbot-sparkrow">
+              <div className="opsbot-spark">
+                <span className="opsbot-spark-label">{copy.sparkTryOns}</span>
+                <Sparkline points={series.map((p) => p.tryOns)} tone="accent" label={`${copy.sparkTryOns} ${copy.last14}`} />
+              </div>
+              <div className="opsbot-spark">
+                <span className="opsbot-spark-label">{copy.sparkBookings}</span>
+                <Sparkline points={series.map((p) => p.bookings)} tone="muted" label={`${copy.sparkBookings} ${copy.last14}`} />
+              </div>
+            </div>
+          ) : null}
+        </Bubble>
+      ) : yd ? (
         <Bubble title={yd.isYesterday ? copy.yesterdayTitle : `${copy.yesterdayTitle}${copy.asOf(yd.y.date)}`}>
           <ul className="opsbot-pulse">
             {(['tryOns', 'bookings', 'searches'] as const).map((k) => (
@@ -215,7 +280,7 @@ export function OpsBotThread() {
                   <p className="opsbot-team-agent">{a.agentLabel}</p>
                   <p className="opsbot-team-title">{a.title}</p>
                 </div>
-                <Link className="opsbot-team-link" href={getMerchantAgentRunPath(a.runId)}>{copy.viewRun}</Link>
+                <button type="button" className="opsbot-team-link" onClick={() => setSheetRunId(a.runId)}>{copy.viewRun}</button>
               </li>
             ))}
           </ul>
@@ -255,10 +320,7 @@ export function OpsBotThread() {
         </Bubble>
       ) : null}
 
-      <div className="opsbot-footer-links">
-        <Link className="button button-secondary button-block" href={getMerchantInsightsPath()}>{copy.fullReport}</Link>
-        <Link className="button button-secondary button-block" href={getMerchantAgentsPath()}>{copy.teamPage}</Link>
-      </div>
+      <AgentRunSheet open={sheetRunId !== null} runId={sheetRunId} onClose={() => setSheetRunId(null)} />
     </div>
   );
 }

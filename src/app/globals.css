@@ -7605,7 +7605,7 @@ button.xhs-card-shape {
 .opsbot-team-body { flex: 1; min-width: 0; }
 .opsbot-team-agent { margin: 0; font-size: 0.62rem; color: var(--color-muted); }
 .opsbot-team-title { margin: 0; font-size: var(--text-sm); color: var(--color-text); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.opsbot-team-link { flex: 0 0 auto; font-size: var(--text-xs); color: var(--color-accent-strong); text-decoration: none; white-space: nowrap; }
+.opsbot-team-link { flex: 0 0 auto; font-size: var(--text-xs); color: var(--color-accent-strong); text-decoration: none; white-space: nowrap; background: none; border: none; padding: 0; cursor: pointer; }
 .opsbot-measured-hint { margin: 0; font-size: 0.62rem; color: var(--color-muted); }
 .opsbot-measured-row { display: flex; align-items: flex-start; gap: var(--space-2); }
 .opsbot-measured-claim { margin: 0; flex: 1; font-size: var(--text-sm); color: var(--color-text); }
