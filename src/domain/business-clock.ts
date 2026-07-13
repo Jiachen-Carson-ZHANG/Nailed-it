@@ -32,14 +32,14 @@ const SPINE: readonly ClockPeriod[] = [
     tone: 'plan',
     label: { 'zh-CN': '商业决策', en: 'Decide' },
     headline: {
-      'zh-CN': '团队定策：为 8249 投放广告，8274 判定不可行',
-      en: 'Team decides: run an ad on 8249, rules 8274 infeasible',
+      'zh-CN': '团队定策：为「薄荷青法式」投放广告，「碎冰玫瑰猫眼」判定不可行',
+      en: 'Team decides: advertise “Mint French”, rules “Iced Rose Cat-Eye” infeasible',
     },
     detail: {
       'zh-CN':
-        '决策提交 3 份行动简报，风控 [APPROVED]。投广对款式 8249 预测 4.8–7.1 单（CAC ¥808–1211），日预算 ¥12 自动投放；对 8274，三个受众的预测都低于 4 单门槛，带数字判定该简报不可行。钱包 ¥180。',
+        '决策提交 3 份行动简报，风控 [APPROVED]。投广对「薄荷青法式」预测 4.8–7.1 单（CAC ¥808–1211），日预算 ¥12 自动投放；对「碎冰玫瑰猫眼」，三个受众的预测都低于 4 单门槛，带数字判定该简报不可行。钱包 ¥180。',
       en:
-        'Decision filed 3 action briefs, risk reviewer [APPROVED]. The ad lane forecast style 8249 at 4.8–7.1 bookings (CAC ¥808–1211) and auto-launched at ¥12/day; for 8274 all three audiences forecast under the 4-booking floor, so it reported the brief infeasible with numbers. Wallet ¥180.',
+        'Decision filed 3 action briefs, risk reviewer [APPROVED]. The ad lane forecast “Mint French” at 4.8–7.1 bookings (CAC ¥808–1211) and auto-launched at ¥12/day; for “Iced Rose Cat-Eye” all three audiences forecast under the 4-booking floor, so it reported the brief infeasible with numbers. Wallet ¥180.',
     },
     simulated: false,
   },
@@ -53,9 +53,9 @@ const SPINE: readonly ClockPeriod[] = [
     },
     detail: {
       'zh-CN':
-        '8249 交付 35 次点击（与预测相符），但实测获客成本 ¥1800，远高于 ¥808–1211 的假设。市场比预测更贵——这正是需要监测回流的原因。',
+        '「薄荷青法式」交付 35 次点击（与预测相符），但实测获客成本 ¥1800，远高于 ¥808–1211 的假设。市场比预测更贵——这正是需要监测回流的原因。',
       en:
-        '8249 delivered 35 clicks (on forecast) but a real CAC of ¥1800, far above the ¥808–1211 hypothesis. The market was more expensive than predicted — exactly why monitoring feeds back.',
+        '“Mint French” delivered 35 clicks (on forecast) but a real CAC of ¥1800, far above the ¥808–1211 hypothesis. The market was more expensive than predicted — exactly why monitoring feeds back.',
     },
     simulated: false,
   },
@@ -89,7 +89,7 @@ export function proceduralPeriod(index: number): ClockPeriod {
   const bookings = rng.int(4, 13);
   const action = rng.weighted<Bilingual>([
     [{ 'zh-CN': '维持当前投放，继续观察', en: 'held the current placement and kept watching' }, 3],
-    [{ 'zh-CN': '小幅上调 8249 的日预算', en: 'nudged 8249’s daily budget up' }, 2],
+    [{ 'zh-CN': '小幅上调「薄荷青法式」的日预算', en: 'nudged “Mint French” daily budget up' }, 2],
     [{ 'zh-CN': '对一款高意向低转化款试价', en: 'price-tested a high-interest, low-conversion style' }, 2],
     [{ 'zh-CN': '为一位流失顾客起草召回私信', en: 'drafted a win-back message for a lapsed customer' }, 1],
   ]);

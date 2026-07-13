@@ -25,7 +25,7 @@ describe('computeHomeStats (compute-on-read, merchant tz)', () => {
     bk('2026-06-25', 50, 'completed', 'C'),   // prior week → prevRevenue + not a new customer
     bk('2026-07-06', 999, 'cancelled', 'D'),  // cancelled → excluded everywhere
   ];
-  const s = computeHomeStats(bookings, 'SGD', TZ, NOW);
+  const s = computeHomeStats(bookings, 'CNY', TZ, NOW);
 
   it('sums this-week earned revenue and ignores cancelled', () => expect(s.revenue).toBe(300));
   it('computes the delta vs the prior 7 days', () => expect(s.revenueDeltaPct).toBe(500));
@@ -33,7 +33,7 @@ describe('computeHomeStats (compute-on-read, merchant tz)', () => {
   it('counts customers whose first booking is this week', () => expect(s.newCustomersThisWeek).toBe(2));
 
   it('returns null delta when there is no prior week (new salon)', () => {
-    const fresh = computeHomeStats([bk('2026-07-06', 100, 'confirmed', 'A')], 'SGD', TZ, NOW);
+    const fresh = computeHomeStats([bk('2026-07-06', 100, 'confirmed', 'A')], 'CNY', TZ, NOW);
     expect(fresh.revenueDeltaPct).toBeNull();
   });
 });
