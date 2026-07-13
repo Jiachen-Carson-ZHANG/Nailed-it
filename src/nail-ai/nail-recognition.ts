@@ -153,8 +153,7 @@ export function getNailRecognitionPrompt(_language: AppLanguage): string {
     'Return a JSON object with keys: baseServices (array of: removal|extension|builderGel),',
     'nailShape (one of: round|square|squoval|oval|almond|coffin|stiletto),',
     'styles (array of: solid|catEye|french|chrome|rhinestone),',
-    'addons (array of: rhinestone|charms|glitter),',
-    'confidence (0-1 number).',
+    'add-ons (array of: rhinestone|charms|glitter),',
     'Use only exact values listed. If an attribute is not visible, use an empty array.',
     'For nailShape, choose the closest visible shape; use round if unclear.',
     'Return ONLY valid JSON, no markdown.'

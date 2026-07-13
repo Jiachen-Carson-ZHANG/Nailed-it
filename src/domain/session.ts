@@ -42,6 +42,7 @@ const customerPaths = {
   bookingConfirm: '/customer/booking/confirm',
   messages: '/customer/messages',
   profile: '/customer/profile',
+  handMatch: '/customer/hand-match',
   styleDetail: (id: string) => `/customer/style/${id}`,
   messageDetail: (conversationId: string) => `/customer/messages/${conversationId}`,
   tryOn: (styleId?: string) => styleId ? `/customer/try-on?styleId=${styleId}` : '/customer/try-on'
@@ -259,6 +260,10 @@ export function getMerchantAgentRunPath(id: string): string {
 
 export function getCustomerTryOnPath(styleId?: string): string {
   return customerPaths.tryOn(styleId);
+}
+
+export function getCustomerHandMatchPath(): string {
+  return customerPaths.handMatch;
 }
 
 export function getRouteIntent(role: UserRole, key: MockRouteIntentKey): MockRouteIntent {
