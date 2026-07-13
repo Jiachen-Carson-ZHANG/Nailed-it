@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveRunDetail } from './agents';
+import { deriveRunDetail, groupRunsIntoRounds } from './agents';
 import type { AgentRunView } from './agents';
 
 // deriveRunDetail powers the 今日 home reasoning drill-down's 上下游 lineage (Phase 3): from the full run
@@ -57,5 +57,29 @@ describe('deriveRunDetail (run lineage)', () => {
     expect(d.auditTargets.map((t) => t.agentName).sort()).toEqual(['团购', '投广']);
     // a non-reviewer run has no audit targets
     expect(deriveRunDetail('ad', round)!.auditTargets).toEqual([]);
+  });
+});
+
+describe('groupRunsIntoRounds (runtime record grouped by round)', () => {
+  const at = (id: string, slug: string, iso: string): AgentRunView => ({
+    ...run(id, null), agentSlug: slug as AgentRunView['agentSlug'], startedAt: iso,
+  });
+  it('cuts a round when a slug repeats (one dispatch per agent per round)', () => {
+    const runs = [
+      at('r5', 'monitor', '2026-07-12T03:40:00Z'),
+      at('r4', 'ad', '2026-07-12T03:39:00Z'),
+      at('r3', 'decision', '2026-07-12T03:38:00Z'),
+      at('r2', 'ad', '2026-07-12T03:20:00Z'), // repeat slug vs r4 → previous round
+      at('r1', 'decision', '2026-07-12T03:19:00Z'),
+    ];
+    const rounds = groupRunsIntoRounds(runs);
+    expect(rounds.map((r) => r.map((x) => x.id))).toEqual([['r5', 'r4', 'r3'], ['r2', 'r1']]);
+  });
+  it('cuts a round on a >30min gap even without a repeated slug', () => {
+    const runs = [
+      at('b2', 'ad', '2026-07-12T06:00:00Z'),
+      at('b1', 'decision', '2026-07-12T04:00:00Z'),
+    ];
+    expect(groupRunsIntoRounds(runs).length).toBe(2);
   });
 });

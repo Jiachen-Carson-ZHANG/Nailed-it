@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { LoadingState } from '@/components/ui/LoadingState';
 import {
   listAgentsAction,
@@ -10,13 +11,16 @@ import {
   listTeamMemoryAction,
   getWeeklyObjectiveAction,
   triggerAgentRoundAction,
+  getTeamConfigAction,
+  setTeamConfigAction,
+  type TeamConfig,
   type TeamMemoryView,
   type WeeklyObjectiveItem,
 } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
-import type { Agent, AgentRole, AgentRunView, RunStatus, TriggerSource } from '@/domain/agents';
+import { groupRunsIntoRounds, type Agent, type AgentRole, type AgentRunView, type RunStatus, type TriggerSource } from '@/domain/agents';
 
 const agentsCopy = {
   'zh-CN': {
@@ -36,13 +40,23 @@ const agentsCopy = {
     objectiveDone: (n: number) => `已达成 ${n} 单`,
     objectiveStatus: { draft: '草稿', active: '投放中', paused: '已暂停', ended: '已结束', pending: '待执行' } as Record<string, string>,
     objectiveKind: { ad: '投广', coupon: '团购' } as Record<string, string>,
+    roundsTitle: '最近轮次',
+    roundLine: (runs: number, actions: number) => `${runs} 次运行 · ${actions} 个动作`,
     memoryEntry: '团队记忆库',
     memoryEntryBody: '监测写入的实测结论，下一轮决策会引用',
     runsEntry: '运行审计',
     runsEntryBody: '每次运行的思考链与动作',
     demoEntry: '演示控制台',
     runRound: '生成本周经营计划',
-    runSubline: '支持每周五自动运行（定时任务）',
+    runSubline: (day: string) => `支持每周${day}自动运行（定时任务）`,
+    configEdit: '设置',
+    configTitle: '经营目标与运行节奏',
+    configGoal: '目标预约（单）',
+    configGoalTo: '至',
+    configFocus: '本周经营重点（决策 Agent 下一轮会读取）',
+    configCadence: '自动运行日',
+    configDay: (d: string) => `每周${d}`,
+    configSave: '保存',
     runningRound: '运行中…',
     runConfirm: '生成本周经营计划会调用模型并产生少量费用，确认运行？',
     loading: '正在加载…',
@@ -70,13 +84,23 @@ const agentsCopy = {
     objectiveDone: (n: number) => `${n} booked`,
     objectiveStatus: { draft: 'Draft', active: 'Live', paused: 'Paused', ended: 'Ended', pending: 'Pending' } as Record<string, string>,
     objectiveKind: { ad: 'Ad', coupon: 'Group-buy' } as Record<string, string>,
+    roundsTitle: 'Recent rounds',
+    roundLine: (runs: number, actions: number) => `${runs} runs · ${actions} actions`,
     memoryEntry: 'Team memory',
     memoryEntryBody: 'Measured outcomes the next round cites',
     runsEntry: 'Run audit',
     runsEntryBody: 'Every run’s thinking chain and actions',
     demoEntry: 'Demo console',
     runRound: 'Generate this week’s plan',
-    runSubline: 'Auto-runs every Friday (scheduled)',
+    runSubline: (day: string) => `Auto-runs weekly on ${day} (scheduled)`,
+    configEdit: 'Configure',
+    configTitle: 'Goal & cadence',
+    configGoal: 'Target bookings',
+    configGoalTo: 'to',
+    configFocus: 'Weekly focus (read by the decision agent next round)',
+    configCadence: 'Auto-run day',
+    configDay: (d: string) => `Weekly ${d}`,
+    configSave: 'Save',
     runningRound: 'Running…',
     runConfirm: 'Generating this week’s plan calls the model (small cost). Proceed?',
     loading: 'Loading…',
@@ -225,10 +249,14 @@ export default function MerchantAgentsPage() {
   const [triggering, setTriggering] = useState(false);
   const [memory, setMemory] = useState<TeamMemoryView[]>([]);
   const [objective, setObjective] = useState<WeeklyObjective | null>(null);
+  const [cfg, setCfg] = useState<TeamConfig>({ goalMin: 8, goalMax: 16, focusText: '', cadenceDay: '五' });
+  const [cfgOpen, setCfgOpen] = useState(false);
+  const [cfgSaving, setCfgSaving] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let active = true;
+    void getTeamConfigAction().then((c) => active && setCfg(c)).catch(() => {});
     Promise.all([listAgentsAction(), listAgentRunsAction(), listTeamMemoryAction(), getWeeklyObjectiveAction()])
       .then(([a, r, m, o]) => {
         if (!active) return;
@@ -287,8 +315,47 @@ export default function MerchantAgentsPage() {
         >
           {triggering ? (copy.runningRound as string) : (copy.runRound as string)}
         </button>
-        <p className="agent-run-subline">{copy.runSubline as string}</p>
+        <p className="agent-run-subline">
+          {(copy.runSubline as (d: string) => string)(cfg.cadenceDay)}
+          <button type="button" className="agent-config-edit" onClick={() => setCfgOpen(true)}>{copy.configEdit as string}</button>
+        </p>
       </section>
+
+      {/* 经营目标 + 运行节奏 are merchant-owned config: saved as the merchant_preference rows the
+       * decision agent already injects (pref-weekly-focus / pref-run-cadence) — editing here steers
+       * the NEXT round, it isn't display-only. */}
+      <BottomSheet open={cfgOpen} onClose={() => setCfgOpen(false)} title={copy.configTitle as string}>
+        <div className="agent-config-form">
+          <label className="agent-config-label">{copy.configGoal as string}</label>
+          <div className="agent-config-range">
+            <input type="number" min={1} max={99} value={cfg.goalMin}
+              onChange={(e) => setCfg((c) => ({ ...c, goalMin: Number(e.target.value) }))} />
+            <span>{copy.configGoalTo as string}</span>
+            <input type="number" min={1} max={99} value={cfg.goalMax}
+              onChange={(e) => setCfg((c) => ({ ...c, goalMax: Number(e.target.value) }))} />
+          </div>
+          <label className="agent-config-label">{copy.configFocus as string}</label>
+          <textarea rows={4} value={cfg.focusText}
+            onChange={(e) => setCfg((c) => ({ ...c, focusText: e.target.value }))} />
+          <label className="agent-config-label">{copy.configCadence as string}</label>
+          <select value={cfg.cadenceDay} onChange={(e) => setCfg((c) => ({ ...c, cadenceDay: e.target.value }))}>
+            {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
+              <option key={d} value={d}>{(copy.configDay as (d: string) => string)(d)}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="button button-primary button-block"
+            disabled={cfgSaving || cfg.goalMin < 1 || cfg.goalMax < cfg.goalMin}
+            onClick={() => {
+              setCfgSaving(true);
+              void setTeamConfigAction(cfg).finally(() => { setCfgSaving(false); setCfgOpen(false); });
+            }}
+          >
+            {copy.configSave as string}
+          </button>
+        </div>
+      </BottomSheet>
 
       <AgentProofStrip language={language} agents={agents} runs={runs} memory={memory} loading={loading} />
 
@@ -297,6 +364,45 @@ export default function MerchantAgentsPage() {
       ) : (
         <>
           <WeeklyObjectiveCard language={language} objective={objective} />
+
+          {/* Runs grouped by ROUND (trigger + start time) — the runtime record, kept apart from the
+           * static team intro below. Same domain grouping the 晚报 uses. */}
+          {runs.length > 0 ? (
+            <section className="detail-surface" aria-labelledby="agents-rounds-title">
+              <div className="detail-surface-header">
+                <h2 id="agents-rounds-title">{copy.roundsTitle as string}</h2>
+              </div>
+              {groupRunsIntoRounds(runs).slice(0, 3).map((round) => {
+                const head = round[0];
+                const actions = round.reduce((n, r) => n + r.actions.length, 0);
+                const roundLine = copy.roundLine as (a: number, b: number) => string;
+                return (
+                  <div key={head.id} className="agent-round">
+                    <p className="agent-round-head">
+                      <span className="agent-round-trigger">{copy.trigger[head.triggerSource]}</span>
+                      <span>· {fmtTime(head.startedAt, language)}</span>
+                      <span>· {roundLine(round.length, actions)}</span>
+                    </p>
+                    <ul className="agent-run-list">
+                      {round.map((run) => (
+                        <li key={run.id}>
+                          <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
+                            <div className="agent-run-main">
+                              <span className="agent-run-name">{run.agentName}</span>
+                              <span className={`agent-run-status agent-run-status-${run.status}`}>{copy.status[run.status]}</span>
+                            </div>
+                            {run.actions.length > 0 ? (
+                              <div className="agent-run-meta"><span className="agent-run-actions-count">{copy.actionsN(run.actions.length)}</span></div>
+                            ) : null}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </section>
+          ) : null}
 
           <section className="detail-surface" aria-labelledby="agents-team-title">
             <div className="detail-surface-header">
@@ -313,6 +419,8 @@ export default function MerchantAgentsPage() {
                 const mine = runs.filter((r) => r.agentSlug === a.slug);
                 const isRunning = mine.some((r) => r.status === 'running');
                 const last = mine[0]; // runs are newest-first
+                // Team INTRO card: name + role + live presence only. Per-run status/time moved to the
+                // 最近轮次 section — mixing timestamps from different rounds here read as chaos.
                 const inner = (
                   <>
                     <p className="agent-card-name">
@@ -320,12 +428,6 @@ export default function MerchantAgentsPage() {
                       {a.name}
                     </p>
                     <span className={`agent-role-chip agent-role-${a.role}`}>{copy.role[a.role]}</span>
-                    {last ? (
-                      <p className="agent-card-lastrun">
-                        <span className={last.status === 'failed' ? 'bad' : 'ok'}>{copy.status[last.status]}</span>
-                        {' · '}{fmtTime(last.startedAt, language)}
-                      </p>
-                    ) : null}
                   </>
                 );
                 return last ? (

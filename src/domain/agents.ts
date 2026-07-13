@@ -121,6 +121,30 @@ function toRunRef(r: AgentRunView): RunRef {
   return { id: r.id, agentName: r.agentName, agentSlug: r.agentSlug, status: r.status };
 }
 
+const ROUND_GAP_MS = 30 * 60 * 1000;
+
+/** Newest-first ROUNDS, reconstructed from the runs list by the dispatcher's own rule: RoundState runs
+ *  each agent AT MOST ONCE per round, so a repeated slug marks the previous round's start; a >30min gap
+ *  is the secondary cut (rounds complete in minutes — gap-only grouping chained rehearsal rounds). */
+export function groupRunsIntoRounds(runs: AgentRunView[]): AgentRunView[][] {
+  const rounds: AgentRunView[][] = [];
+  let current: AgentRunView[] = [];
+  let seen = new Set<string>();
+  for (const run of runs) {
+    const prev = current[current.length - 1];
+    const gap = prev ? new Date(prev.startedAt).getTime() - new Date(run.startedAt).getTime() : 0;
+    if (current.length > 0 && (seen.has(run.agentSlug) || gap > ROUND_GAP_MS)) {
+      rounds.push(current);
+      current = [];
+      seen = new Set();
+    }
+    current.push(run);
+    seen.add(run.agentSlug);
+  }
+  if (current.length > 0) rounds.push(current);
+  return rounds;
+}
+
 /** Pure: from the full run list, resolve one run + its parent + its children. Deterministic → testable.
  *  The I/O shell (getAgentRunDetailAction) just supplies `allRuns`. */
 export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRunDetail | null {

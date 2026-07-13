@@ -10,7 +10,7 @@ import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { DailyPoint } from '@/domain/intelligence';
 import type { TodayHomeData } from '@/domain/merchant-home';
-import type { AgentRunView } from '@/domain/agents';
+import { groupRunsIntoRounds, type AgentRunView } from '@/domain/agents';
 import { Sparkline } from '@/features/merchant/insights/Sparkline';
 import { AgentRunSheet } from '@/features/merchant/AgentRunSheet';
 
@@ -118,25 +118,8 @@ function weekTotals(series: DailyPoint[]): { totals: Record<'tryOns' | 'bookings
   return { totals, delta };
 }
 
-/** The latest ROUND, reconstructed from the runs list (newest-first) by the round's own domain rule:
- *  RoundState dispatches each agent AT MOST ONCE per round — so the newest round ends where a slug
- *  repeats. A 30-min time gap is the secondary cut (rounds complete in minutes). Grouping by calendar
- *  day or by gap alone chained back-to-back rehearsal rounds into "30 次运行". */
-const ROUND_GAP_MS = 30 * 60 * 1000;
-function latestRound(runs: AgentRunView[]): AgentRunView[] {
-  if (runs.length === 0) return [];
-  const out = [runs[0]];
-  const seen = new Set([runs[0].agentSlug]);
-  for (let i = 1; i < runs.length; i += 1) {
-    if (seen.has(runs[i].agentSlug)) break; // one dispatch per agent per round — a repeat = previous round
-    const prevTs = new Date(out[out.length - 1].startedAt).getTime();
-    const ts = new Date(runs[i].startedAt).getTime();
-    if (prevTs - ts > ROUND_GAP_MS) break;
-    seen.add(runs[i].agentSlug);
-    out.push(runs[i]);
-  }
-  return out;
-}
+/** The latest ROUND — shared domain grouping (see groupRunsIntoRounds in domain/agents). */
+const latestRound = (runs: AgentRunView[]): AgentRunView[] => groupRunsIntoRounds(runs)[0] ?? [];
 
 /**
  * Ops-assistant thread = the team's daily debrief (2026-07-13 rebuild). The pre-agent version pushed a
