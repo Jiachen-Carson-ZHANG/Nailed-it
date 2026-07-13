@@ -129,4 +129,21 @@ describe('OpsBotThread team debrief', () => {
     expect(screen.queryByText('建议行动')).not.toBeInTheDocument();
     expect(screen.queryByText('客户旅程')).not.toBeInTheDocument();
   });
+
+  it('offers a drill-down link to the deep insights report (晚报 = report, insights = drill-down)', async () => {
+    renderThread();
+    const link = await screen.findByRole('link', { name: '查看款式明细 →' });
+    expect(link).toHaveAttribute('href', '/merchant/insights');
+  });
+
+  it('opens on the 本周 view when deep-linked with ?range=week (the 今日 home 查看周报 card)', async () => {
+    window.history.pushState({}, '', '/merchant/messages/ops?range=week');
+    try {
+      renderThread();
+      expect(await screen.findByText('本周经营')).toBeInTheDocument();
+      expect(screen.queryByText('昨日经营')).not.toBeInTheDocument();
+    } finally {
+      window.history.pushState({}, '', '/'); // reset so sibling tests default to 今日
+    }
+  });
 });

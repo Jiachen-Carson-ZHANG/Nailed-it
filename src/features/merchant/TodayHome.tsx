@@ -19,7 +19,7 @@ const AGENTS_PATH = '/merchant/agents';
 
 /** Demo stat strip — fixed mock values with navigation targets (not compute-on-read). */
 const STAT_STRIP_MOCK = [
-  { value: '¥27,308', delta: '+3%', labelKey: 'revenue' as const, href: '/merchant/insights' },
+  { value: '¥27,308', delta: '+3%', labelKey: 'revenue' as const, href: '/merchant/messages/ops?range=week' },
   { value: '12', labelKey: 'orders' as const, href: FULL_CALENDAR_PATH },
   { valueKey: 'hotElementValue' as const, labelKey: 'hotElement' as const, href: '/merchant/styles' },
 ] as const;

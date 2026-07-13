@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getInsightsDailySeriesAction } from '@/lib/actions/insights-actions';
 import { getMerchantTodayHomeAction } from '@/lib/actions/merchant-home-actions';
 import { listAgentRunsAction, listTeamMemoryAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
-import { homePathForRole } from '@/domain/session';
+import { homePathForRole, getMerchantInsightsPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { DailyPoint } from '@/domain/intelligence';
@@ -30,6 +30,7 @@ const opsBotCopy = {
     sparkTryOns: '试戴',
     sparkBookings: '预约',
     last14: '近 14 天',
+    dataDetail: '查看款式明细 →',
     teamTitle: '团队动态',
     runsLine: (n: number, actions: number, failed: number) =>
       `最近一轮：${n} 次运行 · ${actions} 个动作${failed > 0 ? ` · ${failed} 次失败` : ' · 全部成功'}`,
@@ -40,8 +41,6 @@ const opsBotCopy = {
     pendingTitle: '待你确认',
     pendingLine: (n: number) => `${n} 件事在等你拍板`,
     pendingGo: '去处理 →',
-    fullReport: '完整数据报告 →',
-    teamPage: 'AI 团队 →',
     quiet: '昨日团队无新动作 · 一切平稳',
   },
   en: {
@@ -59,6 +58,7 @@ const opsBotCopy = {
     sparkTryOns: 'Try-ons',
     sparkBookings: 'Bookings',
     last14: 'last 14 days',
+    dataDetail: 'Style-level detail →',
     teamTitle: 'Team activity',
     runsLine: (n: number, actions: number, failed: number) =>
       `Latest round: ${n} runs · ${actions} actions${failed > 0 ? ` · ${failed} failed` : ' · all succeeded'}`,
@@ -69,8 +69,6 @@ const opsBotCopy = {
     pendingTitle: 'Needs you',
     pendingLine: (n: number) => `${n} decision${n === 1 ? '' : 's'} waiting on you`,
     pendingGo: 'Review →',
-    fullReport: 'Full data report →',
-    teamPage: 'AI team →',
     quiet: 'No new team actions yesterday · all steady',
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
@@ -182,6 +180,13 @@ export function OpsBotThread() {
     };
   }, []);
 
+  // Deep-link from the 今日 home's 查看周报 card lands on the 本周 view (?range=week). Read the param
+  // client-side (no useSearchParams → no Next 15 Suspense-boundary requirement); the loading gate below
+  // covers the mount, so the merchant never sees a 今日→本周 flash.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('range') === 'week') setRange('week');
+  }, []);
+
   if (loading) return <p className="helper-copy">{copy.loading}</p>;
 
   const yd = series ? yesterdayDelta(series) : null;
@@ -265,6 +270,11 @@ export function OpsBotThread() {
             </div>
           ) : null}
         </Bubble>
+      ) : null}
+
+      {/* Drill-down to the deep report (ADR: 晚报 = the week report, insights = its style-level drill-down). */}
+      {series ? (
+        <Link className="opsbot-drill-link" href={getMerchantInsightsPath()}>{copy.dataDetail}</Link>
       ) : null}
 
       <Bubble title={copy.teamTitle}>
