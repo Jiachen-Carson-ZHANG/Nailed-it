@@ -9,6 +9,7 @@ import type {
   StyleAdCustomAudience,
   ProposeStyleAdInput,
   ProposeStyleAdResult,
+  CampaignHypothesis,
 } from '@/domain/style-ad';
 import { styleAdWithdrawTarget } from '@/domain/action-entity-contract';
 import {
@@ -33,6 +34,21 @@ import {
   mockActiveStyleAdIds,
   mockStyleAdCenterSnapshot,
 } from '@/mock/style-ads';
+
+/** Parse a place_ad action's `payload.hypothesis` (the sandbox forecast snapshot) into the center's
+ *  compact shape. Tolerant: the Python writes `expectedCostPerBookingCents`; a missing/old shape → null. */
+function extractHypothesis(payload: Record<string, unknown> | null | undefined): CampaignHypothesis | null {
+  const h = (payload as { hypothesis?: unknown } | null | undefined)?.hypothesis;
+  if (!h || typeof h !== 'object') return null;
+  const rec = h as Record<string, unknown>;
+  const bookings = rec.expectedBookings;
+  if (!Array.isArray(bookings) || bookings.length < 2) return null;
+  const cac = rec.expectedCostPerBookingCents;
+  return {
+    expectedBookings: [Number(bookings[0]) || 0, Number(bookings[1]) || 0],
+    expectedCacCents: Array.isArray(cac) && cac.length >= 2 ? [Number(cac[0]) || 0, Number(cac[1]) || 0] : null,
+  };
+}
 
 type StyleAdCampaignRow = {
   id: string;
@@ -172,11 +188,20 @@ export async function listActiveStyleAdIdsAction(): Promise<string[]> {
 
 export async function getStyleAdCenterSnapshotAction(): Promise<StyleAdCenterSnapshot> {
   if (usesSupabaseBackend()) {
-    const [styles, campaigns] = await Promise.all([
+    const [styles, campaigns, adActions] = await Promise.all([
       getMerchantStyleService().listMerchant(demoMerchantId),
       listCampaignRows(),
+      // The launch forecast lives on the place_ad action's payload.hypothesis (keyed to the campaign by
+      // entity_id) — pull it so the center can show 预测 vs 实际.
+      getRepositories().agents.listActions(demoMerchantId, { types: ['place_ad'], statuses: ['applied'] }),
     ]);
     const styleById = new Map(styles.map((style) => [style.id, style]));
+    const hypByCampaign = new Map<string, CampaignHypothesis>();
+    for (const action of adActions) { // listActions is newest-first — first snapshot per campaign wins
+      if (!action.entityId || hypByCampaign.has(action.entityId)) continue;
+      const hyp = extractHypothesis(action.payload);
+      if (hyp) hypByCampaign.set(action.entityId, hyp);
+    }
     const summaries = campaigns.flatMap((campaign) => {
       const style = styleById.get(campaign.merchant_style_id);
       if (!style || style.status !== 'published') return [];
@@ -193,6 +218,7 @@ export async function getStyleAdCenterSnapshotAction(): Promise<StyleAdCenterSna
         spendCents: campaign.spend_cents,
         updatedAt: campaign.updated_at,
         sourceRunId: campaign.source_run_id ?? null,
+        hypothesis: hypByCampaign.get(campaign.id) ?? null,
       }];
     });
     return {

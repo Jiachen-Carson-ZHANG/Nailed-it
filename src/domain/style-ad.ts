@@ -113,6 +113,23 @@ export function minFutureDateInputValue(from = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+/** The forecast the campaign was launched on (place_ad `payload.hypothesis`) — lets the center show
+ *  预测 vs 实际, i.e. the sandbox promise against measured delivery. Null for merchant-authored campaigns
+ *  (no agent forecast) or pre-hypothesis rows. */
+export type CampaignHypothesis = {
+  expectedBookings: [number, number];
+  expectedCacCents: [number, number] | null;
+};
+
+export type ForecastVerdict = 'below' | 'within' | 'above';
+
+/** Did measured bookings land inside the forecast band? The 打脸 signal made explicit. */
+export function forecastVerdict(h: CampaignHypothesis, deliveredBookings: number): ForecastVerdict {
+  if (deliveredBookings < h.expectedBookings[0]) return 'below';
+  if (deliveredBookings > h.expectedBookings[1]) return 'above';
+  return 'within';
+}
+
 export type StyleAdSummary = {
   id: string;
   styleId: string;
@@ -127,6 +144,8 @@ export type StyleAdSummary = {
   updatedAt: string;
   /** The agent run that proposed this campaign — null = merchant-authored (ADR-0012 backward link). */
   sourceRunId: string | null;
+  /** The launch forecast for 预测 vs 实际 — null when merchant-authored or no snapshot. */
+  hypothesis: CampaignHypothesis | null;
 };
 
 export type StyleAdCenterSnapshot = {

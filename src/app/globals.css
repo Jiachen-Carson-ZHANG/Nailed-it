@@ -6165,6 +6165,22 @@ select {
   margin: 0;
 }
 
+/* 预测 vs 实际 — the sandbox promise against measured delivery */
+.style-ad-vs {
+  margin: var(--space-1) 0 0 !important;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+.style-ad-verdict { font-weight: 700; padding: 1px var(--space-2); border-radius: var(--radius-pill); font-size: 0.62rem; }
+.style-ad-verdict-below { color: var(--color-danger); background: #fde8e8; }
+.style-ad-verdict-within { color: var(--color-success-ink); background: #d9f2e7; }
+.style-ad-verdict-above { color: #2456c8; background: #e7eefc; }
+
 .style-ad-status-badge {
   flex-shrink: 0;
   display: inline-flex;

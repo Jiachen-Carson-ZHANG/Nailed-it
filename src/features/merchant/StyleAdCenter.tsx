@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { StyleAdCenterSnapshot } from '@/domain/style-ad';
+import { forecastVerdict } from '@/domain/style-ad';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useLanguage } from '@/i18n/context';
@@ -32,6 +33,8 @@ const adCenterCopy = {
     why: '为什么？',
     pause: '暂停',
     pauseFailed: '暂停失败，请重试。',
+    forecastVs: (lo: number, hi: number, actual: number) => `预测 ${lo}–${hi} 单 → 实际 ${actual} 单`,
+    verdict: { below: '低于预测', within: '符合预测', above: '超出预测' } as Record<string, string>,
   },
   en: {
     loading: 'Loading ad data…',
@@ -56,6 +59,8 @@ const adCenterCopy = {
     why: 'Why?',
     pause: 'Pause',
     pauseFailed: 'Pause failed, please retry.',
+    forecastVs: (lo: number, hi: number, actual: number) => `Forecast ${lo}–${hi} → actual ${actual} bookings`,
+    verdict: { below: 'below forecast', within: 'on forecast', above: 'above forecast' } as Record<string, string>,
   },
 } as const;
 
@@ -171,6 +176,15 @@ export function StyleAdCenter() {
                         </>
                       ) : null}
                     </p>
+                    {campaign.hypothesis && campaign.bookings > 0 ? (() => {
+                      const verdict = forecastVerdict(campaign.hypothesis, campaign.bookings);
+                      return (
+                        <p className="style-ad-vs">
+                          {copy.forecastVs(campaign.hypothesis.expectedBookings[0], campaign.hypothesis.expectedBookings[1], campaign.bookings)}
+                          <span className={`style-ad-verdict style-ad-verdict-${verdict}`}>{copy.verdict[verdict]}</span>
+                        </p>
+                      );
+                    })() : null}
                   </div>
                   <span className={`style-ad-status-badge style-ad-status-${campaign.status}`}>
                     {statusLabel(campaign.status, copy)}
