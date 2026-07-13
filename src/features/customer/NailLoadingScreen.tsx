@@ -47,22 +47,23 @@ function PolishGame() {
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
 
   const onPoke = () => {
+    if (fill >= 100) return; // already full & flashing — ignore extra pokes (no timer stacking)
+
     setShake(true);
     timers.current.push(window.setTimeout(() => setShake(false), 220));
-    setFill((prev) => {
-      const next = prev + 12;
-      if (next >= 100) {
-        // full → highlight breathe → reset + next colour
-        setFlash(true);
-        timers.current.push(window.setTimeout(() => {
-          setFlash(false);
-          setFill(0);
-          setColorIdx((c) => (c + 1) % BOTTLE_COLORS.length);
-        }, 500));
-        return 100;
-      }
-      return next;
-    });
+
+    const next = fill + 12;
+    if (next >= 100) {
+      setFill(100);
+      setFlash(true);
+      timers.current.push(window.setTimeout(() => {
+        setFlash(false);
+        setFill(0);
+        setColorIdx((c) => (c + 1) % BOTTLE_COLORS.length);
+      }, 500));
+    } else {
+      setFill(next);
+    }
   };
 
   const [top, bottom] = BOTTLE_COLORS[colorIdx];
