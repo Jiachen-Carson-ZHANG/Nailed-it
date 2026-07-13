@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+import { computeFakeProgress } from './loading-progress';
+
 type NailLoadingScreenProps = {
   done: boolean;
   onTransitionEnd: () => void;
@@ -18,6 +21,13 @@ const PRINTS: [string, number, number, number, number][] = [
   ['🩷', 88, 30, 1.6, 2.0],
   ['⭐', 64, 88, 1.3, 1.4],
   ['🎀', 76, 50, 1.9, 2.7],
+];
+
+const LOADING_PHRASES = [
+  '正在为你的手涂上第一层色彩…',
+  '正在调和你的专属色调…',
+  '正在点缀闪耀的细节…',
+  '马上就要完成啦…',
 ];
 
 function BgPrintLayer() {
@@ -42,14 +52,45 @@ function BgPrintLayer() {
 }
 
 export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenProps) {
-  // done / onTransitionEnd wired in a later task
-  void done;
-  void onTransitionEnd;
+  const [progress, setProgress] = useState(0);
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // rAF progress loop — only mutates one width value, no setInterval DOM thrash
+  useEffect(() => {
+    const tick = (now: number) => {
+      if (startRef.current === null) startRef.current = now;
+      const elapsed = now - startRef.current;
+      setProgress(computeFakeProgress(elapsed, done));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [done]);
+
+  // phrase rotation every 3.5s
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhraseIdx((i) => (i + 1) % LOADING_PHRASES.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
+
+  void onTransitionEnd; // wired in a later task
+
   return (
     <div className="nail-loading" role="status" aria-label="正在生成美甲效果图" aria-live="polite">
       <BgPrintLayer />
       {/* PolishGame — later task */}
-      {/* LoadingStatus — later task */}
+      <div className="nail-loading-status">
+        <span className="nail-loading-eyebrow">NAIL STUDIO</span>
+        <h1 className="nail-loading-title">拼贴小屋</h1>
+        <p key={phraseIdx} className="nail-loading-phrase">{LOADING_PHRASES[phraseIdx]}</p>
+        <div className="nail-loading-bar" aria-hidden="true">
+          <div className="nail-loading-bar-fill" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
     </div>
   );
 }
