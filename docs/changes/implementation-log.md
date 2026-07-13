@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2026-07-14 — Demo-week hardening: universal approval gate, in-sheet lineage, ×3 pricing, 7/16 calendar
+
+- **Universal human gate** — setActionStatus's approve path was draft_upload-only; every PROPOSED
+  action (coupon/ad included) now takes 批准/拒绝, in both repos + controlCapabilities.
+- **Run sheet** — 批准/拒绝 live inside the popup on proposed action cards; 上下游 chips navigate
+  IN-sheet with ‹返回 (full record stays one link away); sheet width = shell (430px exact).
+- **今日 home v2** — silent retry for the read model (no error flash mid-demo); stat metric captions
+  (本周营收/今日预约/本周热点); 管理 AI 团队 CTA; expandable 待确认 queue with per-row gates;
+  美甲师管理 section removed.
+- **Pricing ×3 (data)** — user call: SGD-magnitude numbers ×3 ≈ domestic RMB. All 39 merchant_pricing
+  rows scaled; 38 previews resynced through buildQuote (styles now ¥120–510).
+- **Breakdown prompt** — structure mandate: the recognizer must answer 本甲 or exactly ONE concrete
+  structure billable; naming only the container (延长服务) is rejected. Fixes new uploads.
+- **Demo calendar** — scripts/reseed-demo-calendar.ts: capseed bookings anchored 7/16–22 with per-day
+  varied utilization (demo day busy, weekend rush, quiet Monday), live style names; 72 rows. Two stale
+  test bookings on demo day removed.
+- Merged origin/main PR #11 (C-end commercialisation: hand-match, 拼贴小屋, loading screen) — clean;
+  feed scoping survived; one stale test CTA assertion updated.
+
 ## 2026-07-14 — Style library enrichment: own 中文名 + per-photo 建构/延长 (data, via gemini)
 
 All 38 published styles carried the importer's placeholder title ("Melissa Design 8251") and no
@@ -2415,3 +2434,37 @@ became a code rule the same day:
   report's honest-boundary section.
 - Decision applied via the provider seam (env vars); live re-verification on terra pending (eval-live
   parity). Doc: 09-模型选型报告.md; methodology frozen pre-run in doc 06.
+
+## 2026-07-14 — Eval batch-2: anchored judges, insight scenarios, architecture ablation (audit response)
+
+External audit of the eval framework verified against code — 9/10 findings confirmed, all fixed or
+measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76 passing.
+
+- **Anchored 0/1/2 scale everywhere a judge scores** (was 1–5): 0 = unmet with citable
+  counter-example, 1 = partial, 2 = met. Per-dimension MEDIANS kept in reports (dims were requested
+  then dropped — only `overall` survived); panel total = sum of dim medians (process 0–10, safety/UX
+  0–8). Ordinal data never averaged. Pre-change 1–5 numbers superseded; old JSONs kept for audit.
+- **quality_judge → ux_judge**: output-only judge now scores UX only (清晰结构/中文自然/可执行性/
+  术语控制) and is forbidden from judging accuracy — an output-only referee calling grounded numbers
+  臆造 was the measured 幻觉率 instrument artifact. Accuracy = grounding gate + trace-aware process judge.
+- **Near-full judge traces**: tool outputs up to 2500 chars with explicit […截断] markers (was silent
+  [:300]); rubric rule: a claim whose source may sit behind a marker is not hallucinated. 幻觉率
+  re-measured post-fix.
+- **Judge findings enter 问题闭环**: majority-voted hallucination/safety violation or low process
+  total now seeds regressions.jsonl (categories process/safety) — previously computed after the
+  regression write and lost.
+- **Insight (数分) scenarios ×3** (lane had zero): repeat-anomaly-checks-memory (canned memory rows
+  via new Scenario.memory + stubbed bus.fetch_memory), first-anomaly-no-history-claim, small-sample-
+  hedged. New expectation extensions: must_call, final_forbid_regex; signatures sign judged booleans.
+  First live run caught a scenario bug — forbid regex hit the hedge "是首次还是重复出现" (negation-
+  blind); fixed with lookbehind exemptions, pinned in regressions.jsonl. Suite now 17 scenarios.
+- **Architecture ablation** (`--ablation`): 3 mono-agent scenarios mirror measured multi-agent
+  endpoints (full-capacity no-spend / underexposed-ad targeting / conflict double-spend). Mono gets
+  union tools + condensed SAME business rules — failures measure architecture, not starved prompts.
+- **model_screen --only/--tag**: screen extensions (insight, monitor×2+orchestrator×2 on both
+  finalists × n=3) write matrix-<tag>.md without overwriting frozen screen rows; --only without --tag
+  refuses to run.
+- Docs: doc 06 corrected (frozen subset composition decision×1/ad×3/reviewer×2/coupon×1 — monitor was
+  NOT in the screen subset, now stated plainly + extension results), new insight/ablation sections,
+  scale-change record. New `docs/presentation/eval-slide-spec.md` defines the single eval slide (4
+  blocks + do-NOT-show list) vs technical-doc landing points.

@@ -22,13 +22,8 @@ describe('CustomerHomePage', () => {
     );
   }
 
-  it('fronts the studio\'s own styles (not other merchants) and the upload CTA', async () => {
+  it('fronts the studio\'s own styles (not other merchants)', async () => {
     renderPage();
-
-    expect(screen.getByRole('link', { name: '上传款式' })).toHaveAttribute(
-      'href',
-      '/customer/booking'
-    );
 
     // The feed is scoped to the demo studio's own styles (real photos + breakdowns). Other seeded
     // merchants exist for the 选品/trend agent but must not front the customer surface.
