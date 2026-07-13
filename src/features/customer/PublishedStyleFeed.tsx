@@ -7,7 +7,13 @@ import { getRankedFeedAction } from '@/lib/actions/customer-intel-actions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { useLanguage } from '@/i18n/context';
+import { demoMerchantId } from '@/mock/merchants';
 import { StyleWaterfallGridClient } from './StyleWaterfallGridClient';
+
+// The discovery feed shows the demo studio's OWN real styles (real photos + real breakdowns). The other
+// seeded merchants exist for the 选品/trend agent's cross-merchant analysis, but their synthetic stock
+// images shouldn't front the customer surface — so the feed is scoped to this merchant.
+const ownStyles = (list: PublishedMerchantStyle[]) => list.filter((s) => s.merchantId === demoMerchantId);
 
 export function PublishedStyleFeed() {
   const { t } = useLanguage();
@@ -22,12 +28,12 @@ export function PublishedStyleFeed() {
     getRankedFeedAction()
       .then((feed) => {
         if (!active) return;
-        setStyles(feed.styles);
+        setStyles(ownStyles(feed.styles));
         setReasons(feed.reasons);
       })
       .catch(() =>
         listCustomerPublishedStylesAction()
-          .then((next) => active && setStyles(next))
+          .then((next) => active && setStyles(ownStyles(next)))
           .catch(() => active && setFailed(true)),
       );
     return () => {
