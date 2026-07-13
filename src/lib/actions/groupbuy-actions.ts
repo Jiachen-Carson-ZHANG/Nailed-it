@@ -14,7 +14,7 @@ import { validateGroupbuyDeal } from '@/domain/groupbuy-validation';
 // are validated by the shared parser, then persisted through the repo seam with source_run_id so the deal
 // is traceable to the run. The Python tool calls this, then writes the agent_action with entity_id = the
 // returned deal id (the forward link). The merchant reviews/publishes the draft in 团购管理.
-const MERCHANT_CURRENCY = 'SGD'; // demo; per-merchant currency from the merchants repo later
+const MERCHANT_CURRENCY = 'CNY'; // demo; per-merchant currency from the merchants repo later
 
 export type ProposeGroupbuyResult =
   | { ok: true; deal: GroupbuyDealRecord }

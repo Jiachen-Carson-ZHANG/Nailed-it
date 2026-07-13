@@ -3,9 +3,9 @@
 // regression test (intelligence-seed.test.ts) and the DB writer (scripts/seed-intelligence.ts).
 //
 // Three named personas match real conversation threads so the per-customer intel panel lands:
-//   - Melissa Tan (cust-melissa, conv-melissa) — 裸色 / 法式风, budget ~SGD 80
-//   - Amy Lim     (cust-amy,     conv-amy)     — 金属感 / 辣妹风, budget ~SGD 110
-//   - Rachel Goh  (cust-rachel,  conv-rachel)  — 甜美 / 可爱,   budget ~SGD 70
+//   - Melissa Tan (cust-melissa, conv-melissa) — 裸色 / 法式风, budget ~¥80
+//   - Amy Lim     (cust-amy,     conv-amy)     — 金属感 / 辣妹风, budget ~¥110
+//   - Rachel Goh  (cust-rachel,  conv-rachel)  — 甜美 / 可爱,   budget ~¥70
 // Plus anonymous volume personas that drive aggregate demand (暗黑 searches, the 8284 try-on surge)
 // without needing a thread.
 //
@@ -55,8 +55,8 @@ export const seedStyleFixtures: { id: string; title: string; discoveryFacets: St
 ];
 
 const namedPersonas: Customer[] = [
-  { id: AMY_CUSTOMER_ID, merchantId: demoMerchantId, handle: 'amy', name: 'Amy Lim', avatarUrl: null, personaNote: '金属感 / 辣妹风 · budget ~SGD 110' },
-  { id: RACHEL_CUSTOMER_ID, merchantId: demoMerchantId, handle: 'rachel', name: 'Rachel Goh', avatarUrl: null, personaNote: '甜美 / 可爱 · budget ~SGD 70' },
+  { id: AMY_CUSTOMER_ID, merchantId: demoMerchantId, handle: 'amy', name: 'Amy Lim', avatarUrl: null, personaNote: '金属感 / 辣妹风 · budget ~¥110' },
+  { id: RACHEL_CUSTOMER_ID, merchantId: demoMerchantId, handle: 'rachel', name: 'Rachel Goh', avatarUrl: null, personaNote: '甜美 / 可爱 · budget ~¥70' },
 ];
 
 // ~40 anonymous volume personas — statistical mass for the sampled per-nail funnel (no threads).

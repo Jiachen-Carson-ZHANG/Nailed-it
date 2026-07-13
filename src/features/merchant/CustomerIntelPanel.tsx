@@ -112,7 +112,7 @@ export function CustomerIntelPanel({
       <div className="intel-stat-row">
         <div className="intel-stat">
           <span>{copy.budget}</span>
-          <strong>{profile.averageBudget != null ? `SGD ${profile.averageBudget}` : '—'}</strong>
+          <strong>{profile.averageBudget != null ? `¥${profile.averageBudget}` : '—'}</strong>
         </div>
         <div className="intel-stat">
           <span>{copy.engagement}</span>

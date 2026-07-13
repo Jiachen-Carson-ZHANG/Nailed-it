@@ -19,7 +19,7 @@ export function PriceEstimateBar({
     <aside className="estimate-bar">
       <div className="estimate-bar-copy">
         <span>Live estimate</span>
-        <strong>SGD {price}</strong>
+        <strong>¥{price}</strong>
         <p>{duration} min based on the editable recognition result</p>
       </div>
       <Link className="button button-primary" href={actionHref} onClick={onAction}>

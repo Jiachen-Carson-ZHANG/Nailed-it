@@ -4,21 +4,20 @@ import { getBrowserStorage } from '@/lib/browser-storage';
 export const SUPPORTED_CURRENCIES = ['CNY', 'SGD', 'AUD', 'CAD', 'EUR', 'USD', 'JPY', 'KRW'] as const;
 export type Currency = (typeof SUPPORTED_CURRENCIES)[number];
 
-export const DEFAULT_CURRENCY: Currency = 'SGD';
+export const DEFAULT_CURRENCY: Currency = 'CNY';
 
-// Prices are authored + stored in SGD cents (the catalog base). The display picker converts with a
-// FROZEN rate table — deliberately not live FX. A nail salon is not a financial institution; rates
-// move <1%/day and demo prices aren't traded, so a fixed table is honest and reproducible. Update
-// these numbers to re-peg. Base SGD = 1.
-export const FX_FROM_SGD: Record<Currency, number> = {
-  SGD: 1,
-  CNY: 5.3,
-  USD: 0.74,
-  AUD: 1.13,
-  CAD: 1.02,
-  EUR: 0.69,
-  JPY: 116,
-  KRW: 1010,
+// 价格以人民币分（CNY cents）为基准编写并存储（面向国内美团市场）。显示切换用一张 FROZEN 汇率表
+// 换算——刻意不用实时汇率。美甲店不是金融机构；汇率日波动 <1%、演示价格不参与交易，所以固定表既诚实
+// 又可复现。要重新锚定就改这些数字。基准 CNY = 1。
+export const FX_FROM_BASE: Record<Currency, number> = {
+  CNY: 1,
+  SGD: 0.19,
+  USD: 0.14,
+  AUD: 0.21,
+  CAD: 0.19,
+  EUR: 0.13,
+  JPY: 21.9,
+  KRW: 190.6,
 };
 
 const LEGACY_STORAGE_KEY = 'nailed-it.currency.v1';

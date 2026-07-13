@@ -68,7 +68,7 @@ describe('CustomerBookingConfirmPage', () => {
 
     // The estimate reflects the draft (123 / 88), proving the page reads the draft rather than
     // reconstructing from mock AI defaults.
-    expect(screen.getByText(/88 分钟 · SGD 123\.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
   });
 
   it('consumes the draft so a later fresh visit falls back to the empty state', async () => {
@@ -86,7 +86,7 @@ describe('CustomerBookingConfirmPage', () => {
     });
 
     const firstRender = await renderConfirmPage();
-    expect(firstRender.getByText(/88 分钟 · SGD 123\.00/i)).toBeInTheDocument();
+    expect(firstRender.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
 
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -124,7 +124,7 @@ describe('CustomerBookingConfirmPage', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
 
-    expect(screen.getByText(/88 分钟 · SGD 123\.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/88 分钟 · ¥123\.00/i)).toBeInTheDocument();
   });
 
   it('books a technician-backed slot into pending merchant review even at high confidence (client recognition is untrusted)', async () => {
@@ -174,7 +174,7 @@ describe('CustomerBookingConfirmPage', () => {
     await renderConfirmPage();
     await user.click((await screen.findAllByRole('button', { name: /10:00 .* mei chen/i }))[0]);
 
-    expect(screen.getByText(/45 分钟 · SGD 28\.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/45 分钟 · ¥28\.00/i)).toBeInTheDocument();
   });
 
   it('renders confirm page copy and currency in English', async () => {
@@ -194,7 +194,7 @@ describe('CustomerBookingConfirmPage', () => {
     await renderConfirmPage('en');
 
     expect(screen.getByRole('heading', { name: 'Choose your appointment time' })).toBeInTheDocument();
-    expect(screen.getByText(/88 min · SGD 123\.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/88 min · ¥123\.00/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm appointment' })).toBeInTheDocument();
   });
 });

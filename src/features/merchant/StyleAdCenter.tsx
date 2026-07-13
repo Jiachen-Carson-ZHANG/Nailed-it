@@ -67,9 +67,9 @@ const adCenterCopy = {
 type AdCenterCopy = (typeof adCenterCopy)[keyof typeof adCenterCopy];
 
 function formatMoney(cents: number): string {
-  // The app writes money as "SGD 70.4" everywhere (groupbuy, transcripts) — no bare $ signs.
+  // The app writes money as "¥70.4" everywhere (groupbuy, transcripts) — no bare $ signs.
   const units = cents / 100;
-  return `SGD ${Number.isInteger(units) ? units : units.toFixed(2)}`;
+  return `¥${Number.isInteger(units) ? units : units.toFixed(2)}`;
 }
 
 function statusLabel(status: StyleAdCenterSnapshot['campaigns'][number]['status'], copy: AdCenterCopy) {

@@ -26,7 +26,7 @@ describe('memory groupbuy repository', () => {
   });
 
   it('shelves a rejected draft (draft→unlisted) — rejecting an agent proposal must not delete it', async () => {
-    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-4' }, demoMerchantId, 'SGD', 'run-9'));
+    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-4' }, demoMerchantId, 'CNY', 'run-9'));
     expect((await repo.setStatus('gb-4', demoMerchantId, 'unlisted'))?.status).toBe('unlisted');
     // The audit trail survives: the shelved deal still names the run that proposed it.
     expect((await repo.getByIdForMerchant('gb-4', demoMerchantId))?.sourceRunId).toBe('run-9');
@@ -39,7 +39,7 @@ describe('memory groupbuy repository', () => {
   });
 
   it('carries the source run link for agent-proposed deals', async () => {
-    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-3' }, demoMerchantId, 'SGD', 'run-42'));
+    await repo.save(toGroupbuyRecord({ ...createDefaultGroupbuyDraft(), id: 'gb-3' }, demoMerchantId, 'CNY', 'run-42'));
     expect((await repo.getByIdForMerchant('gb-3', demoMerchantId))?.sourceRunId).toBe('run-42');
   });
 });

@@ -51,7 +51,7 @@ function buildFiller(spec: FillerSpec, imgOffset: number): SeededRecord[] {
     // (media_asset has a unique (bucket, path) constraint; dupes across fillers would collide) while
     // the browser drops the fragment → the same image still renders. Swap the base URL for real pics.
     const imageUrl = `${placeholderImage(imgOffset + i)}#${id}`;
-    const previewPriceCents = 6800 + ((i * 700) % 7000); // ~SGD 68–138, varied
+    const previewPriceCents = 6800 + ((i * 700) % 7000); // ~¥68–138, varied
     return {
       id,
       merchantId: spec.merchantId,

@@ -40,7 +40,7 @@ export type GroupbuyDealRecord = GroupbuyDeal & {
 export function toGroupbuyRecord(
   deal: GroupbuyDeal,
   merchantId: string,
-  currency = 'SGD',
+  currency = 'CNY',
   sourceRunId: string | null = null,
 ): GroupbuyDealRecord {
   return { ...deal, merchantId, currency, sourceRunId };

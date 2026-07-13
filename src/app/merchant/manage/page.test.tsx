@@ -354,7 +354,7 @@ describe('MerchantManagePage', () => {
       toGroupbuyRecord(
         { ...createDefaultGroupbuyDraft(), id: 'gb-agent-1', title: '闲时套餐', originalPrice: 158, dealPrice: 128 },
         demoMerchantId,
-        'SGD',
+        'CNY',
         'run-42',
       ),
     );

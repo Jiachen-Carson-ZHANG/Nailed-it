@@ -40,7 +40,7 @@ describe('describeToolCall', () => {
       { entityId: 'ad-style-melissa-img-8274', campaignStatus: 'draft' },
       'zh-CN',
     );
-    expect(d.summary).toBe('为「碎冰玫瑰猫眼」创建广告 · 首页推荐位 · 日预算 SGD 200（草稿，待你启动）');
+    expect(d.summary).toBe('为「碎冰玫瑰猫眼」创建广告 · 首页推荐位 · 日预算 ¥200（草稿，待你启动）');
   });
 
   it('summarizes set_group_buy_coupon with the after-coupon price', () => {
@@ -50,13 +50,13 @@ describe('describeToolCall', () => {
       { dealId: 'gb-style-melissa-img-8284', dealStatus: 'draft' },
       'zh-CN',
     );
-    expect(d.summary).toBe('为「鎏金奢华」创建团购草稿 · 券后 SGD 70.4（待你发布）');
+    expect(d.summary).toBe('为「鎏金奢华」创建团购草稿 · 券后 ¥70.4（待你发布）');
   });
 
   it('handles the legacy camelCase seed tool names via aliases', () => {
     const d = describeToolCall('placeAd', { styleId: 'style-x-1234', slot: 'top_funnel', budgetCents: 5000 }, { adId: 'ad-seed-1' }, 'zh-CN');
     expect(d.label).toBe('投广');
-    expect(d.summary).toContain('日预算 SGD 50');
+    expect(d.summary).toContain('日预算 ¥50');
   });
 
   it('falls back honestly for unknown tools: name as label, raw only in detail', () => {
@@ -101,7 +101,7 @@ describe('describeStep / stepTone', () => {
 describe('describeAction', () => {
   it('renders a human sentence, not JSON.stringify(payload)', () => {
     const s = describeAction('set_group_buy_coupon', { styleId: 'style-melissa-img-8284', priceCents: 7040 }, 'zh-CN');
-    expect(s).toBe('为「鎏金奢华」设置团购券 · 券后 SGD 70.4');
+    expect(s).toBe('为「鎏金奢华」设置团购券 · 券后 ¥70.4');
   });
   it('keeps short human style ids readable', () => {
     expect(styleLabel('minimal-solid', 'zh-CN')).toBe('款式 minimal-solid');

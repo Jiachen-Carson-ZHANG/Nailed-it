@@ -167,7 +167,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
         ],
       },
       transcript: [
-        { kind: 'reasoning', text: '8265 转化最高 → 投顶部漏斗广告放大曝光；8284 高意向低转化 → 团购券降到 SGD 68 试探价格敏感度。' },
+        { kind: 'reasoning', text: '8265 转化最高 → 投顶部漏斗广告放大曝光；8284 高意向低转化 → 团购券降到 ¥68 试探价格敏感度。' },
       ],
       startedAt: iso(2 * DAY - 5000),
       finishedAt: iso(2 * DAY - 9000),
@@ -184,7 +184,7 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
       transcript: [
         { kind: 'reasoning', text: '8265 历史转化高，顶部漏斗 ROI 预期最佳。' },
         { kind: 'tool_call', tool: 'placeAd', input: { styleId: TOP_CONVERTER_ID, slot: 'top_funnel', budgetCents: 5000 }, output: { adId: 'ad-seed-1' } },
-        { kind: 'action', actionType: 'place_ad', status: 'applied', summary: '顶部漏斗广告：碎钻冰花法式（SGD 50 预算）' },
+        { kind: 'action', actionType: 'place_ad', status: 'applied', summary: '顶部漏斗广告：碎钻冰花法式（¥50 预算）' },
       ],
       startedAt: iso(2 * DAY - 10_000),
       finishedAt: iso(2 * DAY - 13_000),
@@ -210,9 +210,9 @@ export function generateAgentRuns(now: number): NewAgentRun[] {
       input: { styleId: LOW_CONVERSION_ID, priceCents: 6800 },
       output: { couponSet: true },
       transcript: [
-        { kind: 'reasoning', text: '8284 试戴多预约少，疑似价格偏高 → 设 SGD 68 尝鲜团购券验证。' },
+        { kind: 'reasoning', text: '8284 试戴多预约少，疑似价格偏高 → 设 ¥68 尝鲜团购券验证。' },
         { kind: 'tool_call', tool: 'setGroupBuyCoupon', input: { styleId: LOW_CONVERSION_ID, priceCents: 6800 }, output: { couponId: 'coupon-seed-1' } },
-        { kind: 'action', actionType: 'set_group_buy_coupon', status: 'applied', summary: '团购券：金属感款 → 券后 SGD 68' },
+        { kind: 'action', actionType: 'set_group_buy_coupon', status: 'applied', summary: '团购券：金属感款 → 券后 ¥68' },
       ],
       startedAt: iso(2 * DAY - 14_000),
       finishedAt: iso(2 * DAY - 17_000),

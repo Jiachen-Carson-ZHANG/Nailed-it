@@ -34,7 +34,7 @@ export function ManageServiceRow({
   onChange,
   showPrice = true,
   showUnit = true,
-  currency = 'SGD',
+  currency = 'CNY',
 }: ManageServiceRowProps) {
   const { language, t } = useLanguage();
   const baseId = `manage-row-${entry.id}`;

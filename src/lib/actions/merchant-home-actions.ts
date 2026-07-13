@@ -8,7 +8,7 @@ import { listMerchantBookingViewsAction } from './booking-actions';
 // Demo merchant config (mock/merchants → 'Nailed-it Studio'; availability.ts treats it as a fixed +08:00).
 // Reading tz/currency from the merchants repo per-merchant = backlog.
 const MERCHANT_TZ = 'Asia/Singapore';
-const MERCHANT_CURRENCY = 'SGD';
+const MERCHANT_CURRENCY = 'CNY';
 
 /**
  * The single read model for the 今日 home (ADR-0011). Each zone is fetched independently and failures

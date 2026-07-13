@@ -25,11 +25,13 @@ const MAX_DETAIL_CHARS = 4000;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-function money(cents: unknown, currency = 'SGD'): string {
+function money(cents: unknown, currency = 'CNY'): string {
   const n = typeof cents === 'number' ? cents : Number(cents);
   if (!Number.isFinite(n)) return '—';
   const units = n / 100;
-  return `${currency} ${Number.isInteger(units) ? units : units.toFixed(1)}`;
+  const num = Number.isInteger(units) ? units : units.toFixed(1);
+  // 国内市场：人民币用 ¥ 符号；其他币种保留代码前缀。
+  return currency === 'CNY' ? `¥${num}` : `${currency} ${num}`;
 }
 
 /** styleId → what the merchant calls it. Prefer the DB title when it is meaningful; if live/demo rows
