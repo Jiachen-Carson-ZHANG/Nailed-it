@@ -1,5 +1,31 @@
 # Implementation Log
 
+## 2026-07-13 — "Reseed scare" triage: feed scoping, breakdown qty round-trip, gemini provider routing
+
+Branch `feat/demo-uiux-polish` → main. User reported "breakdowns gone / images wrong / prices random"
+after a reseed. Investigation: **no data loss** — all 45 merchant styles kept items (171 rows, FKs 0
+orphans), real photos (storage 200s), and real per-item pricing. The reseed had only re-touched 3
+baseline demo styles (Unsplash stock, flat ¥28), bumping them above the real work in the updated-at sort.
+
+What changed:
+- **DB hygiene (no code)** — archived the 3 stock demo styles; resynced all 38 published styles'
+  `preview_price_cents`/`preview_duration_min` from their items via the app's own `buildQuote`
+  (stored flat ¥88 placeholder → item-traced totals).
+- **Customer feed scoping** — `PublishedStyleFeed` filters to `demoMerchantId`: the 72 seeded filler-
+  merchant styles (4 reused Unsplash photos via `#hash`) no longer front the customer surface; they stay
+  in the DB for the 选品/trend agent. Test updated to assert the scoping.
+- **Breakdown quantity round-trip fix** — `seedStateFromBreakdown` kept quantities only for art/deco;
+  colour/colour-effect selections rebuilt at qty 1, so 腮红甲 ×4 styles showed a different price on the
+  feed card vs the detail (live: 8258/8280). Quantities now kept symmetrically; regression test added;
+  all 38 card↔detail prices verified matching live.
+- **AI provider routing** — Ark (cn-beijing) unreachable from the dev network killed every AI feature at
+  the single choke point `postOpenRouterChat`. `VISION_MODEL_PROVIDER=gemini` now routes to Gemini's
+  OpenAI-compatible endpoint (same message shape + response_format); default stays Ark.
+- **甲型/甲长 facet backfill (data)** — the June bulk import left generic facets (`Melissa`/`Showcase`)
+  + null recognition, so shape/length chips were empty everywhere. Ran gemini vision over all 38 photos,
+  wrote `discovery_facets` only (items/prices untouched; service-module + billable labels filtered out).
+  35/38 got a shape facet; chips verified lighting on both sides with totals unchanged.
+
 ## 2026-07-12 — Demo UIUX polish: business clock + agent-chain / insights / currency fixes
 
 Branch `feat/demo-uiux-polish`. Merchant-side demo-readiness pass over the multi-agent surfaces.
