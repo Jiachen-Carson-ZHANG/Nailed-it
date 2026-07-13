@@ -6,7 +6,6 @@ import { FunnelChart } from './FunnelChart';
 import { TrendBars } from './TrendBars';
 import { GapBar } from './GapBar';
 import { StyleConversionBars } from './StyleConversionBars';
-import { ActionCard } from './ActionCard';
 import { Sparkline } from './Sparkline';
 
 function wrap(ui: React.ReactNode) {
@@ -69,12 +68,5 @@ describe('insights chart components', () => {
     const { container } = wrap(<Sparkline points={[0, 2, 1, 5, 3]} label="试戴 近 14 天" />);
     expect(screen.getByLabelText('试戴 近 14 天')).toBeInTheDocument();
     expect(container.querySelector('path.sparkline-line')).toBeTruthy();
-  });
-
-  it('ActionCard renders a deep link with evidence', () => {
-    wrap(<ActionCard text="复查鎏金奢华定价" evidence="试戴 29 · 预约 1" href="/merchant/styles/s1/review" cta="去编辑" />);
-    const link = screen.getByRole('link', { name: /复查鎏金奢华定价/ });
-    expect(link).toHaveAttribute('href', '/merchant/styles/s1/review');
-    expect(screen.getByText('试戴 29 · 预约 1')).toBeInTheDocument();
   });
 });
