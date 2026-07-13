@@ -52,11 +52,38 @@ function toArkInput(messages: OpenRouterMessage[]): Array<{ role: OpenRouterMess
   }));
 }
 
+const GEMINI_OPENAI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai';
+
 export async function postOpenRouterChat(
   payload: OpenRouterPayload,
   apiKey: string,
   fetchImpl: FetchLike = fetch
 ): Promise<unknown> {
+  // Provider routing (VISION_MODEL_PROVIDER=gemini): Ark (cn-beijing) is unreachable from some dev
+  // networks, killing every AI feature at once. Gemini's OpenAI-compatible endpoint accepts the same
+  // message shape (text parts + data: image_url) and response_format, so the payload travels as-is;
+  // only OpenRouter-specific fields (provider/plugins) are dropped. Default stays Ark for prod.
+  if ((process.env.VISION_MODEL_PROVIDER ?? '').toLowerCase() === 'gemini') {
+    const geminiKey = process.env.GEMINI_API_KEY ?? apiKey;
+    const response = await fetchImpl(`${GEMINI_OPENAI_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${geminiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: process.env.VISION_MODEL_NAME ?? 'gemini-2.5-flash-lite',
+        messages: payload.messages,
+        ...(payload.response_format ? { response_format: payload.response_format } : {})
+      })
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(`Gemini error ${response.status}: ${JSON.stringify(json)}`);
+    }
+    return json;
+  }
+
   const response = await fetchImpl(`${process.env.ARK_BASE_URL ?? ARK_BASE_URL}/responses`, {
     method: 'POST',
     headers: {
@@ -82,6 +109,14 @@ export function extractTextContent(data: unknown): string {
   const record = asRecord(data);
   const outputText = typeof record.output_text === 'string' ? record.output_text.trim() : '';
   if (outputText) return outputText;
+
+  // OpenAI-compatible chat shape (Gemini path): choices[0].message.content.
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  for (const choice of choices) {
+    const message = asRecord(asRecord(choice).message);
+    const text = typeof message.content === 'string' ? message.content.trim() : '';
+    if (text) return text;
+  }
 
   const output = Array.isArray(record.output) ? record.output : [];
   for (const item of output) {

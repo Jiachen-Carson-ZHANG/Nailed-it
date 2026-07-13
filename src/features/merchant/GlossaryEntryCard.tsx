@@ -27,9 +27,9 @@ export function GlossaryEntryCard({ settings, onChange }: GlossaryEntryCardProps
       </label>
       <div className="pricing-fields">
         <label htmlFor={`${baseId}-price`}>
-          <span>SGD</span>
+          <span>¥</span>
           <input
-            aria-label={`${displayName} ${t('common.price')} (SGD)`}
+            aria-label={`${displayName} ${t('common.price')} (¥)`}
             id={`${baseId}-price`}
             min="0"
             step="0.5"

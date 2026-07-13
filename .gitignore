@@ -57,3 +57,8 @@ AGENTS.md
 .superpowers/
 
 *.yml
+# Playwright run artifacts
+test-results/
+
+# agent eval regression log (generated, 问题闭环)
+agent-service/eval/regressions.jsonl

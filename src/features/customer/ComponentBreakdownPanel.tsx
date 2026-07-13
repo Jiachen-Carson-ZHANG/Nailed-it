@@ -65,8 +65,12 @@ export function seedStateFromBreakdown(result: BreakdownResult) {
       texture = item.glossaryId;
     } else if (cat === 'color') {
       colorIds.add(item.glossaryId);
+      if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     } else if (cat === 'color_effect') {
+      // Per-finger colour effects (腮红甲 ×4 …) carry quantity exactly like art/deco — dropping it here
+      // made the detail recompute cheaper than the stored card price (feed said ¥503.50, detail ¥424).
       colorEffectIds.add(item.glossaryId);
+      if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
     } else if (cat === 'art') {
       artIds.add(item.glossaryId);
       if (item.quantity > 0) quantities.set(item.glossaryId, item.quantity);
@@ -141,8 +145,8 @@ function catalogSelectionsFromChipState(
   if (nailShape) selections.push({ catalogItemId: nailShape, quantity: 1 });
   if (nailLength) selections.push({ catalogItemId: nailLength, quantity: 1 });
   if (texture) selections.push({ catalogItemId: texture, quantity: 1 });
-  for (const id of colorIds) selections.push({ catalogItemId: id, quantity: 1 });
-  for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: 1 });
+  for (const id of colorIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
+  for (const id of colorEffectIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   for (const id of artIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   for (const id of decoIds) selections.push({ catalogItemId: id, quantity: quantities.get(id) ?? 1 });
   return withBaseManicure(selections);
@@ -237,9 +241,11 @@ export function buildBreakdownFromConfig(
 function BreakdownSummary({
   breakdown,
   copy,
+  settingsLoading = false,
 }: {
   breakdown: BreakdownResult;
   copy: BreakdownPanelCopy;
+  settingsLoading?: boolean;
 }) {
   const { currency } = useCurrency();
   const priceStr = breakdown.totalPrice > 0
@@ -249,16 +255,23 @@ function BreakdownSummary({
     ? copy.minutes(breakdown.totalDuration)
     : copy.noValue;
 
+  // Until the merchant's price sheet arrives, totals would be computed off catalog LIST prices and
+  // visibly re-jump (¥439.90 → ¥424.00 live) — show a skeleton for that first frame instead.
+  const value = (str: string) =>
+    settingsLoading
+      ? <span className="analyze-summary-skeleton" aria-label={copy.summaryLoading} />
+      : <span className="analyze-summary-value" key={str}>{str}</span>;
+
   return (
     <div className="analyze-summary-bar">
       <div className="analyze-summary-item">
         <span className="analyze-summary-label">{copy.summaryTotalPrice}</span>
-        <span className="analyze-summary-value" key={priceStr}>{priceStr}</span>
+        {value(priceStr)}
       </div>
       <div className="analyze-summary-divider" />
       <div className="analyze-summary-item">
         <span className="analyze-summary-label">{copy.summaryTotalDuration}</span>
-        <span className="analyze-summary-value" key={durationStr}>{durationStr}</span>
+        {value(durationStr)}
       </div>
     </div>
   );
@@ -488,10 +501,12 @@ function PriceTable({
   breakdown,
   language,
   copy,
+  settingsLoading = false,
 }: {
   breakdown: BreakdownResult;
   language: AppLanguage;
   copy: BreakdownPanelCopy;
+  settingsLoading?: boolean;
 }) {
   const { currency } = useCurrency();
   const rows = breakdown.items.filter((i) => isBillableRow(i.glossaryType, i.glossaryId));
@@ -522,7 +537,13 @@ function PriceTable({
                   {qty > 1 && <span style={{ color: 'var(--color-muted)', marginLeft: '0.2rem' }}>×{qty} {unitLabel}</span>}
                 </td>
                 <td className="analyze-total-duration">{dur > 0 ? copy.minutes(dur) : copy.noValue}</td>
-                <td className="analyze-total-price">{price > 0 ? formatCurrency({ cents: Math.round(price * 100), currency }) : copy.noValue}</td>
+                <td className="analyze-total-price">
+                  {settingsLoading
+                    // Same guard as the summary: don't print catalog list prices while the merchant's
+                    // own sheet is still loading — the row would silently re-price on arrival.
+                    ? <span className="analyze-summary-skeleton analyze-row-skeleton" aria-label={copy.summaryLoading} />
+                    : price > 0 ? formatCurrency({ cents: Math.round(price * 100), currency }) : copy.noValue}
+                </td>
               </tr>
             );
           })}
@@ -608,7 +629,7 @@ export function ComponentBreakdownPanel({
 }: ComponentBreakdownPanelProps) {
   const { language, t } = useLanguage();
   const copy = breakdownPanelCopy[language];
-  const { settings, settingsById } = useMerchantPricingSettings();
+  const { settings, settingsById, isLoading: settingsLoading } = useMerchantPricingSettings();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState('');
   const [hasResolvedAnalysis, setHasResolvedAnalysis] = useState(Boolean(cachedResult));
@@ -764,7 +785,7 @@ export function ComponentBreakdownPanel({
       ) : null}
 
       {/* ── Summary bar ── */}
-      <BreakdownSummary breakdown={breakdown} copy={copy} />
+      <BreakdownSummary breakdown={breakdown} copy={copy} settingsLoading={settingsLoading} />
 
       {/* ── 卸甲 (single-select) — hidden for merchant editing ── */}
       {showRemoval && (
@@ -845,7 +866,7 @@ export function ComponentBreakdownPanel({
       />
 
       {/* ── Price table ── */}
-      <PriceTable breakdown={breakdown} language={language} copy={copy} />
+      <PriceTable breakdown={breakdown} language={language} copy={copy} settingsLoading={settingsLoading} />
 
       {/* ── Re-analyse ── */}
       {showReanalyze && (

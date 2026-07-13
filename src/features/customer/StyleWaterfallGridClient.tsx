@@ -61,9 +61,8 @@ export function StyleWaterfallGridClient({ styles, searchQuery }: StyleWaterfall
       ? tabStyles
       : tabStyles.filter((s) => {
           const q = searchQuery.trim().toLowerCase();
-          const titleEn = s.title?.toLowerCase() ?? '';
-          const titleZh = s.titleLocalized?.['zh-CN']?.toLowerCase() ?? '';
-          return titleEn.includes(q) || titleZh.includes(q);
+          const title = s.title?.toLowerCase() ?? '';
+          return title.includes(q);
         });
 
   const visibleStyles =

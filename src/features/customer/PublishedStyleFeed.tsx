@@ -7,13 +7,19 @@ import { getRankedFeedAction } from '@/lib/actions/customer-intel-actions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { useLanguage } from '@/i18n/context';
+import { demoMerchantId } from '@/mock/merchants';
 import { StyleWaterfallGridClient } from './StyleWaterfallGridClient';
 
 type PublishedStyleFeedProps = {
   searchQuery: string;
 };
 
+const ownStyles = (list: PublishedMerchantStyle[]) => list.filter((s) => s.merchantId === demoMerchantId);
+
 export function PublishedStyleFeed({ searchQuery }: PublishedStyleFeedProps) {
+// The discovery feed shows the demo studio's OWN real styles (real photos + real breakdowns). The other
+// seeded merchants exist for the 选品/trend agent's cross-merchant analysis, but their synthetic stock
+// images shouldn't front the customer surface — so the feed is scoped to this merchant.
   const { t } = useLanguage();
   const [styles, setStyles] = useState<PublishedMerchantStyle[] | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
@@ -26,12 +32,12 @@ export function PublishedStyleFeed({ searchQuery }: PublishedStyleFeedProps) {
     getRankedFeedAction()
       .then((feed) => {
         if (!active) return;
-        setStyles(feed.styles);
+        setStyles(ownStyles(feed.styles));
         setReasons(feed.reasons);
       })
       .catch(() =>
         listCustomerPublishedStylesAction()
-          .then((next) => active && setStyles(next))
+          .then((next) => active && setStyles(ownStyles(next)))
           .catch(() => active && setFailed(true)),
       );
     return () => {

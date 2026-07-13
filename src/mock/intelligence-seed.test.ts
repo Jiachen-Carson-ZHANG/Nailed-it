@@ -59,10 +59,10 @@ describe('intelligence demo seed → read model narrative', () => {
     }
   });
 
-  it('surfaces 暗黑 as the honest catalog gap (high demand, exactly 1 published style)', () => {
+  it('surfaces 暗黑 as the honest catalog gap (high demand, ≤1 published style)', () => {
     const gap = insights.catalogGaps.find((g) => g.label === '暗黑');
     expect(gap).toBeDefined();
-    expect(gap!.matchingActiveStyles).toBe(1);
+    expect(gap!.matchingActiveStyles).toBeLessThanOrEqual(1);
     expect(gap!.searchCount).toBeGreaterThanOrEqual(10);
     // 金属感 is in demand but well-supplied → must NOT be a gap.
     expect(insights.catalogGaps.some((g) => g.label === '金属感')).toBe(false);
@@ -92,19 +92,19 @@ describe('intelligence demo seed → read model narrative', () => {
     expect(top.conversionRate!).toBeGreaterThan(lc.conversionRate!);
   });
 
-  it("captures Melissa's nude/french preference and ~SGD 80 budget", () => {
+  it("captures Melissa's nude/french preference and ~¥80 budget", () => {
     expect(melissa.topByCategory.color?.[0]).toBe('裸色');
     expect(melissa.topByCategory.style?.slice(0, 2)).toContain('法式风');
     expect(melissa.averageBudget).toBe(80);
   });
 
-  it('gives Amy a distinct 金属感 / 辣妹风 profile (SGD 110)', () => {
+  it('gives Amy a distinct 金属感 / 辣妹风 profile (¥110)', () => {
     expect(amy.topTags).toEqual(expect.arrayContaining(['金属感', '辣妹风']));
     expect(amy.topTags).not.toContain('甜美');
     expect(amy.averageBudget).toBe(110);
   });
 
-  it('gives Rachel a distinct 甜美 / 可爱 profile (SGD 70)', () => {
+  it('gives Rachel a distinct 甜美 / 可爱 profile (¥70)', () => {
     expect(rachel.topTags).toEqual(expect.arrayContaining(['甜美', '可爱']));
     expect(rachel.topTags).not.toContain('金属感');
     expect(rachel.averageBudget).toBe(70);

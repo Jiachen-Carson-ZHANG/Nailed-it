@@ -12,3 +12,12 @@ export { getCustomerProfile } from './profile';
 export { getMerchantInsights, getDailySeries, type InsightsRange } from './insights';
 export { rankStyles, type RankContext } from './ranking';
 export { getCustomerIntelligence, type CustomerIntelInput, type IntelBooking } from './customer-intel';
+export {
+  getTrendOpportunities,
+  getPlatformHotTags,
+  type ExternalTrend,
+  type TrendOpportunity,
+  type TrendReport,
+  type TrendStyleInput,
+  type PlatformHotTag,
+} from './trends';

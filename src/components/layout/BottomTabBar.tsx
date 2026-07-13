@@ -7,7 +7,6 @@ import type { UserRole } from '@/domain/nail';
 import { getMockSession } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { UiMessageKey } from '@/i18n/messages/ui/zh-CN';
-import calendarIcon from '@/landing_assets/calendar.png';
 import homeIcon from '@/landing_assets/home.png';
 import messageIcon from '@/landing_assets/message.png';
 import moneybagIcon from '@/landing_assets/moneybag.png';
@@ -22,7 +21,7 @@ const tabIconsByRole = {
     '/customer/profile': profileIcon
   },
   merchant: {
-    '/merchant/calendar': calendarIcon,
+    '/merchant/calendar': homeIcon,
     '/merchant/manage': moneybagIcon,
     '/merchant/messages': messageIcon,
     '/merchant/profile': profileIcon

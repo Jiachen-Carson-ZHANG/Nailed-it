@@ -69,9 +69,10 @@ describe('MerchantInsightsPage data story', () => {
     expect(screen.getByText('78%')).toBeInTheDocument();
   });
 
-  it('renders an action card that deep-links to the style editor', async () => {
+  it('does NOT render the 建议行动 block (dropped — the agent team acts, it does not recommend)', async () => {
     renderPage();
-    const link = await screen.findByRole('link', { name: /复查「鎏金奢华」/ });
-    expect(link).toHaveAttribute('href', '/merchant/styles/s-low/review');
+    await screen.findByText('曝光'); // page rendered
+    expect(screen.queryByText('建议行动')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /复查「鎏金奢华」/ })).not.toBeInTheDocument();
   });
 });

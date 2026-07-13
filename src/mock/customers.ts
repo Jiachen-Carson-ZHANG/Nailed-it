@@ -16,6 +16,6 @@ export const mockCustomers: Customer[] = [
     handle: demoCustomerHandle,
     name: demoCustomerName,
     avatarUrl: null,
-    personaNote: '裸色/粉色 · 椭圆/圆形 · 韩系/法式风/极简 · budget ~SGD 80',
+    personaNote: '裸色/粉色 · 椭圆/圆形 · 韩系/法式风/极简 · budget ~¥80',
   },
 ];

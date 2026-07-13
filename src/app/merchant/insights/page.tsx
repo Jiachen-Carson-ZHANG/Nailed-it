@@ -7,13 +7,12 @@ import { FunnelChart, type FunnelStage } from '@/features/merchant/insights/Funn
 import { TrendBars } from '@/features/merchant/insights/TrendBars';
 import { GapBar } from '@/features/merchant/insights/GapBar';
 import { StyleConversionBars } from '@/features/merchant/insights/StyleConversionBars';
-import { ActionCard } from '@/features/merchant/insights/ActionCard';
 import { getMerchantInsightsAction, summarizeInsightsAction } from '@/lib/actions/insights-actions';
 import { isGenericTag } from '@/domain/catalog-tags';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { MerchantInsights, StylePerformance } from '@/domain/intelligence';
-import type { AISummary } from '@/nail-ai/insights-summary';
+import { fallbackSummary, type AISummary } from '@/nail-ai/insights-fallback';
 
 const insightsCopy = {
   'zh-CN': {
@@ -51,11 +50,6 @@ const insightsCopy = {
     colBook: '预约',
     colConversion: '转化率',
     insufficientSample: '样本不足',
-    actionsTitle: '建议行动',
-    actionFixPricing: (title: string) => `复查「${title}」定价或展示，提升转化`,
-    actionAddStyles: (label: string) => `上架更多「${label}」风格，补足缺口`,
-    ctaEdit: '去编辑',
-    ctaUpload: '去上架',
   },
   en: {
     eyebrow: 'Nailed AI · Demand insights',
@@ -92,11 +86,6 @@ const insightsCopy = {
     colBook: 'Bookings',
     colConversion: 'Conversion',
     insufficientSample: 'Low sample',
-    actionsTitle: 'Recommended actions',
-    actionFixPricing: (title: string) => `Review “${title}” pricing or display to lift conversion`,
-    actionAddStyles: (label: string) => `Add more “${label}” styles to close the gap`,
-    ctaEdit: 'Edit',
-    ctaUpload: 'Add styles',
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
 
@@ -125,12 +114,18 @@ export default function MerchantInsightsPage() {
     setLoading(true);
     setSummary(null);
     getMerchantInsightsAction(rangeDays)
-      .then((data) => active && setInsights(data))
+      .then((data) => {
+        if (!active) return;
+        setInsights(data);
+        // Show the grounded deterministic card immediately — never gate the demo on the slow/optional
+        // AI call. The AI narration below upgrades it (source→'ai') if and when it returns.
+        setSummary((cur) => cur ?? fallbackSummary(data, language));
+      })
       .catch(() => active && setInsights(null))
       .finally(() => active && setLoading(false));
     summarizeInsightsAction(rangeDays, language)
       .then((data) => active && setSummary(data))
-      .catch(() => {/* card stays in its loading state */});
+      .catch(() => {/* the deterministic fallback already populated the card */});
     return () => {
       active = false;
     };
@@ -289,31 +284,6 @@ export default function MerchantInsightsPage() {
             ) : null}
           </section>
 
-          {(lowConversion || topGap) ? (
-            <section className="detail-surface" aria-labelledby="insights-actions-title">
-              <div className="detail-surface-header">
-                <h2 id="insights-actions-title">{copy.actionsTitle}</h2>
-              </div>
-              <div className="insights-action-queue">
-                {lowConversion ? (
-                  <ActionCard
-                    text={copy.actionFixPricing(lowConversion.title)}
-                    evidence={`${copy.stageTryOns} ${lowConversion.tryOns} · ${copy.stageBookings} ${lowConversion.bookings}`}
-                    href={`/merchant/styles/${lowConversion.styleId}/review`}
-                    cta={copy.ctaEdit}
-                  />
-                ) : null}
-                {topGap ? (
-                  <ActionCard
-                    text={copy.actionAddStyles(topGap.label)}
-                    evidence={language === 'zh-CN' ? `${topGap.searchCount} 次搜索 · 在售 ${topGap.matchingActiveStyles} 款` : `${topGap.searchCount} searches · ${topGap.matchingActiveStyles} in stock`}
-                    href="/merchant/styles"
-                    cta={copy.ctaUpload}
-                  />
-                ) : null}
-              </div>
-            </section>
-          ) : null}
         </>
       )}
     </MobileLayout>

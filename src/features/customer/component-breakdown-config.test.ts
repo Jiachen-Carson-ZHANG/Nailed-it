@@ -103,6 +103,36 @@ describe('buildBreakdownFromConfig', () => {
     expect(rebuilt.totalDuration).toBe(cached.totalDuration);
   });
 
+  it('re-seeding keeps per-finger colour-effect quantity (腮红甲 ×4 stays priced like the card)', () => {
+    // Regression: colour effects dropped their quantity in the seed → rebuild round-trip, so a style
+    // with 腮红甲 ×4 showed ¥503.50 on the feed card but ¥424 in the detail (live, style 8280).
+    const stored = [
+      { catalogItemId: 'basic_manicure_service', quantity: 1 },
+      { catalogItemId: 'aura_blush', quantity: 4 },
+    ];
+    const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
+    const cached = buildBreakdownFromConfig(stored, []);
+
+    const chip = seedStateFromBreakdown(cached);
+    expect(chip.quantities.get('aura_blush')).toBe(4);
+
+    const rebuilt = buildBreakdownResult(
+      chip.removalId,
+      chip.structureIds,
+      chip.nailShape,
+      chip.nailLength,
+      chip.texture,
+      chip.colorIds,
+      chip.colorEffectIds,
+      chip.artIds,
+      chip.decoIds,
+      chip.quantities,
+      settingsById,
+    );
+    expect(rebuilt.totalPrice).toBe(cached.totalPrice);
+    expect(rebuilt.catalogSelections).toContainEqual({ catalogItemId: 'aura_blush', quantity: 4 });
+  });
+
   it('hydrates extension recognition with only explicitly selected structure chips', () => {
     const settingsById = new Map(getDefaultSettings().map((s) => [s.id, s]));
     const recognized = buildBreakdownResult(

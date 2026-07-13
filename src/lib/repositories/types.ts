@@ -13,6 +13,8 @@ import type { BlockedTime, StaffItemDuration, WorkingPlanDay } from '@/domain/sc
 import type { BookingItem, BookingStatus, IntervalBooking } from '@/domain/booking';
 import type { MerchantStyleRecord } from '@/domain/merchant-style';
 import type { AnalyticsEvent, Customer, NewAnalyticsEvent } from '@/domain/analytics';
+import type { Agent, AgentAction, AgentActionType, AgentRunView, ActionStatus } from '@/domain/agents';
+import type { GroupbuyDealRecord, GroupbuyStatus } from '@/domain/groupbuy';
 
 export interface BookingRepository {
   list(): Promise<Booking[]>;
@@ -171,6 +173,36 @@ export interface CustomerRepository {
   getById(id: string): Promise<Customer | null>;
 }
 
+export interface AgentRepository {
+  /** The agent team definitions (ADR-0007). */
+  listAgents(): Promise<Agent[]>;
+  /** Runs for a merchant, most recent first, each joined with its agent identity + actions. */
+  listRuns(merchantId: string): Promise<AgentRunView[]>;
+  getRun(id: string): Promise<AgentRunView | null>;
+  /** One action for one merchant — undo must read its (entityType, entityId) before touching the entity. */
+  getAction(actionId: string, merchantId: string): Promise<AgentAction | null>;
+  /** Flip an action's status for one merchant, enforcing the panel's legal transitions. */
+  setActionStatus(actionId: string, merchantId: string, status: ActionStatus): Promise<AgentAction | null>;
+  /** Actions for a merchant (most recent first), optionally filtered by type/status. Powers the
+   *  in-context surfaces (投广 / 价格config / 老板msg) that render what the agents did on the real pages. */
+  listActions(
+    merchantId: string,
+    opts?: { types?: AgentActionType[]; statuses?: ActionStatus[] },
+  ): Promise<AgentAction[]>;
+}
+
+/** Group-buy deals (ADR-0012 Phase 0a) — merchant-scoped, relational catalog items, real persistence
+ *  (was browser localStorage). Status transitions are validated against action-entity-contract. */
+export interface GroupbuyRepository {
+  listByMerchant(merchantId: string): Promise<GroupbuyDealRecord[]>;
+  getByIdForMerchant(id: string, merchantId: string): Promise<GroupbuyDealRecord | null>;
+  /** Upsert a draft or published deal, replacing its items — atomically (supabase: the save_groupbuy_deal
+   *  RPC, migration 0029), so a deal never persists with a partially-written item list. */
+  save(record: GroupbuyDealRecord): Promise<GroupbuyDealRecord>;
+  /** Move a deal along its lifecycle (draft→published→unlisted→relist); null if not found or illegal. */
+  setStatus(id: string, merchantId: string, status: GroupbuyStatus): Promise<GroupbuyDealRecord | null>;
+}
+
 export interface RepositoryBundle {
   bookings: BookingRepository;
   conversations: ConversationRepository;
@@ -187,4 +219,6 @@ export interface RepositoryBundle {
   merchantStyles: MerchantStyleRepository;
   analytics: AnalyticsRepository;
   customers: CustomerRepository;
+  agents: AgentRepository;
+  groupbuy: GroupbuyRepository;
 }

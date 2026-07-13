@@ -24,9 +24,9 @@ export function PricingRuleCard({ item, label, onChange }: PricingRuleCardProps)
       </label>
       <div className="pricing-fields">
         <label htmlFor={`${baseId}-price`}>
-          <span>SGD</span>
+          <span>¥</span>
           <input
-            aria-label={`${label} price (SGD)`}
+            aria-label={`${label} price (¥)`}
             id={`${baseId}-price`}
             min="0"
             type="number"

@@ -205,8 +205,8 @@ describe('bookingService.createBooking', () => {
 describe('tenant isolation (gate 2)', () => {
   function tenantBundle(): RepositoryBundle {
     const merchants: Merchant[] = [
-      { id: 'm-a', name: 'A', timezone: 'Asia/Singapore', currency: 'SGD' },
-      { id: 'm-b', name: 'B', timezone: 'Asia/Singapore', currency: 'SGD' },
+      { id: 'm-a', name: 'A', timezone: 'Asia/Singapore', currency: 'CNY' },
+      { id: 'm-b', name: 'B', timezone: 'Asia/Singapore', currency: 'CNY' },
     ];
     const technicians: Technician[] = [
       { id: 't-a', merchantId: 'm-a', name: 'A1', initials: 'A1', title: '', active: true },

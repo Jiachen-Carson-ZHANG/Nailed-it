@@ -1,0 +1,65 @@
+{
+  "orchestrator": [
+    "get_merchant_insights",
+    "get_style_business_facts",
+    "dispatch_agent",
+    "dispatch_many",
+    "search_memory"
+  ],
+  "insight": [
+    "get_merchant_insights",
+    "search_memory"
+  ],
+  "trend": [
+    "get_trend_opportunities",
+    "get_platform_hot",
+    "get_external_trends",
+    "search_memory"
+  ],
+  "decision": [
+    "get_style_business_facts",
+    "get_merchant_insights",
+    "search_memory",
+    "read_blackboard",
+    "submit_action_brief",
+    "simulate_action_portfolio"
+  ],
+  "ad": [
+    "get_ad_account_state",
+    "list_available_audiences",
+    "forecast_ad_plan",
+    "place_ad",
+    "update_ad_campaign",
+    "pause_ad_campaign"
+  ],
+  "coupon": [
+    "get_coupon_constraints",
+    "set_group_buy_coupon"
+  ],
+  "catalog": [
+    "get_catalog_actions",
+    "feature_style",
+    "deprioritize_style",
+    "propose_listing",
+    "search_memory"
+  ],
+  "customer_ops": [
+    "get_customer_intelligence",
+    "send_automated_notification",
+    "create_merchant_message_draft",
+    "search_memory"
+  ],
+  "monitor": [
+    "get_merchant_insights",
+    "get_campaign_outcomes",
+    "record_action_outcome",
+    "record_round_verdict",
+    "search_memory",
+    "request_revision",
+    "read_blackboard"
+  ],
+  "reviewer": [
+    "read_blackboard",
+    "get_merchant_insights"
+  ]
+}

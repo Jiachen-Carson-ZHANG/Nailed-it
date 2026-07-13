@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TrendingStylesPanel } from './TrendingStylesPanel';
 
+// The panel renders a static, curated trending list (no fetch/cache) and shows only the Chinese
+// title copy. (Was previously fetch-backed; rewritten when it became static.)
 describe('TrendingStylesPanel', () => {
   it('renders the heading and subtitle', () => {
     render(<TrendingStylesPanel />);

@@ -1,0 +1,144 @@
+"""Runs one agent as a tool-call loop. ONE public entry — `run_agent` — with two interchangeable
+backends behind the MODEL_PROVIDER flag (see config):
+
+  - anthropic  → Claude via the SDK's `tool_runner` (beta): reasons, calls a tool, loops. Prod path.
+  - openrouter → Gemini/GPT/etc via the OpenAI SDK pointed at OpenRouter: a manual call→tool→call
+                 loop in OpenAI function-call format. Cheap dev path.
+  - gemini     → the SAME manual loop pointed at Google's OpenAI-compatible endpoint (credit fallback
+                 when OpenRouter runs dry) — model ids without the "google/" prefix.
+
+Both drive the SAME tool bodies (tools.IMPL) and write into the SAME RunContext.transcript, so the
+orchestrator, skills, tools, and panel are provider-agnostic — only the model adapter differs."""
+from __future__ import annotations
+
+import json
+import time
+
+from . import config, tools
+
+_anthropic_client = None
+_openai_client = None
+_MAX_TOOL_ITERS = 8  # safety cap on the dev loop (Anthropic's tool_runner caps itself)
+
+
+def _anthropic():
+    global _anthropic_client
+    if _anthropic_client is None:
+        from anthropic import Anthropic
+        _anthropic_client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _anthropic_client
+
+
+def _openai():
+    global _openai_client
+    if _openai_client is None:
+        from openai import OpenAI  # lazy — only needed for the OpenAI-compatible paths
+        if config.MODEL_PROVIDER == "gemini":
+            _openai_client = OpenAI(api_key=config.GEMINI_API_KEY, base_url=config.GEMINI_BASE_URL)
+        else:
+            _openai_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+    return _openai_client
+
+
+def run_agent(*, system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int = 2048, max_iters: int = _MAX_TOOL_ITERS, model: str | None = None) -> str:
+    """Run one agent with its skill (system), tool allow-list (by name), and task. Returns final text.
+    The tool bodies append their own tool_call/action transcript steps; here we append reasoning."""
+    token = tools.use_context(ctx)
+    try:
+        if config.MODEL_PROVIDER in ("openrouter", "gemini"):
+            return _run_openrouter(system, tool_names, task, ctx, max_tokens, max_iters, model)
+        return _run_anthropic(system, tool_names, task, ctx, max_tokens, model)
+    finally:
+        tools.reset_context(token)
+
+
+def _run_anthropic(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int, model: str | None = None) -> str:
+    runner = _anthropic().beta.messages.tool_runner(
+        model=model or config.AGENT_MODEL,
+        max_tokens=max_tokens,
+        system=system,
+        tools=[tools.BETA_TOOLS[n] for n in tool_names],
+        messages=[{"role": "user", "content": task}],
+    )
+    final_text = ""
+    # Iterating the runner drives the loop; tools run (and append their own steps) between yields, so
+    # appending reasoning at yield time keeps the transcript in execution order.
+    for message in runner:
+        for block in message.content:
+            if block.type == "text" and block.text.strip():
+                ctx.transcript.append({"kind": "reasoning", "text": block.text})
+                final_text = block.text
+    return final_text
+
+
+def _run_openrouter(system: str, tool_names: list[str], task: str, ctx: tools.RunContext, max_tokens: int, max_iters: int = _MAX_TOOL_ITERS, model: str | None = None) -> str:
+    client = _openai()
+    schemas = [tools.OPENAI_TOOLS[n] for n in tool_names]
+    allowed = {n: tools.IMPL[n] for n in tool_names}  # ONLY these execute — a model may hallucinate an
+    # off-allow-list tool name; we must NOT run it (its side effect would fire before any eval flags it).
+    messages: list[dict] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": task},
+    ]
+    extra = {"reasoning_effort": config.GEMINI_REASONING_EFFORT} if config.MODEL_PROVIDER == "gemini" else {}
+    if config.MODEL_PROVIDER == "openrouter":
+        extra["extra_body"] = {"usage": {"include": True}}  # OpenRouter returns measured cost per call
+    final_text = ""
+    retried_empty = False
+    # usage/latency accounting (model-selection eval reads this; ~free to keep on for live runs)
+    started = time.monotonic()
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "api_calls": 0, "cost_usd": 0.0}
+    for _ in range(max_iters):
+        resp = client.chat.completions.create(
+            model=model or config.AGENT_MODEL, max_tokens=max_tokens, messages=messages, tools=schemas,
+            temperature=config.AGENT_TEMPERATURE, **extra,
+        )
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+            usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+            usage["cost_usd"] += float(getattr(u, "cost", 0) or 0)
+        usage["api_calls"] += 1
+        usage["seconds"] = round(time.monotonic() - started, 2)
+        ctx.usage = usage
+        msg = resp.choices[0].message
+        if msg.content and msg.content.strip():
+            ctx.transcript.append({"kind": "reasoning", "text": msg.content})
+            final_text = msg.content
+        if not msg.tool_calls:
+            if (msg.content and msg.content.strip()) or retried_empty:
+                break  # a real conclusion — or the retry also came back dead; end with what we have
+            # empty content AND no tool calls — a dead response (thinking ate the budget, or a
+            # transient provider hiccup). Keyed on THIS response, not accumulated text: mid-loop
+            # narration must not disable the retry, else stale narration becomes the "conclusion"
+            # (observed live: 决策 died right after a tool result and returned its apology text).
+            retried_empty = True
+            continue
+        messages.append({
+            "role": "assistant",
+            "content": msg.content or "",
+            "tool_calls": [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in msg.tool_calls
+            ],
+        })
+        for tc in msg.tool_calls:
+            name = tc.function.name
+            impl = allowed.get(name)  # allow-list only — off-list names resolve to None → never executed
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {"_raw": tc.function.arguments}
+            # record the ATTEMPT (name + args) before executing, so invalid calls are visible even when
+            # the tool body raises before appending its own transcript step (tool-call-correctness gate).
+            if impl is None:
+                result, status, err = f"error: tool '{name}' not in allow-list", "error", "off_allowlist"
+            else:
+                try:
+                    result, status, err = impl(**args), "ok", None
+                except Exception as e:  # surface tool errors back to the model instead of crashing the loop
+                    result, status, err = f"error: {e}", "error", str(e)
+            ctx.tool_attempts.append({"tool": name, "args": args, "status": status, "error": err})
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    return final_text

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import CustomerHomePage from './page';
 import { mockMerchantStyles } from '@/mock/merchant-styles';
+import { demoMerchantId } from '@/mock/merchants';
 import { SavedStylesProvider } from '@/features/customer/SavedStylesContext';
 import { LanguageProvider } from '@/i18n/context';
 
@@ -21,7 +22,7 @@ describe('CustomerHomePage', () => {
     );
   }
 
-  it('renders the discovery feed with published merchant styles and the upload CTA', async () => {
+  it('fronts the studio\'s own styles (not other merchants) and the upload CTA', async () => {
     renderPage();
 
     expect(screen.getByRole('link', { name: '上传款式' })).toHaveAttribute(
@@ -29,12 +30,21 @@ describe('CustomerHomePage', () => {
       '/customer/booking'
     );
 
-    for (const style of mockMerchantStyles) {
+    // The feed is scoped to the demo studio's own styles (real photos + breakdowns). Other seeded
+    // merchants exist for the 选品/trend agent but must not front the customer surface.
+    const ownStyles = mockMerchantStyles.filter((style) => style.merchantId === demoMerchantId);
+    for (const style of ownStyles) {
       expect(
         await screen.findByRole('link', {
           name: new RegExp(style.title, 'i')
         })
       ).toHaveAttribute('href', `/customer/style/${style.id}`);
+    }
+
+    // A filler (other-merchant) style must NOT appear in the feed.
+    const filler = mockMerchantStyles.find((style) => style.merchantId !== demoMerchantId);
+    if (filler) {
+      expect(screen.queryByRole('link', { name: new RegExp(filler.title, 'i') })).not.toBeInTheDocument();
     }
   });
 

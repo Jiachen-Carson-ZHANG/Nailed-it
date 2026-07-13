@@ -1,5 +1,409 @@
 # Implementation Log
 
+## 2026-07-14 — Style library enrichment: own 中文名 + per-photo 建构/延长 (data, via gemini)
+
+All 38 published styles carried the importer's placeholder title ("Melissa Design 8251") and no
+structure items (the June import never detected 延长/建构). Enriched via a temp route (deleted after):
+
+- **Names** — 11 curated demo labels (`src/domain/demo-style-labels.ts` — keeps agent-narrative names
+  like 鎏金奢华 aligned) promoted into `merchant_style.title`; the other 27 named by gemini vision from
+  their own photo (蓝星点点, 珍珠钻饰法式, 落英缤纷 …). One collision deduped with a shape qualifier
+  (星河闪耀·杏仁). Feed/detail/booking now show each style's own name — zero "Melissa" remains.
+- **建构/延长** — the general recognizer only names the container (延长服务), so a focused per-photo
+  classifier asked: natural | builder_gel | which tip type. 29/38 got a concrete structure item added to
+  `merchant_style_item` (20 建构, 6 浅贴, 3 全贴), 9 read as 本甲 and honestly got none. Previews
+  resynced through `buildQuote` → item-traced ¥40–170 spread; card↔detail verified matching live, 建构
+  chip lights on both sides.
+- Currency context: prices are CNY-base since `0fdcd07` (no SGD conversion) — the enrichment prices
+  land in that base.
+
+## 2026-07-13 — "Reseed scare" triage: feed scoping, breakdown qty round-trip, gemini provider routing
+
+Branch `feat/demo-uiux-polish` → main. User reported "breakdowns gone / images wrong / prices random"
+after a reseed. Investigation: **no data loss** — all 45 merchant styles kept items (171 rows, FKs 0
+orphans), real photos (storage 200s), and real per-item pricing. The reseed had only re-touched 3
+baseline demo styles (Unsplash stock, flat ¥28), bumping them above the real work in the updated-at sort.
+
+What changed:
+- **DB hygiene (no code)** — archived the 3 stock demo styles; resynced all 38 published styles'
+  `preview_price_cents`/`preview_duration_min` from their items via the app's own `buildQuote`
+  (stored flat ¥88 placeholder → item-traced totals).
+- **Customer feed scoping** — `PublishedStyleFeed` filters to `demoMerchantId`: the 72 seeded filler-
+  merchant styles (4 reused Unsplash photos via `#hash`) no longer front the customer surface; they stay
+  in the DB for the 选品/trend agent. Test updated to assert the scoping.
+- **Breakdown quantity round-trip fix** — `seedStateFromBreakdown` kept quantities only for art/deco;
+  colour/colour-effect selections rebuilt at qty 1, so 腮红甲 ×4 styles showed a different price on the
+  feed card vs the detail (live: 8258/8280). Quantities now kept symmetrically; regression test added;
+  all 38 card↔detail prices verified matching live.
+- **AI provider routing** — Ark (cn-beijing) unreachable from the dev network killed every AI feature at
+  the single choke point `postOpenRouterChat`. `VISION_MODEL_PROVIDER=gemini` now routes to Gemini's
+  OpenAI-compatible endpoint (same message shape + response_format); default stays Ark.
+- **甲型/甲长 facet backfill (data)** — the June bulk import left generic facets (`Melissa`/`Showcase`)
+  + null recognition, so shape/length chips were empty everywhere. Ran gemini vision over all 38 photos,
+  wrote `discovery_facets` only (items/prices untouched; service-module + billable labels filtered out).
+  35/38 got a shape facet; chips verified lighting on both sides with totals unchanged.
+
+## 2026-07-12 — Demo UIUX polish: business clock + agent-chain / insights / currency fixes
+
+Branch `feat/demo-uiux-polish`. Merchant-side demo-readiness pass over the multi-agent surfaces.
+
+What changed:
+- **业务时钟 (P1)** — new `BusinessClock` on `/merchant/agents` (`src/domain/business-clock.ts` pure +
+  `src/features/merchant/BusinessClock.tsx`). A stage-safe sprint clock: an always-clickable "推进" button
+  steps a sim clock through a curated spine faithful to the real finals-a trace (决策 → 实测背离 72h →
+  修订+记忆), then a deterministic procedural tail (seeded PRNG) so it never dead-ends. Procedural periods
+  are tagged 模拟. Revealed count persisted in localStorage. Keeps live gemini rounds off the on-stage
+  critical path (advance-clock stays a terminal-only operator control).
+- **Thinking-chain sanitizer (P2b)** — `humanizeReasoning` in `agent-transcript.ts`: strong-tier reasoning
+  leaked raw markdown (`###`/`**`/backticks) + internal action UUIDs into the merchant-facing chain. Now
+  resolves style ids → names, drops UUIDs, strips markdown; clean prose passes through. Regression added.
+- **Insights summary no longer hangs (P2c)** — the grounded card renders the deterministic fallback
+  immediately (computed client-side from the loaded metrics via new client-safe `nail-ai/insights-fallback.ts`)
+  and upgrades to the AI narration only if it returns. Previously gated on the AI action, which stalls (the
+  OpenRouter→Ark wrapper is fed an OpenRouter model id Ark won't serve) → stuck on "AI 摘要生成中" forever.
+  Badge reads 规则生成 until real OpenRouter narration is wired.
+- **Currency conversion (P3)** — `formatCurrency` now CONVERTS SGD-base cents to the chosen display currency
+  via a frozen `FX_FROM_SGD` table + `Intl.NumberFormat` (symbol + per-currency decimals; NBSP normalized to
+  keep the old `SGD 12.34` form byte-stable). FRF dropped (retired 2002; Intl throws). Display-only; merchant
+  edit inputs still author in the base currency.
+- **Density + dev polish (P2a/P2d)** — `devIndicators:false` (the dev badge overlapped the 今日 tab, and live
+  agent demos run in dev); `/merchant/agents` 团队记忆 capped to 4 with a toggle (page 7786px → 3442px).
+- **Judge-first multi-agent framing** — `/merchant/agents` now opens with a compact closed-loop proof strip
+  (configured agents, auditable runs, cross-round memories, and the 主控→数分/选品→决策→风控→执行→监测 chain),
+  then the team lane map, then the business clock. This keeps the architecture visible before the timeline
+  proof and avoids a first-screen "timeline only" read.
+- **Friendly nail names** — known Melissa demo anchors now render as nail names in 今日 action cards,
+  agent transcripts, and the business clock (`薄荷青法式`, `碎冰玫瑰猫眼`, `鎏金奢华`, etc.) instead of
+  bare numbers or generic "Melissa Design ####" titles. Unknown/deleted styles still fall back to the id
+  so the UI remains honest.
+
+Aligned assumptions:
+- Logo left untouched (owner decision).
+- Demo-data hygiene (≈205 accumulated runs / 36 pending from eval test rounds) is a reseed step owned by the
+  eval workstream — run `seed:agents` + `seed:agent-history` right before the demo; not done here to avoid
+  disrupting in-flight eval data.
+
+Verification:
+- tsc clean. New tests: `business-clock.test.ts` (5), `agent-transcript` sanitizer regression, `format`
+  currency-conversion cases. Pre-existing failures in `style/[id]` + `booking/confirm` page tests are
+  unrelated (stale description/heading assertions; `SGD 28.00` itself renders) — confirmed via stash-run.
+- Visual (Playwright, localhost, 430px): clock steps Day 0→3→7 then 模拟 tail; dev indicator gone; insights
+  card settles with grounded numbers; agents page height halved.
+
+## 2026-07-02 — Demo analytics reset + 暗黑 gap wording
+
+What changed:
+- `npm run seed:intelligence` now resets all `analytics_events` for the demo merchant before inserting
+  fresh backdated seed history. This is deliberate for the final demo: old rehearsal clicks/searches can
+  otherwise make the rolling "this week vs previous week" trend stale. Use `-- --preserve-live-events`
+  only when intentionally keeping non-seed captured events.
+- The `暗黑` gap story is normalized to the actual business rule: high demand + **≤1 active matching
+  style**. Live Supabase currently has `style-melissa-img-8281` archived, so the gap can honestly be
+  supply `0`. The seed fixture no longer treats 8281 as a published style, and the regression asserts
+  `matchingActiveStyles <= 1`.
+
+Aligned assumptions:
+- Pre-demo runbook should be: `npm run seed:intelligence`, `npm run seed:agents`, then `npm run preflight`.
+- The older synthetic plan doc may still contain historical wording; `current-state.md` is the source of
+  truth for current behavior.
+
+Verification:
+- `npm run test -- src/mock/intelligence-seed.test.ts src/domain/intelligence/insights.test.ts`
+
+## 2026-06-27 — Demo-safe: Supabase filler backfill + 1000-row read cap fix
+
+Made the deployed (Supabase) demo actually match the design, and fixed a silent undercount the
+preflight surfaced.
+
+- **Filler backfill (#2):** `scripts/backfill-filler-merchants.ts` (`npm run backfill:fillers`) upserts
+  ONLY the 4 filler merchants + media + published styles (narrow, idempotent — not the broad
+  `seed:supabase`). Filler image paths get a `#<id>` fragment so each is unique (media_asset has a
+  unique (bucket, path) constraint; placeholder reuse would collide) while the same image renders.
+  Live now: 5 merchants, multi-merchant feed + cross-merchant platform-hot (韩系 across 3 shops).
+- **CRITICAL read-cap fix:** `supabase/analytics-repository.ts` `listByMerchant`/`listByCustomer` did a
+  single `.select('*')` → capped at PostgREST's ~1000 rows. With 1485 seeded events the read model was
+  **truncated**, undercounting every metric (金属感 read as *down* 11-vs-16; 8284 as 6 try-ons). Now
+  paginates with `.range()` past the cap. After the fix: 金属感 up 463-vs-198, 8284 try 10 (flagged),
+  preflight all-green.
+
+Preflight (`npm run preflight`) now PASSES on live Supabase. Note: 暗黑 supply is 0 (8281 unpublished) —
+the gap holds (arguably cleaner); the "1款在售" wording in the agent seed/docs is the last stale bit.
+
+## 2026-06-27 — Audit fixes: merchant-scoped insights/matching + demo preflight
+
+Addressed the validate-audit High finding that multi-merchant fillers would corrupt single-merchant
+intelligence:
+
+- **Merchant-scoped supply (#3):** `getMerchantInsightsAction` now reads the merchant's OWN published
+  styles (`merchantStyles.listByMerchant` + `status==='published'`), not all-merchant `listPublished`
+  — so a filler shop's 暗黑 supply can no longer hide the hero's catalog gap. The 选品 tool likewise
+  matches opportunities against **hero-only** styles (`get_trend_opportunities` filters by
+  `MERCHANT_ID`); `get_platform_hot` stays cross-merchant by design.
+- **Preflight (#5):** `scripts/preflight-demo.ts` (`npm run preflight`) hits the running app's agent
+  endpoints and prints PASS/FAIL on the demo-critical bands (merchant/style counts, 暗黑 gap, 金属感
+  rising, 8284 low-conv, 8265 top, platform-hot). First run confirmed the audit live: Supabase has no
+  fillers, 金属感 reads down (stale wall-clock window), 暗黑 supply 0.
+
+Still open (operational): re-run `seed:intelligence` before demo (#1); seed fillers to Supabase for
+multi-merchant/platform-hot (#2); decide 暗黑 (republish 8281 vs document supply 0) (#5); refresh
+`current-state.md` persona count (#6).
+
+## 2026-06-27 — 选品 (trend) agent end-to-end + Pinterest source (ADR-0007)
+
+Confirmed the 数分/选品 split and built 选品 as a real agent — **tools defined in Python** (the agent is
+the only consumer; only internal grounded metrics still come from the TS read model, ADR-0006).
+
+- **Pinterest research** (live): Trends API `GET /trends/keywords/{region}/top/{trend_type}` with
+  WoW/MoM/YoY growth; **app-only `client_credentials` token** (no user redirect) from app_id+secret;
+  but **no China region** (US/UK/CA + ~30) → Western keywords, likely `ads:read`. So Pinterest = live
+  capability; the CN fixture = matching tone.
+- **`trends_source.py`** — `TREND_SOURCE` seam: `fixture` (CN-flavored, default) | `pinterest` (live,
+  degrades to fixture on error). Config adds `PINTEREST_APP_ID/SECRET/REGION`, `TREND_SOURCE`.
+- **`trend_logic.py`** — Python port of the tested TS reference (`platform_hot`, `trend_opportunities`:
+  collect→dedup→match tag-overlap→classify amplify/price_test/gap/prune→rank).
+- **Tools (Python):** `get_external_trends`, `get_platform_hot`, `get_trend_opportunities` (read-only).
+  TS adds `/api/agent/styles` (published styles cross-merchant) → `bus.fetch_styles` for matching.
+- **Agent wiring:** `agentSlugs += 'trend'`; `AGENT_DEFINITIONS` 选品 row; `skills/trend.md`; orchestrator
+  step **数分 → 选品 → 决策** (决策 now consumes briefing + the ranked opportunities). Re-seeded → 9 agents.
+
+Decisions stay live in the agent runtime — 选品 produces a ranked menu; 决策 chooses. Verification:
+py_compile + import/logic smoke; tsc clean; 32 intelligence/agent tests pass. Pinterest live token
+untested until the key is placed in `.env.local`.
+
+## 2026-06-27 — Synthetic demo data: distributional generator + multi-merchant (design spec)
+
+Rebuilt the demo dataset so the data is **reproducible yet organic** (sampled, not hand-set) and
+**multi-merchant**, per `docs/plans/2026-06-27-synthetic-demo-data.md`. Decision-making stays **live in
+the agent runtime** — we engineer *situations*, not verdicts.
+
+- **`src/mock/prng.ts`** — seeded PRNG (`mulberry32`) + samplers (beta/poisson/binomial/weighted). No
+  deps; `Math.random` intentionally avoided. 6 tests.
+- **`src/mock/style-latents.ts`** — per-style latent funnel params (Beta rates, Poisson exposure)
+  encoding the §3 scenarios (winner / low-conv / under-exposed gem / declining star / vanity trap /
+  dead). Scenarios override; the rest use a realistic prior.
+- **`src/mock/intelligence-seed.ts`** — per-style funnel now **sampled** from latents via the PRNG
+  (impressions ~ Poisson → Bernoulli chain → click/detail/try/book/save) instead of fixed counts; 40
+  volume personas. Searches + named journeys kept. The locked narrative now holds as **bands** (all 9
+  `intelligence-seed.test.ts` assertions pass on sampled data); tuned 2 latents in the band-loop.
+- **Multi-merchant:** `merchants.ts` → 5 shops; `filler-merchant-styles.ts` → 72 published filler
+  styles (placeholder images = hero pics, swap when real pics land; authored tags). `listPublished()`
+  surfaces them → the customer feed is multi-merchant (enables cross-merchant ads).
+- **选品 inputs:** `src/domain/intelligence/trends.ts` `getTrendOpportunities` (collect → dedup → match
+  tag-overlap → classify → rank) + `getPlatformHotTags` (real cross-merchant 平台热门, no mock);
+  `src/mock/external-trends.ts` fixture (swap to live Pinterest later). Tests for both.
+
+Verification: tsc clean; 58 mock/intelligence tests pass.
+
+## 2026-06-27 — Boss-message rendered in-thread + red build fix
+
+- **Boss-message real:** the 用户运营 agent's `send_customer_message` now renders as a real `me` bubble
+  in the merchant thread with an **🤖 AI 代发** marker (`ChatMessage.aiSent`), merged from the
+  `agent_action` (source of truth); removed the redundant inline card on the thread.
+- **Red build fix:** repaired a stale rename from the 2026-06-21 homepage commit that broke `tsc` on
+  `StyleWaterfallGridClient` (`titleLocalized`→`title`), `TrendingStylesPanel` (`nameEn`→`name` +
+  missing fields; obsolete fetch-test → static), and `try-on.test` (env arg position). Build green.
+
+## 2026-06-27 — Agent audit follow-up: OpenRouter default, guarded actions (ADR-0007)
+
+Post-audit correction to the Phase 3/3b agent work:
+- Default agent provider is now `MODEL_PROVIDER=openrouter`; Anthropic SDK `tool_runner` is optional,
+  not the default handoff path.
+- Python tool bodies validate model-supplied action payloads before writing `agent_actions`.
+- Agent action status updates are merchant-scoped and only allow legal transitions (`applied`
+  reversible → `undone`, `proposed` draft upload → `approved`/`undone`).
+- Runtime action-type filters are sanitized before querying in-context cards.
+
+Verification: `pytest agent-service/tests -q` = 10 passed; `npm run test --
+src/lib/repositories/memory/agent-repository.test.ts` = 9 passed. `npx tsc --noEmit` is still blocked
+by unrelated existing customer/trending/try-on errors; no agent files were reported.
+
+## 2026-06-27 — Agent service Phase 3b: in-context surfaces + panel Run button (ADR-0007)
+
+The agent team's actions now show up on the **real merchant pages**, not just the dashboard.
+
+- **Read layer:** `AgentRepository.listActions(merchantId, {types, statuses})` (memory + supabase) +
+  `listAgentActionsAction(types)` (applied-only).
+- **Shared surface:** `src/features/merchant/AgentActionInline.tsx` — one self-fetching, self-hiding,
+  AI-attributed card with one-click undo, dropped on three surfaces: `place_ad` → style library
+  (`/merchant/styles`), `set_group_buy_coupon` → price-config (`/merchant/manage`),
+  `send_customer_message` → the 老板msg thread (filtered by `participantName`).
+- **Gate completion:** approving a gated `draft_upload` shows a **去上架/Upload** link to the style
+  library — the merchant supplies the image (auto-publish is impossible by design; that's why it's
+  gated). New `getMerchantStylesPath()`.
+- **Panel Run button:** `triggerAgentRoundAction()` spawns the Python service detached
+  (`agent-service/.venv/bin/python -m nailed_agents`, localhost-demo, disabled in production); the
+  panel polls `listAgentRunsAction` (~90s) so runs appear and flip running→completed live. Confirms
+  before running (it calls the model / spends credits).
+- Regression: `listActions` filter test (applied `place_ad` present; proposed `draft_upload` excluded).
+
+Verification: `tsc` clean on all touched files; vitest agent-repository **8 passed**; pytest **10
+passed** (unchanged — Python service untouched this step). The spawn trigger is localhost infra (not
+unit-tested).
+
+## 2026-06-27 — Agent provider direction clarified + tool payload validation (ADR-0007)
+
+Aligned ADR-0007, the agent README, current-state docs, and `.env.example` with the current decision:
+the repo-owned Python agent framework stays, **OpenRouter via the OpenAI-compatible SDK is the default
+demo model path**, and Anthropic SDK `tool_runner` is an optional provider when explicitly selected.
+OpenRouter does not literally run Anthropic's `tool_runner`; it runs the same plain Python tool bodies
+through our OpenAI-format call→tool→call loop.
+
+Also hardened the LLM trust boundary in `agent-service/nailed_agents/tools.py`: model-supplied action
+arguments are now validated before any `agent_actions` payload is written (style id shape, ad slot,
+positive/bounded money, trimmed/capped text). Added pytest coverage for invalid payloads.
+
+Aligned assumptions:
+- One tool source of truth remains the plain Python functions in `tools.py`.
+- `MODEL_PROVIDER=openrouter` is the handoff/default path for the demo; `MODEL_PROVIDER=anthropic`
+  requires separate verification if selected.
+- Agent actions are still data-side records; in-context cards render them, but true ad/coupon/message
+  entities and publish-on-approve remain pending.
+
+## 2026-06-27 — Agent service: test coverage (Python + TS) (ADR-0007)
+
+Closed the standing gap — the agent service had no automated tests (only `py_compile`/`tsc`). Added
+network-free suites (bus I/O + the model client stubbed):
+
+- **Python (pytest, 9 tests)** `agent-service/tests/`: OpenAI-schema derivation (types/required from
+  signatures), registry integrity (IMPL/BETA/OPENAI cover the same 8 tools), tool side-effects +
+  transcript steps, the **gated proposal** (`propose_listing` → `awaiting_approval` + proposed/
+  irreversible action), and the **OpenRouter loop** (executes the real tool body, plain-text turn,
+  feeds tool errors back instead of crashing). `pytest` added as a `[dev]` extra.
+- **TS (vitest, +2 → 7 tests)**: the **approve-gate regression** (catalog run `awaiting_approval` →
+  `draft_upload` proposed → `setActionStatus('approved')`) + customer-ops reversible boss-message.
+
+All green: `pytest` 9 passed; vitest agent-repository 7 passed.
+
+## 2026-06-27 — Agent service: dual model-provider seam (Claude prod / OpenRouter dev) (ADR-0007)
+
+Added a one-flag provider seam so dev can run on cheap models (Gemini/GPT via OpenRouter, using keys we
+already have) while prod stays on Claude — **without** adopting any new agent framework. Only the model
+adapter forks; orchestrator, skills, tools, bus, and the panel are untouched/agnostic.
+
+- `config.py`: `MODEL_PROVIDER` = `anthropic` (default) | `openrouter`; provider-aware `require_env`
+  (checks the right key) + provider-specific cheap default model (`claude-haiku-4-5` /
+  `google/gemini-2.0-flash-001`); `OPENROUTER_API_KEY` / `OPENROUTER_BASE_URL`.
+- `tools.py`: refactored to **one plain-Python source of truth**. The same functions are surfaced as
+  `BETA_TOOLS` (anthropic `beta_tool`) **and** `OPENAI_TOOLS` (function-schemas **auto-derived** from
+  each signature+docstring via `inspect` — no per-backend schema duplication/drift). `IMPL` = the plain
+  callables both loops execute.
+- `runner.py`: `run_agent(*, system, tool_names, task, ctx)` → branches on `MODEL_PROVIDER`. Anthropic
+  path = `tool_runner` (unchanged). OpenRouter path = a manual OpenAI-format call→tool→call loop
+  (capped at 8 iters, tool errors fed back to the model). Both append reasoning to the same transcript.
+- `orchestrator.py`: passes tool **names** (provider-agnostic) instead of fn objects.
+- `pyproject.toml`: + `openai>=1.40` (lazy-imported; only used on the OpenRouter path).
+
+**Verified LIVE** (OpenRouter → `google/gemini-2.5-flash`, full 8-run round): all tools fire
+(`place_ad`/`set_group_buy_coupon`/`list`/`delist`/`get_*` applied), the **human gate fired**
+(catalog → `draft_upload=proposed`, run `awaiting_approval`), tree parented, transcripts written.
+Two dev-skew findings + fixes: (1) the `gemini-2.0-flash-001` default 404'd → default is now
+`google/gemini-2.5-flash`; (2) Gemini drafted the boss-message in text without calling
+`send_customer_message` → hardened the `customer_ops` task + skill to force the tool call (re-tested:
+fires correctly). `beta_tool(fn)` confirmed valid as a functional call. **dev≠prod skew** stands —
+test on Gemini, run a final Claude pass before the demo.
+
+## 2026-06-27 — Agent service Phase 3: catalog + customer-ops + the one human gate (ADR-0007)
+
+Extended the agent team to the **full loop** `数分 → 决策 → 投广 → 团购 → 运营(上下架) → 用户运营 → Monitor → 数分'`.
+
+- **运营 (catalog)** agent (`skills/catalog.md`): `list_style` / `delist_style` (existing styles, auto +
+  reversible) and the **gated `propose_listing`** — when a demand gap has no internal match the agent
+  **cannot fabricate the design**, so it writes `agent_actions.status='proposed'` (risk irreversible)
+  and its run finalizes as **`awaiting_approval`**. This is the **one human gate** (ADR-0007 §4).
+- **用户运营 (customer_ops)** agent (`skills/customer_ops.md`): reads a new grounded **customer roster**
+  (`GET /api/agent/customers`, booking history, most-lapsed first) via `get_customer_intelligence`, then
+  `send_customer_message` (boss-message, auto + reversible).
+- **Tools** (`tools.py`): added `get_customer_intelligence`, `list_style`, `delist_style`,
+  `propose_listing`, `send_customer_message`; `RunContext.awaiting_approval` drives the gated finalize.
+- **Approval write-path (TS, panel only):** `approveAgentActionAction` (proposed→approved) +
+  `rejectAgentActionAction` (→undone) in `agent-actions.ts`; `AgentRunDetailClient` now renders
+  **Approve/Reject** for `proposed` actions (+ a gate note) and an approved/rejected label.
+- **Seed:** `agent-seed.ts` gains a catalog run (gated proposal, `awaiting_approval`) + a customer-ops
+  run so `npm run seed:agents` shows the full loop **incl. the gate cold — no API key needed.**
+- **Deferred to Phase 3b:** actual publish-on-approve into `merchant_style` + the in-context surfaces
+  (投广/价格config/老板msg). Phase 3 actions stay panel-level `agent_actions` (same fidelity as Phase 1/2
+  place_ad/coupon); rendering on real pages touches the concurrent style + messages WIP — separate pass.
+
+Verification: `py_compile` of `nailed_agents/*.py` OK; 7 skill files present; `tsc --noEmit` clean on all
+Phase 3 TS files. Live `tool_runner` run still pending an `ANTHROPIC_API_KEY`.
+
+## 2026-06-27 — Agent service Phase 2: close the loop (团购 + Monitor) (ADR-0007)
+
+Extended the Python agent service from the 3-agent chain to the **full closed loop**:
+`数分 → 决策 → 投广 → 团购 → Monitor → 数分'` — all tool-call loops, additive (no substrate change).
+
+- **决策** now emits **two** action intents (an 投广 `place_ad` + a 团购 `set_group_buy_coupon`); skill +
+  orchestrator task updated. The two operators each pick up their own segment.
+- **团购** agent wired (`skills/coupon.md` + orchestrator step) using the existing `set_group_buy_coupon`
+  tool — undoable `agent_actions` row, surfaces on the price-config page.
+- **Monitor** agent wired (`skills/monitor.md` + step, read-only `get_merchant_insights`). Hard guardrail
+  in the skill: **never invents lift % — records baseline + observation window when no before/after exists.**
+- **Loop closure:** Monitor re-dispatches a short `数分'` re-baseline run **parented to itself**
+  (deterministic, not recursive); runs are parented end-to-end so the panel renders the loop as a tree.
+- No new tools / migration / seed change. README + ADR-0007 §status/phasing updated.
+
+Verification: `py_compile` of `nailed_agents/*.py` OK; all 5 skill files present. Live run still pending
+(needs `ANTHROPIC_API_KEY` + `pip install -U -e .` + dev server) — verifying Phase 1+2 together.
+
+## 2026-06-27 — Agent service → tool-call loops + skills (ADR-0007)
+
+Refactored the Phase 1 Python service from a hardcoded JSON chain to **genuine Claude tool-call loops**
+(the mentor's steer), without adopting the heavy Claude Agent SDK / Claude Code harness.
+
+- Each agent now runs a loop via the Anthropic SDK's **`tool_runner` (beta)** + **`@beta_tool`** functions
+  (`agent-service/nailed_agents/tools.py`: `get_merchant_insights`, `place_ad`, `set_group_buy_coupon`).
+  Tools record their own transcript steps + write `agent_actions`; `runner.py` captures reasoning.
+- Each agent's **process is a "skill" file we own** (`agent-service/skills/{insight,decision,ad}.md`,
+  loaded as the system prompt) — **not** the `.claude/skills` feature (which is on the repo ban-list).
+- The **outer** 数分→决策→投广 sequence stays deterministic Python; `bus.start_run`/`finish_run` bracket
+  each run so the loop's tools write actions against a live run id.
+- agent-seed `tools` allow-lists renamed to the new snake_case tool names (re-seed optional — cosmetic;
+  the orchestrator passes tool fns directly).
+- ADR-0007 §1 updated (tool-call loop via `tool_runner`; skills = our own files).
+
+Verification: Python compiles (`py_compile`); TS (agent-seed) typecheck clean. Live run not executed
+here (needs `ANTHROPIC_API_KEY` + `pip install -e .` + dev server) — see agent-service/README.
+
+## 2026-06-27 — Agent team Phase 1: substrate + panel (ADR-0007)
+
+The TS half of Phase 1 — the observability substrate the (next) Python agent service writes to and
+the merchant panel reads from. No agent reasoning yet; that's the Python service (next step).
+
+What changed:
+- **Migration `0022_agent_orchestration.sql`** — `agents` (agents-as-data: slug/name/role/instructions/
+  tools/version), `agent_runs` (targeted run + jsonb `transcript` thinking-chain + `parent_run_id`
+  loop), `agent_actions` (type/risk/status/payload, the undo ramp). Server-only RLS. **Manual apply.**
+- **Domain + seam:** `src/domain/agents.ts` (Agent, AgentRunView, AgentAction, TranscriptStep);
+  `AgentRepository` (memory + supabase) wired into the bundle (ADR-0004) — read methods
+  (`listAgents`/`listRuns`/`getRun`) + `setActionStatus` (one-click undo).
+- **Server actions:** `src/lib/actions/agent-actions.ts` (`listAgentsAction`, `listAgentRunsAction`,
+  `getAgentRunAction`, `undoAgentActionAction`).
+- **Panel:** `/merchant/agents` (team cards + recent runs) + `/merchant/agents/runs/[id]` (thinking
+  chain `reasoning ⇄ tool ⇄ action` + actions with undo). Path helpers `getMerchantAgentsPath` /
+  `getMerchantAgentRunPath`. CSS added. (Nav entry-point deferred — reachable by URL for now.)
+- **Seed:** `src/mock/agent-seed.ts` (8 agent definitions + a demo loop: 数分→决策→投广+团购→Monitor,
+  tied to the intelligence-seed anchors 8265/8284/8281) used by the memory repo and by
+  `scripts/seed-agents.ts` (`npm run seed:agents`, idempotent: upsert agents, replace `input.seed`
+  runs).
+
+- **Briefing endpoint** `GET /api/agent/briefing` — reuses `getMerchantInsightsAction` so the Python
+  service reads grounded numbers (never re-derives metrics — ADR-0006 guardrail).
+- **Python agent service** (`agent-service/`, full Python on the Anthropic Claude SDK): `config` (reuses
+  repo-root `.env.local`, needs `ANTHROPIC_API_KEY`), `bus` (Supabase I/O + briefing fetch), `runner`
+  (Claude call + JSON parse), `orchestrator` (the 数分→决策→投广 chain writing `agent_runs`/`agent_actions`,
+  parented to close the loop). Run: `python -m nailed_agents`. Supabase is the only TS↔Python seam
+  (plus the briefing read); `.venv`/`__pycache__` already gitignored.
+- **Entry point:** an agent-team card on the merchant **Me** page, between 款式图册 and 美甲师状态
+  (`getMerchantAgentsPath`).
+
+Verification: agent repo test 5/5; profile page test 2/2; typecheck clean for all new files; Python
+compiles (`py_compile`); bundle change safe (`memory-repositories.test` green). (Pre-existing suite
+failures are the concurrent style/trending localization WIP — not this layer.)
+
+Next (Phase 2): close the loop — Monitor (lift, re-dispatch 数分) + the 团购 chain + the in-context
+surfaces (投广页面 below gallery / 价格config / 老板msg auto-send). See
+`docs/plans/2026-06-27-merchant-agent-team.md`.
+
 ## 2026-06-08 — Fix editor preview drift (card $88 vs detail $93)
 
 What changed:
@@ -852,3 +1256,1162 @@ Aligned assumptions:
 Verification:
 - `npm test -- src/i18n/messages/ui/messages.test.ts src/app/merchant/messages/page.test.tsx src/app/merchant/styles/[id]/review/page.test.tsx src/app/customer/profile/page.test.tsx` — all passed.
 
+## 2026-06-30 — Pinterest live Trends verified + nail-scoped (选品)
+
+What changed:
+- Verified the user-OAuth path end-to-end: refresh token → fresh access token → live `/v5/trends/keywords/{region}/top/growing`.
+- Found `PINTEREST_REGION=KR` is rejected — Pinterest Trends has **no Asia coverage**. Valid regions are
+  Western only (US, GB+IE, CA, AU+NZ, DE, FR, IT, ES, BR, MX, …). Switched demo region to `US`.
+- Found the unscoped endpoint returns generic pop-culture trends (TV shows, holidays). Added
+  `PINTEREST_INTERESTS` (default `beauty`) → ~21/25 keywords are nail-domain (e.g. "4th of july nails
+  french tip", +6500% MoM). Wired `interests` into `_fetch_pinterest`.
+- Corrected the stale "~30 regions incl Asia" notes in `config.py` / `trends_source.py`.
+- Updated `tests/test_tools.py` registry test (8 → 11 tools; the 3 选品 read tools were missing).
+
+Aligned assumptions:
+- Pinterest live = proof of real external-trend ingestion. English beauty keywords don't tag-match the
+  CN catalog, so live mode surfaces "gap" opportunities; CN fixture remains the source for catalog-matching
+  demo value. The `TREND_SOURCE` seam keeps both.
+- Response carries `pct_growth_wow/mom/yoy` + weekly `time_series` — not yet consumed (kept `{label, tags}`).
+
+Verification:
+- `cd agent-service && .venv/bin/python -m pytest -q` — 10 passed.
+- Live fetch via `trends_source.get_external_trends()` returns nail-domain US trends (TREND_SOURCE=pinterest).
+
+## 2026-06-30 — 选品 momentum: Pinterest growth % → trend strength → ranking
+
+What changed:
+- `trends_source._fetch_pinterest` now keeps each row's `growth` (pct_growth_wow/mom/yoy) and folds MoM
+  into a `strength` via `_strength_from_growth` (log-scaled [0.3,1.0]; growth spans 1%–6500%).
+- `trend_logic.trend_opportunities`: external trends use their own momentum-derived strength (was a flat
+  0.6); `growth` carried into each opportunity. `score = strength × fit × 0.5` now ranks by momentum.
+  Fixture/internal trends have no growth → strength defaults 0.6 (prior behavior unchanged).
+- Skill + `get_external_trends` docstring tell the agent to justify with growth %.
+
+Verification:
+- `.venv/bin/python -m pytest -q` — 10 passed.
+- Live round (provider=openrouter, source=pinterest, US/beauty): 8 external gaps carried growth; ranked
+  "4th of july nails french tip" (MoM +6500%, score 0.150) above the +2500% ones (0.140).
+
+Open finding (NOT changed): internal demandTrends are per-tag → 21 internal price_test opportunities
+flood the round and bury the external signal. Pre-existing trend_logic behavior; worth a follow-up
+(cap/threshold internal trends) but out of scope for the Pinterest work.
+
+## 2026-06-30 — 选品 agent picks the Pinterest trend window (trend_type tool param)
+
+What changed:
+- `get_external_trends(trend_type)` and `get_trend_opportunities(range_days, trend_type)` now take an
+  optional `trend_type` — the agent selects the window at runtime: growing (default), monthly,
+  seasonal (current-season/holiday spikes), yearly. Auto-derived OpenAI/beta schemas expose it as optional.
+- `trends_source._fetch_pinterest(trend_type)` hits `/top/{trend_type}`; unknown → growing. Added
+  `config.PINTEREST_TREND_TYPE` (default when the agent omits it). Skill tells the agent to prefer
+  `seasonal` near holidays.
+
+Verification:
+- `.venv/bin/python -m pytest -q` — 10 passed; schema shows trend_type optional on both tools.
+- Live: growing vs seasonal return different windows (US/beauty).
+
+## 2026-06-30 — 选品 flood fix (internal trends de-flooded + price_test made style-level)
+
+Problem: a 选品 round produced ~21 near-identical price_test rows that buried the real signal. Two causes:
+(1) every "up" demand tag became its own trend — even 银色 at +1 count (+0.2%); (2) the classify rule
+"any trend touching a high-interest-low-conversion style → price_test" let one over-tagged style (8284,
+which carries almost every tag) stamp price_test onto nearly every trend.
+
+Fix (trend_logic.py, the LIVE Python path):
+- Internal demand → trend only if it rose ≥5% wk/wk (delta/previous), then cap to the top 6 by delta.
+- Removed the per-trend price_test branch; trends now classify amplify (matched) / gap (no match).
+- price_test is now STYLE-level: one opportunity per highInterestLowConversion style (score 0.30,
+  ranks between amplify ~0.20 and gap ~0.145).
+
+Result (live, US/beauty Pinterest): 29 → 15 opportunities — 1 price_test (8284), 6 amplify (meaningful
+risers), 8 external gaps (momentum-ordered). Agent final answer reads as a clean priority list.
+
+Divergence: src/domain/intelligence/trends.ts (a TESTED REFERENCE, not wired into any UI/route — only
+re-exported + unit-tested) now lags this logic. Decide separately: mirror the change into TS + its test,
+or retire the TS reference. Residual (for the vector-matching step): single-tag internal trends still
+match every style carrying that tag (fit=1.0), so amplify rows list many style ids — semantic/composite
+matching will refine this.
+
+## 2026-07-01 — 选品 concept matching (VLM + Cohere hybrid retrieve/rerank) [ADR-0008]
+
+Why: tag-overlap matching was broken on real inventory (missed 珠光法式银月钻 for "法式"; false-matched a
+non-chrome style on its 金属感 tag). See spike + ADR-0008. Pinterest can't supply trend images, so the
+trend side is text; represent nails as VLM concepts and match keyword→concept.
+
+What changed (agent-service, all behind MATCH_MODE=tag|concept, default tag):
+- Migration `0023_style_concept.sql`: pgvector + `style_concept` (concept_json, concept_text, embedding
+  vector(1024), source_media_asset_id). MANUAL apply.
+- `config.py`: MATCH_MODE, ENRICH_VLM_MODEL, COHERE_API_KEY/BASE_URL/EMBED_MODEL/RERANK_MODEL, EMBED_DIM,
+  MATCH_TOP_K, MATCH_THRESHOLD; require_env checks COHERE_API_KEY when MATCH_MODE=concept.
+- `cohere_client.py`: embed + rerank via httpx (no SDK dep).
+- `enrich.py`: idempotent CLI — hero style photo → VLM concept (OpenRouter) → concept_text → Cohere embed
+  → upsert style_concept. `python -m nailed_agents.enrich [--force]`.
+- `matching.py`: `make_match_fn` → embed keyword → in-Python cosine top-k over cached vectors → Cohere
+  rerank → threshold; returns None on error/empty → tag fallback. (In-Python cosine at hero scale ~32;
+  hnsw index + an RPC is the scale path.)
+- `trend_logic.trend_opportunities(..., match_fn=None)` — pure; concept score (rerank 0..1) becomes `fit`;
+  tag-overlap when match_fn is None.
+- `tools.get_trend_opportunities` builds the matcher when MATCH_MODE=concept.
+- Tests: `tests/test_trend_logic.py` (flood fixes + matcher injection vs tag fallback). Suite: 16 passed.
+
+Runbook to enable live: apply 0023 in Supabase → add COHERE_API_KEY to .env.local →
+`cd agent-service && .venv/bin/python -m nailed_agents.enrich` → set MATCH_MODE=concept → run a 选品 round.
+
+## 2026-07-01 — Model selection eval → Google embed + Cohere rerank (ADR-0008)
+
+Chose the embed/rerank models by measured ability (not preference; cost excluded). Harness: 32 hero
+concepts (VLM-captioned), 12-query bilingual gold set (visual/color/occasion, graded 0/1/2), ranking all
+32 per query. Metrics: Recall@5/10, MRR, nDCG (embed); P@1, MRR, nDCG@5/10 (rerank).
+
+Results:
+- Embedding — **google/gemini-embedding-001** won decisively: R@5 0.76, R@10 0.91, MRR 0.92, nDCG@10 0.88
+  vs cohere embed-multilingual-v3.0 (0.53/0.78/0.79/0.67), OpenAI-3-small (0.56/0.68/0.88/0.66),
+  OpenAI-3-large (0.50/0.72/0.72/0.63). +0.18 weighted, beyond gold noise.
+- Rerank — **cohere/rerank-multilingual-v3.5** (P@1 0.83, MRR 0.92, nDCG@5 0.77) chosen over LLM-judges:
+  gpt-4o P@1 0.92 / MRR 0.96 (higher by ~1 query = within noise) but slow + token-cost + nondeterministic;
+  gemini-2.5-flash 0.83/0.89/0.82. Cohere is one fast deterministic call/round → picked on operations.
+
+Wiring:
+- New `embeddings.py` (EMBED_PROVIDER=google|cohere|openrouter; google via generativeai embedContent,
+  taskType RETRIEVAL_DOCUMENT/QUERY, outputDimensionality 1024). `enrich.py` + `matching.py` use it;
+  rerank stays `cohere_client`. config: EMBED_PROVIDER (default google), GEMINI_API_KEY, EMBED_MODEL;
+  require_env checks the embed provider's key + COHERE_API_KEY when MATCH_MODE=concept.
+- `cohere_client._post`: bounded 429/5xx retry with backoff (honours Retry-After) — trial rerank is 10/min.
+
+Free-tier note: Cohere trial = 1000 calls/mo, rerank 10/min (fine for demo, not production; commercial
+banned → paid key later). Google embed free tier 100 RPM / 1000 RPD is ample. Tests: 16 passed.
+
+## 2026-07-02 — ADR-0009 (synthetic demo data) + synthetic plan doc refreshed
+
+- Promoted the synthetic-data approach to a reviewable decision record: `docs/decisions/ADR-0009-synthetic-demo-data.md`
+  (two-determinisms: seeded data, live decisions; Beta/Poisson/Binomial funnel; planted ambiguous scenarios;
+  band-verification; dataset doubles as the agent-eval test set).
+- Refreshed the plan doc `docs/plans/2026-06-27-synthetic-demo-data.md` (Draft→IMPLEMENTED, §0.5 deltas):
+  暗黑 = 0-stock gap (not "≈1"; no planted 8281), scripts shipped, ADR-0008 concept matching noted.
+- OPEN DESIGN ITEM: **platform-hot (pop-style) signal is a placeholder** (`get_platform_hot` = cross-merchant
+  tag-count). Real signal should be more sophisticated — neither raw booking/click nor tag-count — TBD.
+
+## 2026-07-02 — ADR-0010 (evaluation methodology) + docs/eval/ consolidation
+
+- Wrote `docs/decisions/ADR-0010-evaluation-methodology.md`: locks the eval approach as a decision (GB/T
+  45288.2 loop; two separate suites — RAG=IR metrics vs multi-agent=capability matrix; benchmark shortlist+
+  corroborate then own task eval decides; mixed test sources; 4/4-stability + grounding gates; noise-floor
+  honesty; transcript closed-loop). Detailed reports stay standalone (not absorbed into the ADR).
+- Consolidated the 3 eval docs from docs/plans/ → **docs/eval/** (trend-matching-design, trend-matching-eval-
+  report, multiagent-eval-framework) + `docs/eval/README.md` index. Cross-refs in ADR-0008/0009 + memory updated.
+
+## 2026-07-02 — Eval audit response (9 findings)
+
+Addressed audit findings on the eval/matching work:
+- #1 Persisted the RAG eval harness into the repo: `agent-service/eval/` (concepts.json, eval.py,
+  caption_catalog.py, real_pinterest_check.py, README) so the report is replayable; fixed the report's
+  reproducibility paths (scratchpad→agent-service/eval). pytest scoped to `tests/` (eval/ = scripts).
+- #2 ADR-0010 + framework: **tool-call correctness is now a third BLOCKING gate** (=100% on core; agent
+  auto-executes actions → wrong tool/target as dangerous as hallucination). Framework thresholds made
+  concrete (工具100% / 幻觉0 / 4-4≥90%), replacing X/Y/Z placeholders.
+- #3 Concept cache versioning: `style_concept.pipeline_version` (migration 0023 + idempotent ALTER);
+  enrich staleness now keys on (media asset, model, PIPELINE_VERSION) — model/prompt/schema changes force re-enrich.
+- #4 Match transparency: `get_trend_opportunities` output + transcript now carry `matchMeta`
+  (matchModeRequested, conceptScored/tagFallback counts, conceptsLoaded, fallbackReason[s]) — a demo can't
+  silently look concept-powered while running on tags. Per-opportunity `matchSource` (concept|tag).
+- #5 Auditable "why": matcher returns concept_text with each match; surfaced as `matchWhy` per opportunity.
+- #6 ADR-0006 addendum: reseed semantics (prod accumulates; `npm run seed:intelligence` resets by default,
+  `--preserve-live-events` keeps live).
+- #7 ADR-0007 status Proposed→Accepted (Phases 1–3b built; deployment trigger + real side-effect entities open).
+- #9 Fixed stale doc pointers in code (config/enrich/cohere_client/embeddings/matching → docs/eval/).
+- Regression tests added (matchSource/matchWhy). Suite: 18 passed.
+Not done (honest): #8 the agent eval HARNESS is still unbuilt — the framework is the spec; building it is follow-on.
+
+## 2026-07-02 — Pre-landing review fixes (3 informational)
+
+- eval.py: llm_judge now constructs the OpenRouter client lazily inside rank() (no-key smoke test no longer crashes at build).
+- embeddings._openrouter: requests `dimensions=EMBED_DIM` (1024) + fails loud if the model returns another dim
+  → EMBED_PROVIDER=openrouter can't violate the vector(1024) contract.
+- Docs synced to implemented contract: ADR-0008 (staleness key = media+model+pipeline_version), current-state
+  (Google embed default + Cohere rerank + matchSource/why), design-doc status+§Provider/model marked SUPERSEDED
+  → Google embed. Suite: 18 passed.
+
+## 2026-07-02 — Agent eval Phase A (harness) built
+
+- Tool-attempt recorder: `RunContext.tool_attempts` + `runner._run_openrouter` records every attempted
+  tool call (name/args/ok|error) around execution — so invalid-arg attempts are visible to the eval, not
+  inferred from "a tool body ran" (audit refinement #2).
+- `agent-service/eval/agents_eval.py`: per-agent scenarios (trend/8284, customer_ops/lapsed, catalog/dead)
+  over stubbed bus fixtures; scores tool-call correctness + per-agent expectation (read→opportunity,
+  action→captured agent_action); structured decision signatures for the Phase-B 4/4 compare. Deterministic
+  (TREND_SOURCE=fixture, MATCH_MODE=tag). All 3 pass; 18 unit tests green.
+- Finding: catalog agent over-delisted (killed low-conversion 8284 alongside dead 8277) → Phase B needs
+  negative assertions + decision-validity. Phase B = N-run stability + narrow grounding; Phase C = LLM-judge.
+
+## 2026-07-02 — Agent eval Phase B (stability + negative assertions + grounding)
+
+agents_eval.py now scores 5 blocking gates over N runs (default 4): tool-call correctness (attempt
+recorder), scenario expectation (all N), negative assertion (forbidden action/target must not occur),
+narrow grounding (cited style-ids must trace to fixture/tool output), 4/4 stability (structured decision
+signature identical across runs — prose/free-text excluded, kind-aware so an empty action run is `()`).
+
+Findings on the current agents (base model google/gemini-2.5-flash), n=3 smoke:
+- trend/8284: all gates pass (deterministic tool output).
+- customer_ops/lapsed: core decision stable + correct + forbidden-send avoided; MINOR instability — the
+  agent inconsistently attaches a recommended style (styleId varies).
+- catalog/dead-8277: sharper prompt FIXED the over-delist (negative assertion passes), but the agent is
+  UNRELIABLE — delists 8277 only ~1/3, often no-ops → fails expectation + stability. Candidate fixes:
+  prompt tuning or a stronger tool-calling base model (BFCL: Claude family tops function calling; the
+  MODEL_PROVIDER seam supports the swap). The harness "FAILURES" verdict is correct — the gate reveals
+  the agent isn't demo-ready, which is the point.
+Phase C (next): LLM-judge for open-ended quality (briefing/message) with blind + human spot-check.
+
+## 2026-07-02 — Agent-eval pre-landing review (1 critical + 6)
+
+- CRITICAL runner allow-list enforcement: `_run_openrouter` now executes only `{n: IMPL[n] for n in
+  tool_names}` — an off-allow-list tool name resolves to None → recorded as `off_allowlist` error, NEVER
+  executed (previously any IMPL tool ran, side effect before the gate). Test added (test_runner).
+- Harness: signature signs the EXPECTED opportunity (not opps[0]); tool-call gate adds target-exists
+  (style_id ∈ fixture styles, customer_name ∈ roster) — caught a hallucinated styleId=456; expectation/
+  forbid compare the explicit target FIELD per action_type (no payload-substring false positives); forced
+  MODEL_PROVIDER=openrouter (recorder only covers that loop); local OPENROUTER_API_KEY check instead of
+  require_env (bus is stubbed → no Supabase). npm `eval:agents` + `eval:matching` added.
+- Tests: recorder asserted for success / invalid-arg / off-allow-list. Suite: 19 passed.
+- Findings (unchanged direction): catalog over-conservative now → never delists (prompt over-corrected);
+  customer_ops attaches a bogus style id → agent-quality work, not harness.
+
+## 2026-07-02 — Agent eval pre-landing #3 (2 critical) → ALL GATES GREEN
+
+- CRITICAL send_customer_message: optional style_id now validated against the merchant's PUBLISHED styles
+  (bus.fetch_styles) before write — raises style_id_not_in_catalog on a hallucinated id (caught the eval's 456).
+- CRITICAL catalog grounded (option A): new read tool `get_catalog_actions` returns the deterministic prune
+  (delist) + gap (propose) candidates (same trend_logic used by 选品). Catalog agent + skill + orchestrator
+  now EXECUTE that list instead of re-judging raw metrics. 8284 (high-interest-low-conv, on the 金属感 trend)
+  is excluded from prune → never delisted; 8277 (dead) is the delist candidate. Registry now 12 tools.
+- Harness: exact target equality (canonical full names/ids — "Rachel" no longer passes for "Rachel Goh");
+  grounding scan now includes reasoning-transcript text; catalog scenario uses get_catalog_actions; README
+  updated to Phase A+B / 5 gates / npm run eval:agents.
+- RESULT: `npm run eval:agents -- --n 4` → **ALL BLOCKING GATES PASS** (trend, customer_ops, catalog all
+  4/4 stable, correct, grounded, no forbidden action). Unit suite: 19 passed.
+
+## 2026-07-02 — Agent eval pre-landing #4 (1 critical) → reproducibly green
+
+Correction: the prior "ALL GATES GREEN" was FLAKY — customer_ops intermittently hallucinated a style_id
+(9001/456); the tool rejected it (prod-safe) but the tool-call gate then failed. Fixes:
+- CRITICAL: removed `style_id` from `send_customer_message` entirely (no grounded per-customer recommendation
+  source exists → don't let the model invent a card). Skill + orchestrator task + schema test updated.
+  customer_ops is now reproducibly stable (signature = (send_customer_message, customerName)).
+- Shared report builder `_trend_report(range_days, trend_type)` — get_trend_opportunities AND
+  get_catalog_actions both call it, applying MATCH_MODE (concept matcher) + matchMeta, so catalog prune/gap
+  can't diverge from the trend agent in concept mode.
+- Docs synced to the actual, reproduced status (this log + multiagent-eval-framework).
+- Verified: `pytest` 19 passed; `eval:agents --n 4` → ALL BLOCKING GATES PASS (trend, customer_ops, catalog
+  each 4/4). Reproduced twice.
+
+## 2026-07-02 — Agent eval Phase C (LLM-judge quality + 问题闭环)
+
+- `agents_eval.py --judge` (non-blocking): blind multi-judge MOS (1-5; gemini-2.5-flash + gpt-4o) on the
+  open-ended output over 准确性/完整性/实用性/安全性; avg <3.5 or judge spread ≥1.5 → ⚑ human-review. Judges
+  see only task+output (blind). Kept OFF the blocking verdict (quality ≠ gate).
+- 问题闭环: blocking-gate failures (or low MOS) appended to `eval/regressions.jsonl` (gitignored) as
+  regression seeds to grow the scenario set. Live `agent_runs.transcript` mining is the remaining extension.
+- npm `eval:agents -- --n 4 --judge`. Smoke (--n 1 --judge): all gates pass; MOS trend/customer_ops ~4.5,
+  catalog 5.0; 19 unit tests pass.
+Agent eval now Phase A+B+C: 5 blocking gates + non-blocking quality + failure-seeded closed loop.
+
+## 2026-07-02 — seed sync to fixed tool contract (agent-seed.ts)
+
+`npm run seed:agents` wrote stale definitions/runs. Synced src/mock/agent-seed.ts to the live Python surface:
+- catalog def tools: ['list_style','delist_style','draft_upload'] → ['get_catalog_actions','list_style',
+  'delist_style','propose_listing'] (draft_upload is an ACTION type, not a tool); instruction now describes
+  the grounded get_catalog_actions flow; seeded catalog transcript prepends a get_catalog_actions call.
+- customer_ops: removed the "推荐款式小卡片" from the instruction; seeded run drops styleId from the
+  send_customer_message tool_call + action payload (now customerName+body only) + card mentions.
+Typecheck (tsc --noEmit) clean.
+
+## 2026-07-02 — Phase C audit cleanup (judge robustness + closed-loop)
+
+- Judge parse/infra failure no longer mixes with real scores: strict validation (overall ∈ 1..5), errors
+  stored per-judge separately, MOS averages ONLY valid scores (was: fabricated 0 → false 2.5 avg + false
+  regression). Added `response_format=json_object` → gemini-2.5-flash now returns valid JSON reliably.
+- 问题闭环 persists ANY human-review flag (disagreement-only / judge-error), not just blocking failures.
+- Regression records are now replayable seeds: task, fixture snapshot, final output, captured actions,
+  tool_attempts, tool_bad/forbid_hit/ungrounded, raw judge outputs+errors, and a suggested failure category
+  (tool_call/expectation/negative_assertion/grounding/stability/quality/judge_infra).
+- ADR-0010 updated: RAG eval + agent eval A+B+C are BUILT; open items = live transcript mining, scenario
+  growth, numeric grounding, judge calibration.
+- Note: the earlier seed-staleness finding was already fixed (verified) before this audit.
+- Verified: 19 tests; `eval:agents --n 1 --judge` → all gates pass, both judges valid (4/5/5), no false flags.
+
+## 2026-07-02 — Phase C audit #2 (rep-run + tests + doc drift)
+
+- Regression seeds now capture the REPRESENTATIVE (first-failing) run, not always run 0: `evaluate` picks
+  `rep` = first run failing a per-run gate (else run 0) + records `rep_index` and all `run_signatures`;
+  the judge scores `rep`'s output; `_log_regression` writes `rep`'s final/actions/tool_attempts. Fixes the
+  case where run 3/4 hallucinated but the seed showed a clean run.
+- Phase C unit coverage: `tests/test_agents_eval.py` (network-free, fake OpenAI + tmp regression file) —
+  quality_judge parses valid scores + isolates judge errors (not averaged as 0) + rejects out-of-range
+  overall; _log_regression writes a rich replayable record with the right category + rep_index. Suite: 22 passed.
+- Doc drift fixed: harness docstring + README → "Phase A + B + C"; README regression line → "any human-review
+  flag (incl. disagreement/judge-error) → replayable seed". Also fixed a datetime.utcnow() deprecation.
+
+## 2026-07-05 — Merchant 今日 home, Phase 1 (shell)
+
+- New agent-first merchant home per DESIGN.md → "Merchant Agent Home". Phase 1 = static shell only:
+  `src/app/merchant/today/page.tsx` + `today.module.css` (CSS module, tokens from globals.css `:root`).
+  5 zones: structured stat strip (营收/今日单/新客), 需要关注 hero (pending pin + horizontal done-roll),
+  per-technician roll (the single calendar entry), 常驻 2×2. Current look = color left-stripe + emoji +
+  44px controls (chip-only + line-icon migration parked in DESIGN.md backlog).
+- Two isolated new files — no existing code touched, reachable at `/merchant/today`, verified rendering
+  in-app with no console errors. Tab flip (日历→今日) + live data (Phases 2–5) still to come.
+
+## 2026-07-06 — 今日 home: audit corrections + route reuse
+
+- Backend-contract audit verified against code: action controls were ahead of backend
+  (`setActionStatus` only does `approved`/`undone` — no stop/unlist API), group-buy is browser
+  localStorage (coupon actions are records, not live deals), the calendar uses `mockTechnicians` + a
+  UTC `todayIso()`, and the plan doc conflicted with DESIGN.md. Fixed: DESIGN.md's Reversibility-Honest
+  rule rewritten to real capability (draft → 批准/拒绝; every applied → 查看). stop/unlist + DB group-buy +
+  tz-safe today + the Python reversibility-flag fix → backlog. Plan doc got a "DESIGN.md is canonical" banner.
+- Routing (reuse `/merchant/calendar`, no home-path/entry-hint churn): home extracted into
+  `src/features/merchant/TodayHome.tsx` (+ `.module.css`); `/merchant/calendar` renders it (entry-hint
+  kept); the full calendar split to `/merchant/calendar/schedule` (reached via the tech roll's 完整日历 →);
+  tab 1 relabeled 日历→今日 (i18n zh/en) + home icon; scratch `/merchant/today` removed. Both routes 200,
+  no console errors.
+- Adopted for Phase 2: one read model `getMerchantTodayHomeAction()` (per-field try/catch → deterministic
+  + independent-failure) driving `TodayHome`; per-tech from `technician-repository` + interval bookings +
+  merchant timezone (not the mock/UTC calendar path).
+
+## 2026-07-06 — 今日 home, Phase 2 (read model + live data)
+
+- ADR-0011: one read model `getMerchantTodayHomeAction()` drives the home. Pure, deterministic compute in
+  `src/domain/merchant-home.ts` (compute-on-read, merchant tz): `computeHomeStats` (rolling-7d revenue +
+  delta, new-salon → null/"暂无对比", today orders, new customers), `computeTechnicianDay` (busy/free +
+  load + next appt, inactive excluded), `controlCapabilities` (backend-honest: draft → 批准/拒绝, else 查看),
+  `splitActions` (proposed → pin, applied <48h → roll). 12 unit tests pass (`merchant-home.test.ts`).
+- `src/lib/actions/merchant-home-actions.ts`: fetches bookings once (feeds stats + techs) + agent actions
+  by status + technicians + agents, each in its own try/catch so a broken zone can't blank the page.
+- `TodayHome` consumes the read model: real stat strip / pending pin (批准/拒绝 wired to the existing
+  approve/reject server actions, optimistic) / done roll / technician roll, per-zone loading/empty/error +
+  an 8s timeout so a hung source degrades to the error state (no infinite spinner).
+- Verified: `/merchant/calendar` 200, no console errors, tsc clean for the new source (only a stale `.next`
+  cache entry for the removed /today route, cleared). Local Supabase is unreachable, so the running demo
+  shows the timeout→error/empty states; the wiring is proven by the passing compute tests.
+
+## 2026-07-06 — 今日 home, Phase 2 audit remediation
+
+Second audit pass on the read model, each finding verified against source before fixing:
+- **Route split left tests red (High):** the old `/merchant/calendar` calendar-behavior tests still
+  asserted the calendar UI, which now renders on `/merchant/calendar/schedule`. Moved those 6 cases to
+  `schedule/page.test.tsx` (repointed import + pathname); slimmed `calendar/page.test.tsx` to the home
+  shell + the onboarding hint (compute is covered by `merchant-home.test.ts`). 26/26 green.
+- **Draft-upload title broken for the real payload (High):** `propose_listing` writes `{ gapTag, reason }`,
+  but the title read `styleTitle`/`styleId` → "上架建议 ·" with an empty suffix. Title now uses `gapTag`
+  (styleTitle/styleId kept as defensive fallbacks); added a payload-shape regression test.
+- **Inert controls (High):** the 4 常驻 tiles now link to their real routes (styles / insights / agents /
+  manage) — no dead tiles. The drill-down affordances (pin 查看, 查看全部, recent-card 查看推理) are removed
+  (not shown inert) until Phase 3 builds the reasoning sheet; recent cards are static info cards for now.
+- **Optimistic approve/reject could hide a failed action (Medium):** `act()` now reloads on a `null`
+  return (stale/invalid transition), not only on a thrown error.
+- **Fake reversibility at the source (Medium):** `send_customer_message` was tagged `reversible` and its
+  docstring claimed "the merchant can retract it" — a sent message cannot be un-sent. Fixed at the Python
+  source (`risk="irreversible"`), which makes the existing `AgentActionInline` / `AgentRunDetailClient`
+  undo controls (gated on `risk === 'reversible'`) correctly hide. Open decision (not silently changed):
+  `place_ad` / `set_group_buy_coupon` are "stoppable in concept" but have no stop/unlist API yet — their
+  reversibility labels + the panel's undo UX stay as-is pending that call.
+- **UI quality (Low):** dropped negative letter-spacing (`.titlebar h1`, `.statN`) and the pointer/hover
+  affordance on the now-static pin + recent cards; labelled the two horizontal rolls (`role="list"` +
+  aria-label). Roving-tabindex / keyboard scroll remain a Phase-6 a11y item.
+- Pre-existing suite failures (24, in customer-booking / styles-review / landing / insights) are unrelated:
+  none import `merchant-home`/`TodayHome`, and their causes are domain copy/seed drift from the branch's
+  mid-development state — not this change.
+
+## 2026-07-06 — 今日 home, Phase 3 (reasoning drill-down sheet)
+
+DESIGN.md "Two-Depth Disclosure" made real: a card's face → a bottom sheet with WHY + lineage.
+- `deriveRunDetail(runId, allRuns)` (pure, in `domain/agents.ts`): resolves a run + its parent (who
+  triggered it, via `parentRunId`) + its children (who it spawned). Deterministic → 4 unit tests
+  (`agents.test.ts`). New types `RunRef` / `AgentRunDetail`.
+- `getAgentRunDetailAction(runId)`: thin I/O shell — one `listRuns(demoMerchantId)` (full views) fed to
+  `deriveRunDetail`. Lineage logic stays out of the client.
+- `AgentRunSheet.tsx` (+ `.module.css`): reuses the shared `BottomSheet` and the global `agent-chain*`
+  classes (matches the `/merchant/agents` run detail). Shows agent + status, output headline, 上下游
+  lineage (parent ↑ / children ↓ as links to the full run page), the 推理链路 transcript, and a
+  "查看完整记录 →" link. Read-only by design — approve/reject stay on the pin (single source of that
+  optimistic state); the sheet is the "view" depth. Own loading / not-found states.
+- `HomeActionView` gained `runId` (from `toActionView`) so a card knows which run to open.
+- `TodayHome`: the de-clicked affordances from the Phase-2 remediation are now backed — the pin's 查看
+  and the recent (done) cards open the sheet; recent cards are buttons again with the 查看推理 → cue and
+  their hover/focus affordance restored.
+- Verified: `/merchant/calendar` 200, home renders, tsc clean, 26/26 domain+route tests pass, no runtime
+  errors (only RSC error-boundary scaffolding in the SSR HTML). Local Supabase unreachable → the sheet
+  shows its not-found state until runs are seeded; lineage correctness is proven by the compute tests.
+
+## 2026-07-06 — 今日 home, Phase 5 (real technician `off`) + Phase 6 (a11y polish)
+
+Phase 5 — technician roll `off` is now real, not inferred from `active=false`:
+- `computeTechnicianDay` takes the scheduling kernel's `workingPlans` (`domain/scheduling.ts`, the same
+  source the booking availability grid uses). A technician with no plan covering today's weekday →
+  `off` / 今日未排班. Weekday is derived from the merchant-tz `todayKey`. Busy/free unchanged.
+  `merchant-home-actions` now fetches `repos.workingPlans.list()` alongside technicians (one `Promise.all`).
+  Seed check: `mockWorkingPlans` has anna on TUE–SUN only, so she reads `off` on Mondays — a real 3-state
+  roll. New unit test covers the off case; existing tech tests updated to the new signature (27 pass).
+- Blocked-time (partial-window training/leave) stays in the full calendar — it doesn't map to a single
+  coarse card state (ADR-0011 update).
+
+Phase 6 — a11y:
+- Fixed a `role="list"` / `role="listitem"` anti-pattern from the Phase-2 remediation: `listitem` on a
+  `<button>`/`<Link>` strips its native role. The two rolls are now `role="group"` + aria-label, and the
+  cards keep their native button/link semantics. Technician links got a structured aria-label
+  (`name · state · nextLabel`).
+- `:focus-visible` rings on every interactive card (`.acard` already had one; added `.tcard`, `.lcard`,
+  `.btn`). A `prefers-reduced-motion` block drops the hover-lift transforms/transitions.
+- Verified: `/merchant/calendar` 200, tsc clean, 27/27 domain+route tests pass.
+
+## 2026-07-06 — chip contrast fix (WCAG AA) via ink tokens
+
+Followed up the deferred Phase-6 contrast item as a global design-token addition (not a home-local fork):
+- The colored state chips were sub-AA at 10px bold — success `#2e8b6c`/`#e4f3ec` = 3.65:1, busy
+  `#c73963`/`#ffe4eb` = 4.18:1, amber `#d97706`/`#fdecd2` = **2.75:1**; accent link text `#ec5d7b` on white
+  = 3.27:1 (AA-normal needs 4.5:1).
+- Added three AA-safe **ink tokens** to `globals.css`: `--color-success-ink #217a5c`,
+  `--color-warning-ink #9a5b00`, `--color-accent-ink #b32e57` — the darker text shade for a hue sitting as
+  small text on its own soft tint. Base success/warning/accent are unchanged (still used for fills/icons),
+  so no existing screen changed appearance; the inks are a primitive others can adopt.
+- Home (`TodayHome.module.css`) + sheet (`AgentRunSheet.module.css`) chips now use the ink tokens; accent
+  link text (`.cardGo`, `.more`, sheet `.full`) uses the existing `--color-accent-strong` (5.01:1). New
+  ratios: success ink on tint 4.58:1 / on white 5.25:1; warning ink on tint 4.68:1; accent ink on tint
+  5.09:1 — all ≥ AA.
+- Verified on a clean dev server (the long-running :3100 was wedged, 500ing every route incl. untouched
+  `/`): `/merchant/calendar` 200, home renders, all three ink hexes live in the served `layout.css`, tsc
+  clean, 27/27 tests pass. All ratios re-checked programmatically (WCAG relative-luminance).
+- Self-audit (verifying the pass, not just asserting it) caught **two element-level fails the first pass
+  missed**, now fixed: the primary **批准** button was white on `--color-accent #ec5d7b` = 3.27:1 →
+  switched its fill to `--color-accent-strong #c73963` (white on it = 5.01:1); the technician **avatar
+  initial** was accent-strong on accent-soft = 4.18:1 → `--color-accent-ink` (5.09:1). Also removed a dead
+  `t.all` copy key orphaned when 查看全部 was dropped in the Phase-2 remediation.
+- **App-wide finding (not fixed — flagged):** the global `.button-primary` (used on other screens, e.g.
+  the agent run detail) has the same white-on-`#ec5d7b` = 3.27:1 issue. Left to the shared-token follow-up
+  rather than scope-creeping this change into other screens.
+
+## 2026-07-06 — audit round 2 remediation (6 findings, all verified against source)
+
+- **[Critical] Reversibility regression I introduced.** Making `send_customer_message` irreversible exposed
+  a latent bug in `AgentRunDetailClient.tsx:154`: `isProposed` fired on any `risk==='irreversible'`, so an
+  *applied* sent message showed Approve/Reject. Fixed — the gate is now `status==='proposed'` only; risk
+  decides undo eligibility separately.
+- **[Critical] Fix hadn't reached the demo.** The Python tool wrote `irreversible`, but the in-memory seed
+  (`agent-seed.ts:267`) + its test still said `reversible`, so the running demo still offered Undo for a
+  sent message. Seed → `irreversible`; test updated; added a regression test that `setActionStatus(...,
+  'undone')` returns null for the message. Live `agent_actions` rows with `type='send_customer_message'`
+  still need a one-time backfill to `risk='irreversible'` when Supabase is reachable (manual migration).
+- **[Issue] Merchant scoping.** `merchant-home-actions` now filters technicians by `demoMerchantId`
+  (`list()` is not merchant-scoped yet — repo backlog); plans match by tech id, so none leak across merchants.
+- **[Issue] Busy semantics.** `computeTechnicianDay` marked a tech busy for *any* later appointment. Now
+  `busy` = *currently inside* an appointment interval `[start, start+duration)` (uses `quote.duration`, 60m
+  fallback); a later appointment is `free` with a `next` label — matches DESIGN.md "空闲 = free now / between".
+- **[Issue] i18n.** The 常驻 tiles, the "今日 N 单" load text, **and** the technician status label (which
+  the domain used to emit as hardcoded Chinese) rendered Chinese in English mode. Fixed at the root:
+  `TechnicianDayCard` now carries a **structured** `label` (`serving`/`next`/`done`/`idle`/`off`) and the
+  component formats it from the per-language copy; tiles + load moved into the copy object too.
+- **[Issue] Sheet payloads.** `AgentRunSheet` now truncates long tool-payload JSON (140 chars) with the full
+  record one tap away; run detail is unchanged.
+- Verified: tsc clean; 38/38 on the touched suites; full suite 24 failed / 472 passed — **failure count
+  unchanged from baseline (no regression)**, +7 passing from new/updated tests; `/merchant/calendar` 200 on
+  a clean dev server.
+
+## 2026-07-06 — merged origin/main + ADR-0012 accepted + Phase 0a (action↔entity contract)
+
+- Reconciled `feat/persistence-p0` with `origin/main` (was 4 behind / 16 ahead): pulled in the **StyleAd
+  ad-campaign subsystem** (center `/merchant/ads` + per-style editor, migrations 0022–0025). One conflict
+  (`repositories/index.ts`); renumbered the colliding `0023_style_concept → 0026`. tsc clean, no test
+  regression. Consequence: the 投广 UI + ad entity already exist — remaining work is linkage + brain + 团购.
+- ADR-0012 accepted: **brain = per-style advisory tool, agent = multi-tool loop + cross-signal synthesis,
+  no single tool returns "the answer."** Ads: auto-launch within the merchant cap (withdrawable daily-drip),
+  gate above. Entity linkage + relational groupbuy items + state machine + eval + currency snapshot folded in.
+- **Phase 0a (schema/repos/state-machine, no UI behavior change):**
+  - Migration `0027_action_entity_contract.sql`: `agent_actions` gains `entity_type`+`entity_id` (polymorphic
+    forward link); `style_ad_campaign` gains `source_run_id` (guarded — the ad tables aren't on every DB);
+    new `groupbuy_deal` (cents + currency snapshot, JSONB policy fields, `source_run_id`) + relational
+    `groupbuy_deal_item` (FK catalog_item, quantity, position — mirrors `merchant_style_item`). Idempotent.
+  - `domain/action-entity-contract.ts`: legal entity transitions + the coarse entity→action-status mirror.
+  - `GroupbuyRepository` seam: interface + memory impl (seeded from the demo deals, merchant-scoped,
+    transitions validated) + supabase impl (record ↔ deal+items, cents conversion) + both bundles wired.
+    Domain gains a `GroupbuyDealRecord` wrapper (merchantId/currency/sourceRunId) — the UI-facing
+    `GroupbuyDeal` is unchanged, so the localStorage path + panels still work (rewire is Phase 0b).
+  - Tests: action-entity-contract (4) + memory groupbuy repo (3). Migration is applied manually (the demo DB
+    lacked the ad tables → `style_ad_campaign` ALTER guarded).
+
+## 2026-07-06 — Phase 1 decision brain (pure, `src/domain/decision/`)
+
+The PM spec (`美甲款式运营决策分析`) made real as pure, testable modules. Per ADR-0012 §5 the brain is
+**advisory**: it returns scores + a candidate lever + machine signal tags — no prose, no final verdict; the
+agent synthesizes across styles + briefing + capacity + the cap.
+- `economics.ts` (T1): contribution / revenue-per-hour / **profit-per-hour** / break-even coupon. Cost model
+  fix — variable cost is an ABSOLUTE amount fixed from the normal price (so break-even is a real floor, not
+  the degenerate 0 a %-of-price cost would give); platform fee is % of the transaction. Cents throughout.
+- `funnel.ts` (T2): CTR/detail/save/try-on/booking/completion rates → PM-weighted **Demand** & **Conversion**
+  scores (each rate normalized against a tunable target). Divide-by-zero safe.
+- `capacity.ts` (T3): next-week utilization band + **fragment-fit** (largest free gap ≥ style duration) via
+  pure interval math over working plans (breaks removed) minus resolved busy intervals — a 150-min style is
+  not recommended into 45-min gaps. The action layer resolves tz/bookings/blocks to minutes (keeps it pure).
+- `decision.ts` (T4): the 4 scores (Business-Value is batch-relative per PM) + the quadrant rule engine →
+  `ad | coupon | display_only | skip` with signal tags + a suggested coupon price. Gates: ad needs
+  profitable+converting+underexposed+util≤85%+fits; coupon needs interested-but-stuck+util≤70%+fits+above
+  the profit-per-hour floor; else display_only (real interest, can't justify spend) or skip.
+- Tests: economics (6) + funnel (4) + capacity (4) + decision-quadrants (5) = 19. tsc clean.
+- Not yet wired: the read-model action that fetches real data → these functions, and the agent/tools that
+  consume the output — that is Phase 2 (which also sets the action↔entity linkage from 0a).
+
+## 2026-07-06 — Phase 2 slice A (TS contract + read model)
+
+- **A1 (contract):** `AgentAction` gains `entityType`/`entityId` (mirrors migration 0027); supabase agent
+  repo maps the new columns. Memory seed leaves them null. Type-only import avoids a domain cycle.
+- **A2 (read model):** `src/domain/decision/aggregate.ts` (pure) — `funnelCountsByStyle` (event log →
+  per-style counts; completions joined from the completed-booking set, so completionRate is real) +
+  `bookingsToBusyIntervals` (bookings are already merchant-local → capacity intervals). +2 tests.
+  `src/lib/actions/decision-actions.ts` — `getStyleBusinessDecisionsAction`: fetch published/priced styles +
+  analytics + bookings + working plans + techs → aggregate → capacity once (shared band + largest gap,
+  per-style fit = gap ≥ duration) → `decideStyles` → `{ decisions, capacity, errors }`. Per-field try/catch
+  like the 今日 read model; merchant tz + coupon floor are demo constants (envelope wiring later).
+- Verified: tsc clean; decision suite 21 tests. Remaining Phase 2: Python tools (`propose_ad`/`propose_groupbuy`
+  write entities + set linkage) + un-force orchestrator/decision.md (allow skip) + `get_style_business_decisions`
+  tool + entity-aware undo (TS) + eval skip/propose scenarios + the `source_run_id` follow-up migration.
+
+## 2026-07-06 — Phase 2 slice B (TS): group-buy terms parser + propose path
+
+- `domain/groupbuy-validation.ts` (pure, audit #4): one `validateGroupbuyDeal` parser (end>start, discount ≤
+  original, sale window, low-peak availability HH:mm ranges, positive quantity; `requirePublishable` adds
+  title + ≥1 service). Shared by the propose path (draft-level) + the wizard (publishable) so an
+  agent-created deal can't persist nonsense. +5 tests.
+- `actions/groupbuy-actions.ts` — `proposeGroupbuyDealAction(deal, sourceRunId)`: validate → persist a real
+  DRAFT via the repo seam with `sourceRunId` → return it. The Python tool calls this then writes the
+  agent_action with `entityId = deal.id` (the forward link); the merchant reviews/publishes in 团购管理.
+  +2 tests (memory bundle).
+- Verified: tsc clean, 7 new tests.
+- **Plumbing landed (additive, verified):** `bus.write_action` now takes optional `entity_type`/`entity_id`
+  (kwargs — existing calls unaffected, pytest 22 still green); API routes `/api/agent/decisions` (GET the
+  decision read model) + `/api/agent/propose-groupbuy` (POST → `proposeGroupbuyDealAction`) expose the brain
+  + propose path to the Python agent.
+- **Remaining Phase 2 (coupled behavior chunk — needs a model/pytest/eval run to verify, done together):**
+  `tools.py` wiring (call the routes; `set_group_buy_coupon`→propose semantics; new `get_style_business_decisions`;
+  StyleAd draft propose) + un-force `orchestrator.py`/`decision.md` to allow `skip` + eval skip/propose
+  scenarios (Slice D) + TS entity-aware undo & the `source_run_id` follow-up migration (Slice C).
+
+## 2026-07-06 — synthetic capacity data (rolling next-week bookings)
+
+The decision brain's capacity gate needs real interval bookings in the next 7 days; the funnel seed only
+emits booking *events*, and `mockIntervalBookings` are historical → a live test read the salon as 100% idle.
+- `src/mock/capacity-booking-seed.ts` — pure `generateRollingBookings` (seeded PRNG): fills `today..+6` with
+  a realistic partial load (per-tech fill varies → utilization + fragment gaps differ), inside working hours,
+  never across the break, no per-tech overlap (respects the `booking_no_overlap` constraint), reproducible ids.
+- Folded into `npm run seed:intelligence` — one command now seeds funnel + capacity together (cleared/reinserted
+  by the `capseed-%` id prefix). Documented in the synthetic-data doc (§9b). 4 generator tests; tsc clean.
+
+## 2026-07-06 — Phase 2 B2/C/D: the agent consumes the brain and may do nothing
+
+The behavioural half of ADR-0012 — the 决策 agent stops being a two-action quota machine.
+- **B2 (the agent reads the brain).** `bus.fetch_decisions()` → `GET /api/agent/decisions`; new read tool
+  `get_style_business_decisions` (auto-registered into IMPL/BETA_TOOLS/OPENAI_TOOLS via `_FUNCTIONS`).
+  `skills/decision.md` rewritten: the brain is **advisory**, the agent **synthesises** across it + briefing +
+  选品 + capacity and picks **0..N** actions; capacity-first (don't discount a full week, don't amplify what
+  the week can't absorb); "本轮不采取投广/团购" is an explicit, valid conclusion.
+- **Un-forced the orchestrator.** The 决策 step gets the brain tool and no longer demands "两个精确动作";
+  the 投广/团购 executor steps are told to call **no tool at all** when the decision didn't choose them.
+- **D (eval).** `Scenario` gains `decisions` (+ `bus.fetch_decisions` stub) and a `no_action` expectation:
+  a correct skip makes **zero tool calls**, so `tool_ok` now treats that as success (previously "no tool
+  calls" was always a failure — which would have marked every correct skip as broken). New regression
+  `ad/full-capacity-skip`: given a decision to skip (91% utilization, weak profit/hour), the 投广 agent must
+  not call `place_ad`. `forbid` still guards against acting anyway.
+- **C (migration).** `0028_style_ad_source_run.sql` — idempotently adds `style_ad_campaign.source_run_id`
+  for databases that apply the ad tables *after* `0027` (whose ALTER is guarded and won't re-run).
+- Verified: pytest 22 green (registry-parity test updated), all service modules + the eval compile, tsc clean.
+- **Tail (needs a model + seeded DB to verify end-to-end):** the entity rewire — `set_group_buy_coupon` should
+  call `/api/agent/propose-groupbuy` and write the action with `entity_type='groupbuy_deal'`/`entity_id`
+  (status `proposed`) instead of an applied log row; `place_ad` likewise → a `StyleAd` draft (needs a
+  `proposeStyleAdAction` + route, and the ad tables applied); plus TS entity-aware undo.
+
+## 2026-07-06 — Phase 2 entity rewire: the executors create REAL commercial objects
+
+First live agent round proved the brain+agent half works (决策 called `get_style_business_decisions`, cited
+grounded numbers, and **overrode the brain** — it declined coupons on 8275/8273 because the 数分 briefing
+flagged them as delist candidates). But the executors still wrote applied log rows with `entity=-/-`.
+Rewired both:
+- **`set_group_buy_coupon` → a real reviewable draft.** `proposeGroupbuyForStyleAction` builds the deal from
+  the published style (title, current price as original, and its **authoritative catalog breakdown** as the
+  bundled services), validates the terms, persists via the repo seam with `source_run_id`. The tool then
+  writes the action with `status='proposed'`, `entity_type='groupbuy_deal'`, `entity_id=<deal id>`.
+  **Verified live:** `gb-style-melissa-img-8284`, ¥88 → ¥70.40, 7 relational `groupbuy_deal_item` rows.
+- **`place_ad` → a real StyleAd campaign.** `proposeStyleAdAction` upserts `style_ad_campaign` with
+  `source_run_id`. Envelope (ADR-0012 §2): daily budget ≤ `AGENT_AUTO_LAUNCH_MAX_DAILY_BUDGET_CENTS` (¥50)
+  → `active` (auto-launch; spend is a withdrawable daily drip) → action `applied`; above the cap → `draft`
+  → action `proposed`, for the merchant to launch in 投广中心.
+- HTTP hops live in `bus.post_propose_ad` / `bus.post_propose_groupbuy` so the tools stay stubbable; routes
+  `/api/agent/propose-ad` + `/api/agent/propose-groupbuy` take agent-native input (styleId + cents).
+- Gotcha found: a `'use server'` module may only export async functions — the budget cap + types moved to
+  `domain/style-ad.ts`.
+- Tests now enforce the contract: `place_ad` links `entity_type='style_ad'` + status mirrors the campaign;
+  new `set_group_buy_coupon` test asserts `status='proposed'` + `entity_type='groupbuy_deal'`. pytest 23, tsc clean.
+- **Blocked for ads only:** the demo DB has no `style_ad_campaign` — the route returns a clear
+  "apply migrations 0022_style_ad_campaign + 0023-0025 + 0028" error. Coupons work end-to-end today.
+- **Still open:** `GroupbuyPanel` reads `localStorage`, so the merchant cannot yet *see* the DB-created draft
+  in 团购管理; supabase group-buy `save` is not transactional; entity-aware undo (stop the campaign / unlist
+  the deal) is not wired; ad ROAS + measured underexposure unmodelled.
+
+## 2026-07-06 — 团购管理 on the repository seam: the merchant can review what the agent proposed
+
+The loop was open: the agent created a real `groupbuy_deal`, but the panel read browser `localStorage`, so
+the proposal was invisible. Closed it.
+- **Server actions** (`groupbuy-actions.ts`): `listGroupbuyDealsAction`, `getGroupbuyDealAction`,
+  `saveGroupbuyDraftAction` (draft-level validation, preserves `sourceRunId`), `publishGroupbuyDealAction`
+  (publishable validation → `draft→published` via the contract's transition guard), `setGroupbuyStatusAction`
+  (unlist/relist), `copyGroupbuyDealAction` (a copy is merchant-authored → `sourceRunId` cleared).
+- **`GroupbuyPanel`** now loads from the seam (async, with loading/empty/error states). The hardcoded
+  `aiSuggestions` mockup is gone: the **AI助手 card lists the agent's real proposals** — deals with a
+  `sourceRunId` still in `draft` — each opening the detail view; list rows carry an `AI 建议` badge.
+- **Orphan removed:** `repositories/local/groupbuy-repository.ts` (+ its test) had no consumers left after
+  the rewire; deleted rather than left as dead code.
+- **Error-message bug fixed:** `isMissingStyleAdTableError` matches any message containing `style_ad_campaign`
+  + `schema cache`, so a missing *column* was reported as a missing *table*. `proposeStyleAdAction` now checks
+  `source_run_id` first and names migration `0028`. (Probing the live DB showed the ad tables were applied all
+  along — only `0028` was missing.)
+- Tests: manage suite 22 (helpers await the async list; new regression asserts the AI card surfaces an
+  agent-proposed draft). Full suite 24 failed / 512 passed — failure count unchanged from baseline. pytest 23,
+  tsc clean.
+- **Still open:** supabase group-buy `save` is not transactional (needs an RPC); entity-aware undo; ad
+  ROAS + measured underexposure.
+
+## 2026-07-10 — Phase 2 tail: entity-aware undo, atomic group-buy save, ad ROAS + measured exposure
+
+Closes the three items left open by the 团购管理 rewire. All three were places where the code *reported*
+something it had not actually done.
+
+**1. Entity-aware undo.** `undoAgentActionAction` flipped `agent_actions.status` and stopped there — the
+campaign kept spending and the deal stayed published. Now: read the action → pre-check `canUndoAction`
+(new, in `domain/agents.ts`; the memory repo's duplicated guard now delegates to it) → withdraw the
+**entity** → mirror the coarse status.
+- **The order is the design.** Entity first: if the mirror then fails, money is already stopped and the
+  stale pill self-corrects, because the entity's status is authoritative. Mirror-first would report "undone"
+  while the ad kept spending.
+- New: `AgentRepository.getAction` (both impls), `withdrawStyleAdCampaignAction` (also the 投广中心 pause
+  button later), `styleAdWithdrawTarget` / `groupbuyWithdrawTarget` in `action-entity-contract.ts`.
+- `GROUPBUY_TRANSITIONS.draft` gains `unlisted`: rejecting an agent proposal **shelves** it (keeps
+  `source_run_id` for audit) rather than deleting it. An applied irreversible action is refused *before* its
+  entity is touched. Withdrawing an already-not-live entity is a no-op, not an error.
+- The seeded coupon action now carries `entityType: 'groupbuy_deal'` / `entityId: 'deal-001'` so memory mode
+  behaves like Supabase — otherwise the demo's undo lies.
+
+**2. Atomic group-buy save (migration `0029_save_groupbuy_deal_rpc.sql`).** `save` was upsert + item-delete +
+item-insert as three PostgREST calls; a failure between the delete and the insert left a **published deal
+with zero services**. One plpgsql RPC now commits deal + items together, restates the table defaults (an
+explicit INSERT overrides them), and refuses to reassign a deal across merchants.
+
+**3. Ad ROAS + measured underexposure (`src/domain/decision/ads.ts`).** The ad gate fired on scores and
+capacity, never on money, and `underexposed` was emitted *by* the ad branch — it meant "we decided to ad".
+- `expectedRoas = contribution / costPerBooking`, `costPerBooking = AD_COST_PER_CLICK_CENTS ÷ (bookings/clicks)`
+  measured from the style's own funnel. **ROAS is scale-free** (the budget cancels), so *whether* to advertise
+  is a property of the style; the cap only decides *how much* of a good buy to buy.
+- `exposureRatio = impressionShare / demandShare` — attention received vs attention earned. `< 0.8` = the
+  shop's own surface under-serves it.
+- **Asymmetric defaults:** unknown ROAS is a **NO** (wrongly spending is a real loss); unknown exposure is
+  reported as `exposure_unknown`, never fabricated, because the agent narrates these signals. Exposure needs
+  ≥2 impression-carrying styles — one style is 100% of its own batch.
+- Honest limit recorded in-code and in the ADR: bookings are treated as fully incremental, so ROAS is an
+  **upper bound**; `AD_COST_PER_CLICK_CENTS = 120` is a named assumption, not a measurement.
+- The 决策 skill + tool docstring now require the agent to quote `expectedRoas` and `exposureRatio` in its
+  reason, and state that a null ROAS is a NO, not a maybe.
+
+**Verified live** (demo merchant, 5 styles with traffic): exactly 2 clear both gates — `8274` (ratio 0.61,
+ROAS 4.1) and `8249` (ratio 0.66, ROAS 6.8). Blocked: `8284` (26% of all impressions, 61 clicks, **zero**
+bookings → ROAS unmeasurable) and `8282` (ROAS 1.8 < target 2.0). The gate removes exactly the two buys that
+would have burned cash, and `8284` — the style the old brain wanted to amplify — is the clearest example.
+
+- Tests: full suite **24 failed / 529 passed** (failure count unchanged from baseline; +17 passing). pytest 23.
+  tsc clean. New: 6 withdrawal-target cases, 4 undo-orchestration cases (memory bundle, end-to-end),
+  6 ad-gate cases incl. over-exposed peer, unmeasurable ROAS, and scale-freeness.
+- **Requires migration `0029`.** Until it is applied, group-buy `save` throws a message naming the file
+  (deliberately no silent fallback to the non-atomic path).
+
+## 2026-07-10 — Merchant UI alignment: readable transcripts, traceable proposals, token-scale cleanup
+
+Audit-driven pass over the new merchant surfaces (今日 home, 团购管理, agent team, run detail, AI inline
+cards), which had drifted from the app's design system and rendered developer exhaust to merchants.
+
+**Transcripts became human (the big one).** The run page's 思考链 rendered the entire brain output as one
+raw-JSON wall (`JSON.stringify(input) → JSON.stringify(output)` at 12px). Now every thinking-chain surface
+renders through `src/domain/agent-transcript.ts` (pure, 15 tests): per-tool summarizers turn I/O into one
+sentence with the numbers that matter (决策大脑 → "42 款分析：投广候选 3 · 团购候选 4 · … · 下周产能 33%"),
+`describeAction` replaces `JSON.stringify(payload)` in action rows, and raw payloads live only inside a
+capped mono `查看数据` expander. One shared `TranscriptChain` renderer (Multica-inspired tone pills:
+thinking=violet / tool=blue / action=emerald) is used by BOTH the 今日 bottom sheet and the run page — the
+same run no longer reads differently per entry point. Unknown tools fall back honestly (name + expander).
+
+**Proposals are traceable end-to-end (ADR-0012 audit gap).** The backward link existed in the DB but no UI
+exposed it: 团购 detail now shows "AI 提案 · 查看推理 →" (via the deal's `sourceRunId`), 投广中心 rows carry
+an "AI 建议" badge + "为什么?" link (snapshot now selects `source_run_id`), inline AI cards link 为什么? to
+the run, and run-page action rows deep-link "查看 →" to the entity (ads editor / `?panel=groupbuy`, a new
+manage-tab deep link). The ads center also gains the missing kill switch: a 暂停 button on live campaigns
+wired to `withdrawStyleAdCampaignAction`.
+
+**Duplicate AI rows gone.** The manage-page AI card listed one row per historical action for the same
+entity ("已为 …8284 设置团购券" ×4, truncated ids). `dedupeActionsByEntity` keeps the latest per entity;
+`styleLabel` renders 款式 8284 instead of `…a-img-8284`.
+
+**Type-scale alignment.** New surfaces had invented sizes (0.6–0.84rem sprinkled everywhere). All lane/
+section labels now use the manage page's established quiet-uppercase micro-label pattern; every sub-12px
+font in TodayHome/AgentRunSheet/groupbuy CSS moved onto the `--text-xs/sm` tokens (12px floor); groupbuy
+wizard topbar's hardcoded peach → `--color-bg` token; groupbuy back buttons match the app-wide
+`← 返回` `.detail-back-link` pattern and are i18n'd (were hardcoded Chinese pills); run page gains the
+standard top back link.
+
+**Backend-honest fixes (ADR-0011).** 团购 purchase/redemption counts showed a fake 0 with no data source —
+now '—' (unknown); the manage currency picker says "未能连接后台，显示的是本地缓存数据" instead of silently
+presenting stale cache as loaded; agent team cards gain presence dots (green pulse = live run) + last-run
+line tying 团队成员 to 最近运行.
+
+- Design doc: `docs/plans/2026-07-10-merchant-ui-alignment.md` (local). Audits: design-system map, surface
+  misalignment, Multica pattern catalogue (`/home/tough/multica`), wiring gaps.
+- Tests: full suite 24 failed / 544 passed (baseline failure count unchanged, +15 passing); new
+  `agent-transcript.test.ts` (15); manage suite 22/22 (back-button selectors updated to the new
+  accessible name). tsc clean.
+- Deferred (documented in the design doc): GroupbuyPanel URL-backed navigation, TodayHome stat-strip
+  cascade isolation, real groupbuy sales counts, full GroupbuyWizard i18n.
+
+## 2026-07-10 — Merchant-PM journey walk: task context, real style names, architecture-true team page
+
+Second alignment pass, driven by a screenshot walk of every merchant journey (production build, 390×844)
+acting as merchant + PM. Findings table lives in the local design doc; the fixes:
+
+- **Run detail got its missing context.** The chain started mid-air — no hint of WHY the agent acted. The
+  hero now shows 任务来源 ("由「决策 Agent」的结论触发本次任务") with ↑upstream/↓downstream lineage chips
+  (via the existing `deriveRunDetail`), so the sheet is no longer the only place lineage exists.
+- **The chain stopped repeating itself.** The Python runner records a tool_call AND an action step for the
+  same act; rendered together the chain said one thing three times. `condenseTranscript` drops action steps
+  that restate the preceding tool_call (the action's status still shows in 执行动作).
+- **Real style names everywhere.** Styles have titles ("Melissa Design 8284") but transcripts, action rows
+  and 今日 feed cards showed machine ids ("下架 · sty…", "…a-img-8284"). New `getStyleTitleMapAction`
+  threads a titles map through the describers, TranscriptChain, run page, sheet, inline AI cards, and the
+  今日 read model (`toActionView`/`splitActions` take styleTitles; enrichment failure degrades to ids,
+  never blanks the feed).
+- **Team page now renders the PM architecture** (商家运营 Multi-Agent 画板), replacing both the flat
+  9-card grid and the wrong "闭环：数分→决策→执行→监测" caption: three colored business lanes —
+  款式运营 (数据收集 → 商业决策 → 动作 → 监测), 用户运营 (匹配 → 召回私信), 预约运营 (规划中, honest
+  placeholder) — with the orchestrator above. 最近运行 capped at 9 with a 显示全部 N 条 toggle (was an
+  undifferentiated 42-run dump).
+- **Cramp/format fixes:** "← 返回" no longer wraps (nowrap + flex-shrink); 广告中心 "$328.00" and 今日
+  "$0" → SGD convention; campaign titles wrap 2 lines instead of ellipsizing the AI 建议 badge away;
+  为什么? links nowrap; 团购 AI 建议 clamp 2→3 lines so the coupon price survives; bare-text loaders on
+  团队/run detail → standard LoadingState; Python action summaries `:.0f`→`:g` (券后 70.4 was logged
+  as "70").
+- Open (documented): 26-deep pending-approval pileup from repeated demo rounds needs an expiry/batch
+  policy; the trailing LLM 推理 text still carries raw ids/markdown (skill-prompt fix, not a UI rewrite);
+  demo runbook should use `next build && next start` (dev-mode compiles read as broken pages).
+- Tests: full suite 24 failed / 544 passed (baseline unchanged). pytest 23. tsc clean. Verified by
+  re-screenshot: team lanes, coupon-run context + condensed chain with real names, SGD ads center.
+
+## 2026-07-10 — ADR-0013 proposed: dynamic orchestration, cross-round memory, feedback loop
+
+Owner audit called the orchestration layer what it is: a fixed Python pipeline wearing a team costume.
+ADR-0013 (Proposed) scopes the rebuild to that layer only — orchestrator-as-agent with bounded dispatch
+tools (skip/parallel with citable reasons), a round blackboard (`agent_rounds`), cross-round memory
+(`agent_memory` — monitor writes MEASURED campaign outcomes, 决策 reads them, retiring the estimated-ROAS
+caveat with data), one bounded revision edge (监测 may reject an action and re-dispatch the executor once),
+and proposal hygiene (dedupe by gapTag + round supersede + merchant cap — the 25-条待确认 fix). Substrate
+(bus, runs/actions, entity contract, tools, brain, all UI) is explicitly kept. Phases P0–P3 defined;
+implementation not started in this entry.
+
+## 2026-07-10 — ADR-0013 P0+P1: proposal hygiene + orchestrator-as-agent
+
+The orchestration layer stopped being a for-loop. Implemented and live-verified:
+
+**P0 — proposal hygiene.** `propose_listing` now (1) supersedes the agent's older pending proposals on
+its first call of the run (`bus.expire_stale_proposals`, audit trail kept), (2) dedupes by gapTag within
+the round, (3) hard-caps at `config.MAX_PENDING_PROPOSALS` (5). Live: the 25+ pending 上架建议 pileup
+collapsed to exactly 5 after one round.
+
+**P1 — dynamic orchestration.** `orchestrator.py` rewritten: 运营助手 runs its own tool loop with
+`dispatch_agent` / `dispatch_many` (parallel fan-out), reading the briefing + decision brain itself and
+deciding which lanes to wake. Deterministic guardrails in `RoundState`: lane whitelist, one dispatch per
+agent per round, `MAX_DISPATCHES_PER_ROUND` budget, atomic batch validation; dispatch tools refuse to run
+on any context without a RoundState (lane agents can't dispatch). Upstream conclusions are appended to
+child tasks verbatim by Python (no LLM copying); children parent to their semantic upstream so the
+lineage tree renders the round as decided. New `skills/orchestrator.md`: default plan (the old chain),
+citable skip rules, non-skippable 数分/决策, no-interim-prose reply protocol.
+
+**Model tier decision:** flash reliably abandoned the dispatch chain after one tool call; prompt hardening
+failed, gemini-2.5-pro fixed it — `ORCHESTRATOR_MODEL` (orchestrator only) added to config.
+
+- Eval: 2 new orchestrator scenarios driving the REAL RoundState (full-capacity must-not-dispatch
+  ad/coupon; chosen-lanes ad-yes/coupon-no) — both 2/2 stable. `customer_ops/lapsed-rachel` flaked once
+  at n=2 (pre-existing flash nondeterminism, passes on re-run). pytest 23 → 30 (P0 supersede/dedupe/cap;
+  dispatch guardrails incl. orchestrator-only refusal and atomic batch validation).
+- Live round: orchestrator dispatched 8 lanes with cited numbers (ROAS >3.8, exposureRatio <0.76,
+  产能 33%), ad/coupon/catalog/customer_ops all started the same second (parallel), monitor last.
+- Removed: the fixed `_CHAIN` and the decorative 数分' rebaseline run (P2's memory write replaces it).
+
+## 2026-07-10 — Audit-the-audit on ADR-0013 P0/P1 + contract tightening
+
+An external audit reviewed ADR-0013 against a MID-IMPLEMENTATION snapshot: its headline claims (fixed
+_CHAIN still present, no RoundState, no orchestrator skill, pytest 2-failed) were already false at HEAD —
+verified: _CHAIN gone, RoundState live, skill present, pytest 30/30. Four fragments were right and landed:
+
+- **Seed honesty**: the orchestrator agent row still described the old fixed chain with `tools: []` —
+  updated to the dynamic-orchestration instructions + real tool list (v2), re-seeded.
+- **ADR §1**: `read_run` removed from the decision text — dispatch is synchronous and returns the child's
+  conclusion, so the tool was never needed.
+- **ADR §3 (P2 spec)**: memory must never duplicate/override live facts — raw metrics stay in
+  `style_ad_campaign`/event tables; `agent_memory` stores windowed, entity-keyed, evidence-linked
+  VERDICTS with expiry + unique (merchant, kind, key) upsert. Live tables always win conflicts.
+- **ADR §4 (P3 spec)**: revision entity-transition table added — a revision never forks a parallel
+  entity (stable ids make executor re-runs in-place upserts); published deals and irreversible actions
+  are not revisable.
+- **ADR §5**: hygiene wording aligned to the implemented contract (supersede → in-run dedupe → cap) with
+  the no-RPC single-writer justification recorded.
+
+## 2026-07-11 — ADR-0013 P2+P3: round blackboard, cross-round memory, bounded revision edge
+
+**P2.** Migration `0030_agent_rounds_memory.sql` (MANUAL APPLY PENDING): `agent_rounds` (blackboard jsonb)
++ `agent_memory` (windowed, entity-keyed verdicts, unique (merchant,kind,key), evidence run, expiry) +
+`agent_runs.round_id`. Python: `bus.start_round` degrades loudly to None when 0030 is unapplied; the
+orchestrator writes `blackboard[lane] = conclusion` deterministically as lanes finish; `read_blackboard`
+(read-only) for lanes. Monitor gains `get_campaign_outcomes` (live style_ad_campaign metrics — the truth)
++ `record_memory` (verdicts only, never raw metric tables); 决策 gains `get_agent_memory` and its skill
+now reads memory FIRST — measured verdicts outrank estimates.
+
+**P3.** `RevisionPort` — injected ONLY into the monitor's RunContext (mirrors the orchestrator-only
+RoundState pattern): `request_revision(action_id, feedback)` supersedes the action (undone) and re-runs
+the owning executor once, parented to the monitor run, same entity upserted in place (never forked).
+Bounds in code: one revision per action, 2 per round, only reversible entity-backed place_ad /
+set_group_buy_coupon in applied/proposed state; published deals and sent messages refuse.
+
+**Skill discipline finding:** the monitor on flash flaked in both directions until the skill got
+bright-line thresholds with a worked division example (revise iff clicks≥50∧bookings=0, or budget>¥100
+∧ spend/booking>¥200). After: `monitor/overspending-ad-revised-once` and `monitor/healthy-ad-no-revision`
+both 2/2 stable.
+
+- pytest 30 → 36 (memory row shape, kind whitelist, revision refusal outside monitor, once-per-action,
+  budget cap, irreversible/entityless refusal). Registry 20 tools.
+- BLOCKED for final verification: OpenRouter credits ran out mid-eval (402) — full-suite rerun + the
+  live P2/P3 round need a top-up + migration 0030 applied.
+
+## 2026-07-11 — Judge-facing technical documentation set
+
+New `docs/technical-documentation/`: seven documents synthesizing the ADRs, eval evidence, and live-round
+data into a defensible engineering account — system overview, multi-agent architecture (with the
+what-we-rejected table), decision brain & economics (incl. honest limits), action contract & safety
+model (envelope / undo ordering / capability objects), memory & the revision edge, evaluation
+methodology (three layers + the findings it produced), and a 20-question anticipated judge Q&A covering
+the hard tradeoffs (why no framework, fake-ROAS critique, blast radius, synthetic data, scale limits).
+Every claim cites a code path, an ADR, or a measured run.
+
+## 2026-07-11 — Tool allow-lists single-sourced (external audit P0/P1)
+
+An external code audit found the `agents.tools` DB column had drifted from the runtime truth
+(`LANE_TOOLS` in Python): the panel showed 1 tool for 决策/用户运营/监测 while the runner enforced
+3/2/4 — the UI lied about three agents' capabilities.
+
+- **Single source**: `src/mock/agent-tools.json` — orchestrator.py loads it as
+  `ORCHESTRATOR_TOOLS`/`LANE_TOOLS`; `agent-seed.ts` imports the same file into `agents.tools`.
+  Parity tests both sides (pytest: names must exist in the registry, no lane may hold dispatch tools;
+  vitest: every seed definition matches the JSON). Re-seeded — drift class dead.
+- **Typed contract**: `bus.agents_by_slug` returns `dict[str, AgentRow]` (TypedDict) with an explicit
+  column select — key typos now fail static checks.
+- **Doc precision** (doc 02): the agents row is registry + audit identity + UI metadata; prompts are
+  `skills/*.md` (PR-reviewed, eval-pinned), allow-lists are the shared JSON. Deliberate, now stated.
+- Deferred (recorded in doc 02): DB-configured lists validated against a code ceiling
+  (`configured ⊆ ceiling`) — only worth building when agent configs become merchant/ops-editable.
+- Stale fallback instructions for 决策/监测 refreshed to match current skills; those rows bumped to v2.
+- pytest 37/37, tsc clean, seed parity 2/2. Known pre-existing: 24 vitest failures in
+  booking/landing/style-review pages, present on the parent commit too — unrelated, needs its own pass.
+
+## 2026-07-11 — ADR-0014: context routing, structured executions, prompt identity
+
+External audit round 2 — three context gaps verified at HEAD and fixed:
+
+- **Write-only blackboard**: `read_blackboard` existed but no lane held it (a comment even claimed
+  otherwise). Now: required context is INJECTED by Python (`CONTEXT_POLICY` — decision always gets
+  insight+trend conclusions; monitor always gets decision + the execution list); the tool is granted
+  to 决策/监测 only for optional mid-run reads.
+- **Monitor had no path to action ids**: `request_revision(action_id)` needs `agent_actions.id`, but
+  live rounds never surfaced it — the eval passed only because scenario prose hand-fed the id. Now:
+  `bus.fetch_round_actions` (round-scoped join) → `_execution_context` injects the structured list
+  `{id, type, status, risk, entity_id, payload}` into the monitor's task AND `blackboard["executions"]`
+  (refreshed after each executor lane); the eval injects through the SAME formatter — no more
+  hand-written approximations. Eval scenario tool lists now import LANE_TOOLS/ORCHESTRATOR_TOOLS
+  (cannot drift).
+- **Prompt identity** (migration `0031`, user-applied): `agent_runs.prompt_sha` (sha256[:16] of the
+  resolved system prompt) + `agent_runs.agent_version`. skills/*.md is the prompt truth — editing it
+  never touched any recorded version. Enables prompt A/B grouped by sha. Degrades loudly pre-0031.
+- skills: monitor.md documents the injected execution list; decision.md documents injected upstream
+  conclusions + optional read_blackboard. Seed rows bumped to v3, re-seeded.
+- pytest 39/39 (new: `_upstream_context` routing/dedupe, `_execution_context` shape), tsc clean,
+  seed parity 2/2. Deferred in ADR-0014: context-pack abstraction, fully-structured blackboard,
+  memory-kind expansion. Live P2/P3 round still pending migration 0030 + OpenRouter top-up.
+
+## 2026-07-11 — Gemini-direct provider fallback; FIRST full all-green eval suite
+
+OpenRouter credits ran dry mid-eval (402). Added `MODEL_PROVIDER=gemini`: the same Gemini models via
+Google's OpenAI-compatible endpoint, reusing the existing OpenAI-format loop + tool_attempts recorder
+(`GEMINI_API_KEY` was already in .env.local for embeddings). Three provider-quirk fixes it surfaced:
+
+- **Integral floats from function-calling**: Gemini emits `7.0` for 7 → `_bounded_int` now coerces
+  integral floats (JSON has no int type; rejecting 7.0 was pedantry that broke real calls).
+- **Unbounded thinking ate max_tokens**: 2.5 models think by default on the direct endpoint; measured
+  as one-tool-call → empty-response chain abandonment. `GEMINI_REASONING_EFFORT=low` bounds it; the
+  loop also retries ONCE on a dead response (no content, no tool calls) before ending honestly.
+- **Temperature**: default 1.0 flip-flopped the monitor on identical inputs. `AGENT_TEMPERATURE=0.2`
+  — operations agents judging bright-line thresholds want reproducibility, not creativity.
+
+Eval hardening: `--only <substring>` scenario filter; provider-aware key check; scenario tool lists
+already import LANE_TOOLS (previous entry). **Result: `--n 2` full suite ALL BLOCKING GATES PASS on
+gemini-direct** — first complete all-green run (previous evidence was per-scenario across runs), and
+it re-validates the ADR-0014 monitor path post-skill-edit: the revision signature `('act-ad-8284',)`
+now comes from the INJECTED structured execution list, not hand-fed prose. pytest 39/39.
+
+## 2026-07-11 — ADR-0015 memory architecture + ADR-0014 invariants (audit round 3, full adoption)
+
+User chose full adoption of the third external review. Two commits:
+
+**Pile 1 (verified bugs)**: monitor snapshot barrier (reserve() rejects monitor batched with other
+lanes — partial execution-list risk); blackboard lost-update fixed with a per-round lock; execution
+list ordered (created_at, id) with code-computed `revisionable`; injected conclusions carry provenance
+(source slug + run id + evidence-not-instructions delimiter) and absent sources are annotated;
+prompt_sha now full sha256; agent_runs.input persists the FINAL rendered task + model id.
+
+**Memory v2 (ADR-0015)**: migration `0032` (kinds action_outcome/calibration/round_verdict/
+merchant_preference, scope, comparison, confidence, source_action_id). place_ad/set_group_buy_coupon
+snapshot the decision brain's hypothesis into the action payload at execution time (code-derived).
+record_memory/get_agent_memory replaced by: `record_action_outcome` (agent gives assessment +
+confidence; code derives identity, comparison — e.g. measured 28000分/单 vs predicted 8000 → ratio
+3.5 underestimated_cost — window, TTL by confidence; refuses immature windows), `record_round_verdict`
+(requires action-id evidence), `search_memory` (structured relevance scoring, per-agent domain access
+via MEMORY_ACCESS; executors get none). Deterministic memory hints injected into 决策 + orchestrator
+tasks (two-stage retrieval). All skills gained a scoped memory contract; monitor.md rewritten for the
+audit/outcome split. Allow-lists updated in agent-tools.json; seed rows bumped and re-seeded.
+
+Verification: pytest 44/44 (new: identity derivation, immature-window refusal, evidence requirement,
+monitor-only writes, relevance ranking + access filter, snapshot barrier); **full eval suite n=2 ALL
+BLOCKING GATES PASS on gemini-direct** — monitor scenarios green through the new writer tools.
+USER must apply migrations 0030 → 0031 → 0032, then the live round.
+
+## 2026-07-11 — Demo history seed + due-outcomes injection (closing the loop on stage)
+
+Problem: a live agent-created campaign starts at 0 impressions, and `record_action_outcome` correctly
+refuses immature windows — so a fresh demo run could never show memory being written or cited. Seeding
+memory rows directly would be indefensible ("where did this come from?" — "we typed it").
+
+- **`scripts/seed-agent-history.ts`** (`npm run seed:agent-history`, idempotent): a backdated round
+  from 7 days ago — decision run → two ad runs → two ACTIVE campaigns with a week of metrics → their
+  `agent_actions` rows carrying hypothesis snapshots, exactly as `place_ad` writes them live. The two
+  campaigns straddle the monitor's bright lines: 8284 over-spender (¥280/booking measured vs ¥80
+  predicted → memory + revision) and 8265 healthy (¥17 vs ¥18 → memory only; revising it is the
+  trigger-happy failure). Memory itself is NEVER seeded — the live monitor writes it on stage. The one
+  exception: a `merchant_preference` row (it represents merchant settings, not agent experience) —
+  skipped loudly until 0030+0032 are applied.
+- **`bus.fetch_due_actions` + `_due_context`**: the monitor now receives TWO injected lists — this
+  round's executions (usually pending) and past actions whose campaigns have data (its real
+  measurement targets). This is the auditor's `get_due_outcomes` in minimal form: data presence is the
+  due signal, the immature-window gate stays the enforcement. monitor.md updated for the split.
+- Verified live: seed ran against the real DB; `fetch_due_actions` returns both seeded actions with
+  their hypotheses. pytest 44/44, tsc clean.
+- Demo script: round 1 → monitor measures seeded history live (outcome memory + one revision on
+  8284); round 2 → 决策's injected 记忆提示 cites the mem id and tightens budgets.
+
+## 2026-07-11 — Live P2/P3 rounds verified end-to-end; two real failures caught and fixed
+
+Migrations 0030/0031/0032 applied; history seed rerun (preference row landed). Five live rounds on
+gemini-direct. Verified in the DB, not the console:
+
+**The loop works.** Round 1: monitor received the injected due list, wrote both outcomes with
+code-computed comparisons (8284: measured 28000分/单 vs predicted 8000 → ratio 3.5
+`underestimated_cost`; 8265: ratio 0.93 healthy), and fired EXACTLY ONE revision — 投广′ re-landed
+ad-…8284 at ¥80/day; the envelope parked it as a draft; campaign metrics survived the upsert.
+Blackboard: all lane sections + 10 structured executions. prompt_sha + final rendered task persisted.
+Later rounds converged: revised budget under the bright line → no further revisions; monitor wrote a
+generalized round_verdict（高意向低转化款直接投广会放大获客成本——先用团购解决转化）with evidence ids.
+
+**Failure 1 — hint selector too coarse.** Round 2's 决策 hints carried the healthy 8265 outcome but
+DROPPED the 3.5× miss (newest-one-per-kind picked the wrong row). Fix: `_HINTS_PER_KIND` caps
+(outcomes/calibrations ×3, verdict ×1, preferences ×3). Round 3 hints carried all three memories.
+
+**Failure 2 — the monitor NARRATED unperformed writes on flash.** Rounds 2–3: one real tool call,
+then prose claiming memory writes + a revision that never happened (all memory still carried round-1
+evidence ids). Same class as the orchestrator's measured chain-abandonment, now with fabrication.
+Fixes: `MONITOR_MODEL` (defaults to the orchestrator tier; the monitor's live task — dual lists + N
+writes + verdict — is a long chain), max_iters 12 for it, eval runs the monitor on the same tier
+(eval-live parity), and `output.toolAttempts` is now persisted on every lane run so a narrated-but-
+not-executed call is visible in the row itself, not just a live debugger.
+
+Also: pytest no longer network-dependent (fetch_decisions stubbed in fixtures — the running dev
+server had silently added hypothesis payloads to test assertions). pytest 44/44; monitor eval 2/2×2
+green on the live tier.
+
+## 2026-07-11 — 团队记忆 surfaced in the merchant UI
+
+The learning loop was DB-only — a judge (or merchant) had no way to SEE it. Two additions:
+
+- **团队记忆 card** on /merchant/agents (between 团队成员 and 最近运行): live non-expired memory rows
+  with kind chips (实测结论/校准/本轮结论/商家偏好), the claim, confidence, and the code-computed
+  prediction deviation (预测偏差 ×3.5). Backed by `listTeamMemoryAction` (service-role read, empty on
+  pre-0032 DBs); refreshes during round polling so memory appears live as the monitor writes it.
+- **Transcript describers** for the memory v2 + orchestration tools (record_action_outcome,
+  record_round_verdict, search_memory, read_blackboard, get_campaign_outcomes, request_revision,
+  dispatch_agent) — monitor/orchestrator runs now render as merchant sentences instead of raw tool
+  names (写入记忆 / 要求修订 / 分派…), same pure-describer pattern, +4 tests.
+
+Verified in the browser (production build): card shows the live 3.5× verdict and the merchant
+preference. Ops note for the runbook: an orphaned `next-server` process was holding :3000 and serving
+a stale in-memory build (fresh starts died on EADDRINUSE, page rendered unstyled with 404 chunks) —
+`kill <pid from ss -ltnp>` then `next start`, and only rebuild after the port is actually free.
+
+## 2026-07-11 — ADR-0016 Stage 1 complete: sandbox, briefs, executor autonomy — eval green
+
+Five code commits (5ff3e73 → 760b7e8) + this verification pass:
+
+- Eval rewritten for the v3 contract: `ad/no-brief-skip` (no brief → no spend), `ad/brief-infeasible-report`
+  (target unreachable inside the budget ceiling → agent reports infeasible with forecast evidence,
+  places nothing), `ad/retargeting-beats-broad` (broad fails the CAC ceiling in forecast; the agent
+  finds try_on_no_booking itself — signature pins audience+style, budget stays its own choice),
+  `decision/briefs-underexposed-ad` (facts+signals → ad brief for the underexposed earner, NO brief
+  for the below-floor style). Briefs flow through the LIVE `_brief_context` formatter and ctx.briefs
+  in eval, exactly as production.
+- Grounding gate: prose abbreviations of grounded ids (style-8265 ⊂ style-melissa-img-8265) no longer
+  count as hallucinations.
+- record_action_outcome understands forecast-range hypotheses (midpoint of expectedCostPerBookingCents).
+- TS: place_ad/forecast/update/pause/brief describers, new action types in merchant-home meta,
+  business-facts summarizer counts signals. Seed fallbacks refreshed (decision v5, ad v2), re-seeded.
+- **All 11 eval scenarios green at n=2 on gemini** (run in batches — one process now exceeds the
+  10-minute shell cap with four strong-tier lanes). pytest 51/51, tsc clean, vitest 198/198.
+
+BLOCKED on live verification: USER must apply 0033_ad_sandbox.sql, then rounds + advance-clock.
+
+## 2026-07-11 — ADR-0016 Stage 2: decision environment, portfolio simulation, Risk Reviewer
+
+- **Decision context injection** (`_decision_context`): mission + merchant policy snapshot (budget
+  remaining vs committed, auto-execute limit, protected weekend, approval matrix) + capacity summary
+  + top-5 candidate style index (signals only) injected deterministically — the agent chooses which
+  candidates to inspect in depth via get_style_business_facts (two-stage, ADR-0014 rule).
+- **simulate_action_portfolio** (decision-only, capability-gated like the brief sink): deterministic
+  combined-plan checks — attribution conflicts (ad+coupon on one style: the live 8275 conflict class),
+  budget competition vs the remaining envelope, capacity pressure. Warnings are evidence for the
+  agent revising its own plan. pytest-pinned.
+- **Risk Reviewer agent** (风控, strong tier): judges the brief PORTFOLIO for soft risk only (hard
+  rules stay in code) — verdict tokens [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/
+  [MERCHANT_APPROVAL_REQUIRED]. Wired: CONTEXT_POLICY (reviewer sees decision; executors + monitor
+  see reviewer), orchestrator default plan step 4 (skip executors on REVISION_REQUIRED; skip reviewer
+  entirely when no briefs), dispatch budget 8→9, seed row + Decide→Review UI stage.
+- Eval: `final_regex` gate (verdict token, zero side effects; zero tool calls legitimate — the
+  reviewer judges injected briefs); grounding abbreviation check fixed to digit-tail matching
+  (style-8265 → style-melissa-img-8265 is shorthand, not hallucination). Scenarios:
+  `reviewer/conflicting-briefs-flagged` → REVISION_REQUIRED 2/2, `reviewer/clean-plan-approved` →
+  APPROVED 2/2 (no invented objections). 13 scenarios total, all green on gemini.
+- pytest 53/53; re-seeded (10 agents).
+
+## 2026-07-12 — ADR-0016 Stage 3: coupon templates, message classes, merchandising verbs
+
+- **团购 templates**: discounts come only from merchant-pre-approved templates
+  (`COUPON_TEMPLATES` — 10%/15%/new-customer-12%); code computes the price and REFUSES it below the
+  style's profit floor (`price_below_profit_floor`, floor=null → the style must not be discounted at
+  all). The agent's judgment is the RESTRICTIONS: template, redemption window (weekends protected),
+  coupon count, expiry. `get_coupon_constraints` shows per-template computed prices + floor clearance.
+  No demand promises pre-publish — the monitor measures after. Coupon joined the strong tier
+  (measured flash narration flake on the judge-then-call chain).
+- **Message classes**: `send_customer_message` is dead as a tool. Transactional/product notices go
+  through `send_automated_notification` (kind whitelist; code prefixes 【Nailed-it 商家助手】— the
+  customer is never misled about authorship); relationship marketing goes through
+  `create_merchant_message_draft` (status=proposed, awaiting the merchant's own edit+send). The
+  boss-impersonation pattern is gone.
+- **Merchandising verbs**: `delist_style`/`list_style` replaced by `deprioritize_style` /
+  `feature_style` — exposure allocation changes, assets never removed by an agent (future trends
+  return, old customers still ask; true stop-sale is merchant-only). `get_catalog_actions` returns
+  `deprioritize[]` now.
+- Eval: `coupon/template-restrictions` (weekday_10_off + weekday_afternoon, 2/2 — brief disambiguated
+  so exactly one template fits: try-on prospects ≠ new-customer acquisition),
+  `customer_ops/lapsed-rachel-draft` (win-back → DRAFT for Rachel, forbid auto-send, 2/2),
+  `catalog/dead-8277-deprioritized` (2/2). 14 scenarios total.
+- pytest 55/55 (template price computed by code, invented-discount + below-floor refusals, labeled
+  notification + draft gate), vitest 238/238, tsc clean, re-seeded (coupon v2 / catalog v3 /
+  customer_ops v4).
+
+## 2026-07-12 — Live v3 proof on finals-a + the hard rules the live rounds forced
+
+Migration 0033 applied → first live sandbox rounds. Three rounds on `finals-a` produced the doc-08
+trace (rewritten from these runs; per-lane dumps in `docs/eval/live-v3/`, local). Every live failure
+became a code rule the same day:
+
+- **Wallet semantics** (`sandbox.committed_budget_cents`): committed = draft full ask + active
+  unspent remainder; spent money is history; paused/ended commit nothing. The old sum-of-totals let
+  finished history campaigns eat the whole ¥180 wallet (决策 rationally briefed "no ads" — round dead).
+  Shared by `get_ad_account_state`, `simulate_action_portfolio`, `_decision_context`.
+- **place_ad hard rules** (all refuse pre-side-effect): `budget_exceeds_wallet` (brief ceilings
+  compete for ONE budget — measured: agent placed ¥160 against a ¥130 wallet, each placement
+  in-brief), `campaign_exists_for_style` (a live campaign must be revised, never silently
+  reconfigured), ended→fresh-run (version++, measured history archived to zero — the upsert used to
+  resurrect ended campaigns with their old metrics), `no_ad_brief_filed`/`no_coupon_brief_filed`
+  (executor dispatched with an EMPTY brief set must not spend — see narration entry below).
+  `RunContext.briefs` became `list | None`: a list (even empty) means "dispatched under the briefs
+  contract"; None = outside it (decision itself, revision re-runs, tests).
+- **Strong-tier narration is real**: 决策 (gemini-2.5-pro) once produced a full prose plan claiming
+  "已提交" ×3 with ZERO `submit_action_brief` calls; the ad lane then executed the prose as if it
+  were law (only the wallet held). The no-brief refusals make that failure inert — the round degrades
+  to named skips instead of prose-driven spend. Two more gemini modes measured: dead response
+  mid-loop (runner's retry was keyed on accumulated text and never fired after any narration — now
+  keyed on the CURRENT response) and a raw thinking leak as final text (monitor, one round; visible
+  by construction via `toolAttempts`).
+- **dispatch_many resilience**: per-lane isolation (one lane's crash no longer erases its siblings'
+  completed results — pool.map used to throw everything away and send the orchestrator into blind
+  retries that exhausted its iterations) + one retry on connection-class errors (a whole 4-lane batch
+  died on `RemoteProtocolError` when the shared httpx pool handed stale sockets to parallel threads).
+  Orchestrator max_iters 14→18.
+- **Mission channel**: `pref-weekly-focus` merchant preference is lifted into
+  `mission.merchant_weekly_focus` in 决策's injected environment — as a rankable memory hint the
+  merchant's 拉新 goal lost to CAC anchoring in 2 of 3 rounds; as mission state it shaped the next
+  round's brief (CAC ceiling 2000 → 4500, cited).
+- **Seed coherence** (`seed:agent-history`): history campaigns are `ended` (finished runs hold no
+  wallet commitments; keeping the healthy one active collided with fresh briefs — lifetime spend
+  swallowed the new run's budget through update_ad_campaign); stale/legacy open campaigns are ended
+  by the seed; 2 merchant preferences (团购底线 + 拉新重点).
+- **The trace itself** (doc 08 §2): briefs→[APPROVED]→forecast loop→placement + an infeasible report
+  (8274: all three audiences under the target floor, refused with numbers) → 72h delivery diverges
+  (35 clicks on-forecast, CAC 1800 vs hypothesis 808–1211) → ad lane revises the SAME campaign to v8
+  (audience switch, evidence-cited) → monitor writes 3 outcome memories incl. the 2× calibration miss
+  and REFUSES a revision citing its bright lines → next 决策 cites the monitor's memory (mem id) in
+  fresh briefs.
+- Verification: pytest 61/61; affected eval scenarios re-run post-hardening (ad ×3, coupon, decision,
+  reviewer ×2) — all gates green at n=2 (`docs/eval/live-v3/regression-post-hardrules.log`, local).
+
+## 2026-07-12 — mission theater removed; weekly cron entry (the honest "Autopilot")
+
+- **决策 injected environment simplified**: the hardcoded `mission.goal` string and
+  `planning_horizon` are gone — the standing objective is the skill's job description, weekend
+  protection already lives in `protected_periods`, and the planning window is in the task text.
+  A synthetic goal string was structure theater; the one load-bearing field survives as top-level
+  `merchant_weekly_focus` (read fresh each round from the merchant-owned `pref-weekly-focus`
+  preference row; absent when the merchant set nothing). pytest 65/65; env live-verified.
+- **Weekly cron implemented** (`agent-service/scripts/run-weekly-round.sh` + one crontab line,
+  documented in the script header): a round reads all input from the DB at start, so a dumb cron
+  is the whole scheduler. Monitor follow-up needs no second entry — matured actions (≥72h window)
+  are pulled into the next round's due-review list; the weekly round naturally opens by measuring
+  last week. Doc 08 gains the demo "rhythm line" saying exactly this on stage.
+
+## 2026-07-13 — Model selection: gpt-5.6-terra chosen (screen + partial finalist); budget-out recorded
+
+- **Selection**: `gpt-5.6-terra` as the strong-tier base; backup `gemini-3.1-pro`. Full judge-facing
+  report in `docs/technical-documentation/09-模型选型报告.md` (Chinese).
+- **Screen** (6 families × 7 judgment scenarios × n=3, ~$3.10): only terra and gemini-3.1 cleared the
+  all-gates floor. terra 7/7 · 0 flake · $0.24 · 7.0s/run · 10.8k completion tokens (acts, doesn't
+  narrate); gemini-3.1 7/7 · 0 flake · $0.74 · 21.1s. qwen 6/7 (stability), incumbent gemini-2.5-pro
+  6/7 / 9.5% flake (reproduced its live rate), claude-sonnet-5 4/7 / 19% (BFCL-top ≠ our CN scenarios),
+  deepseek 4/7 / 14%. Cost cross-checked per-call vs OpenRouter ledger within 8%.
+- **Judge pass** (cross-family panel, non-blocking): terra process 4.44, gemini-3.1 3.86; both 合规率
+  1.0. Family bias MEASURED and reported (gemini judge +0.39 on the gemini candidate). 幻觉率 column
+  flagged as a trace-truncation artifact (deterministic grounding passed 42/42) — the eval criticizing
+  itself, on record.
+- **Finalist round** (full 14 × n=5 + judges on the two finalists): **budget ran out mid-run**.
+  OpenRouter $20 credit exhausted (20.19 used, −0.19) after terra's 13/14 scenarios → terra's 14th +
+  all of gemini-3.1 returned 402. Graceful (errors recorded, no crash, no overcharge). terra partial:
+  12/14 gates green, ~3% flake, $0.82, 9.3s/run, process 3.95 — reinforces the pick; gemini-3.1's
+  screen data stands on its own. No top-up: the screen already decided it.
+- **Two honest engineering notes**: (1) a failed process-kill left two finalist jobs briefly
+  double-spending, accelerating the credit drain — fixed via a single `scripts/run-finalist.sh` job;
+  (2) I reassured the user "bounded ~$3-4" from lifetime usage without checking the $20 credit LIMIT,
+  which had only ~$0.40 headroom — the loop was finite but the account wasn't. Both recorded in the
+  report's honest-boundary section.
+- Decision applied via the provider seam (env vars); live re-verification on terra pending (eval-live
+  parity). Doc: 09-模型选型报告.md; methodology frozen pre-run in doc 06.

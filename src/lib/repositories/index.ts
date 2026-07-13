@@ -16,7 +16,9 @@ import { createMemoryIntervalBookingRepository } from './memory/interval-booking
 import { createMemoryMerchantStyleRepository } from './memory/merchant-style-repository';
 import { createMemoryAnalyticsRepository } from './memory/analytics-repository';
 import { createMemoryCustomerRepository } from './memory/customer-repository';
-import { hasSupabaseEnv } from '@/lib/db/client';
+import { createMemoryAgentRepository } from './memory/agent-repository';
+import { createMemoryGroupbuyRepository } from './memory/groupbuy-repository';
+import { usesSupabaseBackend } from '@/lib/db/client';
 import { createSupabaseRepositoryBundle } from './supabase';
 
 export function createMemoryRepositoryBundle(): RepositoryBundle {
@@ -39,6 +41,8 @@ export function createMemoryRepositoryBundle(): RepositoryBundle {
     merchantStyles: createMemoryMerchantStyleRepository(),
     analytics: createMemoryAnalyticsRepository(),
     customers: createMemoryCustomerRepository(),
+    agents: createMemoryAgentRepository(),
+    groupbuy: createMemoryGroupbuyRepository(),
   };
 }
 
@@ -46,11 +50,7 @@ let _bundle: RepositoryBundle | null = null;
 
 export function getRepositories(): RepositoryBundle {
   if (_bundle === null) {
-    const useSupabase =
-      hasSupabaseEnv() &&
-      process.env.NODE_ENV !== 'test' &&
-      !process.env.VITEST;
-    _bundle = useSupabase ? createSupabaseRepositoryBundle() : createMemoryRepositoryBundle();
+    _bundle = usesSupabaseBackend() ? createSupabaseRepositoryBundle() : createMemoryRepositoryBundle();
   }
   return _bundle;
 }
@@ -76,4 +76,5 @@ export type {
   MerchantStyleRepository,
   AnalyticsRepository,
   CustomerRepository,
+  AgentRepository,
 } from './types';

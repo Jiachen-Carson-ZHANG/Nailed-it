@@ -176,7 +176,7 @@ export function MerchantBookingDetailClient({ id }: MerchantBookingDetailClientP
         <p>
           {booking.date} · {booking.time} · {formatDuration({ minutes: booking.quote.duration, language })}
         </p>
-        <p>SGD {booking.quote.price}</p>
+        <p>¥{booking.quote.price}</p>
       </div>
       <p>{booking.styleTitle}</p>
       <p>{booking.notes}</p>

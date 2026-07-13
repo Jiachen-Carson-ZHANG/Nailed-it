@@ -10,7 +10,7 @@ import merchantInboxScreenshot from '@/landing_assets/screenshots/merchant-inbox
 import merchantPageScreenshot from '@/landing_assets/screenshots/merchant-page.png';
 import pricingScreenshot from '@/landing_assets/screenshots/pricing.png';
 import styleBreakdownScreenshot from '@/landing_assets/screenshots/style-breakdown.png';
-import homeScreenshot from '@/landing_assets/screenshots/customer-home.png';
+import homeScreenshot from '@/landing_assets/screenshots/home.png';
 import tryOnScreenshot from '@/landing_assets/screenshots/try-on.png';
 
 type LandingScreenshot = {

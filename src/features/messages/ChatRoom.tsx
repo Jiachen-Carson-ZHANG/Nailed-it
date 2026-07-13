@@ -53,6 +53,7 @@ const chatRoomCopy = {
     attachPickerTitle: '附上购物车里的款式',
     noSaved: '购物车还是空的，先去首页❤一个吧。',
     today: '今天',
+    aiSent: '🤖 AI 代发',
     apptTitle: '预约详情',
     date: '日期',
     time: '时间',
@@ -69,6 +70,7 @@ const chatRoomCopy = {
     attachPickerTitle: 'Attach a style from your cart',
     noSaved: 'Your cart is empty — ❤ a style on the home feed first.',
     today: 'Today',
+    aiSent: '🤖 Sent by AI',
     apptTitle: 'Appointment details',
     date: 'Date',
     time: 'Time',
@@ -149,6 +151,7 @@ export function ChatRoom({ conversation, onSend, viewerRole = 'customer', appoin
           return (
             <article key={message.id} className={`chat-message chat-message-${message.author}`}>
               <div className={bubbleClassName}>
+                {message.aiSent ? <span className="chat-ai-sent">{copy.aiSent}</span> : null}
                 {style ? (
                   <Link className="chat-style-card" href={styleHref(style.styleId)}>
                     <img className="chat-style-card-thumb" src={style.imageUrl} alt={style.title} loading="lazy" />

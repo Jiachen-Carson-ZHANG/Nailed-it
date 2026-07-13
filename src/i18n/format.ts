@@ -1,5 +1,5 @@
 import type { AppLanguage, BookingStatusLabel, PricingUnitLabel } from './types';
-import { DEFAULT_CURRENCY, type Currency } from '@/data/currency-store';
+import { DEFAULT_CURRENCY, FX_FROM_BASE, type Currency } from '@/data/currency-store';
 
 type WithLanguage = { language: AppLanguage };
 
@@ -27,10 +27,27 @@ const statusLabels: Record<BookingStatusLabel, LanguageTextMap> = {
   cancelled: { 'zh-CN': '已取消', en: 'Cancelled' },
 };
 
-/** Format money as `SGD 12.34`. Pass `currency` to override the default. */
-export function formatCurrency({ cents, currency }: CurrencyInput) {
-  const amount = (cents / 100).toFixed(2);
-  return `${currency ?? DEFAULT_CURRENCY} ${amount}`;
+/**
+ * Format money in the merchant/customer's chosen display currency. Stored `cents` are CNY 人民币分 (the
+ * catalog base); we CONVERT with the frozen `FX_FROM_BASE` table (not just relabel) and format with
+ * `Intl.NumberFormat`, so the symbol and decimal places are correct per currency (JPY/KRW show no
+ * decimals, ¥/$/€ get their symbol). Falls back to a plain `CODE 12.34` string if a runtime lacks the
+ * currency's ICU data.
+ */
+export function formatCurrency({ cents, currency, language }: CurrencyInput) {
+  const ccy = currency ?? DEFAULT_CURRENCY;
+  const amount = (cents / 100) * (FX_FROM_BASE[ccy] ?? 1);
+  const locale = language === 'zh-CN' ? 'zh-CN' : language === 'en' ? 'en' : undefined;
+  try {
+    // Intl separates the code/symbol from the number with a non-breaking space (U+00A0/U+202F). Normalize
+    // to a plain space so output stays byte-identical to the `CODE 12.34` form (keeps existing
+    // assertions + any copy comparisons stable) while gaining the symbol + per-currency decimals.
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: ccy })
+      .format(amount)
+      .replace(/[\u00a0\u202f]/g, ' ');
+  } catch {
+    return `${ccy} ${amount.toFixed(2)}`;
+  }
 }
 
 export function formatDuration({ minutes, language }: DurationInput) {

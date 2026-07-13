@@ -73,7 +73,7 @@ describe('CustomerBookingPage', () => {
     expect(screen.getByRole('heading', { name: '上传你的美甲参考图' })).toBeInTheDocument();
     expect(screen.getByText('上传')).toBeInTheDocument();
     expect(screen.getByText('识别结果')).toBeInTheDocument();
-    expect(screen.getByText('报价')).toBeInTheDocument();
+    expect(screen.getByText('预约', { selector: '.booking-step' })).toBeInTheDocument();
 
     const file = new File(['fake image bytes'], 'ref.png', { type: 'image/png' });
     fireEvent.change(screen.getByLabelText('选择美甲参考图'), { target: { files: [file] } });
@@ -286,7 +286,7 @@ describe('CustomerBookingPage', () => {
     expect(screen.getByRole('heading', { name: 'Upload your nail reference' })).toBeInTheDocument();
     expect(screen.getByText('Upload')).toBeInTheDocument();
     expect(screen.getByText('Style result')).toBeInTheDocument();
-    expect(screen.getByText('Quote')).toBeInTheDocument();
+    expect(screen.getByText('Booking')).toBeInTheDocument();
     expect(screen.getByText('Upload or take photo')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New nail design' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open profile' })).toBeInTheDocument();

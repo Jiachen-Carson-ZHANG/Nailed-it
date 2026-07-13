@@ -1,6 +1,8 @@
 // Seed the intelligence layer demo dataset (ADR-0006, Phase C) into Supabase: the persona
 // `customers` + a backdated ~2-week `analytics_events` history. Idempotent — upserts customers and
-// replaces only the seeded events (session_id like 'seed-%'), preserving any live-captured events.
+// resets the demo merchant's analytics_events by default so old rehearsal clicks/searches cannot make
+// the rolling "this week vs last week" story stale. Pass --preserve-live-events only when you
+// intentionally want to keep non-seed captured events and replace seed rows in place.
 // Standalone service-role client (the app client imports `server-only`, which throws under node —
 // same reason as seed-supabase.ts / check-db-gates.ts).
 //
@@ -16,6 +18,23 @@ import WebSocketImpl from 'ws';
 import { createClient } from '@supabase/supabase-js';
 import { seedCustomers, generateSeedEvents } from '../src/mock/intelligence-seed';
 import type { Customer, NewAnalyticsEvent } from '../src/domain/analytics';
+import { demoMerchantId } from '../src/mock/merchants';
+import { mockTechnicians } from '../src/mock/technicians';
+import { mockMerchantStyles } from '../src/mock/merchant-styles';
+import {
+  generateRollingBookings,
+  CAPACITY_SCENARIOS,
+  type CapacityScenario,
+  type SeedStyle,
+} from '../src/mock/capacity-booking-seed';
+
+const DAY_MS = 86_400_000;
+const SGT_OFFSET_MS = 8 * 3_600_000; // +08:00 demo merchant
+
+/** Next 7 local dates (YYYY-MM-DD, +08:00) from now — the capacity window the decision brain reads. */
+function nextWeekDates(nowMs: number): string[] {
+  return Array.from({ length: 7 }, (_, i) => new Date(nowMs + i * DAY_MS + SGT_OFFSET_MS).toISOString().slice(0, 10));
+}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,6 +46,13 @@ if (typeof globalThis.WebSocket === 'undefined') {
   (globalThis as { WebSocket?: unknown }).WebSocket = WebSocketImpl;
 }
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+const preserveLiveEvents = process.argv.includes('--preserve-live-events');
+
+// Capacity scenario: how full next week is. Drives whether the decision brain's gates bite
+// (coupon gated >70% utilization, ad >85%).  --capacity=idle|busy|full   (default: idle)
+const capacityArg = (process.argv.find((a) => a.startsWith('--capacity=')) ?? '').split('=')[1];
+const capacityScenario: CapacityScenario =
+  capacityArg === 'busy' || capacityArg === 'full' ? capacityArg : 'idle';
 
 const customerRow = (c: Customer) => ({
   id: c.id,
@@ -59,9 +85,17 @@ async function main() {
   if (upserted.error) throw new Error(`customers upsert failed: ${upserted.error.message}`);
   console.log(`✓ upserted ${customers.length} customers`);
 
-  const cleared = await db.from('analytics_events').delete().like('session_id', 'seed-%');
-  if (cleared.error) throw new Error(`clearing seeded events failed: ${cleared.error.message}`);
-  console.log('✓ cleared prior seeded events (live events preserved)');
+  if (preserveLiveEvents) {
+    const bySource = await db.from('analytics_events').delete().eq('event_source', 'seed');
+    if (bySource.error) throw new Error(`clearing seed-source events failed: ${bySource.error.message}`);
+    const bySession = await db.from('analytics_events').delete().like('session_id', 'seed-%');
+    if (bySession.error) throw new Error(`clearing seed-session events failed: ${bySession.error.message}`);
+    console.log('✓ cleared prior seeded events (live events preserved by flag)');
+  } else {
+    const cleared = await db.from('analytics_events').delete().eq('merchant_id', demoMerchantId);
+    if (cleared.error) throw new Error(`clearing demo merchant events failed: ${cleared.error.message}`);
+    console.log(`✓ cleared all prior analytics_events for ${demoMerchantId}`);
+  }
 
   const events = generateSeedEvents(Date.now()).map(eventRow);
   const inserted = await db.from('analytics_events').insert(events);
@@ -70,6 +104,35 @@ async function main() {
 
   const { count } = await db.from('analytics_events').select('*', { count: 'exact', head: true });
   console.log(`analytics_events total now: ${count}`);
+
+  // Fresh interval bookings for the NEXT 7 DAYS so the decision brain's capacity gate is real (not a stale,
+  // 100%-idle week). Rolling from now; reproducible (seeded). Cleared + reinserted each run by the id prefix.
+  const technicianIds = mockTechnicians.filter((t) => t.merchantId === demoMerchantId && t.active).map((t) => t.id);
+  const styles: SeedStyle[] = mockMerchantStyles
+    .filter((s) => typeof s.previewDurationMin === 'number' && s.previewDurationMin > 0)
+    .map((s) => ({ title: s.title, durationMin: s.previewDurationMin as number }));
+  const bookings = generateRollingBookings({
+    dates: nextWeekDates(Date.now()),
+    technicianIds,
+    merchantId: demoMerchantId,
+    styles,
+    ...CAPACITY_SCENARIOS[capacityScenario],
+  });
+  const clearedBookings = await db.from('booking').delete().like('id', 'capseed-%');
+  if (clearedBookings.error) throw new Error(`clearing seeded bookings failed: ${clearedBookings.error.message}`);
+  const bookingRows = bookings.map((b) => ({
+    id: b.id, merchant_id: b.merchantId, technician_id: b.technicianId, customer_name: b.customerName,
+    style_title: b.styleTitle, style_image_url: b.styleImageUrl, start_at: b.startAt, end_at: b.endAt,
+    duration_min: b.durationMin, status: b.status, notes: 'seed:capacity',
+  }));
+  const insertedBookings = await db.from('booking').insert(bookingRows);
+  if (insertedBookings.error) throw new Error(`booking insert failed: ${insertedBookings.error.message}`);
+  const bookedMin = bookings.reduce((sum, b) => sum + b.durationMin, 0);
+  console.log(
+    `✓ inserted ${bookingRows.length} rolling next-7-day bookings — capacity scenario "${capacityScenario}" ` +
+      `(${bookedMin} booked min across ${technicianIds.length} techs × 7 days)`,
+  );
+  console.log('  check GET /api/agent/decisions → capacity.utilizationPct (coupon gates >70%, ad >85%)');
 }
 
 main().catch((e) => {

@@ -41,6 +41,12 @@ intelligence**:
 1. **Seed the history; keep capture real.** Only two things are stored: a seeded `customers`
    table and a real `analytics_events` log. `trackEvent` writes live events; a seed script
    writes ~2 weeks of history for fixed personas. Live demo actions append on top.
+   > **Addendum (2026-07-02) — reseed semantics.** In production, capture *accumulates* (append-only).
+   > For demo freshness, `npm run seed:intelligence` **resets** the demo merchant's `analytics_events`
+   > by default (so the rolling "this week vs last week" story isn't skewed by stray live events). Pass
+   > **`--preserve-live-events`** to keep live events and clear only seed-sourced rows (`event_source='seed'`
+   > / `session_id like 'seed-%'`). So "append on top" holds within a run and with the flag; a default
+   > reseed is a reset.
 2. **Compute on read — no materialized metric/profile tables.** Customer profiles, daily
    metrics, demand trends, catalog gaps, low-conversion flags, and ranking are all derived on
    read from `analytics_events` through the catalog adapter. Every number traces to an event.

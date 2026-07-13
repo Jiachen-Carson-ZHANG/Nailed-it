@@ -20,6 +20,8 @@ import {
 } from '@/lib/actions/merchant-pricing-actions';
 import { mergeMerchantPricingIntoDefaults } from '@/features/merchant/merge-merchant-pricing-settings';
 import { ManageServiceRow } from '@/features/merchant/ManageServiceRow';
+import { AgentActionInline } from '@/features/merchant/AgentActionInline';
+import { GroupbuyPanel } from '@/features/merchant/GroupbuyPanel';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, loadCurrency, saveCurrency, type Currency } from '@/data/currency-store';
 import {
   getMerchantCurrencyAction,
@@ -33,8 +35,15 @@ const manageCopy = {
       removal: '卸甲',
       extension: '建构/延长',
       effects: '款式效果',
-      preview: '确认预览',
     },
+    sidebar: {
+      priceList: '价目表',
+      groupbuy: '团购管理',
+    },
+    expandPriceList: '展开价目表',
+    collapsePriceList: '收起价目表',
+    groupbuyTitle: '团购管理',
+    groupbuyPlaceholder: '团购管理功能即将上线，敬请期待。',
     artGroups: ['法式', '手绘', '线条 / 图案 / 立体'],
     decoGroups: ['贴纸', '贴钻', '饰品', '箔片', '蹭粉'],
     effectsSections: {
@@ -65,6 +74,7 @@ const manageCopy = {
     currencyUpdated: '货币已更新',
     currencyError: '货币更新失败，请重试。',
     currencyLoading: '加载中…',
+    loadFailed: '未能连接后台，显示的是本地缓存数据。',
     unitBasicPrice: '基础护理服务 单价',
     unitBasicPricing: '基础护理服务 单位',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_zh,
@@ -76,8 +86,15 @@ const manageCopy = {
       removal: 'Removal',
       extension: 'Builder and extension',
       effects: 'Styles and effects',
-      preview: 'Preview and confirm',
     },
+    sidebar: {
+      priceList: 'Price list',
+      groupbuy: 'Group buying',
+    },
+    expandPriceList: 'Expand price list',
+    collapsePriceList: 'Collapse price list',
+    groupbuyTitle: 'Group buying',
+    groupbuyPlaceholder: 'Group buying management is coming soon.',
     artGroups: ['French', 'Hand-painted', 'Lines / patterns / 3D'],
     decoGroups: ['Stickers', 'Rhinestones', 'Charms', 'Foil', 'Powders'],
     effectsSections: {
@@ -108,6 +125,7 @@ const manageCopy = {
     currencyUpdated: 'Currency updated',
     currencyError: 'Failed to update currency. Please try again.',
     currencyLoading: 'Loading…',
+    loadFailed: 'Backend unreachable — showing locally cached data.',
     unitBasicPrice: 'Basic manicure service price',
     unitBasicPricing: 'Basic manicure service unit',
     zhName: (entry: { name_zh: string; name_en: string }) => entry.name_en,
@@ -116,7 +134,8 @@ const manageCopy = {
 } as const;
 
 // ── Panel IDs ──────────────────────────────────────────────────────────────────
-type PanelId = 'basic' | 'removal' | 'extension' | 'effects' | 'preview';
+const PRICE_LIST_SUB_ITEMS = ['basic', 'removal', 'extension', 'effects'] as const;
+type PanelId = (typeof PRICE_LIST_SUB_ITEMS)[number] | 'preview' | 'groupbuy';
 
 // ── Static item lists ──────────────────────────────────────────────────────────
 const REMOVAL_IDS = ['removal_basic_gel', 'removal_short_extension', 'removal_extension', 'removal_with_rhinestone'];
@@ -179,6 +198,65 @@ function SubGroup({ label, children }: { label: string; children: ReactNode }) {
     </div>
   );
 }
+
+function SidebarGroupHeader({
+  label,
+  active,
+  onSelect,
+}: {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div className={`manage-sidebar-group-header${active ? ' manage-sidebar-group-header-active' : ''}`}>
+      <button type="button" className="manage-sidebar-group-label" onClick={onSelect}>
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function SidebarSubItem({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`manage-sidebar-btn manage-sidebar-sub-item${active ? ' manage-sidebar-btn-active' : ''}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SidebarTopItem({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`manage-sidebar-top-item${active ? ' manage-sidebar-top-item-active' : ''}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
 
 // ── Panel: 基础服务 ───────────────────────────────────────────────────────────
 function BasicPanel({
@@ -519,10 +597,19 @@ export default function MerchantManagePage() {
   const copy = manageCopy[language];
   const [settings, setSettings] = useState<GlossaryEntrySettings[]>([]);
   const [activePanel, setActivePanel] = useState<PanelId>('basic');
+
   const [toastMessage, setToastMessage] = useState('');
   const [dirty, setDirty] = useState(false);
   const [currency, setCurrency] = useState<Currency>(() => loadCurrency());
   const [currencyLoading, setCurrencyLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  // Deep link: ?panel=groupbuy opens 团购管理 directly — agent-action "查看 →" links land here.
+  // Read after mount (not in the initializer) so SSR and the first client render agree.
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get('panel');
+    if (panel === 'groupbuy') setActivePanel('groupbuy');
+  }, []);
 
   // Pricing is authoritative in the DB (merchant_pricing), not localStorage. Load the full UI entry
   // set (incl. the time-only base procedures the panels show) from defaults, then overlay the
@@ -543,8 +630,11 @@ export default function MerchantManagePage() {
         }
       } catch {
         if (active) {
+          // Backend unreachable: fall back to defaults + the locally cached currency, but SAY so —
+          // silently showing stale data as if it were loaded misleads the merchant (ADR-0011).
           setSettings(getDefaultSettings());
           setCurrencyLoading(false);
+          setLoadFailed(true);
         }
       }
     })();
@@ -630,27 +720,44 @@ export default function MerchantManagePage() {
                 ))}
               </select>
             )}
+            {loadFailed ? <p className="manage-currency-stale">{copy.loadFailed}</p> : null}
           </div>
-          {(['basic', 'removal', 'extension', 'effects', 'preview'] as const).map((panelId) => (
-            <button
-              key={panelId}
-              type="button"
-              className={`manage-sidebar-btn${activePanel === panelId ? ' manage-sidebar-btn-active' : ''}`}
-              onClick={() => setActivePanel(panelId)}
-            >
-              {copy.panels[panelId]}
-            </button>
-          ))}
+          <div className="manage-sidebar-group">
+            <SidebarGroupHeader
+              label={copy.sidebar.priceList}
+              active={activePanel === 'preview'}
+              onSelect={() => setActivePanel('preview')}
+            />
+            <div role="group" aria-label={copy.sidebar.priceList}>
+              {PRICE_LIST_SUB_ITEMS.map((panelId) => (
+                <SidebarSubItem
+                  key={panelId}
+                  label={copy.panels[panelId]}
+                  active={activePanel === panelId}
+                  onClick={() => setActivePanel(panelId)}
+                />
+              ))}
+            </div>
+          </div>
+          <SidebarTopItem
+            label={copy.sidebar.groupbuy}
+            active={activePanel === 'groupbuy'}
+            onClick={() => setActivePanel('groupbuy')}
+          />
         </nav>
 
         {/* ── Main panel ── */}
         <div className="manage-main">
+          <AgentActionInline types={['set_group_buy_coupon']} />
           {activePanel === 'basic'     && <BasicPanel {...panelProps} />}
           {activePanel === 'removal'   && <RemovalPanel {...panelProps} />}
           {activePanel === 'extension' && <ExtensionPanel {...panelProps} />}
           {activePanel === 'effects'   && <EffectsPanel {...panelProps} />}
           {activePanel === 'preview'   && (
             <PreviewPanel settingsById={settingsById} dirty={dirty} onSave={handleSave} currency={currency} language={language} />
+          )}
+          {activePanel === 'groupbuy'  && (
+            <GroupbuyPanel language={language} currency={currency} settingsById={settingsById} />
           )}
         </div>
       </div>
