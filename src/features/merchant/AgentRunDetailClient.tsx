@@ -29,6 +29,8 @@ const detailCopy = {
     dispatchedBy: (name: string) => `由「${name}」的结论触发本次任务`,
     selfStarted: '本轮例行运行的起点',
     spawned: '触发的下游',
+    audits: '监测对象',
+    triggeredRevision: '触发修订',
     undo: '撤销',
     undone: '已撤销',
     approve: '批准',
@@ -49,6 +51,8 @@ const detailCopy = {
     dispatchedBy: (name: string) => `Dispatched by "${name}"`,
     selfStarted: 'The starting point of this round',
     spawned: 'Spawned',
+    audits: 'Auditing',
+    triggeredRevision: 'Sent back for revision',
     undo: 'Undo',
     undone: 'Undone',
     approve: 'Approve',
@@ -123,7 +127,17 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
         {/* Task context (为什么会有这次运行): the dispatching run + what this one spawned. Without this the
             chain starts mid-air — the merchant can't tell why the agent acted (audit finding). */}
         <p className="agent-run-context">
-          {detail?.parent ? (
+          {detail && detail.auditTargets.length > 0 ? (
+            // A monitor MEASURES the round's executors — show what it audits, not who dispatched it.
+            <>
+              {copy.audits}
+              {detail.auditTargets.map((t) => (
+                <Link key={t.id} className="agent-run-context-link" href={getMerchantAgentRunPath(t.id)}>
+                  {t.agentName}
+                </Link>
+              ))}
+            </>
+          ) : detail?.parent ? (
             <>
               {copy.dispatchedBy(detail.parent.agentName)}
               {' '}
@@ -134,7 +148,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
           ) : copy.selfStarted}
           {detail && detail.children.length > 0 ? (
             <>
-              {' · '}{copy.spawned}
+              {' · '}{run.agentRole === 'reviewer' ? copy.triggeredRevision : copy.spawned}
               {detail.children.map((c) => (
                 <Link key={c.id} className="agent-run-context-link" href={getMerchantAgentRunPath(c.id)}>
                   ↓ {c.agentName}

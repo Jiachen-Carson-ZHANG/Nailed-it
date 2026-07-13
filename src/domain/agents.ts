@@ -113,8 +113,9 @@ export function isAgentSlug(value: string): value is AgentSlug {
 /** A lightweight reference to a related run — what the lineage chips render (no transcript). */
 export type RunRef = { id: string; agentName: string; agentSlug: AgentSlug; status: RunStatus };
 
-/** A run with its upstream (who spawned it) + downstream (who it spawned) — the drill-down's lineage. */
-export type AgentRunDetail = { run: AgentRunView; parent: RunRef | null; children: RunRef[] };
+/** A run with its upstream (who spawned it) + downstream (who it spawned) — the drill-down's lineage.
+ *  `auditTargets` is set only for a reviewer (monitor): the executor lanes it actually measures. */
+export type AgentRunDetail = { run: AgentRunView; parent: RunRef | null; children: RunRef[]; auditTargets: RunRef[] };
 
 function toRunRef(r: AgentRunView): RunRef {
   return { id: r.id, agentName: r.agentName, agentSlug: r.agentSlug, status: r.status };
@@ -127,5 +128,15 @@ export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRu
   if (!run) return null;
   const parent = run.parentRunId ? allRuns.find((r) => r.id === run.parentRunId) ?? null : null;
   const children = allRuns.filter((r) => r.parentRunId === runId);
-  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef) };
+  // A monitor is dispatched by the planner but OVERSEES the executors — its true subjects are the
+  // operator-role lanes in the same round (its same-parent siblings), not the planner that dispatched
+  // it. Shown on the run page as "监测对象" instead of a misleading "由商分触发" parent line. Included even
+  // when a lane didn't act this round: "did 投广 act? no" is itself part of what the monitor reviews.
+  const auditTargets =
+    run.agentRole === 'reviewer'
+      ? allRuns
+          .filter((r) => r.id !== runId && r.parentRunId !== null && r.parentRunId === run.parentRunId && r.agentRole === 'operator')
+          .map(toRunRef)
+      : [];
+  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets };
 }

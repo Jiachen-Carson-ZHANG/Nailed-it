@@ -19,12 +19,12 @@ import styles from './AgentRunSheet.module.css';
 const copy = {
   'zh-CN': {
     title: '智能体推理', loading: '正在加载推理链路…', notFound: '未找到该运行记录',
-    why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', full: '查看完整记录 →',
+    why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
     status: { running: '运行中', completed: '已完成', failed: '失败', awaiting_approval: '待批准' } as Record<RunStatus, string>,
   },
   en: {
     title: 'Agent reasoning', loading: 'Loading the reasoning chain…', notFound: 'Run not found',
-    why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', full: 'Full record →',
+    why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', audits: 'Auditing', full: 'Full record →',
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Awaiting approval' } as Record<RunStatus, string>,
   },
 } as const;
@@ -72,10 +72,21 @@ export function AgentRunSheet({ open, runId, onClose }: { open: boolean; runId: 
             <h3 className={styles.headline}>{headline(run.output, run.agentName)}</h3>
           </header>
 
-          {(detail?.parent || (detail?.children.length ?? 0) > 0) ? (
+          {(detail?.parent || (detail?.children.length ?? 0) > 0 || (detail?.auditTargets.length ?? 0) > 0) ? (
             <section className={styles.section} aria-label={t.lineage}>
               <div className={styles.lane}>{t.lineage}</div>
-              {detail?.parent ? (
+              {detail && detail.auditTargets.length > 0 ? (
+                <div className={styles.lineRow}>
+                  <span className={styles.lineLabel}>{t.audits}</span>
+                  <div className={styles.chips}>
+                    {detail.auditTargets.map((tgt) => (
+                      <Link key={tgt.id} className={styles.chipLink} href={getMerchantAgentRunPath(tgt.id)} onClick={onClose}>
+                        {tgt.agentName}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : detail?.parent ? (
                 <div className={styles.lineRow}>
                   <span className={styles.lineLabel}>{t.from}</span>
                   <Link className={styles.chipLink} href={getMerchantAgentRunPath(detail.parent.id)} onClick={onClose}>
