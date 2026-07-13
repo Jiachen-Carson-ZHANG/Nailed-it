@@ -94,6 +94,15 @@ describe('controlCapabilities (backend-honest)', () => {
 });
 
 describe('toActionView title (payload-shape regression)', () => {
+  it('uses friendly nail names instead of generic Melissa Design numbers', () => {
+    const v = toActionView({
+      id: 'a', runId: 'r', merchantId: 'm', type: 'place_ad', risk: 'reversible',
+      status: 'applied', payload: { styleId: 'style-melissa-img-8284', slot: 'top_funnel' },
+      createdAt: new Date(NOW).toISOString(),
+    }, { 'style-melissa-img-8284': 'Melissa Design 8284' });
+    expect(v.title).toBe('投广 · 鎏金奢华');
+  });
+
   it('titles a draft_upload from its real { gapTag } payload, not styleTitle/styleId', () => {
     // propose_listing (tools.py) writes { gapTag, reason }; the old title read styleTitle/styleId and
     // rendered "上架建议 ·" with an empty suffix.
@@ -120,5 +129,18 @@ describe('splitActions', () => {
     );
     expect(pending.map((v) => v.id)).toEqual(['p']);
     expect(recent.map((v) => v.id)).toEqual(['a']); // 'old' (3d > 48h) excluded
+  });
+
+  it('collapses repeated proposals of the same entity to the latest (demo-data hygiene)', () => {
+    const coupon = (id: string, styleId: string, ageMs: number): AgentAction => ({
+      id, runId: 'r', merchantId: 'm', type: 'set_group_buy_coupon', risk: 'reversible', status: 'proposed',
+      payload: { styleId }, createdAt: new Date(NOW - ageMs).toISOString(),
+    });
+    // 4 proposals across rounds, only 2 distinct styles → 2 pending (the newest per style), not 4.
+    const { pending } = splitActions(
+      [coupon('c1', 'style-a', 0), coupon('c3', 'style-b', 30_000), coupon('c2', 'style-a', 60_000), coupon('c4', 'style-b', 90_000)],
+      NOW,
+    );
+    expect(pending.map((v) => v.id)).toEqual(['c1', 'c3']);
   });
 });

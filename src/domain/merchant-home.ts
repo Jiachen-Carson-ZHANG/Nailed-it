@@ -12,6 +12,8 @@
 //    No 停止投放/停止新拼团 — those APIs do not exist yet (backlog).
 
 import type { Agent, AgentAction, AgentActionType, ActionStatus } from './agents';
+import { dedupeActionsByEntity } from './agent-transcript';
+import { demoStyleName, isGenericDemoTitle } from './demo-style-labels';
 import type { Booking } from './nail';
 import type { Weekday, WorkingPlanDay } from './scheduling';
 
@@ -190,7 +192,7 @@ export function computeTechnicianDay(
 
 // ── agent actions → card view models + backend-honest controls ──────────────────
 
-/** styleId → merchant-facing name. Cards must show "Melissa Design 8284", never a machine id. */
+/** styleId → merchant-facing name. Cards must show nail names, not machine ids or generic seed titles. */
 type StyleName = (id: string) => string;
 
 const ACTION_META: Record<AgentActionType, { icon: string; agent: string; title: (p: Record<string, unknown>, name: StyleName) => string }> = {
@@ -225,7 +227,12 @@ export function controlCapabilities(action: Pick<AgentAction, 'type' | 'status'>
 
 export function toActionView(action: AgentAction, styleTitles: Record<string, string> = {}): HomeActionView {
   const meta = ACTION_META[action.type];
-  const name: StyleName = (id) => (id ? styleTitles[id] ?? id : '');
+  const name: StyleName = (id) => {
+    if (!id) return '';
+    const title = styleTitles[id]?.trim();
+    if (title && !isGenericDemoTitle(title)) return title;
+    return demoStyleName(id, 'zh-CN') ?? title ?? id;
+  };
   return {
     id: action.id,
     runId: action.runId,
@@ -246,13 +253,16 @@ export function splitActions(
   recentLimit = 8,
   styleTitles: Record<string, string> = {},
 ): { pending: HomeActionView[]; recent: HomeActionView[] } {
-  const pending: HomeActionView[] = [];
-  const recent: HomeActionView[] = [];
-  for (const a of actions) {
-    if (a.status === 'proposed') pending.push(toActionView(a, styleTitles));
-    else if (a.status === 'applied' && nowMs - Date.parse(a.createdAt) <= 2 * DAY_MS && recent.length < recentLimit) {
-      recent.push(toActionView(a, styleTitles));
-    }
-  }
+  // Show CURRENT decisions, not every historical re-proposal. Each round re-proposes the same handful of
+  // entities, so a raw list inflates to "36 待你确认" over "8 distinct things". Dedupe by entity (latest
+  // per entity — `actions` is newest-first) so the merchant sees what actually awaits a call. Purely a
+  // read-side collapse; the underlying rows are untouched.
+  const pending = dedupeActionsByEntity(actions.filter((a) => a.status === 'proposed'))
+    .map((a) => toActionView(a, styleTitles));
+  const recent = dedupeActionsByEntity(
+    actions.filter((a) => a.status === 'applied' && nowMs - Date.parse(a.createdAt) <= 2 * DAY_MS),
+  )
+    .slice(0, recentLimit)
+    .map((a) => toActionView(a, styleTitles));
   return { pending, recent };
 }
