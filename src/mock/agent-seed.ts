@@ -46,7 +46,7 @@ export const AGENT_DEFINITIONS: Agent[] = [
   {
     id: 'agent-decision',
     slug: 'decision',
-    name: '决策 Agent',
+    name: '商分 Agent', // display name (slug stays `decision`; Python/prompts unchanged)
     role: 'planner',
     instructions:
       '你是经营组合决策者。读经营事实（信号+经济性，无判决）与记忆提示，为本轮制定行动组合，用 submit_action_brief 提交"目标+硬边界"的行动简报——执行参数（受众/精确预算/券配置）由执行代理在简报内自行寻找。可以不提交任何简报。',
