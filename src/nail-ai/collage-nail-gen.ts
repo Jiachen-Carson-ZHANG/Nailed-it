@@ -1,4 +1,5 @@
 import 'server-only';
+import { postImageGeneration } from './openrouter';
 
 const DEFAULT_ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 export const defaultCollageGenModel = 'doubao-seedream-5.0-litenew';
@@ -75,46 +76,27 @@ export async function runCollageGen(
   customText: string,
   env = process.env,
 ): Promise<CollageGenResult> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new CollageGenError('missing_config', 'ARK_API_KEY is required.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY + ARK_IMAGE_MODEL are only used as fallback when OpenRouter is not available.
+  const arkApiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !arkApiKey) {
+    throw new CollageGenError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required.');
+  }
 
-  const model = env.ARK_IMAGE_MODEL ?? defaultCollageGenModel;
+  const arkModel = env.ARK_IMAGE_MODEL ?? defaultCollageGenModel;
   const baseUrl = env.ARK_BASE_URL ?? DEFAULT_ARK_BASE_URL;
   const prompt = buildNailPrompt(ingredients, customText);
 
-  let data: unknown;
   try {
-    const response = await fetch(`${baseUrl}/images/generations`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        prompt,
-        response_format: 'b64_json',
-        watermark: false,
-      }),
+    const imageBase64 = await postImageGeneration({
+      arkApiKey,
+      arkBaseUrl: baseUrl,
+      arkModel,
+      prompt,
+      images: [],
     });
-
-    const json = await response.json();
-    if (!response.ok) {
-      throw new Error(`Ark image generation error ${response.status}: ${JSON.stringify(json)}`);
-    }
-    data = json;
+    return { imageBase64, mimeType: 'image/png' };
   } catch (error) {
-    throw new CollageGenError('provider_error', 'Ark collage generation request failed.', { cause: error });
+    throw new CollageGenError('provider_error', 'Collage generation request failed.', { cause: error });
   }
-
-  const record = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
-  const items = Array.isArray(record.data) ? record.data : [];
-  const first = items[0] && typeof items[0] === 'object' ? (items[0] as Record<string, unknown>) : {};
-  const base64 = typeof first.b64_json === 'string' ? first.b64_json : '';
-
-  if (!base64) {
-    throw new CollageGenError('invalid_model_output', 'Ark collage generation did not return an image.');
-  }
-
-  return { imageBase64: base64, mimeType: 'image/png' };
 }

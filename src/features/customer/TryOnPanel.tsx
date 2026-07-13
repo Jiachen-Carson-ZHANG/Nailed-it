@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TryOnResult } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
@@ -79,6 +79,30 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   const styleStoreOnce = useRef<SelectedNailImage | null | undefined>(undefined);
   if (styleStoreOnce.current === undefined) styleStoreOnce.current = consumeTryOnStyleImage();
   const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(() => styleStoreOnce.current ?? null);
+
+  // When navigating from a style card (prefillStyleImageUrl set, no store image),
+  // fetch and pre-select the style image so the user sees it as already chosen.
+  useEffect(() => {
+    if (styleImage || !prefillStyleImageUrl) return;
+    let cancelled = false;
+    fetch(prefillStyleImageUrl)
+      .then((res) => res.blob())
+      .then((blob) => new Promise<SelectedNailImage>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+          const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+          const base64 = dataUrl.split(',')[1] ?? '';
+          if (!base64) { reject(new Error('empty')); return; }
+          resolve({ imageBase64: base64, mimeType: blob.type || 'image/jpeg', previewUrl: dataUrl });
+        });
+        reader.addEventListener('error', reject);
+        reader.readAsDataURL(blob);
+      }))
+      .then((img) => { if (!cancelled) setStyleImage(img); })
+      .catch(() => { /* silently ignore — prefillImageUrl still shows as preview */ });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillStyleImageUrl]);
   const [userComment, setUserComment] = useState('');
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [quickSelections, setQuickSelections] = useState<Record<string, string[]>>({});

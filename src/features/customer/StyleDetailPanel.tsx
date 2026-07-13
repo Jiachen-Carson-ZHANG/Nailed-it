@@ -35,7 +35,7 @@ export function StyleDetailPanel({ backHref, style }: StyleDetailPanelProps) {
       <Link className="button button-primary button-block" href={bookingUrl}>
         {t('style.detail.book')}
       </Link>
-      <Link className="button button-secondary button-block" href={getCustomerTryOnPath(style.id)}>
+      <Link className="button button-secondary button-block" href={`${getCustomerTryOnPath(style.id)}&imageUrl=${encodeURIComponent(imageUrl)}`}>
         {t('style.detail.tryOn')}
       </Link>
     </div>

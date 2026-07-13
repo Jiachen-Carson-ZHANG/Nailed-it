@@ -1,5 +1,5 @@
 import type { TryOnResult } from '@/domain/nail';
-import { postOpenRouterChat, extractTextContent, stripJsonFence, asRecord } from './openrouter';
+import { postOpenRouterChat, postImageGeneration, extractTextContent, stripJsonFence, asRecord } from './openrouter';
 
 const DEFAULT_ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 
@@ -55,17 +55,25 @@ export async function runTryOn(
   userComment = '',
   env = process.env
 ): Promise<TryOnResult> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new TryOnError('missing_config', 'ARK_API_KEY is required for try-on.');
+  const arkApiKey = env.ARK_API_KEY;
+  const openrouterKey = env.OPENROUTER_API_KEY;
+  if (!openrouterKey && !arkApiKey) {
+    throw new TryOnError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for try-on.');
+  }
 
-  const validationModel = env.ARK_VISION_MODEL ?? defaultTryOnValidationModel;
-  const generationModel = env.ARK_IMAGE_MODEL ?? defaultTryOnModel;
+  // These are Ark fallback model names only.
+  // When OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are both set in env,
+  // postOpenRouterChat and postImageGeneration will IGNORE these and use Gemini via OpenRouter instead.
+  const arkValidationModel = env.ARK_VISION_MODEL ?? defaultTryOnValidationModel;
+  const arkGenerationModel = env.ARK_IMAGE_MODEL ?? defaultTryOnModel;
   const baseUrl = env.ARK_BASE_URL ?? DEFAULT_ARK_BASE_URL;
 
-  // ── Step 1: validate both images before running the expensive generation ──────
-  await validateImages({ apiKey, model: validationModel, handImageBase64, handMimeType, styleImageBase64, styleMimeType, userComment });
+  // ── Step 1: validate both images ──────────────────────────────────────────────
+  // Routes to Gemini (OpenRouter) if OPENROUTER_API_KEY+GEMINI_IMAGE_MODEL_NAME set, else Ark.
+  await validateImages({ apiKey: arkApiKey ?? '', model: arkValidationModel, handImageBase64, handMimeType, styleImageBase64, styleMimeType, userComment });
 
-  // ── Step 2: run the actual try-on ─────────────────────────────────────────────
+  // ── Step 2: generate the try-on image ─────────────────────────────────────────
+  // Routes to Gemini (OpenRouter) if OPENROUTER_API_KEY+GEMINI_IMAGE_MODEL_NAME set, else Ark.
   const prompt = userComment
     ? 'Apply nail art to the hand in image 1. ' +
       `The user has made the following specific requests — these take PRIORITY over the reference image for the aspects they mention: "${userComment}". ` +
@@ -77,23 +85,23 @@ export async function runTryOn(
       '(3) If the nail photo involves more hands than the hand photo, do not add additional hands to the hand photo for the try-on effect.'
     : tryOnPrompt;
 
-  let data: unknown;
+  let imageBase64: string;
   try {
-    data = await postArkTryOnGeneration({
-      apiKey,
-      baseUrl,
-      model: generationModel,
+    imageBase64 = await postImageGeneration({
+      arkApiKey: arkApiKey ?? '',
+      arkBaseUrl: baseUrl,
+      arkModel: arkGenerationModel,
       prompt,
-      handImageBase64,
-      handMimeType,
-      styleImageBase64,
-      styleMimeType
+      images: [
+        { base64: handImageBase64, mimeType: handMimeType },
+        { base64: styleImageBase64, mimeType: styleMimeType },
+      ],
     });
   } catch (error) {
-    throw new TryOnError('provider_error', 'Ark try-on request failed.', { cause: error });
+    throw new TryOnError('provider_error', 'Try-on image generation request failed.', { cause: error });
   }
 
-  return extractImageFromArkGeneration(data);
+  return { imageBase64, mimeType: 'image/png' };
 }
 
 async function validateImages(opts: {
@@ -152,52 +160,4 @@ async function validateImages(opts: {
   }
 }
 
-async function postArkTryOnGeneration(opts: {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  prompt: string;
-  handImageBase64: string;
-  handMimeType: string;
-  styleImageBase64: string;
-  styleMimeType: string;
-}): Promise<unknown> {
-  const response = await fetch(`${opts.baseUrl}/images/generations`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: opts.model,
-      prompt: opts.prompt,
-      image: [
-        `data:${opts.handMimeType};base64,${opts.handImageBase64}`,
-        `data:${opts.styleMimeType};base64,${opts.styleImageBase64}`
-      ],
-      response_format: 'b64_json',
-      sequential_image_generation: 'disabled',
-      watermark: false
-    })
-  });
-
-  const json = await response.json();
-  if (!response.ok) {
-    throw new Error(`Ark image generation error ${response.status}: ${JSON.stringify(json)}`);
-  }
-  return json;
-}
-
-function extractImageFromArkGeneration(data: unknown): TryOnResult {
-  const record = asRecord(data);
-  const items = Array.isArray(record.data) ? record.data : [];
-  const base64 = typeof asRecord(items[0]).b64_json === 'string' ? String(asRecord(items[0]).b64_json) : '';
-
-  if (base64) {
-    return { imageBase64: base64, mimeType: 'image/png' };
-  }
-
-  throw new TryOnError('invalid_model_output', 'Ark try-on response did not include an image.');
-}
-
-export { extractImageFromArkGeneration };
+export { }

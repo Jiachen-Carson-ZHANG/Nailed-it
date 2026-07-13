@@ -302,7 +302,13 @@ function persistCurrentDraft() {
             onMockUpload={selectSampleImage}
             onReset={resetUpload}
             hideControls={hasPrefill}
-            tryOnHref={getCustomerTryOnPath()}
+            tryOnHref={
+              // 中文注释：把当前参考图（示例图或已上传图）作为款式图带到试戴页，避免用户重新上传。
+              // data URL 太长不能进 query string，只带 http(s) 图片地址（示例图属于这种）。
+              imageUrl && !imageUrl.startsWith('data:')
+                ? `${getCustomerTryOnPath()}?imageUrl=${encodeURIComponent(imageUrl)}`
+                : getCustomerTryOnPath()
+            }
             analyzeAction={
               <Button block onClick={startRecognition}>
                 {t('booking.upload.analyze')}

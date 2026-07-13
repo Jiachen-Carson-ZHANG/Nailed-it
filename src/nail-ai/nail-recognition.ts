@@ -48,9 +48,11 @@ export async function recognizeNailImageWithTelemetry(
   env: Record<string, string | undefined> = process.env,
   fetchImpl?: FetchLike
 ): Promise<NailRecognitionProviderResult> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) {
-    throw new NailRecognitionError('missing_vision_config', 'ARK_API_KEY is required for nail recognition.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const arkApiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !arkApiKey) {
+    throw new NailRecognitionError('missing_vision_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for nail recognition.');
   }
 
   const model = env.ARK_VISION_MODEL ?? defaultVisionModel;
@@ -72,7 +74,7 @@ export async function recognizeNailImageWithTelemetry(
           }
         ]
       },
-      apiKey,
+      arkApiKey,
       fetchImpl
     );
   } catch (error) {
