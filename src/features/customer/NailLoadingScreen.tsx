@@ -62,7 +62,8 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
     const tick = (now: number) => {
       if (startRef.current === null) startRef.current = now;
       const elapsed = now - startRef.current;
-      setProgress(computeFakeProgress(elapsed, done));
+      const next = Math.round(computeFakeProgress(elapsed, done) * 10) / 10;
+      setProgress((prev) => (prev === next ? prev : next));
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -71,6 +72,7 @@ export function NailLoadingScreen({ done, onTransitionEnd }: NailLoadingScreenPr
 
   // phrase rotation every 3.5s
   useEffect(() => {
+    // 3500ms must match the nailPhraseFade CSS animation duration (3.5s)
     const id = setInterval(() => {
       setPhraseIdx((i) => (i + 1) % LOADING_PHRASES.length);
     }, 3500);
