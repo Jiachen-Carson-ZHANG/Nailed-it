@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TryOnResult } from '@/domain/nail';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { getCustomerBookingPath } from '@/domain/session';
 import { saveTryOnImage } from '@/domain/tryon-image-store';
+import { consumeTryOnStyleImage } from '@/domain/tryon-style-store';
 import { demoCustomerId } from '@/mock/customers';
 import { track } from '@/features/analytics/track';
 import { useLanguage } from '@/i18n/context';
@@ -73,7 +74,11 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   const router = useRouter();
   const { t, language } = useLanguage();
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
-  const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(null);
+  // 中文注释：拼贴小屋点"虚拟试戴"时会把生成图存进 tryon-style-store，
+  // 这里挂载时消费一次作为"款式图"预填，用户只需再上传手部照片即可试戴。
+  const styleStoreOnce = useRef<SelectedNailImage | null | undefined>(undefined);
+  if (styleStoreOnce.current === undefined) styleStoreOnce.current = consumeTryOnStyleImage();
+  const [styleImage, setStyleImage] = useState<SelectedNailImage | null>(() => styleStoreOnce.current ?? null);
   const [userComment, setUserComment] = useState('');
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [quickSelections, setQuickSelections] = useState<Record<string, string[]>>({});

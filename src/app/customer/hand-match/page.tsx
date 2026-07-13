@@ -1,10 +1,10 @@
 import { MobileLayout } from '@/components/layout/MobileLayout';
-import { CustomerHomeClient } from '@/features/customer/CustomerHomeClient';
+import { HandMatchClient } from '@/features/customer/HandMatchClient';
 
-export default function CustomerHomePage() {
+export default function HandMatchPage() {
   return (
     <MobileLayout role="customer" title="Nailed-it">
-      <CustomerHomeClient />
+      <HandMatchClient />
     </MobileLayout>
   );
 }
