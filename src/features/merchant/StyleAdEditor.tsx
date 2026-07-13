@@ -329,6 +329,8 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
       <AdForecastPanel
         totalBudgetCents={(ad.dailyBudgetCents ?? 3500) * promotionSettings.durationDays}
         durationDays={promotionSettings.durationDays}
+        audienceMode={promotionSettings.audienceMode}
+        customAudience={promotionSettings.customAudience}
         language={language}
       />
 

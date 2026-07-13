@@ -61,6 +61,10 @@ export type AdForecastInput = {
   /** the style's historical click→booking rate (0..1). */
   styleCvr?: number;
   competition?: number; // PUBLIC market-season prior (not the hidden multiplier)
+  /** Demographic narrowing (0..1) applied on top of the behavioral pool: a tighter 年龄/标签 filter
+   *  shrinks the reachable size, so the same budget hits higher frequency → more saturation / worse CAC.
+   *  It scales REACH only — per-click CVR is behavioral (the pool), not demographic. Default 1 (no filter). */
+  audienceSizeMultiplier?: number;
 };
 
 function band(x: number): [number, number] {
@@ -87,14 +91,18 @@ export function forecastAd(input: AdForecastInput): AdForecast {
   const cvr0 = input.styleCvr ?? DEFAULT_STYLE_CVR;
   const competition = input.competition ?? 1.0;
 
+  // Demographic filter shrinks reach only (behavioral CVR is unchanged). Clamp so a very tight filter
+  // can't make the pool vanish.
+  const effSize = Math.max(50, a.size * Math.min(1, Math.max(0.05, input.audienceSizeMultiplier ?? 1)));
+
   const cpc = a.baseCpcCents * competition;
   const clicks = input.totalBudgetCents / cpc;
   const impressions = clicks / a.baseCtr;
-  const cvr = cvr0 * a.intentFactor * fatigue(impressions, a.size);
+  const cvr = cvr0 * a.intentFactor * fatigue(impressions, effSize);
   const bookings = clicks * cvr;
   const cac = bookings > 0.05 ? input.totalBudgetCents / bookings : null;
 
-  const freq = impressions / a.size;
+  const freq = impressions / effSize;
   const saturation: AdForecast['saturation'] = freq <= 1.5 ? 'low' : freq <= 2.5 ? 'medium' : 'high';
   const warnings: AdForecast['warnings'] = [];
   if (saturation === 'high') warnings.push(WARN.saturated);

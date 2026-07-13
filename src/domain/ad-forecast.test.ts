@@ -38,6 +38,15 @@ describe('forecastAd', () => {
     expect(retarget.expectedBookings[1]).toBeGreaterThan(broad.expectedBookings[1]);
   });
 
+  it('narrowing demographic reach raises saturation at the same budget (CVR unchanged)', () => {
+    const wide = forecastAd({ audience: 'saved_or_viewed', totalBudgetCents: 20000, durationDays: 5, audienceSizeMultiplier: 1 });
+    const narrow = forecastAd({ audience: 'saved_or_viewed', totalBudgetCents: 20000, durationDays: 5, audienceSizeMultiplier: 0.2 });
+    const order = { low: 0, medium: 1, high: 2 };
+    expect(order[narrow.saturation]).toBeGreaterThanOrEqual(order[wide.saturation]);
+    // fewer reachable people → fatigue drags bookings down for the same spend
+    expect(narrow.expectedBookings[1]).toBeLessThanOrEqual(wide.expectedBookings[1]);
+  });
+
   it('exposes the three sandbox audiences with bilingual labels', () => {
     expect(Object.keys(AD_AUDIENCES)).toEqual(['broad_local_interest', 'saved_or_viewed', 'try_on_no_booking']);
     expect(AD_AUDIENCES.try_on_no_booking.label['zh-CN']).toBe('试戴未预约');
