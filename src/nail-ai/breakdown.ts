@@ -442,8 +442,10 @@ export async function runGlossaryBreakdown(
   language: AppLanguage = 'zh-CN',
   env = process.env
 ): Promise<BreakdownResult> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new BreakdownError('missing_config', 'ARK_API_KEY is required for breakdown.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const apiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !apiKey) throw new BreakdownError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for breakdown.');
 
   const model = env.ARK_VISION_MODEL ?? 'doubao-seed-2-0-lite-260215';
 

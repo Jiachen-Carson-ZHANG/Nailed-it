@@ -6954,7 +6954,7 @@ button.xhs-card-shape {
   position: sticky;
   top: -1rem;
   z-index: 10;
-  margin: 0 -1rem 0.25rem;
+  margin: 0.75rem -1rem 0.25rem;
   padding: 0.25rem 1rem;
   background: transparent;
 }
@@ -7707,7 +7707,7 @@ button.xhs-card-shape {
   width: 100%;
   aspect-ratio: 16 / 9;
   padding: var(--space-3) var(--space-4);
-  margin: var(--space-2) 0;
+  margin: 0 0 var(--space-2);
   border: none;
   border-radius: 1.25rem;
   background: url('/studio_assets/tab-image.jpg') center / cover no-repeat;

@@ -15,9 +15,11 @@ export class TrendingStylesError extends Error {
 }
 
 export async function fetchAITrendingStyles(env = process.env): Promise<AITrendingResponse> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) {
-    throw new TrendingStylesError('missing_config', 'ARK_API_KEY is required for trending styles.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const apiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !apiKey) {
+    throw new TrendingStylesError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for trending styles.');
   }
 
   const model = env.ARK_TRENDING_MODEL ?? env.ARK_VISION_MODEL ?? defaultTrendingModel;

@@ -56,8 +56,10 @@ export async function analyzeSkinTone(
   mimeType: string,
   env = process.env
 ): Promise<SkinProfile> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new SkinMatchError('missing_config', 'ARK_API_KEY is required for skin match.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const apiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !apiKey) throw new SkinMatchError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for skin match.');
 
   const model = env.ARK_VISION_MODEL ?? defaultSkinMatchModel;
 
@@ -138,8 +140,10 @@ export async function rankStylesForSkin(
   candidates: CandidateStyle[],
   env = process.env
 ): Promise<RankedStyle[]> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new SkinMatchError('missing_config', 'ARK_API_KEY is required for skin match.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const apiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !apiKey) throw new SkinMatchError('missing_config', 'Either OPENROUTER_API_KEY or ARK_API_KEY is required for skin match.');
 
   const model = env.ARK_TEXT_MODEL ?? env.ARK_TRENDING_MODEL ?? env.ARK_VISION_MODEL ?? defaultSkinMatchModel;
 

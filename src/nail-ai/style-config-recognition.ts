@@ -102,8 +102,10 @@ export async function recognizeStyleName(
   language: AppLanguage = 'zh-CN',
   env = process.env,
 ): Promise<{ name: string; description: string }> {
-  const apiKey = env.ARK_API_KEY;
-  if (!apiKey) throw new Error('ARK_API_KEY is required for style naming.');
+  // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
+  // ARK_API_KEY is only used as fallback when OpenRouter is not available.
+  const apiKey = env.ARK_API_KEY ?? '';
+  if (!env.OPENROUTER_API_KEY && !apiKey) throw new Error('Either OPENROUTER_API_KEY or ARK_API_KEY is required for style naming.');
   const model = env.ARK_VISION_MODEL ?? 'doubao-seed-2-0-lite-260215';
 
   return withRetry(async () => {

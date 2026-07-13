@@ -2,16 +2,17 @@ import { getCustomerPublishedStyleAction } from '@/lib/actions/merchant-style-ac
 import { TryOnPageClient } from './try-on-page-client';
 
 type TryOnPageProps = {
-  searchParams: Promise<{ styleId?: string }>;
+  searchParams: Promise<{ styleId?: string; imageUrl?: string }>;
 };
 
 export default async function CustomerTryOnPage({ searchParams }: TryOnPageProps) {
-  const { styleId } = await searchParams;
+  const { styleId, imageUrl } = await searchParams;
   const style = styleId ? await getCustomerPublishedStyleAction(styleId) : null;
+  const prefillStyleImageUrl = style?.imageUrl ?? (imageUrl ? decodeURIComponent(imageUrl) : undefined);
 
   return (
     <TryOnPageClient
-      prefillStyleImageUrl={style?.imageUrl ?? undefined}
+      prefillStyleImageUrl={prefillStyleImageUrl}
       styleId={styleId}
     />
   );
