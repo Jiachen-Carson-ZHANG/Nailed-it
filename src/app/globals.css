@@ -5644,6 +5644,25 @@ select {
   gap: 1rem;
 }
 
+/* 投前预测 panel (ADR-0016 sandbox forecast surfaced in the merchant editor) */
+.ad-forecast { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+.ad-forecast-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.ad-forecast-sub { font-size: var(--text-xs); color: var(--color-muted); white-space: nowrap; }
+.ad-forecast-hint { margin: var(--space-1) 0 var(--space-3); font-size: var(--text-xs); color: var(--color-muted); line-height: 1.5; }
+.ad-forecast-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.ad-forecast-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-strong); }
+.ad-forecast-row-best { border-color: var(--color-accent); box-shadow: var(--shadow-soft); }
+.ad-forecast-aud { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ad-forecast-aud-label { font-size: var(--text-sm); font-weight: 700; color: var(--color-text); display: flex; align-items: center; gap: var(--space-2); }
+.ad-forecast-best { font-size: 0.62rem; font-weight: 700; color: #fff; background: var(--color-accent); padding: 1px var(--space-2); border-radius: var(--radius-pill); }
+.ad-forecast-aud-hint { font-size: 0.62rem; color: var(--color-muted); }
+.ad-forecast-metrics { display: flex; align-items: baseline; gap: var(--space-3); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.ad-forecast-metric { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.ad-forecast-metric-label { font-size: 0.58rem; color: var(--color-muted); }
+.ad-forecast-metric strong { font-size: var(--text-sm); color: var(--color-text); }
+.ad-forecast-weak { color: var(--color-muted); font-weight: 500; }
+.ad-forecast-warn { font-size: 0.58rem; color: var(--color-warning-ink); align-self: center; }
+
 .style-ad-checkout-bar {
   display: grid;
   gap: 0.55rem;

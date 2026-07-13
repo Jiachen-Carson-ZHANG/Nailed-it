@@ -22,6 +22,7 @@ import {
   StyleAdPromotionSettings,
   type StyleAdPromotionSettingsValue,
 } from '@/features/merchant/StyleAdPromotionSettings';
+import { AdForecastPanel } from '@/features/merchant/AdForecastPanel';
 
 const adEditorCopy = {
   'zh-CN': {
@@ -323,6 +324,12 @@ export function StyleAdEditor({ styleId }: { styleId: string }) {
       <StyleAdPromotionSettings
         value={promotionSettings}
         onChange={setPromotionSettings}
+      />
+
+      <AdForecastPanel
+        totalBudgetCents={(ad.dailyBudgetCents ?? 3500) * promotionSettings.durationDays}
+        durationDays={promotionSettings.durationDays}
+        language={language}
       />
 
       {message ? <p className="helper-copy" role="status">{message}</p> : null}
