@@ -49,11 +49,47 @@ def advance_clock(hours: int) -> None:
     bus.set_sim_state(sb, config.MERCHANT_ID, clock_hours=clock + hours)
     print(f"clock: {clock}h → {clock + hours}h (scenario={scenario}, {delivered} active campaigns delivered)")
 
+    # Settlement produces DATA; it does NOT reason. Report which triggers the settled numbers just
+    # tripped — a threshold alarm here is the business event that should fire the NEXT round (where
+    # the monitor actually reasons). Deciding to run is the operator's / cron's, not settlement's.
+    from . import triggers
+    signals = triggers.evaluate_triggers(sb, config.MERCHANT_ID)
+    if signals:
+        print("triggers now active (a round would react to these):")
+        for s in signals:
+            print(f"  [{s.urgency}] {s.kind}: {s.reason}")
+    else:
+        print("no triggers active — nothing warrants a round yet")
+
+
+def check_triggers(run: bool = False) -> None:
+    """Evaluate the three business triggers against current state (the watch-cron entry point).
+    With --run, fire a round when any URGENT signal is present. Without a persistent daemon, this is
+    invoked periodically by cron or manually — the trigger LOGIC is real and tested; only the
+    'continuously watching' deployment is cron-driven rather than a live daemon."""
+    from . import triggers
+    config.require_env()
+    sb = bus.supabase()
+    signals = triggers.evaluate_triggers(sb, config.MERCHANT_ID)
+    if not signals:
+        print("no triggers active")
+        return
+    for s in signals:
+        print(f"[{s.urgency}] {s.kind}: {s.reason}")
+    urgent = [s for s in signals if s.urgency == "urgent"]
+    if run and urgent:
+        print(f"→ {len(urgent)} urgent signal(s) — firing a round")
+        run_round()
+    elif urgent:
+        print(f"→ {len(urgent)} urgent signal(s); pass --run to fire a round")
+
 
 if __name__ == "__main__":
     args = sys.argv[1:]
     if args[:1] == ["advance-clock"]:
         advance_clock(int(args[1]) if len(args) > 1 else 24)
+    elif args[:1] == ["check-triggers"]:
+        check_triggers(run="--run" in args)
     elif args[:1] == ["set-scenario"]:
         config.require_env()
         seed = args[1] if len(args) > 1 else "default"
