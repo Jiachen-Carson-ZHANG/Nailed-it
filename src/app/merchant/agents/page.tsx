@@ -5,9 +5,16 @@ import Link from 'next/link';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { listAgentsAction, listAgentRunsAction, listTeamMemoryAction, triggerAgentRoundAction, type TeamMemoryView } from '@/lib/actions/agent-actions';
+import {
+  listAgentsAction,
+  listAgentRunsAction,
+  listTeamMemoryAction,
+  getWeeklyObjectiveAction,
+  triggerAgentRoundAction,
+  type TeamMemoryView,
+  type WeeklyObjectiveItem,
+} from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
-import { BusinessClock } from '@/features/merchant/BusinessClock';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { Agent, AgentRole, AgentRunView, RunStatus, TriggerSource } from '@/domain/agents';
@@ -18,28 +25,35 @@ const agentsCopy = {
     title: '运营 Agent 团队',
     body: 'AI 团队按三条业务线运转：数据收集 → 商业决策 → 动作，动作效果由监测回流。',
     proofTitle: '闭环运行证据',
-    proofBody: '主控调度、多代理执行、风控审批、监测记忆都落在同一条链路里。',
+    proofBody: '主控调度、多代理执行、风控审批、监测记忆都落在同一条链路里。点击查看。',
     flowSteps: ['主控调度', '数分 / 选品', '商业决策', '风控', '执行动作', '监测记忆'],
     proofAgents: '已配置 Agent',
     proofRuns: '可审计运行',
     proofMemory: '跨轮记忆',
     teamTitle: '团队成员',
-    runsTitle: '最近运行',
-    memoryTitle: '团队记忆',
-    memoryBody: '监测 Agent 用实测结果写入，下一轮决策会引用——这是团队跨轮学习的证据。',
-    memoryKind: { action_outcome: '实测结论', calibration: '校准', round_verdict: '本轮结论', merchant_preference: '商家偏好' } as Record<string, string>,
-    memoryConfidence: { high: '置信度高', medium: '置信度中', low: '置信度低' } as Record<string, string>,
-    runRound: '运行一轮',
+    objectiveTitle: '本周经营目标',
+    objectiveEmpty: '本周暂无经营计划',
+    objectiveEmptyCta: '点击「生成本周经营计划」开始',
+    objectiveGoal: (min: number, max: number) => `目标预约 ${min}–${max} 单`,
+    objectiveDone: (n: number) => `已达成 ${n} 单`,
+    objectiveStatus: { draft: '草稿', active: '投放中', paused: '已暂停', ended: '已结束', pending: '待执行' } as Record<string, string>,
+    objectiveKind: { ad: '投广', coupon: '团购' } as Record<string, string>,
+    memoryEntry: '团队记忆库',
+    memoryEntryBody: '监测写入的实测结论，下一轮决策会引用',
+    runsEntry: '运行审计',
+    runsEntryBody: '每次运行的思考链与动作',
+    demoEntry: '演示控制台',
+    latestTitle: '最新动态',
+    seeAll: '查看全部',
+    runRound: '生成本周经营计划',
+    runSubline: '支持每周五自动运行（定时任务）',
     runningRound: '运行中…',
-    runConfirm: '运行一轮会调用模型并产生少量费用，确认运行？',
+    runConfirm: '生成本周经营计划会调用模型并产生少量费用，确认运行？',
     emptyTitle: '暂无运行记录',
     emptyBody: '运营团队运行后，这里会显示每次运行的思考链与动作。',
     loading: '正在加载…',
     planned: '规划中',
     plannedBooking: '预约全程跟踪 Bot · 满意度调研 → 技师月报 / 补偿折扣券',
-    showAllRuns: (n: number) => `显示全部 ${n} 条运行记录`,
-    collapseRuns: '收起',
-    showAllMemory: (n: number) => `展开全部 ${n} 条记忆`,
     role: { lead: '主控', analyst: '分析', planner: '决策', operator: '执行', reviewer: '监测' } as Record<AgentRole, string>,
     status: { running: '运行中', completed: '完成', failed: '失败', awaiting_approval: '待审批' } as Record<RunStatus, string>,
     trigger: { manual: '手动', event: '事件', schedule: '定时' } as Record<TriggerSource, string>,
@@ -50,28 +64,35 @@ const agentsCopy = {
     title: 'Operations agent team',
     body: 'Three business lanes: data collection → business decision → action, with monitoring feeding back.',
     proofTitle: 'Closed-loop proof',
-    proofBody: 'Dispatch, agent execution, risk review, and measured memory live in one traceable chain.',
+    proofBody: 'Dispatch, agent execution, risk review, and measured memory live in one traceable chain. Tap to explore.',
     flowSteps: ['Orchestrate', 'Analyze / source', 'Decide', 'Review', 'Act', 'Remember'],
-    proofAgents: 'Agents configured',
+    proofAgents: 'Agents',
     proofRuns: 'Auditable runs',
-    proofMemory: 'Cross-round memories',
+    proofMemory: 'Memories',
     teamTitle: 'Team',
-    runsTitle: 'Recent runs',
-    memoryTitle: 'Team memory',
-    memoryBody: 'Written by the monitor from measured outcomes; the next round\'s decisions cite it.',
-    memoryKind: { action_outcome: 'Measured', calibration: 'Calibration', round_verdict: 'Round verdict', merchant_preference: 'Preference' } as Record<string, string>,
-    memoryConfidence: { high: 'high confidence', medium: 'medium confidence', low: 'low confidence' } as Record<string, string>,
-    runRound: 'Run a round',
+    objectiveTitle: 'This week’s objective',
+    objectiveEmpty: 'No plan yet this week',
+    objectiveEmptyCta: 'Tap “Generate this week’s plan” to start',
+    objectiveGoal: (min: number, max: number) => `Target ${min}–${max} bookings`,
+    objectiveDone: (n: number) => `${n} booked`,
+    objectiveStatus: { draft: 'Draft', active: 'Live', paused: 'Paused', ended: 'Ended', pending: 'Pending' } as Record<string, string>,
+    objectiveKind: { ad: 'Ad', coupon: 'Group-buy' } as Record<string, string>,
+    memoryEntry: 'Team memory',
+    memoryEntryBody: 'Measured outcomes the next round cites',
+    runsEntry: 'Run audit',
+    runsEntryBody: 'Every run’s thinking chain and actions',
+    demoEntry: 'Demo console',
+    latestTitle: 'Latest activity',
+    seeAll: 'See all',
+    runRound: 'Generate this week’s plan',
+    runSubline: 'Auto-runs every Friday (scheduled)',
     runningRound: 'Running…',
-    runConfirm: 'Running a round calls the model (small cost). Proceed?',
+    runConfirm: 'Generating this week’s plan calls the model (small cost). Proceed?',
     emptyTitle: 'No runs yet',
     emptyBody: 'Once the team runs, each run’s thinking chain and actions show here.',
     loading: 'Loading…',
     planned: 'Planned',
     plannedBooking: 'Booking-journey bot · satisfaction survey → tech monthly report / compensation coupon',
-    showAllRuns: (n: number) => `Show all ${n} runs`,
-    collapseRuns: 'Collapse',
-    showAllMemory: (n: number) => `Show all ${n} memories`,
     role: { lead: 'Lead', analyst: 'Analyst', planner: 'Planner', operator: 'Operator', reviewer: 'Reviewer' } as Record<AgentRole, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Pending' } as Record<RunStatus, string>,
     trigger: { manual: 'Manual', event: 'Event', schedule: 'Schedule' } as Record<TriggerSource, string>,
@@ -79,13 +100,7 @@ const agentsCopy = {
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
 
-/** The PM architecture (商家运营 Multi-Agent 画板): three business lanes, each 数据收集 → 商业决策 → 动作,
- *  with 监测 feeding back. The team renders in THIS structure — not a flat card grid. */
-/** 最近运行 shows the latest round's worth by default — the full history sits behind a toggle. */
-const RUNS_PREVIEW = 9;
-/** 团队记忆 rows are multi-line; show the freshest few and tuck the rest behind a toggle so the page
- *  stays scannable (the full memory set otherwise makes /merchant/agents a very long scroll). */
-const MEMORY_PREVIEW = 4;
+const LATEST_PREVIEW = 3;
 
 const TEAM_LANES: ReadonlyArray<{
   key: 'style' | 'customer' | 'booking';
@@ -129,6 +144,14 @@ function fmtTime(iso: string, language: AppLanguage): string {
   });
 }
 
+type WeeklyObjective = {
+  targetMin: number;
+  targetMax: number;
+  measuredBookings: number;
+  items: WeeklyObjectiveItem[];
+};
+
+/** Navigational evidence strip: each stat routes somewhere, the pipeline scrolls horizontally. */
 function AgentProofStrip({
   language,
   agents,
@@ -145,10 +168,10 @@ function AgentProofStrip({
   const copy = agentsCopy[language];
   const steps = copy.flowSteps as string[];
   const placeholder = loading ? '…' : '—';
-  const stats = [
-    { label: copy.proofAgents as string, value: agents.length || placeholder },
-    { label: copy.proofRuns as string, value: runs.length || placeholder },
-    { label: copy.proofMemory as string, value: memory.length || placeholder },
+  const stats: Array<{ label: string; value: number | string; href: string }> = [
+    { label: copy.proofAgents as string, value: agents.length || placeholder, href: '#agents-team-title' },
+    { label: copy.proofRuns as string, value: runs.length || placeholder, href: '/merchant/agents/runs' },
+    { label: copy.proofMemory as string, value: memory.length || placeholder, href: '/merchant/agents/memory' },
   ];
   return (
     <section className="agent-proof" aria-label={copy.proofTitle as string}>
@@ -157,16 +180,16 @@ function AgentProofStrip({
           <p className="section-eyebrow">{copy.proofTitle}</p>
           <p className="agent-proof-body">{copy.proofBody}</p>
         </div>
-        <div className="agent-proof-stats" aria-hidden="true">
-          {stats.map((s) => (
-            <span key={s.label} className="agent-proof-stat">
-              <strong>{s.value}</strong>
-              <span>{s.label}</span>
-            </span>
-          ))}
-        </div>
       </div>
-      <ol className="agent-flow-strip">
+      <div className="agent-proof-stats">
+        {stats.map((s) => (
+          <Link key={s.label} className="agent-proof-stat agent-proof-stat--link" href={s.href}>
+            <strong>{s.value}</strong>
+            <span>{s.label}</span>
+          </Link>
+        ))}
+      </div>
+      <ol className="agent-flow-strip agent-flow-strip--scroll">
         {steps.map((step, index) => (
           <li key={step} className="agent-flow-step">
             <span>{step}</span>
@@ -178,6 +201,47 @@ function AgentProofStrip({
   );
 }
 
+/** Derived roll-up (never stored): Σ brief targets vs Σ measured bookings on the real campaigns. */
+function WeeklyObjectiveCard({ language, objective }: { language: AppLanguage; objective: WeeklyObjective | null }) {
+  const copy = agentsCopy[language];
+  if (!objective) {
+    return (
+      <section className="detail-surface agent-objective">
+        <div className="detail-surface-header"><h2>{copy.objectiveTitle as string}</h2></div>
+        <p className="agent-objective-empty">{copy.objectiveEmpty as string}</p>
+        <p className="agent-objective-empty-cta">{copy.objectiveEmptyCta as string}</p>
+      </section>
+    );
+  }
+  const goal = copy.objectiveGoal as (min: number, max: number) => string;
+  const done = copy.objectiveDone as (n: number) => string;
+  const kindMap = copy.objectiveKind as Record<string, string>;
+  const statusMap = copy.objectiveStatus as Record<string, string>;
+  const pct = objective.targetMax > 0 ? Math.min(100, Math.round((objective.measuredBookings / objective.targetMax) * 100)) : 0;
+  return (
+    <section className="detail-surface agent-objective">
+      <div className="detail-surface-header"><h2>{copy.objectiveTitle as string}</h2></div>
+      <div className="agent-objective-headline">
+        <span className="agent-objective-goal">{goal(objective.targetMin, objective.targetMax)}</span>
+        <span className="agent-objective-done">{done(objective.measuredBookings)} · {pct}%</span>
+      </div>
+      <div className="agent-objective-bar" aria-hidden="true">
+        <span className="agent-objective-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <ul className="agent-objective-items">
+        {objective.items.map((it) => (
+          <li key={`${it.actionType}-${it.styleId}`} className="agent-objective-chip">
+            <span className="agent-objective-chip-kind">{kindMap[it.actionType] ?? it.actionType}</span>
+            <span className="agent-objective-chip-title">{it.styleTitle}</span>
+            <span className="agent-objective-chip-num">{it.measuredBookings}/{it.targetMax}</span>
+            <span className={`agent-objective-chip-status agent-objective-chip-status-${it.status}`}>{statusMap[it.status] ?? it.status}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function MerchantAgentsPage() {
   const { language } = useLanguage();
   const copy = agentsCopy[language];
@@ -185,19 +249,19 @@ export default function MerchantAgentsPage() {
   const [runs, setRuns] = useState<AgentRunView[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
-  const [showAllRuns, setShowAllRuns] = useState(false);
-  const [showAllMemory, setShowAllMemory] = useState(false);
   const [memory, setMemory] = useState<TeamMemoryView[]>([]);
+  const [objective, setObjective] = useState<WeeklyObjective | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let active = true;
-    Promise.all([listAgentsAction(), listAgentRunsAction(), listTeamMemoryAction()])
-      .then(([a, r, m]) => {
+    Promise.all([listAgentsAction(), listAgentRunsAction(), listTeamMemoryAction(), getWeeklyObjectiveAction()])
+      .then(([a, r, m, o]) => {
         if (!active) return;
         setAgents(a);
         setRuns(r);
         setMemory(m);
+        setObjective(o);
       })
       .catch(() => {/* leave empty */})
       .finally(() => active && setLoading(false));
@@ -208,7 +272,7 @@ export default function MerchantAgentsPage() {
   }, []);
 
   async function handleRun() {
-    if (triggering || !window.confirm(copy.runConfirm)) return;
+    if (triggering || !window.confirm(copy.runConfirm as string)) return;
     setTriggering(true);
     const res = await triggerAgentRoundAction();
     if (!res.ok) {
@@ -225,6 +289,7 @@ export default function MerchantAgentsPage() {
       try {
         setRuns(await listAgentRunsAction());
         setMemory(await listTeamMemoryAction());
+        setObjective(await getWeeklyObjectiveAction());
       } catch {/* keep polling */}
       if (polls >= 30) {
         if (pollRef.current) clearInterval(pollRef.current);
@@ -236,33 +301,45 @@ export default function MerchantAgentsPage() {
   return (
     <MobileLayout role="merchant" title="Nailed-it">
       <section className="profile-hero">
-        <p className="section-eyebrow">{copy.eyebrow}</p>
-        <h1>{copy.title}</h1>
-        <p className="section-copy">{copy.body}</p>
+        <p className="section-eyebrow">{copy.eyebrow as string}</p>
+        <h1>{copy.title as string}</h1>
+        <p className="section-copy">{copy.body as string}</p>
+        <button
+          type="button"
+          className="button button-primary agent-run-cta"
+          disabled={triggering}
+          onClick={() => void handleRun()}
+        >
+          {triggering ? (copy.runningRound as string) : (copy.runRound as string)}
+        </button>
+        <p className="agent-run-subline">{copy.runSubline as string}</p>
       </section>
 
       <AgentProofStrip language={language} agents={agents} runs={runs} memory={memory} loading={loading} />
 
       {loading ? (
-        <LoadingState title={copy.loading} body="" />
+        <LoadingState title={copy.loading as string} body="" />
       ) : (
         <>
+          <WeeklyObjectiveCard language={language} objective={objective} />
+
           <section className="detail-surface" aria-labelledby="agents-team-title">
             <div className="detail-surface-header">
-              <h2 id="agents-team-title">{copy.teamTitle}</h2>
+              <h2 id="agents-team-title">{copy.teamTitle as string}</h2>
               <span className="insights-badge">Nailed AI</span>
             </div>
             {(() => {
               const bySlug = new Map(agents.map((a) => [a.slug, a]));
               // Presence (Multica pattern): tie 团队成员 to 最近运行 — live dot + the agent's last outcome.
+              // The card links to that agent's most recent run detail (its thinking chain).
               const card = (slug: string) => {
                 const a = bySlug.get(slug as Agent['slug']);
                 if (!a) return null;
                 const mine = runs.filter((r) => r.agentSlug === a.slug);
                 const isRunning = mine.some((r) => r.status === 'running');
                 const last = mine[0]; // runs are newest-first
-                return (
-                  <div key={a.slug} className="agent-card">
+                const inner = (
+                  <>
                     <p className="agent-card-name">
                       <span className={`agent-presence-dot${isRunning ? ' agent-presence-dot--running' : ''}`} aria-hidden />
                       {a.name}
@@ -274,7 +351,14 @@ export default function MerchantAgentsPage() {
                         {' · '}{fmtTime(last.startedAt, language)}
                       </p>
                     ) : null}
-                  </div>
+                  </>
+                );
+                return last ? (
+                  <Link key={a.slug} className="agent-card agent-card--link" href={getMerchantAgentRunPath(last.id)}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={a.slug} className="agent-card">{inner}</div>
                 );
               };
               return (
@@ -285,15 +369,15 @@ export default function MerchantAgentsPage() {
                     <section key={lane.key} className={`agent-lane agent-lane-${lane.key}`} aria-label={lane.name[language]}>
                       <p className="agent-lane-name">
                         {lane.name[language]}
-                        {lane.planned ? <span className="agent-lane-planned">{copy.planned}</span> : null}
+                        {lane.planned ? <span className="agent-lane-planned">{copy.planned as string}</span> : null}
                       </p>
                       {lane.planned ? (
-                        <p className="agent-lane-planned-copy">{copy.plannedBooking}</p>
+                        <p className="agent-lane-planned-copy">{copy.plannedBooking as string}</p>
                       ) : (
                         lane.stages.map((stage, si) => (
                           <div key={stage.label.en} className="agent-stage">
                             <p className="agent-stage-label">{si > 0 ? '↓ ' : ''}{stage.label[language]}</p>
-                            <div className="agent-stage-cards">{stage.slugs.map(card)}</div>
+                            <div className="agent-stage-cards agent-stage-cards--scroll">{stage.slugs.map(card)}</div>
                           </div>
                         ))
                       )}
@@ -304,61 +388,39 @@ export default function MerchantAgentsPage() {
             })()}
           </section>
 
-          <BusinessClock />
+          {/* Entry rows to the pages we split off the main scroll — same pattern as the 款式图鉴 arrow. */}
+          <nav className="agent-entry-rows" aria-label="pages">
+            <Link className="agent-entry-row" href="/merchant/agents/memory">
+              <span className="agent-entry-main">
+                <span className="agent-entry-title">{copy.memoryEntry as string}</span>
+                <span className="agent-entry-body">{copy.memoryEntryBody as string}</span>
+              </span>
+              <span className="agent-entry-arrow" aria-hidden="true">→</span>
+            </Link>
+            <Link className="agent-entry-row" href="/merchant/agents/runs">
+              <span className="agent-entry-main">
+                <span className="agent-entry-title">{copy.runsEntry as string}</span>
+                <span className="agent-entry-body">{copy.runsEntryBody as string}</span>
+              </span>
+              <span className="agent-entry-arrow" aria-hidden="true">→</span>
+            </Link>
+          </nav>
 
-          {memory.length > 0 ? (
-            <section className="detail-surface" aria-labelledby="agents-memory-title">
-              <div className="detail-surface-header">
-                <h2 id="agents-memory-title">{copy.memoryTitle}</h2>
-              </div>
-              <p className="agent-memory-hint">{copy.memoryBody}</p>
-              <ul className="agent-memory-list">
-                {(showAllMemory ? memory : memory.slice(0, MEMORY_PREVIEW)).map((m) => (
-                  <li key={m.id} className="agent-memory-row">
-                    <span className={`agent-memory-kind agent-memory-kind-${m.kind}`}>
-                      {copy.memoryKind[m.kind] ?? m.kind}
-                    </span>
-                    <p className="agent-memory-claim">{m.claim}</p>
-                    <p className="agent-memory-meta">
-                      {m.confidence ? <span>{copy.memoryConfidence[m.confidence] ?? m.confidence}</span> : null}
-                      {m.comparison?.ratio ? <span>· 预测偏差 ×{m.comparison.ratio}</span> : null}
-                      <span>· {fmtTime(m.createdAt, language)}</span>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-              {memory.length > MEMORY_PREVIEW ? (
-                <button type="button" className="button button-secondary button-block agent-runs-toggle" onClick={() => setShowAllMemory((v) => !v)}>
-                  {showAllMemory ? copy.collapseRuns : copy.showAllMemory(memory.length)}
-                </button>
-              ) : null}
-            </section>
-          ) : null}
-
-          <section className="detail-surface" aria-labelledby="agents-runs-title">
+          <section className="detail-surface" aria-labelledby="agents-latest-title">
             <div className="detail-surface-header">
-              <h2 id="agents-runs-title">{copy.runsTitle}</h2>
-              <button
-                type="button"
-                className="button button-primary button-compact"
-                disabled={triggering}
-                onClick={() => void handleRun()}
-              >
-                {triggering ? copy.runningRound : copy.runRound}
-              </button>
+              <h2 id="agents-latest-title">{copy.latestTitle as string}</h2>
+              <Link className="agent-seeall-link" href="/merchant/agents/runs">{copy.seeAll as string} →</Link>
             </div>
             {runs.length === 0 ? (
-              <EmptyState title={copy.emptyTitle} body={copy.emptyBody} />
+              <EmptyState title={copy.emptyTitle as string} body={copy.emptyBody as string} />
             ) : (
               <ul className="agent-run-list">
-                {(showAllRuns ? runs : runs.slice(0, RUNS_PREVIEW)).map((run) => (
+                {runs.slice(0, LATEST_PREVIEW).map((run) => (
                   <li key={run.id}>
                     <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
                       <div className="agent-run-main">
                         <span className="agent-run-name">{run.agentName}</span>
-                        <span className={`agent-run-status agent-run-status-${run.status}`}>
-                          {copy.status[run.status]}
-                        </span>
+                        <span className={`agent-run-status agent-run-status-${run.status}`}>{copy.status[run.status]}</span>
                       </div>
                       <div className="agent-run-meta">
                         <span>{copy.trigger[run.triggerSource]}</span>
@@ -376,12 +438,9 @@ export default function MerchantAgentsPage() {
                 ))}
               </ul>
             )}
-            {runs.length > RUNS_PREVIEW ? (
-              <button type="button" className="button button-secondary button-block agent-runs-toggle" onClick={() => setShowAllRuns((v) => !v)}>
-                {showAllRuns ? copy.collapseRuns : copy.showAllRuns(runs.length)}
-              </button>
-            ) : null}
           </section>
+
+          <Link className="agent-demo-link" href="/merchant/agents/demo">{copy.demoEntry as string} →</Link>
         </>
       )}
     </MobileLayout>
