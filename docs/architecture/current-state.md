@@ -74,8 +74,17 @@ The agent service moved from restate-and-execute to **facts → briefs → bound
   and an accelerated business clock (`python -m nailed_agents advance-clock` — operator control,
   never an agent tool). 投广 runs a forecast-compare loop and may report a brief **infeasible**.
 - **Risk Reviewer** (10th agent, strong tier): soft-risk verdicts over the brief portfolio
-  (`[APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED]`);
-  the orchestrator gates executors on REVISION_REQUIRED and skips the reviewer when no briefs exist.
+  (`[APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED]`).
+  Since 2026-07-13, REVISION_REQUIRED is a **code hard-gate**: `RoundState.dispatch` parses the
+  verdict and refuses to dispatch the spend lanes (ad/coupon) with `blocked_by_reviewer` — no longer
+  only the orchestrator's prompt-level compliance. Skips the reviewer when no briefs exist.
+- **Three trigger kinds** (`nailed_agents/triggers.py`, 2026-07-13): cadence (weekly cron),
+  evidence-matured (an action's window filled), threshold-alarm (live campaign burning budget with
+  zero conversion → fire a round now). Thresholds are merchant data; the eval is runtime code.
+- **决策 open_commitments**: the injected env carries in-flight campaigns (spent/bookings/remaining)
+  so 决策 tells hold from push. **Ad account state** now exposes per-campaign metrics + remaining
+  budget; `update_ad_campaign` refuses a total below already-spent (`budget_below_spent`).
+- **Currency**: base is CNY (人民币) for the 国内 market — prices stored as CNY cents, displayed ¥.
 - **Coupon templates**: discounts only from merchant-pre-approved templates; code computes prices and
   refuses below the floor; the agent configures restrictions (window/count/expiry/audience).
 - **Message classes**: transactional notices auto-send labeled 【Nailed-it 商家助手】; relationship
