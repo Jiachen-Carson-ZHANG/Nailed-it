@@ -1,93 +1,85 @@
-# 01 — System Overview
+# 01 — 系统总览
 
-## What this is
+## 这是什么
 
-A B2B2C platform for nail salons on a 美团-style marketplace. Three connected products:
+一个面向美甲店的 B2B2C 平台，架在美团式的本地生活交易市场之上。三个相互连接的产品：
 
-1. **Customer side** (`/customer/*`): style discovery feed, AI virtual try-on, image-decomposed smart
-   quotation (a nail photo → catalog-item breakdown → a real price from the merchant's own price list),
-   and interval-based booking with per-technician availability.
-2. **Merchant side** (`/merchant/*`): an agent-first operations home (今日), style library with
-   AI-assisted publish, price-list management, 团购 (group-buy) management, 投广 (ad campaign) center,
-   demand-intelligence dashboard, and the agent-team panel.
-3. **Agent service** (`agent-service/`, Python): an autonomous operations team that analyzes the shop,
-   decides commercial actions, executes them as *real* platform objects (ad campaigns, group-buy deals),
-   measures the outcomes, and remembers what it learned for the next round.
+1. **顾客端**（`/customer/*`）：款式发现信息流、AI 虚拟试戴、图像拆解智能报价（一张美甲照片 →
+   拆解成目录项 → 从商家自己的价目表算出真实价格）、以及按时长的区间预约（精确到每位技师的可约档期）。
+2. **商家端**（`/merchant/*`）：以 Agent 为中心的经营首页（今日）、带 AI 辅助上架的款式库、价目表管理、
+   团购管理、投广中心、需求情报看板、以及运营 Agent 团队面板。
+3. **Agent 服务**（`agent-service/`，Python）：一支自主经营团队——它分析门店、决定经营动作、把动作落成
+   *真实的*平台实体（广告活动、团购券），衡量效果，并把学到的经验记住，用于下一轮。
 
-The thesis: a small salon cannot afford an operations analyst. The platform's data (funnel events,
-bookings, capacity, trends) is sufficient for one — if an AI team does the reading, deciding, and
-routine execution, with the merchant holding the money controls.
+核心命题：小店请不起一个经营分析师。但平台的数据（漏斗事件、预约、产能、趋势）足以支撑一个——
+只要让一支 AI 团队来做读数、决策与日常执行，把花钱的控制权留在商家手里。
 
-## Stack and shape
+## 技术栈与形态
 
-| Layer | Choice | One-line reason |
+| 层 | 选型 | 一句话理由 |
 |---|---|---|
-| Web app | Next.js App Router, TypeScript, mobile-first shell | One codebase for both roles; server actions give us an API surface without a second service |
-| Data | Supabase (Postgres) behind a repository seam (`src/lib/repositories/`) | Same interfaces run in-memory for tests and Postgres for the demo — tests never touch the network |
-| Agent runtime | Our own Python service (`agent-service/`), no framework | Tool loops are ~100 lines; a framework adds a dependency layer without adding judged behavior (see doc 02) |
-| Agent ↔ app | Supabase as a shared bus + HTTP calls into the app's API routes | Agents create entities through the SAME validated server actions the UI uses — no second write path |
-| Models | OpenRouter (gemini-2.5-flash lanes / gemini-2.5-pro orchestrator) or Anthropic — one flag | Provider-agnostic runner; model tiering is a measured decision (doc 06) |
+| Web 应用 | Next.js App Router、TypeScript、移动优先外壳 | 一套代码库同时服务两端；server actions 让我们无需第二个服务就有了 API 表面 |
+| 数据 | Supabase（Postgres），藏在仓储接缝之后（`src/lib/repositories/`）| 同一套接口，测试跑内存实现、演示跑 Postgres——测试永不触网 |
+| Agent 运行时 | 我们自己的 Python 服务（`agent-service/`），不用框架 | 工具循环只有约 100 行；框架只加一层依赖，不加任何被评测的行为（见 doc 02）|
+| Agent ↔ 应用 | Supabase 作共享总线 + HTTP 调用应用的 API 路由 | Agent 通过 UI 用的**同一套**已校验 server action 创建实体——没有第二条写入路径 |
+| 模型 | OpenRouter 或 Anthropic——一个环境变量切换 | provider 无关的运行器；模型分档是实测出来的决策（doc 06）|
 
-### The repository seam (ADR-0004)
+### 仓储接缝（ADR-0004）
 
-Every read/write goes through `getRepositories()` — async interfaces with an in-memory and a Supabase
-implementation. Consequences we cash in daily: the 500+ TS tests run with zero network; the demo can run
-without a database; and when we moved group-buy off browser `localStorage` (ADR-0012), only the
-implementation changed, not the consumers.
+每一次读写都走 `getRepositories()`——异步接口，有内存实现和 Supabase 实现两种。我们每天都在兑现的好处：
+500+ 个 TS 测试零网络运行；演示可以脱离数据库运行；当我们把团购从浏览器 `localStorage` 迁走时
+（ADR-0012），只有实现变了，消费方一行没动。
 
-### The intelligence layer is compute-on-read (ADR-0006)
+### 情报层是「读时计算」（ADR-0006）
 
-Analytics are an **event log** (`analytics_events`) + pure derivation functions
-(`src/domain/intelligence/`, `src/domain/decision/`). No materialized aggregates to drift out of sync;
-every number the agents cite is recomputed from events at read time. The cost (recompute per read) is
-irrelevant at salon scale and buys us a single source of truth.
+分析数据是一份**事件日志**（`analytics_events`）+ 纯派生函数（`src/domain/intelligence/`、
+`src/domain/decision/`）。没有会失同步的物化聚合；Agent 引用的每个数字都在读取时从事件重算。
+代价（每次读都重算）在小店规模下无关紧要，换来的是单一事实来源。
 
-## The one diagram that matters
+## 唯一重要的一张图
 
 ```
-CUSTOMER EVENTS                MERCHANT DATA                    EXTERNAL
-impressions/clicks/saves/      styles, prices, bookings,        platform-hot tags,
-try-ons/bookings               technician schedules             Pinterest trends
+顾客事件                        商家数据                          外部
+曝光/点击/收藏/                 款式、价格、预约、                平台热门标签、
+试戴/预约                       技师排班                          Pinterest 趋势
         │                              │                              │
         ▼                              ▼                              ▼
-┌─────────────────────── TS intelligence + decision brain (pure, deterministic) ──────────────────┐
-│ funnel scores · profit-per-hour economics · next-week capacity intervals · ROAS + exposure gates │
-└──────────────────────────────────────────────┬───────────────────────────────────────────────────┘
-                                               │ GET /api/agent/* (grounded reads)
+┌─────────────────── TS 情报层 + 决策引擎（纯函数、确定性）──────────────────────────────┐
+│ 漏斗评分 · 每小时利润经济学 · 下周产能区间 · ROAS + 曝光闸门                            │
+└──────────────────────────────────────────────┬───────────────────────────────────────┘
+                                               │ GET /api/agent/*（有据读取）
                                                ▼
-┌────────────────────────── Python agent team (ADR-0007/0013) ─────────────────────────────────────┐
-│ 运营助手 (orchestrator, dispatch tools) ──► lanes: 数分·选品·决策·投广·团购·上下架·用户运营·监测  │
-│ round blackboard · cross-round memory · bounded revision edge                                     │
-└──────────────────────────────────────────────┬───────────────────────────────────────────────────┘
-                                               │ POST /api/agent/propose-* (validated writes)
+┌────────────────────────── Python Agent 团队（ADR-0007/0013）─────────────────────────┐
+│ 运营助手（编排器，分派工具）──► 环节：数分·选品·决策·投广·团购·上下架·用户运营·监测    │
+│ 轮次黑板 · 跨轮记忆 · 有界修订边                                                       │
+└──────────────────────────────────────────────┬───────────────────────────────────────┘
+                                               │ POST /api/agent/propose-*（已校验写入）
                                                ▼
-                              REAL ENTITIES: style_ad_campaign · groupbuy_deal
-                              (merchant reviews / publishes / pauses / undoes in the UI)
+                              真实实体：style_ad_campaign · groupbuy_deal
+                              （商家在 UI 里审核 / 发布 / 暂停 / 撤销）
 ```
 
-Two properties of this shape we defend everywhere:
+这个形态有两条性质，我们在每一处都捍卫：
 
-- **Determinism lives below the line, judgment above it.** Math, state machines, and money guards are
-  TypeScript/Postgres/Python code; the LLM synthesizes across their outputs and writes the reasons.
-  No single tool returns "the answer" (ADR-0012 §5).
-- **Agents write through the app, not past it.** `place_ad` calls the same server action the 投广中心
-  uses, with the same validation and the same budget envelope. There is no privileged AI write path.
+- **确定性在线下，判断在线上。** 数学、状态机、花钱护栏都是 TypeScript/Postgres/Python 代码；
+  LLM 在它们的输出之上做综合并写出理由。**没有任何单一工具返回「答案」**（ADR-0012 §5）。
+- **Agent 通过应用写入，不绕过应用。** `place_ad` 调用的是投广中心用的同一个 server action，
+  同样的校验、同样的预算边界。**不存在特权 AI 写入路径。**
 
-## Where things live
+## 各部分位置
 
-| Concern | Path |
+| 关注点 | 路径 |
 |---|---|
-| Decision brain (pure) | `src/domain/decision/` (economics, funnel, capacity, ads, decision) |
-| Action↔entity contract | `src/domain/action-entity-contract.ts`, migrations `0027`–`0030` |
-| Merchant-readable transcripts | `src/domain/agent-transcript.ts` + `TranscriptChain.tsx` |
-| Agent runtime | `agent-service/nailed_agents/` (orchestrator, runner, tools, bus, config) |
-| Agent process prompts | `agent-service/skills/*.md` (versioned, owned, per-agent) |
-| Evaluation | `agent-service/eval/agents_eval.py`, `agent-service/tests/`, `src/**/*.test.ts` |
-| Decision records | `docs/decisions/ADR-0001…0013` |
+| 决策引擎（纯函数）| `src/domain/decision/`（economics, funnel, capacity, ads, decision）|
+| 动作↔实体契约 | `src/domain/action-entity-contract.ts`，migrations `0027`–`0030` |
+| 商家可读的思考链 | `src/domain/agent-transcript.ts` + `TranscriptChain.tsx` |
+| Agent 运行时 | `agent-service/nailed_agents/`（orchestrator, runner, tools, bus, config）|
+| Agent 流程 prompt | `agent-service/skills/*.md`（版本化、有主、逐 Agent）|
+| 评测 | `agent-service/eval/agents_eval.py`、`agent-service/tests/`、`src/**/*.test.ts` |
+| 决策记录 | `docs/decisions/ADR-0001…0016` |
 
-## Current scale honesty
+## 关于当前规模的诚实交代
 
-Single demo merchant, ~40 published styles, synthetic-but-structured funnel/booking data (seeded PRNG,
-scenario-controlled capacity: idle/busy/full). The architecture decisions were made for the multi-merchant
-step (repository seam, merchant-scoped queries, per-merchant policy fields), but we have not load-tested
-it — see doc 07, question "what breaks at 1,000 merchants".
+单个演示商家、约 40 个已上架款式、合成但结构化的漏斗/预约数据（种子 PRNG，场景可控的产能：
+空闲/繁忙/满档）。架构决策是按多商户阶段做的（仓储接缝、按商家维度的查询、按商家的策略字段），
+但我们尚未做过压力测试——见 doc 07「1000 个商家时什么会崩」一问。

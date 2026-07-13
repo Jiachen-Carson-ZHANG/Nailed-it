@@ -1,132 +1,126 @@
-# 02 — Multi-Agent Architecture
+# 02 — 多智能体架构
 
-## The claim we're prepared to defend
+## 我们准备捍卫的主张
 
-This is a real multi-agent system by the only test that matters: **remove any layer and behavior
-degrades in a way you can name**. Remove the orchestrator's judgment → the team wastes money on full
-weeks. Remove per-lane tool loops → decisions stop citing evidence. Remove the monitor's revision edge →
-a mispriced campaign runs until a human notices. It is *not* a chat-room of agents talking to each other —
-that was rejected deliberately (see "What we rejected").
+按唯一重要的检验标准，这是一个真正的多智能体系统：**拿掉任何一层，行为都会以一种能被点名的方式退化。**
+拿掉编排器的判断 → 团队会在满档周浪费钱；拿掉逐环节的工具循环 → 决策不再引用证据；拿掉监测的修订边 →
+一个定价错误的广告活动会一直跑到有人发现。它**不是**一个 Agent 互相聊天的聊天室——那是被刻意否决的
+（见「我们否决了什么」）。
 
-## Anatomy of a round
+## 一轮的解剖
 
-One round, as it actually executed (run `e9a4ff93`, 2026-07-10, verifiable in `agent_runs`):
+一轮真实执行的样子（v3 运行序列，2026-07-12，可在 `agent_runs` 核验；逐环节 I/O 见 doc 08）：
 
 ```
-运营助手 (orchestrator, gemini-2.5-pro)
-│  reads: get_merchant_insights + get_style_business_decisions  ← its OWN grounding, not hearsay
-│  decides: capacity 33% very_idle → full growth plan; skip nothing this round
-├─ dispatch: 数分 insight        (parent: orchestrator)   13:14:07
-├─ dispatch: 选品 trend          (parent: insight)        13:14:22
-├─ dispatch: 决策 decision       (parent: trend)          13:14:51   ← reads brain + memory, may override
-├─ dispatch_many (PARALLEL, all started 13:15:34):
-│    投广 ad (parent: decision) · 团购 coupon (parent: decision)
-│    上下架 catalog (parent: insight) · 用户运营 customer_ops (parent: insight)
-└─ dispatch: 监测 monitor        (parent: decision)       13:16:14
-     └─ may request_revision(action, feedback) → ONE bounded re-run of an executor, parented to monitor
+运营助手（编排器，高配模型）
+│  自读：get_merchant_insights + get_style_business_facts  ← 它自己的有据依据，不是道听途说
+│  判断：产能利用率 22%、very_idle → 全面增长计划；本轮不跳过
+├─ 分派：数分 insight          （父：编排器）
+├─ 分派：选品 trend            （父：数分）
+├─ 分派：决策 decision         （父：选品）  ← 读事实+记忆，产出行动简报
+├─ 分派：风控 reviewer         （父：决策）  ← 审简报组合的软风险，出裁决 token
+├─ dispatch_many（并行）：
+│    投广 ad（父：风控）· 团购 coupon（父：风控）
+│    上下架 catalog（父：数分）· 用户运营 customer_ops（父：数分）
+└─ 分派：监测 monitor          （父：决策）  ← 快照屏障后收尾
+     └─ 可 request_revision(action, feedback) → 对某执行者做一次有界重跑，父挂到监测
 ```
 
-Every arrow is a row: runs are parented to their semantic upstream, so the merchant UI's lineage
-(↑上游 / ↓下游 chips) renders the round *as it was decided*, including revisions, with zero UI code
-written for it.
+每一个箭头都是一行记录：run 挂到它语义上的上游，所以商家 UI 的血缘（↑上游 / ↓下游 标签）**如实**渲染
+这一轮**当时是怎么决定的**，包括修订，且没有为它写一行 UI 代码。
 
-## The five load-bearing design decisions
+## 五个承重的设计决策
 
-### 1. Agents are data; runs are targeted (the Multica pattern, genuinely adopted)
+### 1. Agent 即数据；run 是定向的（Multica 模式，真正采纳）
 
-An agent is a row: `{slug, name, role, instructions, tools[]}` (`agents` table, ADR-0007). A run is one
-agent × one task. We studied Multica (`/home/tough/multica`) and took its *pattern* — agents-as-data,
-an orchestrator dispatching targeted runs, transcript streamed to a dashboard, presence — and its
-*frontend language* (tone-pill transcript rows, collapsible raw detail, presence dots). We did **not**
-take its runtime: Multica's daemon runs coding-agent subprocesses over git repos; our substrate is a
-Postgres bus and business tools. Porting it would have meant adopting a process manager, sandbox, and
-issue model that map to nothing here (ADR-0007, reaffirmed ADR-0013).
+一个 Agent 是一行：`{slug, name, role, instructions, tools[]}`（`agents` 表，ADR-0007）。一个 run 是
+一个 Agent × 一个任务。我们研究了 Multica（`/home/tough/multica`），采纳了它的**模式**——Agent 即数据、
+编排器分派定向 run、思考链流式推送到看板、在线状态——以及它的**前端语言**（语气标签的思考链行、
+可折叠的原始细节、在线圆点）。我们**没有**采纳它的运行时：Multica 的守护进程在 git 仓库上跑编码 Agent
+子进程；我们的基座是一个 Postgres 总线 + 经营工具。整体移植意味着引入一个进程管理器、沙箱和 issue 模型，
+而它们在这里无处对应（ADR-0007，ADR-0013 再次确认）。
 
-Precision on what "data" controls, because we'd rather state it than have a judge discover it: the
-`agents` row is the **registry and audit identity** (its `id` is what every `agent_runs` row points at)
-plus the UI's metadata. It is deliberately *not* the runtime source of truth for the two things that
-matter most:
+关于「数据」到底控制什么，我们宁可讲清楚也不愿被评委发现：`agents` 行是**注册表与审计身份**
+（它的 `id` 是每一行 `agent_runs` 指向的目标）加上 UI 的元数据。它**刻意不是**下面两件最要紧的东西的
+运行时事实来源：
 
-- **Prompts** live in `agent-service/skills/*.md`; the row's `instructions` is a fallback for a missing
-  file. Version-controlled prompts are PR-reviewed and pinned by the eval suite — a DB-edited prompt
-  would change agent behavior with no diff, no review, and no eval run.
-- **Tool allow-lists** live in one shared file (`src/mock/agent-tools.json`): the Python runner loads it
-  as `LANE_TOOLS` for enforcement, the TS seed writes the same file into the row's `tools[]` for display,
-  and parity tests pin both sides — the display copy structurally cannot drift from what the runner
-  enforces. Allow-lists are legality, and legality lives in the repo, not in an editable DB row
-  (ADR-0012) — a DB edit must never be able to hand the read-only insight agent `place_ad`.
+- **Prompt** 住在 `agent-service/skills/*.md`；行里的 `instructions` 只是文件缺失时的兜底。版本化的 prompt
+  经过 PR 评审、被评测套件钉住——一个在数据库里改的 prompt 会在没有 diff、没有评审、没有评测运行的情况下
+  改变 Agent 行为。
+- **工具白名单** 住在一个共享文件（`src/mock/agent-tools.json`）：Python 运行器把它加载为 `LANE_TOOLS`
+  用于强制，TS 种子把同一个文件写进行里的 `tools[]` 用于展示，一致性测试钉住两侧——展示副本在结构上
+  不可能与运行器实际强制的内容漂移。白名单是**法律**，而法律住在代码仓库里、不在可编辑的数据库行里
+  （ADR-0012）——一次数据库编辑绝不能把 `place_ad` 交给只读的数分 Agent。
 
-Within its allow-list an agent chooses freely — which tools, what order, how many calls, what arguments.
-The list itself is code. When agent configs become merchant- or ops-editable (multi-merchant stage), the
-planned shape is DB-configured lists validated against a code-side ceiling (`configured ⊆ ceiling`,
-refuse to boot on violation) — dynamic narrowing, never dynamic widening.
+在自己的白名单内，Agent 自由选择——用哪些工具、什么顺序、调用几次、什么参数。名单本身是代码。当 Agent
+配置变得可由商家/运营编辑（多商户阶段），规划的形态是「数据库配置的名单对着代码侧上限校验」
+（`配置 ⊆ 上限`，违反则拒绝启动）——只允许动态收窄，绝不动态放宽。
 
-### 2. The orchestrator is an agent with dispatch tools — and code holds the leash
+### 2. 编排器是一个带分派工具的 Agent——而代码握着缰绳
 
-`run_round` (`agent-service/nailed_agents/orchestrator.py`) opens an orchestrator run whose tool loop
-holds `dispatch_agent` / `dispatch_many`. The LLM decides **who runs and why**; a `RoundState` object
-decides **whether it may**:
+`run_round`（`agent-service/nailed_agents/orchestrator.py`）打开一个编排器 run，它的工具循环握着
+`dispatch_agent` / `dispatch_many`。LLM 决定**谁跑、为什么**；一个 `RoundState` 对象决定**它能不能**：
 
-- lane whitelist (8 slugs — an invented agent name dies with `unknown_agent`),
-- one dispatch per agent per round,
-- a hard dispatch budget (`MAX_DISPATCHES_PER_ROUND = 8`),
-- atomic validation of parallel batches (a bad batch runs nothing),
-- and the dispatch tools **refuse any RunContext that doesn't carry a RoundState** — only the
-  orchestrator's does, so a lane agent hallucinating a dispatch is refused before any side effect.
+- 环节白名单（凭空造的 Agent 名会以 `unknown_agent` 死掉），
+- 每个 Agent 每轮只能分派一次，
+- 一个硬性分派预算（`MAX_DISPATCHES_PER_ROUND = 9`），
+- 对并行批次的原子校验（坏批次一个都不跑），
+- 而且分派工具**拒绝任何不携带 RoundState 的 RunContext**——只有编排器的携带，所以某个环节 Agent
+  幻觉出一次分派，会在任何副作用之前被拒绝。
 
-This is capability-based security in miniature: power is an object injected into exactly one context
-(`RunContext.round`), not a permission string an LLM could talk its way past. The same pattern gates the
-monitor's revision power (`RunContext.revision`, doc 05).
+这是能力型安全（capability-based security）的微缩版：权力是一个注入进恰好一个上下文的对象
+（`RunContext.round`），不是一个 LLM 能靠话术绕过的权限字符串。同一模式守护监测的修订权
+（`RunContext.revision`，doc 05）。
 
-### 3. Judgment in loops, legality in code (the division of labor, ADR-0012 §5)
+### 3. 判断在循环里，合法性在代码里（分工，ADR-0012 §5）
 
-The single most important line we drew — and ADR-0016 moved it to its final position. Everything
-that must be *correct* is deterministic code: arithmetic, forecast formulas, state machines, budget
-caps, brief ceilings, allow-lists, transitions. Everything that must be *judged* is an LLM tool loop,
-and the judgments now stack in layers: the engine emits **facts** (never verdicts — the `candidate`
-output died when a review showed the decision agent restating it); 决策 turns facts into **Action
-Briefs** (objective + hard boundaries, schema-enforced tool call); the **Risk Reviewer** judges the
-brief portfolio for soft risk (conflicts, cannibalization, attribution — hard rules stay in code);
-executors find their own parameters inside the brief through the ad sandbox's forecast loop — free to
-choose audience/budget/duration, free to report the objective **infeasible** with forecast evidence,
-never free to breach a ceiling (refused pre-side-effect). The eval pins each layer: a brief for the
-underexposed earner and none for the below-floor style; broad traffic failing the CAC ceiling in
-forecast and the agent finding retargeting itself; a conflicting portfolio drawing
-`[REVISION_REQUIRED]` while a clean one draws `[APPROVED]` with no invented objections.
+我们划的最重要的一条线——ADR-0016 把它移到了最终位置。所有必须**正确**的东西都是确定性代码：算术、
+预测公式、状态机、预算上限、简报天花板、白名单、状态转移。所有必须**判断**的东西都是 LLM 工具循环，
+而判断现在分层叠起来：引擎发出**事实**（永不给结论——`candidate` 输出在一次评审发现决策 Agent 只是
+复述它之后被砍掉了）；决策把事实变成**行动简报**（目标 + 硬边界，schema 强制的工具调用）；**风控**
+审简报组合的软风险（冲突、蚕食、归因——硬规则留在代码里）；执行者通过广告沙盒的预测循环在简报内
+找自己的参数——自由选择受众/预算/时长，自由地引用预测证据报告目标**不可行**，但绝不能突破天花板
+（副作用前拒绝）。评测钉住每一层：给曝光不足的高收益款一份简报、给低于底价的款零简报；泛流量在预测里
+撞破 CAC 天花板、Agent 自己找到 retargeting；一个冲突的组合引出 `[REVISION_REQUIRED]`、而一个清白的
+组合引出 `[APPROVED]` 且不凭空挑刺。
 
-### 4. Deterministic context passing — no LLM copying
+### 4. 确定性上下文传递——不让 LLM 复述
 
-When the orchestrator dispatches 决策 after 选品, Python appends the upstream conclusion to the child's
-task verbatim (`_run_lane`), and the round blackboard records each lane's conclusion as it lands. We do
-not ask a model to faithfully paraphrase another model's output — that's a fidelity bug waiting to
-happen. LLMs decide; Python moves data.
+当编排器在选品之后分派决策，Python 把上游结论逐字附加到子任务上（`_run_lane`），轮次黑板在每个环节
+落地时记录它的结论。我们不要求一个模型忠实地转述另一个模型的输出——那是等着发生的保真度 bug。
+LLM 做判断；Python 搬数据。
 
-### 5. Model tiering is a measured decision, not a guess
+### 5. 模型分档是实测出来的决策，不是猜的
 
-Lanes run gemini-2.5-flash (single-purpose loops, 1–3 tool calls). The orchestrator runs
-gemini-2.5-pro (`ORCHESTRATOR_MODEL`). This came from evaluation, not preference: flash **reliably
-abandoned the multi-step dispatch chain after one tool call** — eval signature `('insight',)` on
-repeated runs — and prompt hardening did not fix it; the model tier did (doc 06). The round's brain is
-the one place the expensive model earns its cost; a round is one pro loop + up to eight flash loops.
+**为什么不是所有环节都用最强模型？** 因为实测发现：轻量模型在长链上撑不住、还会叙述没做过的动作。
+两个硬证据：编排器跑轻量模型时，评测签名塌缩成 `('insight',)`——派了数分一个就停了，放弃了后续多步分派，
+prompt 硬化无效、换高配模型立愈；团购与监测环节跑轻量模型时，会输出「已提交简报」「已写入记忆」的散文，
+而 `toolAttempts` 里零工具调用——论证漂亮但没落地（这直接催生了「无简报不花钱」的代码法律）。
 
-## What we rejected, and why
+据此把**高配模型**只放在**判断-执行环节**（编排器、决策、投广、团购、风控、监测），把**轻量模型**留给
+**快速单一读取环节**（数分、选品、上下架、用户运营，各 1–3 次工具调用、职责单一）。省在短环节、
+花在链条深处；每轮成本受控（≤6 个高配循环）。
 
-| Alternative | Why rejected |
+## 我们否决了什么，为什么
+
+| 备选方案 | 否决理由 |
 |---|---|
-| **Fixed pipeline presented as "multi-agent"** | That's what we had first (a Python for-loop). A judge asks "what happens when the salon is full?" and the answer was "the same 8 runs". Indefensible; rebuilt as ADR-0013 P1 — the eval now pins that a 91%-utilization round must NOT dispatch the spend lanes. |
-| **LangGraph / CrewAI / AutoGen** | Our runner (`runner.py`) is ~100 lines and drives both an Anthropic and an OpenAI-format backend over the same tool bodies. A framework would add a dependency and a debugging surface, and contribute nothing a judge scores — the judged behaviors (guardrails, grounding, lineage, memory) all live in *our* layer regardless. Pattern over framework. |
-| **Free-form agent-to-agent messaging** | Unbounded token cost, loop risk, and non-reproducible demos. Interaction exists where it pays: dispatch (orchestrator→lane), deterministic context passing (lane→lane), one bounded revision edge (monitor→executor). Each is visible in the lineage tree; nothing coordinates invisibly. |
-| **Porting Multica wholesale** | Wrong substrate (coding-agent daemon vs business-ops bus). Pattern adopted, runtime not. |
-| **A message queue (Kafka/SQS) as the bus** | One writer (the Python service), one reader (the panel), demo scale. Supabase-as-bus means the panel reads the same rows the agents write, live, with zero new infrastructure. Revisit when rounds are concurrent across merchants. |
+| **把固定管线包装成「多智能体」** | 我们最初就是这样（一个 Python for 循环）。评委问「门店满档时会怎样？」，答案是「同样的 8 个 run」——不可辩护。重建为 ADR-0013 P1——评测现在钉住：91% 利用率的一轮**必须不**分派花钱环节。 |
+| **LangGraph / CrewAI / AutoGen** | 我们的运行器（`runner.py`）约 100 行，用同一套工具体驱动 Anthropic 和 OpenAI 两种格式的后端。框架只加一层依赖和一个调试面，对评委打分的任何行为毫无贡献——被评的行为（护栏、有据性、血缘、记忆）无论如何都住在**我们**这一层。模式高于框架。 |
+| **自由的 Agent 间消息** | token 成本无界、循环风险、演示不可复现。交互只存在于它划算的地方：分派（编排器→环节）、确定性上下文传递（环节→环节）、一条有界修订边（监测→执行者）。每一条都在血缘树里可见；没有任何东西在暗中协调。 |
+| **整体移植 Multica** | 基座错配（编码 Agent 守护进程 vs 经营总线）。模式采纳，运行时不采纳。 |
+| **用消息队列（Kafka/SQS）当总线** | 一个写者（Python 服务）、一个读者（面板）、演示规模。Supabase 当总线意味着面板实时读到 Agent 写入的同一批行，零新基建。当多商户并发轮次时再重议。 |
 
-## Communication model (explicit, because judges ask)
+## 通信模型（明确写出，因为评委会问）
 
-Agents communicate through exactly three channels, all persisted and all visible:
+Agent 只通过五条通道通信，全部持久化、全部可见（ADR-0016 把 v2 的三条扩到五条）：
 
-1. **Dispatch results** — the child's conclusion returns to the orchestrator, verbatim.
-2. **The round blackboard** (`agent_rounds.blackboard`) — each lane's conclusion, written
-   deterministically by Python as lanes finish; readable by any lane via `read_blackboard`.
-3. **Cross-round memory** (`agent_memory`) — windowed verdicts, written by 监测, read by 决策 (doc 05).
+1. **分派结果** — 子的结论逐字返回给编排器。
+2. **轮次黑板**（`agent_rounds.blackboard`）— 每个环节的结论，由 Python 在环节结束时确定性写入；
+   持有 `read_blackboard` 的环节（决策/风控/监测）可读。
+3. **行动简报**（结构化，即法律）— 决策产出，代码逐字注入执行者，工具把它当算术强制执行。
+4. **修订边**（监测→执行者）— 一次有界重跑，同实体版本递增。
+5. **跨轮记忆**（`agent_memory`）— 窗口化的实测结论，由监测写入、被决策读取（doc 05）。
 
-There is deliberately no fourth channel. If two agents need to "talk", the conversation is either a
-dispatch, a blackboard section, or it shouldn't happen.
+刻意没有第六条。如果两个 Agent 需要「对话」，这段对话要么是一次分派、要么是一个黑板区块，
+要么它就不该发生。
