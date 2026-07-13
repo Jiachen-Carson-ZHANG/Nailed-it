@@ -307,8 +307,15 @@ def get_ad_account_state() -> str:
         "remaining_budget_cents": max(0, config.MARKETING_BUDGET_CENTS - committed),
         "auto_execute_daily_limit_cents": 5000,
         "campaigns": [
-            {k: c.get(k) for k in ("id", "merchant_style_id", "status", "audience",
-                                    "daily_budget_cents", "total_budget_cents", "version")}
+            {
+                **{k: c.get(k) for k in ("id", "merchant_style_id", "status", "audience",
+                                          "daily_budget_cents", "total_budget_cents", "version",
+                                          "impressions", "clicks", "bookings", "spend_cents")},
+                # 修改在投活动必须知道还能动多少钱：剩余 = 总预算 − 已花（老 slot 活动无 total 时按日预算×时长）
+                "remaining_budget_cents": max(0, int(c.get("total_budget_cents")
+                    or (c.get("daily_budget_cents") or 0) * (c.get("duration_days") or 4))
+                    - int(c.get("spend_cents") or 0)),
+            }
             for c in campaigns
         ],
     }
@@ -489,6 +496,10 @@ def update_ad_campaign(campaign_id: str, total_budget_cents: int = 0, audience: 
     if total_budget_cents:
         total_budget_cents = _bounded_int(total_budget_cents, field="total_budget_cents",
                                           maximum=_MAX_AD_BUDGET_CENTS)
+        # 已花的钱是历史，不能把总预算改到低于它——否则「剩余」为负、活动状态自相矛盾。
+        spent = int(cur.get("spend_cents") or 0)
+        if total_budget_cents < spent:
+            raise ValueError(f"budget_below_spent:spent_cents={spent}")
         for b in _my_briefs(ctx, "ad"):
             if b.get("style_id") == cur.get("merchant_style_id") and total_budget_cents > b["max_total_budget_cents"]:
                 raise ValueError("budget_exceeds_brief")

@@ -181,6 +181,34 @@ def test_place_ad_one_campaign_per_style_is_law(ctx, monkeypatch):
     assert fields["clicks"] == 0 and fields["spend_cents"] == 0
 
 
+def test_get_ad_account_state_exposes_live_metrics(ctx, monkeypatch):
+    """修改在投活动前，投广要看到实测指标和每个活动的剩余预算——否则无法判断还能动多少钱。"""
+    monkeypatch.setattr(config, "MARKETING_BUDGET_CENTS", 18000)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [
+        {"id": "ad-x", "merchant_style_id": "style-x", "status": "active", "audience": "saved_or_viewed",
+         "total_budget_cents": 8000, "spend_cents": 5800, "clicks": 52, "bookings": 0,
+         "impressions": 2100, "daily_budget_cents": 2000, "version": 1},
+    ])
+    out = json.loads(tools.get_ad_account_state())
+    c = out["campaigns"][0]
+    assert c["clicks"] == 52 and c["bookings"] == 0 and c["spend_cents"] == 5800 and c["impressions"] == 2100
+    assert c["remaining_budget_cents"] == 2200  # 8000 − 5800
+
+
+def test_update_ad_campaign_rejects_total_below_spent(ctx, monkeypatch):
+    """已花的钱是历史：不能把总预算改到低于已花（会让剩余为负、状态自相矛盾）。"""
+    monkeypatch.setattr(config, "MARKETING_BUDGET_CENTS", 18000)
+    monkeypatch.setattr(bus, "update_campaign", lambda sb, cid, m, fields: None)
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda sb, m: [
+        {"id": "ad-x", "merchant_style_id": "style-x", "status": "active",
+         "total_budget_cents": 8000, "spend_cents": 5800, "version": 1},
+    ])
+    with pytest.raises(ValueError, match="budget_below_spent:spent_cents=5800"):
+        tools.update_ad_campaign("ad-x", total_budget_cents=4000)
+    # 高于已花仍合法
+    tools.update_ad_campaign("ad-x", total_budget_cents=7000)
+
+
 def _coupon_facts(monkeypatch, floor=6000, price=8800):
     monkeypatch.setattr(bus, "fetch_decisions", lambda: {"decisions": [
         {"styleId": "style-1", "priceCents": price, "durationMin": 60,
