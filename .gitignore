@@ -52,3 +52,8 @@ AGENTS.md
 
 # Local git worktrees
 .worktrees/
+
+# superpower docs
+.superpowers/
+
+*.yml

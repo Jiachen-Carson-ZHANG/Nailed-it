@@ -1,17 +1,17 @@
 import type { StaticImageData } from 'next/image';
 
 import { getMockSession } from '@/domain/session';
-import aiRecognizingScreenshot from '@/landing_assets/screenshots/ai识别中.png';
+import aiRecognizingScreenshot from '@/landing_assets/screenshots/ai-recognizing.png';
 import aiBotScreenshot from '@/landing_assets/screenshots/ai_bot.png';
 import bookingScreenshot from '@/landing_assets/screenshots/book.png';
-import merchantCalendarScreenshot from '@/landing_assets/screenshots/商家日历.png';
-import merchantGalleryScreenshot from '@/landing_assets/screenshots/商家图册.png';
-import merchantInboxScreenshot from '@/landing_assets/screenshots/商家消息.png';
-import merchantPageScreenshot from '@/landing_assets/screenshots/商家页面.png';
-import pricingScreenshot from '@/landing_assets/screenshots/定价.png';
-import styleBreakdownScreenshot from '@/landing_assets/screenshots/款式拆解.png';
-import homeScreenshot from '@/landing_assets/screenshots/用户主页.png';
-import tryOnScreenshot from '@/landing_assets/screenshots/试戴.png';
+import merchantCalendarScreenshot from '@/landing_assets/screenshots/merchant-calendar.png';
+import merchantGalleryScreenshot from '@/landing_assets/screenshots/merchant-gallery.png';
+import merchantInboxScreenshot from '@/landing_assets/screenshots/merchant-inbox.png';
+import merchantPageScreenshot from '@/landing_assets/screenshots/merchant-page.png';
+import pricingScreenshot from '@/landing_assets/screenshots/pricing.png';
+import styleBreakdownScreenshot from '@/landing_assets/screenshots/style-breakdown.png';
+import homeScreenshot from '@/landing_assets/screenshots/customer-home.png';
+import tryOnScreenshot from '@/landing_assets/screenshots/try-on.png';
 
 type LandingScreenshot = {
   alt: string;

@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
+import type { SelectedNailImage } from '@/components/ui/ImageUploader';
+import { saveTryOnImage } from '@/domain/tryon-image-store';
+import { saveTryOnStyleImage } from '@/domain/tryon-style-store';
+import { saveCollageResult, getCollageResult, clearCollageResult } from '@/domain/collage-result-store';
+import { clearBreakdownResults } from '@/domain/breakdown-store';
 import { DRAWER_ZONES, type DrawerZoneId } from './studio-layout-config';
 import { NailLoadingScreen } from './NailLoadingScreen';
 
@@ -81,6 +86,31 @@ const DRAWER_ITEMS: Record<DrawerZoneId, DrawerItem[]> = {
 let keySeq = 0;
 function nextKey() { return `dk-${++keySeq}`; }
 
+// Keywords that clearly have nothing to do with nail art.
+// The list is intentionally broad so common off-topic inputs are caught
+// without false-positiving on legitimate nail-adjacent words.
+const OFF_TOPIC_KEYWORDS = [
+  // food
+  '做饭', '食谱', '菜谱', '炒菜', '烹饪', '厨房', '火锅', '外卖', '点餐',
+  // navigation / travel
+  '导航', '地图', '路线', '交通', '机票', '酒店', '旅游', '景点',
+  // finance
+  '股票', '基金', '理财', '贷款', '银行', '投资', '比特币', '加密货币',
+  // politics / news
+  '政治', '新闻', '选举', '战争', '军事',
+  // medicine
+  '医院', '药品', '处方', '诊断', '手术',
+  // explicit / harmful
+  '色情', '暴力', '赌博', '毒品',
+  // generic off-topic
+  '天气', '写代码', '编程', '数学', '作业', '翻译',
+];
+
+function isOffTopic(text: string): boolean {
+  const lower = text.toLowerCase();
+  return OFF_TOPIC_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 function buildPrompt(decals: PlacedDecal[], extraText: string): string {
   const parts = decals.map((d) => d.item.description);
   const base = parts.length > 0
@@ -93,10 +123,18 @@ function buildPrompt(decals: PlacedDecal[], extraText: string): string {
 
 export function CollageHousePanel() {
   const router = useRouter();
-  const [open, setOpen]       = useState(false);
+  // 中文注释：若上次生成过成图（用户从结果页去试戴/识别后又"返回"），直接恢复到结果页，
+  // 而不是回到入口卡片。getCollageResult 只读不清，返回时才拿得到。
+  const restored = useRef<SelectedNailImage | null | undefined>(undefined);
+  if (restored.current === undefined) restored.current = getCollageResult();
+  const hasRestored = Boolean(restored.current);
+
+  const [open, setOpen]       = useState(hasRestored);
   const [shellEl, setShellEl] = useState<Element | null>(null);
-  const [genState, setGenState] = useState<GenState>({ phase: 'idle' });
-  const [showResult, setShowResult] = useState(false);
+  const [genState, setGenState] = useState<GenState>(
+    hasRestored ? { phase: 'done', imageBase64: restored.current!.imageBase64 } : { phase: 'idle' }
+  );
+  const [showResult, setShowResult] = useState(hasRestored);
 
   // Drawer
   const [openDrawer, setOpenDrawer] = useState<DrawerZoneId | null>(null);
@@ -109,6 +147,7 @@ export function CollageHousePanel() {
 
   // Extra text input
   const [extraText, setExtraText] = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
 
   // Touch drag refs
   const dragItem   = useRef<DrawerItem | null>(null);
@@ -243,6 +282,11 @@ export function CollageHousePanel() {
 
   // ── Generate ──────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
+    if (extraText.trim() && isOffTopic(extraText)) {
+      setInputError('请输入与美甲相关的内容，例如颜色、风格、装饰元素等～');
+      setExtraText('');
+      return;
+    }
     const prompt = buildPrompt(decals, extraText);
     setGenState({ phase: 'loading' });
     try {
@@ -257,6 +301,12 @@ export function CollageHousePanel() {
         throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
       }
       const data = await res.json() as { imageBase64: string };
+      // 中文注释：记住这张成图，供"返回"时恢复结果页；同时也是给识别/试戴用的同一张图。
+      saveCollageResult({
+        imageBase64: data.imageBase64,
+        mimeType: 'image/png',
+        previewUrl: `data:image/png;base64,${data.imageBase64}`,
+      });
       setGenState({ phase: 'done', imageBase64: data.imageBase64 });
     } catch (e) {
       setGenState({ phase: 'error', message: e instanceof Error ? e.message : '生成失败，请稍后重试' });
@@ -277,31 +327,79 @@ export function CollageHousePanel() {
   }
 
   if (genState.phase === 'loading' || genState.phase === 'done') {
-    // Once the loading screen signals its transition is complete AND we have the image, show the result.
-    if (showResult && genState.phase === 'done') {
-      const rs = (
+    // 中文注释：把生成图打包成识别/试戴接口通用的 SelectedNailImage，
+    // 通过模块级 store 交给目标页面预填，免去用户重新上传。
+    const collageImage = genState.phase === 'done' ? {
+      imageBase64: genState.imageBase64,
+      mimeType: 'image/png',
+      previewUrl: `data:image/png;base64,${genState.imageBase64}`,
+    } : null;
+
+    // 结果页在加载屏开始出场时就已渲染在后面（z-index 低），加载屏淡出时结果页
+    // 自然显现，避免透明过渡期间露出首页。showResult=false 时用 visibility:hidden
+    // 保持占位但不可见（pointer-events 也关掉），showResult=true 后正常显示。
+    const rs = collageImage ? (
+      <div style={showResult
+        ? { position: 'absolute', inset: 0, zIndex: 199 }
+        : { position: 'absolute', inset: 0, zIndex: 199, visibility: 'hidden', pointerEvents: 'none' }}>
         <ResultScreen
-          imageBase64={genState.imageBase64}
-          onRetry={() => { setGenState({ phase: 'idle' }); setDecals([]); setExtraText(''); setShowResult(false); }}
-          onBreakdown={() => router.push(getCustomerBookingPath())}
-          onTryOn={() => router.push(getCustomerTryOnPath())}
-          onClose={() => { setOpen(false); setGenState({ phase: 'idle' }); setShowResult(false); }}
+          imageBase64={collageImage.imageBase64}
+          onRetry={() => { clearCollageResult(); setGenState({ phase: 'idle' }); setDecals([]); setExtraText(''); setShowResult(false); }}
+          onBreakdown={() => {
+            clearBreakdownResults();
+            clearCollageResult();
+            saveTryOnImage(collageImage);
+            router.push(getCustomerBookingPath());
+          }}
+          onTryOn={() => {
+            clearCollageResult();
+            saveTryOnStyleImage(collageImage);
+            router.push(getCustomerTryOnPath());
+          }}
+          onClose={() => { clearCollageResult(); setOpen(false); setGenState({ phase: 'idle' }); setShowResult(false); }}
         />
-      );
-      return shellEl ? createPortal(rs, shellEl) : rs;
-    }
+      </div>
+    ) : null;
+
+    // 加载屏叠在结果页上方，出场动画结束后 showResult 变 true，结果页显现
     const ls = (
       <NailLoadingScreen
         done={genState.phase === 'done'}
         onTransitionEnd={() => setShowResult(true)}
       />
     );
-    return shellEl ? createPortal(ls, shellEl) : ls;
+
+    // 若结果已就绪且加载屏已退场，只渲染结果页（加载屏已卸载）
+    if (showResult && genState.phase === 'done') {
+      return shellEl ? createPortal(rs!, shellEl) : rs!;
+    }
+
+    // 加载屏出场动画进行中：结果页（若已生成）在下，加载屏在上
+    const content = (
+      <>
+        {rs}
+        {ls}
+      </>
+    );
+    return shellEl ? createPortal(content, shellEl) : content;
   }
 
   // ── Main studio overlay ───────────────────────────────────────────────────
   const overlay = (
     <div className="studio-overlay" role="dialog" aria-modal="true" aria-label="拼贴小屋">
+
+      {/* Off-topic input error dialog */}
+      {inputError && (
+        <div className="studio-input-error-backdrop" onClick={() => setInputError(null)}>
+          <div className="studio-input-error-dialog" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <p className="studio-input-error-icon" aria-hidden="true">🚫</p>
+            <p className="studio-input-error-msg">{inputError}</p>
+            <button type="button" className="studio-input-error-btn" onClick={() => setInputError(null)}>
+              好的，重新输入
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top bar */}
       <div className="studio-topbar">
