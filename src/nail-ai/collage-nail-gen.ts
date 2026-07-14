@@ -9,6 +9,12 @@ export type CollageIngredient = {
   label: string;
 };
 
+// Initial = strict text-to-image; regen = image-to-image refinement of a reference,
+// changing only the listed categories (English labels, e.g. 'nail art', 'decoration').
+export type CollageGenMode =
+  | { kind: 'initial' }
+  | { kind: 'regen'; changedCategories: string[] };
+
 export type CollageGenResult = {
   imageBase64: string;
   mimeType: 'image/png';
@@ -41,6 +47,7 @@ const CATEGORY_EN: Record<string, string> = {
 export function buildNailPrompt(
   ingredients: CollageIngredient[],
   customText: string,
+  mode: CollageGenMode = { kind: 'initial' },
 ): string {
   const lines: string[] = [];
 
@@ -62,10 +69,31 @@ export function buildNailPrompt(
 
   const description = lines.join('; ');
 
-  // TODO: Add guardrails in user request
+  if (mode.kind === 'regen') {
+    // Image-to-image refinement: the reference image is passed alongside this prompt.
+    // Keep everything identical except the explicitly-changed categories.
+    const changed = mode.changedCategories.length > 0
+      ? mode.changedCategories.join(', ')
+      : 'the requested elements';
+    return (
+      `A close-up product-style photo of beautiful nail art on a woman's hand. ` +
+      `This is a refinement of the provided reference image. ` +
+      `Keep the overall composition, hand pose, lighting, and nail style IDENTICAL to the reference image. ` +
+      `ONLY change the following aspect(s): ${changed}. ` +
+      `The updated design should be — ${description}. ` +
+      `Leave every other element exactly as it appears in the reference image. ` +
+      `Soft studio lighting, blurred pastel background, ultra-realistic, 8K, highly detailed nails. ` +
+      `No text, no watermark.`
+    );
+  }
+
+  // Initial generation: render strictly and only what the user selected.
   return (
     `A close-up product-style photo of beautiful nail art on a woman's hand. ` +
     `Nail design: ${description}. ` +
+    `Render EXACTLY and ONLY the nail design elements listed above. ` +
+    `Do NOT invent, add, or embellish with any extra decorations, charms, patterns, glitter, or nail art that is not explicitly listed. ` +
+    `If the nail shape is unspecified, use a natural round shape; if the base color is unspecified, use a nude tone; do not add any other unrequested elements. ` +
     `Soft studio lighting, blurred pastel background, ultra-realistic, 8K, highly detailed nails. ` +
     `No text, no watermark.`
   );
@@ -74,6 +102,7 @@ export function buildNailPrompt(
 export async function runCollageGen(
   ingredients: CollageIngredient[],
   customText: string,
+  opts: { referenceImage?: { base64: string; mimeType: string }; mode?: CollageGenMode } = {},
   env = process.env,
 ): Promise<CollageGenResult> {
   // Gemini via OpenRouter is used when OPENROUTER_API_KEY + GEMINI_IMAGE_MODEL_NAME are set in env.
@@ -85,7 +114,7 @@ export async function runCollageGen(
 
   const arkModel = env.ARK_IMAGE_MODEL ?? defaultCollageGenModel;
   const baseUrl = env.ARK_BASE_URL ?? DEFAULT_ARK_BASE_URL;
-  const prompt = buildNailPrompt(ingredients, customText);
+  const prompt = buildNailPrompt(ingredients, customText, opts.mode ?? { kind: 'initial' });
 
   try {
     const imageBase64 = await postImageGeneration({
@@ -93,7 +122,7 @@ export async function runCollageGen(
       arkBaseUrl: baseUrl,
       arkModel,
       prompt,
-      images: [],
+      images: opts.referenceImage ? [opts.referenceImage] : [],
     });
     return { imageBase64, mimeType: 'image/png' };
   } catch (error) {

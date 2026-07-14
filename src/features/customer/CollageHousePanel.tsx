@@ -118,6 +118,15 @@ function isOffTopic(text: string): boolean {
   return OFF_TOPIC_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+// Maps a drawer zone to the English category label the generation prompt expects
+// (must line up with CATEGORY_EN semantics in collage-nail-gen.ts).
+const ZONE_TO_EN: Record<DrawerZoneId, string> = {
+  color: 'base color',
+  shape: 'nail shape',
+  art: 'nail art',
+  deco: 'decoration',
+};
+
 function buildPrompt(decals: PlacedDecal[], extraText: string): string {
   const parts = decals.map((d) => d.item.description);
   const base = parts.length > 0
@@ -328,7 +337,7 @@ export function CollageHousePanel() {
   // 局部重新生成：不切换到 loading phase，避免卸载 CollageResultScreen（会丢失勾选状态）。
   // 子组件自己管理 isRegenerating，这里只负责 fetch + 更新 store/state，返回新图 base64。
   const handlePartialRegen = async (
-    _checkedZones: DrawerZoneId[],
+    checkedZones: DrawerZoneId[],
     newDecals: PlacedDecal[],
     newExtraText: string,
   ): Promise<string> => {
@@ -337,12 +346,18 @@ export function CollageHousePanel() {
     }
     const prompt = buildPrompt(newDecals, newExtraText);
     const ingredients = newDecals.map((d) => ({ category: d.item.category, label: d.item.description }));
+    // Pass the previous image as a reference so the model keeps the overall look,
+    // and tell it which categories the user chose to change.
+    const changedCategories = checkedZones.map((z) => ZONE_TO_EN[z]);
     const res = await fetch('/api/ai/collage-generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ingredients: ingredients.length > 0 ? ingredients : [{ category: '风格', label: '精致美甲' }],
         customText: prompt,
+        referenceImageBase64: latestImageBase64 ?? undefined,
+        referenceMimeType: 'image/png',
+        changedCategories,
       }),
     });
     if (!res.ok) {

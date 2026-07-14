@@ -4,7 +4,13 @@ import { CollageGenError, runCollageGen, type CollageIngredient } from '@/nail-a
 export async function POST(request: Request) {
   try {
     const body = parseRequestBody(await request.json());
-    const result = await runCollageGen(body.ingredients, body.customText);
+    const mode = body.changedCategories.length > 0
+      ? { kind: 'regen' as const, changedCategories: body.changedCategories }
+      : { kind: 'initial' as const };
+    const referenceImage = body.referenceImageBase64
+      ? { base64: body.referenceImageBase64, mimeType: body.referenceMimeType }
+      : undefined;
+    const result = await runCollageGen(body.ingredients, body.customText, { referenceImage, mode });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof CollageGenError) {
@@ -21,6 +27,10 @@ export async function POST(request: Request) {
 type CollageGenRequest = {
   ingredients: CollageIngredient[];
   customText: string;
+  // Optional: present only for partial regeneration (image-to-image).
+  referenceImageBase64: string | null;
+  referenceMimeType: string;
+  changedCategories: string[];
 };
 
 function parseRequestBody(value: unknown): CollageGenRequest {
@@ -41,5 +51,20 @@ function parseRequestBody(value: unknown): CollageGenRequest {
 
   const customText = typeof body.customText === 'string' ? body.customText.trim().slice(0, 200) : '';
 
-  return { ingredients, customText };
+  // Reference image for partial regeneration (raw base64, no data: prefix). Guard against
+  // absurd payloads so a malformed request can't exhaust memory.
+  const referenceImageBase64 =
+    typeof body.referenceImageBase64 === 'string' && body.referenceImageBase64.length > 0
+      ? body.referenceImageBase64.slice(0, 20_000_000)
+      : null;
+  const referenceMimeType =
+    typeof body.referenceMimeType === 'string' && body.referenceMimeType.startsWith('image/')
+      ? body.referenceMimeType
+      : 'image/png';
+
+  const changedCategories = Array.isArray(body.changedCategories)
+    ? body.changedCategories.filter((c): c is string => typeof c === 'string').map((c) => c.slice(0, 40))
+    : [];
+
+  return { ingredients, customText, referenceImageBase64, referenceMimeType, changedCategories };
 }
