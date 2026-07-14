@@ -113,7 +113,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
     return (
       <section className="page-heading">
         <EmptyState title={copy.notFound} body="" />
-        <Link className="button button-secondary" href={getMerchantAgentsPath()}>{copy.back}</Link>
+        <Link className="button button-secondary button-block" href={getMerchantAgentsPath()}>{copy.back}</Link>
       </section>
     );
   }
@@ -223,7 +223,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
         </section>
       ) : null}
 
-      <Link className="button button-secondary" href={getMerchantAgentsPath()}>{copy.back}</Link>
+      <Link className="button button-secondary button-block" href={getMerchantAgentsPath()}>{copy.back}</Link>
     </>
   );
 }

@@ -392,7 +392,9 @@ export default function MerchantAgentsPage() {
                       <span>· {roundLine(round.length, actions)}</span>
                     </p>
                     <ul className="agent-run-list">
-                      {round.map((run) => (
+                      {/* Dispatch order (oldest first): the pipeline reads 数分 → … → Monitor top-down —
+                        * newest-first put Monitor 完成 above executors still 待审批, which read as broken. */}
+                      {[...round].reverse().map((run) => (
                         <li key={run.id}>
                           <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
                             <div className="agent-run-main">
