@@ -38,8 +38,10 @@ __all__ = [
 class RunContext:
     """Per-run state the tools mutate: the Supabase client, the run id (so action tools can write
     agent_actions), the merchant, and the accumulating thinking-chain transcript. `awaiting_approval`
-    is set by a gated tool (propose_listing) so the orchestrator finalizes that run as
-    awaiting_approval instead of completed (ADR-0007 §4 — the one human gate)."""
+    is DERIVED from the transcript (ADR-0007 §4 — the one human gate): a run finalizes as
+    awaiting_approval iff it wrote any action the merchant must approve (status='proposed'). Deriving
+    it (rather than a flag each tool must remember to set) makes the gate reliable across every
+    proposing path — draft ad campaigns, 团购 drafts, listing proposals, message drafts."""
     sb: Any
     run_id: str
     merchant_id: str
@@ -47,7 +49,6 @@ class RunContext:
     # ADR-0015: which agent this run is — memory tools scope search domains and write permission by it.
     agent_slug: str = ""
     transcript: list[dict[str, Any]] = field(default_factory=list)
-    awaiting_approval: bool = False
     # ADR-0013 P0 proposal hygiene: first propose_listing of the run supersedes older rounds' pending
     # proposals; `proposed_tags` dedupes within the run; the cap lives in config.MAX_PENDING_PROPOSALS.
     proposals_reset: bool = False
@@ -78,6 +79,13 @@ class RunContext:
     # — so invalid-arg attempts are visible to the eval even though tool bodies only append to
     # `transcript` after validation passes. This is what the tool-call-correctness gate reads (audit).
     tool_attempts: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def awaiting_approval(self) -> bool:
+        """True iff this run wrote any action the merchant must approve. Single source of truth is the
+        transcript's action steps — every proposing path (draft ad, 团购 draft, listing, message draft)
+        records status='proposed', so the gate can't be missed by forgetting to set a flag."""
+        return any(s.get("kind") == "action" and s.get("status") == "proposed" for s in self.transcript)
 
 
 _current: ContextVar[RunContext] = ContextVar("nailed_agent_run")
@@ -738,7 +746,6 @@ def propose_listing(gap_tag: str, reason: str) -> str:
         {"kind": "action", "actionType": "draft_upload", "status": "proposed",
          "summary": f"提醒上架（待商家批准）：{gap_tag} 缺口 — {reason}"}
     )
-    ctx.awaiting_approval = True
     return f"Listing proposed for gap '{gap_tag}' (awaiting merchant approval — you cannot list it yourself)."
 
 
@@ -803,7 +810,6 @@ def create_merchant_message_draft(customer_name: str, body: str, reason: str) ->
         {"kind": "action", "actionType": "draft_customer_message", "status": "proposed",
          "summary": f"关系消息草稿（待商家亲自发送）：→ {customer_name} — {reason}"}
     )
-    ctx.awaiting_approval = True
     return f"Draft for {customer_name} awaiting the merchant's own review and send — not delivered."
 
 

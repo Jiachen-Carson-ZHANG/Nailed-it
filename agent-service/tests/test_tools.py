@@ -243,6 +243,33 @@ def test_set_group_buy_coupon_refuses_invented_discounts_and_below_floor(ctx, mo
     assert ctx.writes == []
 
 
+def test_awaiting_approval_is_derived_from_any_proposed_action(ctx, monkeypatch):
+    """The one human gate (ADR-0007 §4) is DERIVED from the transcript, not a per-tool flag. Every path
+    that writes a status='proposed' action must gate the run — including the two that previously set no
+    flag: a 团购 draft, and an ad campaign above the auto-execute limit (lands as a draft)."""
+    # 团购 draft — always proposed
+    _coupon_facts(monkeypatch)
+    tools.set_group_buy_coupon("style-1", "weekday_10_off", "weekday_afternoon", 4, 7)
+    assert ctx.awaiting_approval is True
+
+
+def test_over_budget_ad_draft_gates_the_run(ctx, monkeypatch):
+    """A campaign above the merchant's auto-execute limit lands as a DRAFT (status='proposed'); the run
+    must finalize as awaiting_approval. Previously this path set no flag → the gate was silently skipped."""
+    monkeypatch.setattr(bus, "post_propose_ad",
+                        lambda style_id, *a, **k: {"ok": True, "id": f"ad-{style_id}", "status": "draft"})
+    tools.place_ad("style-1", "try_on_no_booking", 16000, 4)
+    assert ctx.transcript[-1]["status"] == "proposed"
+    assert ctx.awaiting_approval is True
+
+
+def test_applied_only_run_is_not_awaiting_approval(ctx):
+    """The negative: a run whose actions all went live (applied) needs no merchant approval."""
+    tools.place_ad("style-1", "try_on_no_booking", 16000, 4)  # fixture stub → active → applied
+    assert ctx.transcript[-1]["status"] == "applied"
+    assert ctx.awaiting_approval is False
+
+
 def test_customer_messages_split_by_class(ctx):
     """ADR-0016 Stage 3: transactional auto-send is LABELED as the assistant; relationship marketing
     only ever creates a merchant draft — the boss-impersonation pattern is dead."""
