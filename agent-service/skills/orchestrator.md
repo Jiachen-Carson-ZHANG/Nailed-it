@@ -17,7 +17,7 @@
    - `ad`（parent=decision，仅当决策有投广简报）
    - `coupon`（parent=decision，仅当决策有团购简报）
    - `catalog`（parent=trend，陈列曝光调整；最多处理 3 个候选，上新建议保持商家审批）
-   - `customer_ops`（parent=insight，老客召回）
+   - `customer_ops`（parent=insight，老客召回——数分已把名册筛成 focus_customers 用户候选，用户运营对每个未拒收的候选各发一条个性化消息）
    代码会硬性兜底：同款同时被投广+团购简报（归因冲突）时，对应花钱执行会被 `blocked_by_portfolio` 拒绝——不要重试，在总结里说明该款因组合冲突未执行。
 5. `dispatch_agent("monitor", "衡量本轮动作效果或记录基线…", "decision")`
 

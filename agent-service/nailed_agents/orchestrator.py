@@ -97,6 +97,17 @@ def _analysis_context(analysis: dict) -> str:
     )
 
 
+def _customer_brief_context(customers: list[dict]) -> str:
+    """数分's screened re-engagement candidates injected into 用户运营 — the top lapsed customers worth a
+    message this round (each {name, reason}). 用户运营 sends ONE personalized message per non-opted-out
+    candidate. Used verbatim by the eval so the judged context format IS the live one."""
+    return (
+        "[数分 用户候选 — 本轮值得召回的老客｜逐个给未拒收的客户发一条个性化消息（send_relationship_message）；"
+        "reason 是依据不是文案，用名册里该客户的偏好/上次款式写正文；拒收的绝不发]\n"
+        f"{json.dumps(customers, ensure_ascii=False)}\n[/用户候选]"
+    )
+
+
 def _brief_context(briefs: list[dict]) -> str:
     """The executor's Action Brief block (ADR-0016 §2) — used verbatim by the eval so the judged
     context format IS the live one."""
@@ -167,6 +178,9 @@ class RoundState:
     dispatched: dict[str, str] = field(default_factory=dict)  # slug -> run_id
     results: dict[str, str] = field(default_factory=dict)  # slug -> final text
     briefs: list[dict] = field(default_factory=list)  # ADR-0016: Action Briefs filed by 决策
+    portfolio_simulated: bool = False  # 决策 called simulate_action_portfolio after filing briefs
+    portfolio_result: dict | None = None
+    require_portfolio_check: bool = False
     analysis: dict | None = None  # 数分's Analysis Brief (focus styles + alerts + gaps) → 决策's candidates
     _taken: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -181,6 +195,19 @@ class RoundState:
         coupon = {b["style_id"] for b in self.briefs if b.get("action_type") == "coupon"}
         both = sorted(ad & coupon)
         return f"attribution_conflict:{','.join(both)}" if both else None
+
+    def _spend_block(self, slug: str) -> str | None:
+        """Runtime spend gate: executors only run AFTER 决策 filed a matching brief and simulated the
+        combined portfolio. Ad/coupon agents execute and test parameters; they do not decide portfolio
+        boundaries."""
+        if self.require_portfolio_check:
+            if not any(b.get("action_type") == slug for b in self.briefs):
+                return f"no_action_brief:{slug}"
+            if not self.portfolio_simulated:
+                return "portfolio_not_simulated"
+            if not (self.portfolio_result or {}).get("feasible"):
+                return "portfolio_infeasible"
+        return self._portfolio_conflict()
 
     def _validate(self, slug: str) -> None:
         if slug not in LANE_TOOLS:
@@ -211,7 +238,7 @@ class RoundState:
         # 唯一的组合级风险——同款同时投广+团购，效果无法归因——由代码判定；预算/单款上限/简报法在工具层兜底。
         # 被拦的 lane 不算已分派（reserve 也回滚）——决策撤回冲突简报后编排器仍可重新分派。
         if slug in _SPEND_LANES:
-            conflict = self._portfolio_conflict()
+            conflict = self._spend_block(slug)
             if conflict:
                 if reserved:
                     with self._lock:
@@ -429,6 +456,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   analysis_sink: Callable[[dict], None] | None = None,
                   brief_sink: Callable[[dict], None] | None = None,
                   brief_withdraw: Callable[[str, str], bool] | None = None,
+                  portfolio_sink: Callable[[dict], None] | None = None,
                   briefs: list[dict] | None = None,
                   input_extra: dict | None = None) -> tuple[str, str]:
     """The lane-run core: open a running agent_run under an explicit parent, drive the lane's tool loop
@@ -452,6 +480,8 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
     if brief_withdraw is not None:
         ctx.brief_withdraw = brief_withdraw  # decision only — retract/replace a submitted brief
+    if portfolio_sink is not None:
+        ctx.portfolio_sink = portfolio_sink  # decision only — records simulate_action_portfolio result
     if briefs is not None:
         # executor lanes — place_ad/set_group_buy_coupon enforce the brief law; an EMPTY list is
         # itself the contract ("决策 filed nothing for you"), which the spend tools refuse to breach.
@@ -513,6 +543,9 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
             task = f"{task}\n\n{_brief_context(mine)}"
         else:
             task = f"{task}\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，不要调用任何执行工具，说明本轮不{('投广' if slug == 'ad' else '设团购')}。）"
+    if slug == "customer_ops" and state.analysis and state.analysis.get("focus_customers"):
+        # 数分's screened re-engagement shortlist — 用户运营 messages each non-opted-out candidate.
+        task = f"{task}\n\n{_customer_brief_context(state.analysis['focus_customers'])}"
     if slug == "monitor":
         current = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id) if round_id else []
         if current:
@@ -553,12 +586,18 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
             ]
             return len(state.briefs) < before
 
+    def _portfolio_sink(result: dict) -> None:
+        with state._lock:
+            state.portfolio_simulated = True
+            state.portfolio_result = result
+
     return _run_lane_raw(
         sb, agents, range_days, round_id, slug, task, parent_run,
         revision_port_factory=factory,
         analysis_sink=_analysis_sink if slug == "insight" else None,
         brief_sink=_sink if slug == "decision" else None,
         brief_withdraw=_withdraw if slug == "decision" else None,
+        portfolio_sink=_portfolio_sink if slug == "decision" else None,
         briefs=[b for b in state.briefs if b.get("action_type") == slug] if slug in ("ad", "coupon") else None,
         # `task` here is the FINAL rendered task (after context injection) — persisted so a run's
         # behavior is attributable to what the model actually saw, not the pre-injection template.
@@ -600,7 +639,7 @@ def _run_round_llm_orchestrator(range_days: int = 7, *, trigger_kind: str | None
         started_at=bus.now_iso(), round_id=round_id,
         prompt_sha=_prompt_sha(orch_system), agent_version=agents["orchestrator"].get("version"),
     )
-    state = RoundState(dispatch_fn=None)
+    state = RoundState(dispatch_fn=None, require_portfolio_check=True)
     blackboard: dict[str, object] = {}
     bb_lock = threading.Lock()  # dispatch_many completes lanes concurrently — serialize the
     # read-modify-write, else a stale full-JSON write can erase another lane's entry (lost update).
@@ -687,6 +726,70 @@ def _runtime_dispatch_many(
             )
 
 
+def _merchandising_route_signal(sb: Any, range_days: int) -> dict[str, Any]:
+    """Whether 陈列运营 should wake this planning round.
+
+    This is a read-only routing signal, not a business decision: spend lanes require 商分 Action
+    Briefs, but 陈列运营 owns safe exposure/listing candidates from the deterministic trend engine.
+    """
+    try:
+        candidates = tools.build_merchandising_candidates(range_days, sb=sb)
+    except Exception as e:  # noqa: BLE001 — fail open so the lane's own tool call surfaces the issue
+        return {
+            "shouldDispatch": True,
+            "reason": f"candidate_preflight_failed:{type(e).__name__}",
+            "error": str(e)[:240],
+        }
+    counts = {
+        "increaseExposure": len(candidates.get("increaseExposure") or []),
+        "decreaseExposure": len(candidates.get("decreaseExposure") or []),
+        "proposeListing": len(candidates.get("proposeListing") or []),
+    }
+    total = sum(counts.values())
+    return {
+        "shouldDispatch": total > 0,
+        "reason": f"merchandising_candidates:{total}" if total else "no_merchandising_candidates",
+        "counts": counts,
+    }
+
+
+def _customer_ops_route_signal() -> dict[str, Any]:
+    """Whether 用户运营 should wake this planning round.
+
+    Weekly planning only wakes it for grounded re-engagement opportunities. Transactional/event
+    messages should be separate triggers; this avoids paying for a user-ops lane when the roster has no
+    eligible lapsed customer.
+    """
+    try:
+        customers = bus.fetch_customers().get("customers", [])
+    except Exception as e:  # noqa: BLE001 — fail open so the lane's own tool call surfaces the issue
+        return {
+            "shouldDispatch": True,
+            "reason": f"customer_preflight_failed:{type(e).__name__}",
+            "error": str(e)[:240],
+        }
+    candidates = []
+    for c in customers:
+        if c.get("optOut") or c.get("opt_out") or c.get("marketingOptOut"):
+            continue
+        days = c.get("lastVisitDaysAgo")
+        try:
+            lapsed_days = int(days) if days is not None else None
+        except (TypeError, ValueError):
+            lapsed_days = None
+        if lapsed_days is not None and lapsed_days >= 30 and int(c.get("bookingCount") or 0) > 0:
+            candidates.append(c)
+    return {
+        "shouldDispatch": bool(candidates),
+        "reason": (
+            f"lapsed_reengagement_candidates:{len(candidates)}"
+            if candidates else "no_customer_ops_candidates"
+        ),
+        "candidateCount": len(candidates),
+        "topCustomers": [c.get("name") for c in candidates[:3]],
+    }
+
+
 def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
                        trigger_reason: str | None = None, runtime_mode: str = "planning") -> dict[str, str]:
     """Deterministic Orchestration Runtime.
@@ -717,7 +820,7 @@ def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
         parent_run_id=None, input=root_input, started_at=bus.now_iso(), round_id=round_id,
         prompt_sha=_prompt_sha(runtime_system), agent_version=agents["orchestrator"].get("version"),
     )
-    state = RoundState(dispatch_fn=None)
+    state = RoundState(dispatch_fn=None, require_portfolio_check=True)
     blackboard: dict[str, object] = {}
     transcript: list[dict[str, Any]] = [{
         "kind": "runtime_route",
@@ -770,10 +873,34 @@ def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
             for slug, zh in (("ad", "投广"), ("coupon", "团购")):
                 if any(b.get("action_type") == slug for b in state.briefs):
                     execution.append((slug, f"只处理决策提交给你的 {zh} Action Brief；在 brief 边界内选择参数并落地。", "decision"))
-            execution.extend([
-                ("catalog", "读取陈列候选，最多处理 3 个安全曝光调整/上新建议；可 no-op。", "trend"),
-                ("customer_ops", "读取客户情报，若有明确老客召回机会则处理；否则说明不发送。", "insight"),
-            ])
+            merchandising_signal = _merchandising_route_signal(sb, range_days)
+            if merchandising_signal.get("shouldDispatch"):
+                execution.append(
+                    ("catalog", "读取陈列候选，最多处理 3 个安全曝光调整/上新建议；可 no-op。", "trend")
+                )
+            else:
+                transcript.append({
+                    "kind": "runtime_skip",
+                    "agent": "catalog",
+                    "reason": merchandising_signal.get("reason"),
+                    "signal": merchandising_signal,
+                })
+            customer_signal = _customer_ops_route_signal()
+            if customer_signal.get("shouldDispatch"):
+                execution.append(
+                    # parent=insight: 数分 screens the roster into focus_customers (injected as the 用户候选
+                    # brief), and 用户运营 sends one personalized message per non-opted-out candidate.
+                    ("customer_ops",
+                     "读取数分给的用户候选（focus_customers），对每个未拒收的老客发一条个性化召回消息；"
+                     "名册里查偏好/上次款式写正文。没有候选就说明本轮不发送。", "insight")
+                )
+            else:
+                transcript.append({
+                    "kind": "runtime_skip",
+                    "agent": "customer_ops",
+                    "reason": customer_signal.get("reason"),
+                    "signal": customer_signal,
+                })
             _runtime_dispatch_many(state, execution, transcript)
             _dispatch_one("monitor", "衡量本轮动作效果或记录基线；监测必须在执行环节之后单独运行。", "decision")
 

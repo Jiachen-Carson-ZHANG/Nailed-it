@@ -146,9 +146,9 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   submit_analysis_brief: (input, _o, lang) => ({
     label: lang === 'zh-CN' ? '数分候选' : 'Analysis brief',
     summary: lang === 'zh-CN'
-      ? `锁定 ${count(input.focus_style_ids)} 个候选款 · ${count(input.alerts)} 条告警` +
+      ? `锁定 ${count(input.focus_style_ids)} 个候选款 · ${count(input.focus_customers)} 位召回候选 · ${count(input.alerts)} 条告警` +
         (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} 处证据缺口` : '')
-      : `Flagged ${count(input.focus_style_ids)} candidate styles · ${count(input.alerts)} alerts` +
+      : `${count(input.focus_style_ids)} candidate styles · ${count(input.focus_customers)} re-engage customers · ${count(input.alerts)} alerts` +
         (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} evidence gaps` : ''),
   }),
 
@@ -165,7 +165,7 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   get_customer_intelligence: (_i, output, lang) => {
     const n = isObj(output) ? count((output as { customers?: unknown }).customers) || count(output) : count(output);
     const zh = lang === 'zh-CN';
-    return { label: zh ? '客户画像' : 'Customers', summary: zh ? `读取 ${n || '若干'} 位重点客户画像` : `Read ${n || 'key'} customer profiles` };
+    return { label: zh ? '客户名册' : 'Customer roster', summary: zh ? `浏览客户名册（${n || '全部'} 位，最久未到店优先），从中挑本轮值得联系的人` : `Scanned the roster (${n || 'all'}, most-lapsed first) to pick who to reach this round` };
   },
 
   get_external_trends: (input, output, lang) => {
@@ -318,10 +318,10 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   }),
 
   send_customer_message: (input, _o, lang) => ({
-    label: lang === 'zh-CN' ? '老板消息' : 'Message',
+    label: lang === 'zh-CN' ? '客户消息' : 'Message',
     summary: lang === 'zh-CN'
-      ? `以老板身份联系 ${String(input.customerName ?? '')}：${truncate(String(input.body ?? ''), 60)}`
-      : `Messaged ${String(input.customerName ?? '')} as the boss: ${truncate(String(input.body ?? ''), 60)}`,
+      ? `向 ${String(input.customerName ?? '')} 发送（AI 署名）：${truncate(String(input.body ?? ''), 60)}`
+      : `Sent to ${String(input.customerName ?? '')} (AI-signed): ${truncate(String(input.body ?? ''), 60)}`,
   }),
 
   // ── Stage 3 (ADR-0016): message classes + merchandising verbs + coupon templates ──────────
@@ -543,9 +543,11 @@ export function describeAction(type: AgentActionType, payload: Record<string, un
       return zh ? `生成上新草稿：${what}` : `Drafted a new listing: ${what}`;
     }
     case 'send_customer_message':
+      // Full body (no truncation) — the sheet/page clamps + expands. The body carries its own
+      // 【Nailed-it 商家助手】 label, so authorship is clear (never claims to be the boss).
       return zh
-        ? `以老板身份给 ${String(p.customerName ?? '')} 发送：${truncate(String(p.body ?? ''), 80)}`
-        : `Messaged ${String(p.customerName ?? '')}: ${truncate(String(p.body ?? ''), 80)}`;
+        ? `向 ${String(p.customerName ?? '')} 发送（AI 署名）：${String(p.body ?? '')}`
+        : `Sent to ${String(p.customerName ?? '')} (AI-signed): ${String(p.body ?? '')}`;
     default:
       return compactJson(p, 100);
   }
