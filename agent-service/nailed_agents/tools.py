@@ -63,6 +63,9 @@ class RunContext:
     # ADR-0016 §2: set ONLY on the decision agent's context — a callable that files an Action Brief
     # onto the round. None everywhere else, so no other lane can author briefs.
     brief_sink: Any = None
+    # The retraction half of the brief contract (decision only): (action_type, style_id) -> bool.
+    # Without it a prose "withdrawal" after simulate_action_portfolio changes nothing downstream.
+    brief_withdraw: Any = None
     # ADR-0016 §2: the briefs governing THIS executor run. A LIST (even empty) means the lane was
     # dispatched under the briefs contract — spend tools refuse when their action_type has no brief
     # (an empty list is "决策 filed nothing", not "no law"). None = context outside the contract
@@ -893,14 +896,49 @@ def submit_action_brief(
         "notes": str(notes or "")[:300],
         "source_run_id": ctx.run_id,
     }
-    ctx.brief_sink(brief)
+    # REPLACE semantics: re-submitting the same (action_type, style_id) supersedes the earlier brief —
+    # both in the shared round state and in the decision's own view — so a post-simulation adjustment
+    # is one call, not a dangling duplicate the reviewer/executor could still read.
+    replaced = False
+    if ctx.brief_withdraw is not None:
+        replaced = bool(ctx.brief_withdraw(action_type, style_id))
     if ctx.briefs is None:
         ctx.briefs = []
+    ctx.briefs[:] = [b for b in ctx.briefs
+                     if not (b.get("action_type") == action_type and b.get("style_id") == style_id)]
+    ctx.brief_sink(brief)
     ctx.briefs.append(brief)  # the decision agent's own view — simulate_action_portfolio reads it
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "submit_action_brief", "input": brief, "output": {"accepted": True}}
+        {"kind": "tool_call", "tool": "submit_action_brief", "input": brief,
+         "output": {"accepted": True, "replaced_previous": replaced}}
     )
-    return f"Action brief accepted ({action_type} / {style_id}) — the executor will plan within it."
+    verb = "replaced the previous brief for" if replaced else "accepted"
+    return f"Action brief {verb} ({action_type} / {style_id}) — the executor will plan within it."
+
+
+def withdraw_action_brief(action_type: str, style_id: str) -> str:
+    """Retract a previously submitted Action Brief (ADR-0016 §2) — REQUIRED when
+    simulate_action_portfolio reports a conflict you resolve by dropping an action: saying "撤回"
+    in prose does NOT change the round state; only this call removes the brief the reviewer and
+    executors will see. action_type: ad | coupon. style_id: the brief's style."""
+    ctx = _ctx()
+    if ctx.brief_sink is None or ctx.brief_withdraw is None:
+        raise ValueError("briefs_not_allowed")  # decision-only capability, like submit
+    action_type = _clean_text(action_type, field="action_type", max_chars=20)
+    if action_type not in _BRIEF_ACTIONS:
+        raise ValueError("action_type_invalid")
+    style_id = _clean_style_id(style_id)
+    removed = bool(ctx.brief_withdraw(action_type, style_id))
+    if ctx.briefs is not None:
+        ctx.briefs[:] = [b for b in ctx.briefs
+                         if not (b.get("action_type") == action_type and b.get("style_id") == style_id)]
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "withdraw_action_brief",
+         "input": {"action_type": action_type, "style_id": style_id}, "output": {"removed": removed}}
+    )
+    if not removed:
+        return f"No brief found for ({action_type} / {style_id}) — nothing withdrawn."
+    return f"Brief withdrawn ({action_type} / {style_id}) — reviewer and executors will no longer see it."
 
 
 def simulate_action_portfolio() -> str:
@@ -1179,7 +1217,10 @@ def search_memory(scope_refs: str = "", scope_tags: str = "", domains: str = "",
     historical prior, NOT current fact: live tools win every conflict; absence of memory is not
     evidence an action will work."""
     ctx = _ctx()
-    limit = min(_bounded_int(limit, field="limit", maximum=10), 10)
+    # a READ count: validate type/positive, but CLAMP an over-ask to 10 instead of rejecting it — a
+    # caller asking for "up to 20" memories should get 10, not a hard error (the old maximum=10 made the
+    # min() below dead code and tripped models that pass a larger, reasonable limit).
+    limit = min(_bounded_int(limit, field="limit", maximum=10_000), 10)
     refs = {s.strip() for s in str(scope_refs or "").split(",") if s.strip()}
     tags = {s.strip() for s in str(scope_tags or "").split(",") if s.strip()}
     doms = {s.strip() for s in str(domains or "").split(",") if s.strip()}
@@ -1342,6 +1383,7 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
     get_style_business_facts,
     submit_action_brief,
+    withdraw_action_brief,
     simulate_action_portfolio,
     get_customer_intelligence,
     get_external_trends,

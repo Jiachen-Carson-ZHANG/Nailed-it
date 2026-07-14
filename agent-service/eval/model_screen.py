@@ -46,6 +46,12 @@ CANDIDATES: dict[str, dict] = {
     "qwen3.7-max": {"model": "qwen/qwen3.7-max", "price": (1.25, 3.75), "note": "CN-strong"},
     "claude-sonnet-5": {"model": "anthropic/claude-sonnet-5", "price": (2.00, 10.00), "note": "tool-use reference"},
     "gpt-5.6-terra": {"model": "openai/gpt-5.6-terra", "price": (2.50, 15.00), "note": "mainstream reference"},
+    # light-tier candidates — screened ONLY on the read lanes (insight/trend/catalog/customer_ops) to
+    # test whether the cheap tier is adequate there (分档实测), never on the judgment subset.
+    "gemini-2.5-flash": {"model": "google/gemini-2.5-flash", "price": (0.30, 2.50), "note": "light-tier"},
+    "qwen3.6-flash": {"model": "qwen/qwen3.6-flash", "price": (0.15, 0.60), "note": "light-tier"},
+    "gpt-5.4-mini": {"model": "openai/gpt-5.4-mini", "price": (0.25, 2.00), "note": "light-tier"},
+    "claude-haiku-4.5": {"model": "anthropic/claude-haiku-4.5", "price": (1.00, 5.00), "note": "light-tier"},
 }
 
 _TIER_VARS = ("AGENT_MODEL", "ORCHESTRATOR_MODEL", "DECISION_MODEL", "AD_MODEL",
@@ -64,17 +70,19 @@ def _key_usage_usd(api_key: str) -> float | None:
         return None
 
 
-def screen_one(slug: str, model_id: str, n: int, api_key: str) -> dict:
+def screen_one(slug: str, model_id: str, n: int, api_key: str,
+               only: str = SUBSET, tag: str = "") -> dict:
     _OUT.mkdir(parents=True, exist_ok=True)
-    report_path = _OUT / f"{slug}.json"
-    log_path = _OUT / f"{slug}.log"
+    suffix = f"-{tag}" if tag else ""
+    report_path = _OUT / f"{slug}{suffix}.json"
+    log_path = _OUT / f"{slug}{suffix}.log"
     env = {**os.environ, "MODEL_PROVIDER": "openrouter", **{v: model_id for v in _TIER_VARS}}
     before = _key_usage_usd(api_key)
     t0 = time.monotonic()
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.run(
             [sys.executable, str(_HERE / "agents_eval.py"), "--n", str(n),
-             "--only", SUBSET, "--json-report", str(report_path)],
+             "--only", only, "--json-report", str(report_path)],
             env=env, cwd=str(_HERE.parent), stdout=log, stderr=subprocess.STDOUT,
         )
     wall = round(time.monotonic() - t0, 1)
@@ -102,10 +110,12 @@ def screen_one(slug: str, model_id: str, n: int, api_key: str) -> dict:
     return row
 
 
-def matrix_md(rows: list[dict], n: int) -> str:
+def matrix_md(rows: list[dict], n: int, only: str = SUBSET, tag: str = "") -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    title = f"Model screen — {tag or 'judgment subset'} ({len(only.split(','))} scenarios × n={n})"
     lines = [
-        f"# Model screen — judgment subset ({len(SUBSET.split(','))} scenarios × n={n})",
+        f"# {title}",
+        f"Scenarios: {only}",
         f"Generated {ts}. Protocol: doc 06 (floor: all gates green → flake rate → cost → latency).",
         "",
         "| model | gates green | failed runs (flake) | tool errs | cost measured $ | ledger $ | mean s/run | tokens in/out |",
@@ -128,21 +138,29 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--candidates", nargs="*", default=list(CANDIDATES),
                     help=f"subset of: {', '.join(CANDIDATES)}")
+    ap.add_argument("--only", default=SUBSET,
+                    help="scenario id substrings (default: the frozen judgment subset)")
+    ap.add_argument("--tag", default="",
+                    help="suffix for output files — extension runs (e.g. monitor-orch) never overwrite screen rows")
     args = ap.parse_args()
+    if args.only != SUBSET and not args.tag:
+        raise SystemExit("--only without --tag would overwrite the frozen screen rows; pass --tag")
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
         raise SystemExit("OPENROUTER_API_KEY missing from environment")
     _OUT.mkdir(parents=True, exist_ok=True)
+    matrix_name = f"matrix-{args.tag}.md" if args.tag else "matrix.md"
     rows = []
     for slug in args.candidates:
         if slug not in CANDIDATES:
             raise SystemExit(f"unknown candidate '{slug}' — known: {', '.join(CANDIDATES)}")
-        print(f"=== {slug} ({CANDIDATES[slug]['model']}) — subset × n={args.n} ===", flush=True)
-        row = screen_one(slug, CANDIDATES[slug]["model"], args.n, api_key)
+        print(f"=== {slug} ({CANDIDATES[slug]['model']}) — {args.tag or 'subset'} × n={args.n} ===", flush=True)
+        row = screen_one(slug, CANDIDATES[slug]["model"], args.n, api_key, only=args.only, tag=args.tag)
         rows.append(row)
         print(json.dumps(row, ensure_ascii=False), flush=True)
-        (_OUT / "matrix.md").write_text(matrix_md(rows, args.n), encoding="utf-8")  # progressive
-    print(f"\nmatrix → {_OUT / 'matrix.md'}")
+        (_OUT / matrix_name).write_text(matrix_md(rows, args.n, only=args.only, tag=args.tag),
+                                        encoding="utf-8")  # progressive
+    print(f"\nmatrix → {_OUT / matrix_name}")
     return 0
 
 

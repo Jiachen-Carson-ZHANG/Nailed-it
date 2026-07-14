@@ -138,7 +138,7 @@ _EMBED_PROVIDER_KEY = {"google": ("GEMINI_API_KEY", GEMINI_API_KEY),
 # hot + external trends) — the pending queue must never outrun that cadence. Merchant policy later.
 MAX_PENDING_PROPOSALS = int(os.environ.get("MAX_PENDING_PROPOSALS", "5"))
 
-# ADR-0016: the merchant's weekly marketing budget envelope (SGD 180) — get_ad_account_state
+# ADR-0016: the merchant's weekly marketing budget envelope (CNY ¥180 — prices are CNY-base) — get_ad_account_state
 # reports remaining vs committed; a merchant-policy surface later makes this editable.
 MARKETING_BUDGET_CENTS = int(os.environ.get("MARKETING_BUDGET_CENTS", "18000"))
 

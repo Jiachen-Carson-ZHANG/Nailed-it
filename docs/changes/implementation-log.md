@@ -2468,3 +2468,25 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   NOT in the screen subset, now stated plainly + extension results), new insight/ablation sections,
   scale-change record. New `docs/presentation/eval-slide-spec.md` defines the single eval slide (4
   blocks + do-NOT-show list) vs technical-doc landing points.
+
+## 2026-07-14 (cont.) — Light-tier read-lane screen + discriminating scenarios + eval slide
+
+- **3 discriminating read-lane scenarios** (`agent-service/eval/agents_eval.py`): customer_ops/
+  optout-respected (negative constraint from a visible roster field), customer_ops/aftercare-is-
+  transactional (message-class routing: aftercare auto-sends, never a draft), trend/history-conflict-
+  downgrades (read memory → downgrade amplify→price_test). Suite now 20 scenarios. Sanity-checked on
+  terra (all fair — strong model passes).
+- **search_memory clamp fix** (`nailed_agents/tools.py`): a `limit>10` raised `limit_too_large` while
+  the code's own `min(...,10)` intended to clamp — a read-count over-ask now clamps to 10 instead of
+  erroring (surfaced by terra passing limit=20 in the new trend scenario). 76 tests still green.
+- **Light-tier screen** (`model_screen.py` gained gemini-2.5-flash / qwen3.6-flash candidates):
+  gemini-2.5-flash on 9 read lanes × n3 = **7/9 green, 7.4% flake, $0.04, 3.6s** — passes all 3 new
+  discriminating scenarios, fails on small-sample hedging (over-claims) + win-back routing (unstable).
+  Measured tiering: cheap tier adequate for straightforward reads, risky on nuanced merchant-facing
+  calls. `docs/eval/model-matrix/matrix-light.md`.
+- **Eval slide** (`docs/presentation/projects/nailedit-eval-slide_20260714/`): single dark-template
+  slide rebuilt to two hero tables (six-family selection + judge layer) per merchant-clear feedback —
+  columns renamed to plain Chinese (通过门/抖动率/成本/耗时, 推理质量/裁判偏差), 判语 column dropped,
+  hallucination/compliance demoted to a footnote (identical across models → no selection value),
+  architecture-ablation cut from the slide (weakest data, kept in doc/verbal), scenario inventory (20)
+  shown. Exported via ppt-master svg_to_pptx (native-SVG pptx). Preview verified, no overflow.

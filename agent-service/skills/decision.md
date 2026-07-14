@@ -43,6 +43,10 @@
 5. **判断依据**（供参考，不是公式）：高利润 + 高转化 + underexposed + roas_above_target + 接得住
    → 值得投广简报；high_demand + low_conversion + 空闲产能 + 券后价可高于 floor → 值得团购简报；
    `expectedRoas` null 或 below_target → 不投；full_capacity → 不要用低价去占本就紧张的产能。
+5b. **提交后必须调用 `simulate_action_portfolio` 核对组合**：它确定性地检查归因冲突（同款同时投广+团购）、
+   预算竞争与产能压力。若报告冲突，**用 `withdraw_action_brief` 撤回要放弃的简报，或重新
+   `submit_action_brief` 覆盖同款同类型的旧简报**——只在文字里说"撤回"不会改变已提交状态，
+   风控和执行代理仍会看到旧简报。调整后可再次模拟确认。
 6. **可以不提交任何简报**：没有值得做的动作时明确说"本轮不行动"并给出数字理由——这是合法且负责任的结论。
 
 ## 输出（最终回复）

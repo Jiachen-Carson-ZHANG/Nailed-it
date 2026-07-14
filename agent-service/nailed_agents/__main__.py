@@ -78,8 +78,17 @@ def check_triggers(run: bool = False) -> None:
         print(f"[{s.urgency}] {s.kind}: {s.reason}")
     urgent = [s for s in signals if s.urgency == "urgent"]
     if run and urgent:
+        # The firing signal travels INTO the round: reason → orchestrator context, kind → trigger_source.
+        first = urgent[0]
+        extra = f"（另有 {len(urgent) - 1} 个并发信号）" if len(urgent) > 1 else ""
         print(f"→ {len(urgent)} urgent signal(s) — firing a round")
-        run_round()
+        run_round(trigger_kind=first.kind, trigger_reason=f"{first.reason}{extra}")
+    elif run and signals:
+        # routine-only signals (cadence / matured evidence) also fire under --run — previously routine
+        # evidence never started a round automatically.
+        first = signals[0]
+        print(f"→ routine signal — firing a round ({first.kind})")
+        run_round(trigger_kind=first.kind, trigger_reason=first.reason)
     elif urgent:
         print(f"→ {len(urgent)} urgent signal(s); pass --run to fire a round")
 

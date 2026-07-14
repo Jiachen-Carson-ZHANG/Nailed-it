@@ -234,7 +234,7 @@ def fetch_blackboard(sb: Client, round_id: str) -> dict[str, Any]:
     return (res.data or {}).get("blackboard", {}) if res else {}
 
 
-_CAMPAIGN_COLS = "id, merchant_style_id, status, daily_budget_cents, impressions, clicks, bookings, spend_cents, source_run_id, updated_at"
+_CAMPAIGN_COLS = "id, merchant_style_id, status, daily_budget_cents, impressions, clicks, bookings, spend_cents, source_run_id, created_at, updated_at"
 _CAMPAIGN_COLS_V2 = _CAMPAIGN_COLS + ", audience, total_budget_cents, duration_days, version"
 
 
@@ -251,11 +251,41 @@ def fetch_campaign_outcomes(sb: Client, merchant_id: str) -> list[dict[str, Any]
             .execute()
         )
     try:
-        return _q(_CAMPAIGN_COLS_V2).data or []
+        rows = _q(_CAMPAIGN_COLS_V2).data or []
     except Exception as e:  # noqa: BLE001 — pre-0033 DBs lack the sandbox columns
         if _is_missing_column(e):
-            return _q(_CAMPAIGN_COLS).data or []
-        raise
+            rows = _q(_CAMPAIGN_COLS).data or []
+        else:
+            raise
+    # Join the launch-forecast hypothesis (it lives on the place_ad action payload, keyed by the
+    # campaign entity, not on the campaign row) so the CAC threshold alarm has its baseline
+    # end-to-end — without this only the zero-booking alarm could fire on real data.
+    try:
+        acts = (
+            sb.table("agent_actions")
+            .select("entity_id, payload")
+            .eq("merchant_id", merchant_id)
+            .eq("type", "place_ad")
+            .not_.is_("entity_id", "null")
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        ).data or []
+        hyp_by_campaign: dict[str, Any] = {}
+        for a in acts:
+            cid, h = a.get("entity_id"), (a.get("payload") or {}).get("hypothesis")
+            if cid and cid not in hyp_by_campaign and isinstance(h, dict):
+                hyp_by_campaign[str(cid)] = h
+        for c in rows:
+            h = hyp_by_campaign.get(str(c.get("id")))
+            if h:
+                band = h.get("expectedCostPerBookingCents") or []
+                low = band[0] if isinstance(band, list) and band else None
+                if isinstance(low, (int, float)) and low > 0:
+                    c["hypothesis_cac_low_cents"] = low
+    except Exception:  # noqa: BLE001 — the join is enrichment; campaign truth must still return
+        print("WARN hypothesis join failed — CAC alarm degraded to zero-booking only")
+    return rows
 
 
 def upsert_memory(sb: Client, row: dict[str, Any]) -> None:
@@ -346,13 +376,39 @@ def apply_campaign_delivery(sb: Client, campaign_id: str, merchant_id: str, delt
     }).eq("id", campaign_id).eq("merchant_id", merchant_id).execute()
 
 
+# Evidence-maturity gate (mirrors monitor.md): a campaign is judgeable once its observation window is
+# ≥24h old, OR it accumulated ≥500 impressions, OR ≥15 clicks. `impressions > 0` alone made one
+# stray impression look "due" — the skill said 24h/500/15 but no code enforced it.
+_MATURITY_MIN_HOURS = 24
+_MATURITY_MIN_IMPRESSIONS = 500
+_MATURITY_MIN_CLICKS = 15
+
+
+def _evidence_mature(campaign: dict[str, Any]) -> bool:
+    imp = int(campaign.get("impressions") or 0)
+    clicks = int(campaign.get("clicks") or 0)
+    if imp >= _MATURITY_MIN_IMPRESSIONS or clicks >= _MATURITY_MIN_CLICKS:
+        return True
+    if imp <= 0:
+        return False
+    started = campaign.get("created_at") or campaign.get("updated_at")
+    if not started:
+        return False
+    try:
+        from datetime import datetime, timezone
+        age_h = (datetime.now(timezone.utc) - datetime.fromisoformat(str(started).replace("Z", "+00:00"))).total_seconds() / 3600
+        return age_h >= _MATURITY_MIN_HOURS
+    except Exception:  # noqa: BLE001 — unparseable timestamp: fall back to "has data"
+        return True
+
+
 def fetch_due_actions(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
-    """Measurable PAST actions (ADR-0015 two-phase monitor, minimal form): every applied/proposed
-    spend action whose campaign has accumulated data. Injected into the monitor beside the current
-    round's execution list — a due-outcomes queue without a scheduler. Data presence is the due
-    signal; the immature-window gate in record_action_outcome stays the enforcement."""
+    """Measurable PAST actions (ADR-0015 two-phase monitor): every applied/proposed spend action whose
+    campaign's observation window has MATURED (≥24h, or ≥500 impressions, or ≥15 clicks — the same
+    thresholds monitor.md states). Injected into the monitor beside the current round's execution
+    list; the immature-window gate in record_action_outcome stays the enforcement."""
     campaigns = fetch_campaign_outcomes(sb, merchant_id)
-    measurable = [c["id"] for c in campaigns if (c.get("impressions") or 0) > 0]
+    measurable = [c["id"] for c in campaigns if _evidence_mature(c)]
     if not measurable:
         return []
     res = (

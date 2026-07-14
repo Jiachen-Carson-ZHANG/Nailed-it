@@ -118,8 +118,9 @@ ORCH_TASK = (
 )
 
 
-# 花钱执行者——风控裁决 REVISION_REQUIRED 时被硬门拦住（catalog/customer_ops 不花营销钱包，放行）。
+# 花钱执行者——必须拿到风控明确放行才可分派（catalog/customer_ops 不花营销钱包，不受此门）。
 _SPEND_LANES = {"ad", "coupon"}
+_SPEND_APPROVED = {"APPROVED", "APPROVED_WITH_CONDITIONS"}
 _VERDICT_RE = re.compile(r"\[(APPROVED_WITH_CONDITIONS|APPROVED|REVISION_REQUIRED|MERCHANT_APPROVAL_REQUIRED)\]")
 
 
@@ -168,15 +169,22 @@ class RoundState:
                 self.budget -= 1
 
     def dispatch(self, slug: str, task: str, parent: str | None, *, reserved: bool = False) -> tuple[str, str]:
+        # ADR-0016 §6 硬门，fail-closed：花钱执行者只有在风控明确放行（APPROVED / APPROVED_WITH_CONDITIONS）
+        # 后才可分派。裁决缺失、解析失败、REVISION_REQUIRED、MERCHANT_APPROVAL_REQUIRED 一律拦截——
+        # 之前只拦 REVISION_REQUIRED，意味着风控哑火时钱照花（fail-open）。这也在 runtime 层强制了
+        # “风控先于执行者”的顺序。被拦的 lane 不算已分派（reserve 也回滚）——风控稍后放行时，
+        # 编排器仍可重新分派它。硬规则（钱包/简报）仍在工具层兜底。
+        if slug in _SPEND_LANES and self.reviewer_verdict not in _SPEND_APPROVED:
+            if reserved:
+                with self._lock:
+                    self._taken.discard(slug)
+                    self.budget += 1
+            raise ValueError(f"blocked_by_reviewer:{self.reviewer_verdict or 'no_verdict_fail_closed'}")
         if not reserved:
             with self._lock:
                 self._validate(slug)
                 self._taken.add(slug)
                 self.budget -= 1
-        # ADR-0016 §6 硬门：风控裁决 [REVISION_REQUIRED] 时，代码拒绝分派花钱执行者——不再只靠模型
-        # 读懂上游结论后自觉遵守。软风险裁决因此有了 runtime 牙齿；硬规则（钱包/简报）仍在工具层兜底。
-        if slug in _SPEND_LANES and self.reviewer_verdict == "REVISION_REQUIRED":
-            raise ValueError("blocked_by_reviewer:revision_required")
         assert self.dispatch_fn is not None
         run_id, text = self.dispatch_fn(slug, task, parent)
         with self._lock:
@@ -383,6 +391,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   slug: str, task: str, parent_run_id: str,
                   revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
                   brief_sink: Callable[[dict], None] | None = None,
+                  brief_withdraw: Callable[[str, str], bool] | None = None,
                   briefs: list[dict] | None = None,
                   input_extra: dict | None = None) -> tuple[str, str]:
     """The lane-run core: open a running agent_run under an explicit parent, drive the lane's tool loop
@@ -402,6 +411,8 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
     if brief_sink is not None:
         ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
+    if brief_withdraw is not None:
+        ctx.brief_withdraw = brief_withdraw  # decision only — retract/replace a submitted brief
     if briefs is not None:
         # executor lanes — place_ad/set_group_buy_coupon enforce the brief law; an EMPTY list is
         # itself the contract ("决策 filed nothing for you"), which the spend tools refuse to breach.
@@ -487,10 +498,23 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         with state._lock:
             state.briefs.append(brief)
 
+    def _withdraw(action_type: str, style_id: str) -> bool:
+        # The retraction half of the brief contract: without it, a decision that "withdraws" a brief in
+        # prose after simulate_action_portfolio leaves the shared copy live — reviewer and executors
+        # still see (and act on) it. Returns whether anything was actually removed.
+        with state._lock:
+            before = len(state.briefs)
+            state.briefs[:] = [
+                b for b in state.briefs
+                if not (b.get("action_type") == action_type and b.get("style_id") == style_id)
+            ]
+            return len(state.briefs) < before
+
     return _run_lane_raw(
         sb, agents, range_days, round_id, slug, task, parent_run,
         revision_port_factory=factory,
         brief_sink=_sink if slug == "decision" else None,
+        brief_withdraw=_withdraw if slug == "decision" else None,
         briefs=[b for b in state.briefs if b.get("action_type") == slug] if slug in ("ad", "coupon") else None,
         # `task` here is the FINAL rendered task (after context injection) — persisted so a run's
         # behavior is attributable to what the model actually saw, not the pre-injection template.
@@ -499,7 +523,12 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     )
 
 
-def run_round(range_days: int = 7) -> dict[str, str]:
+def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
+              trigger_reason: str | None = None) -> dict[str, str]:
+    """One orchestrated round. `trigger_kind`/`trigger_reason` carry WHY this round fired (cadence /
+    evidence_matured / threshold_alarm / merchant button): the reason is injected into the
+    orchestrator's task (so lane skipping reacts to the actual signal, not a guess) and the kind maps
+    onto the run row's trigger_source — cadence→schedule, alarms/evidence→event, none→manual."""
     config.require_env()
     sb = bus.supabase()
     agents = bus.agents_by_slug(sb)
@@ -513,10 +542,18 @@ def run_round(range_days: int = 7) -> dict[str, str]:
     orch_task = ORCH_TASK.format(range_days=range_days) + _memory_hints(
         sb, kinds=("merchant_preference", "round_verdict")
     )
+    if trigger_reason:
+        orch_task = (
+            f"[本轮触发原因 — 系统注入] {trigger_kind or 'event'}: {trigger_reason}\n"
+            "编排时优先响应该信号（相关 lane 必须分派；无关 lane 照常按数字理由跳过）。\n\n"
+        ) + orch_task
+    trigger_source = {"cadence": "schedule", "evidence_matured": "event", "threshold_alarm": "event"}.get(
+        trigger_kind or "", "manual")
     orch_run = bus.start_run(
-        sb, agent_id=agents["orchestrator"]["id"], trigger_source="manual",
+        sb, agent_id=agents["orchestrator"]["id"], trigger_source=trigger_source,
         parent_run_id=None,
-        input={"rangeDays": range_days, "task": orch_task, "model": config.ORCHESTRATOR_MODEL},
+        input={"rangeDays": range_days, "task": orch_task, "model": config.ORCHESTRATOR_MODEL,
+               **({"triggerKind": trigger_kind, "triggerReason": trigger_reason} if trigger_kind else {})},
         started_at=bus.now_iso(), round_id=round_id,
         prompt_sha=_prompt_sha(orch_system), agent_version=agents["orchestrator"].get("version"),
     )

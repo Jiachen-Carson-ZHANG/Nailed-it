@@ -22,6 +22,7 @@
     "search_memory",
     "read_blackboard",
     "submit_action_brief",
+    "withdraw_action_brief",
     "simulate_action_portfolio"
   ],
   "ad": [

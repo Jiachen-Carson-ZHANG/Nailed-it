@@ -41,7 +41,7 @@ def test_registries_cover_the_same_tools():
         # 运营 (catalog) grounded-candidates read tool
         "get_catalog_actions",
         # 决策 (ADR-0016) business-engine facts + the Action Brief output contract + portfolio sim
-        "get_style_business_facts", "submit_action_brief", "simulate_action_portfolio",
+        "get_style_business_facts", "submit_action_brief", "withdraw_action_brief", "simulate_action_portfolio",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
         # 监测回流 + 记忆 v2 + 修订 (ADR-0013 P2/P3, ADR-0015)
@@ -364,11 +364,13 @@ def test_dispatch_guardrails_one_per_agent_and_budget(ctx):
     tools.dispatch_agent("trend", "任务", "insight")
     tools.dispatch_agent("decision", "任务", "trend")
     with pytest.raises(ValueError, match="dispatch_budget_exhausted"):
-        tools.dispatch_agent("ad", "任务", "decision")  # budget=3 spent
+        tools.dispatch_agent("catalog", "任务", "decision")  # budget=3 spent (non-spend lane:
+        # the reviewer fail-closed gate fires before budget for ad/coupon and would mask this check)
 
 
 def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
     ctx.round = _round_state()
+    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     import json as _json
     out = tools.dispatch_many(_json.dumps([
         {"agent": "ad", "task": "落地投广", "parent": "decision"},
@@ -389,6 +391,7 @@ def test_dispatch_many_reports_per_lane_and_never_loses_siblings(ctx):
     and drop everything, sending the orchestrator into blind retries that burned its iteration
     budget). The batch reports per-lane: successes recorded, the failure named."""
     ctx.round = _round_state()
+    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     real = ctx.round.dispatch_fn
 
     def flaky(slug, task, parent):
@@ -413,6 +416,7 @@ def test_dispatch_many_retries_stale_connections_once(ctx):
     connections to parallel threads after idling — measured live: a whole batch died on
     RemoteProtocolError). Non-connection errors do not retry."""
     ctx.round = _round_state()
+    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     real = ctx.round.dispatch_fn
     attempts = {"ad": 0}
 
@@ -445,7 +449,7 @@ def test_reviewer_revision_required_blocks_spend_lanes():
     st.dispatch("decision", "定策", None)
     st.dispatch("reviewer", "审查简报组合", "decision")
     assert st.reviewer_verdict == "REVISION_REQUIRED"
-    with pytest.raises(ValueError, match="blocked_by_reviewer:revision_required"):
+    with pytest.raises(ValueError, match="blocked_by_reviewer:REVISION_REQUIRED"):
         st.dispatch("ad", "投广", "reviewer")
     with pytest.raises(ValueError, match="blocked_by_reviewer"):
         st.dispatch("coupon", "团购", "reviewer")
