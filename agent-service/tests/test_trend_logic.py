@@ -55,6 +55,29 @@ def test_concept_match_fn_overrides_tag_overlap():
     assert o["fit"] == 0.95 and o["action"] == "amplify"
 
 
+def test_concept_match_prefers_curated_visual_query_over_short_label():
+    """Curated visual trend rows carry a VLM-authored conceptQuery. Concept matching should use that
+    rich text, not the short display label, otherwise the 'trend image → VLM text → RAG' path is fake."""
+    styles = [{"id": "s1", "title": "镜面", "merchantId": "m", "tags": ["其它"]}]
+    ext = [{
+        "label": "银色镜面猫眼",
+        "tags": ["银色", "镜面"],
+        "conceptQuery": "银色镜面质感，猫眼光泽，长甲或杏仁形",
+        "strength": 0.8,
+    }]
+    seen: list[str] = []
+
+    def match_fn(label, _tags):
+        seen.append(label)
+        return [("s1", 0.91, "银色镜面猫眼长甲")]
+
+    rep = tl.trend_opportunities(ext, _insights(), styles, match_fn=match_fn)
+    o = rep["opportunities"][0]
+    assert seen == ["银色镜面质感，猫眼光泽，长甲或杏仁形"]
+    assert o["conceptQuery"] == "银色镜面质感，猫眼光泽，长甲或杏仁形"
+    assert o["matchSource"] == "concept"
+
+
 def test_match_fn_returning_none_falls_back_to_tags():
     styles = [{"id": "s1", "title": "A", "merchantId": "m", "tags": ["法式风"]}]
     ext = [{"label": "法式风", "tags": ["法式风"], "strength": 0.6}]

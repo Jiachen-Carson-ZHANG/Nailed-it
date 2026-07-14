@@ -11,7 +11,6 @@ export const agentSlugs = [
   'coupon',
   'catalog',
   'customer_ops',
-  'reviewer',
   'monitor',
 ] as const;
 export type AgentSlug = (typeof agentSlugs)[number];

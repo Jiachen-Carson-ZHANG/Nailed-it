@@ -35,18 +35,18 @@ def test_registries_cover_the_same_tools():
         "update_ad_campaign", "pause_ad_campaign",
         # 团购模板 + 陈列动词 + 消息分级 (ADR-0016 Stage 3)
         "get_coupon_constraints", "feature_style", "deprioritize_style", "propose_listing",
-        "send_automated_notification", "create_merchant_message_draft",
+        "send_automated_notification", "send_relationship_message",
         # 选品 (trend) read tools
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
-        # 运营 (catalog) grounded-candidates read tool
-        "get_catalog_actions",
+        # 陈列运营 grounded-candidates read tools (new preferred + legacy compatibility)
+        "get_merchandising_candidates", "get_catalog_actions",
         # 决策 (ADR-0016) business-engine facts + the Action Brief output contract + portfolio sim
         "get_style_business_facts", "submit_action_brief", "withdraw_action_brief", "simulate_action_portfolio",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
         "dispatch_agent", "dispatch_many",
         # 监测回流 + 记忆 v2 + 修订 (ADR-0013 P2/P3, ADR-0015)
         "get_campaign_outcomes", "record_action_outcome", "record_round_verdict", "search_memory",
-        "read_blackboard", "request_revision",
+        "request_revision",
     }
     assert set(tools.IMPL) == expected
     assert set(tools.BETA_TOOLS) == expected
@@ -59,7 +59,7 @@ def test_agent_tools_json_is_valid_against_the_registry():
     from nailed_agents import orchestrator
 
     assert set(orchestrator.LANE_TOOLS) == {
-        "insight", "trend", "decision", "reviewer", "ad", "coupon", "catalog", "customer_ops", "monitor",
+        "insight", "trend", "decision", "ad", "coupon", "catalog", "customer_ops", "monitor",
     }
     for lane, names in orchestrator.LANE_TOOLS.items():
         assert names, f"lane {lane} has an empty allow-list"
@@ -100,6 +100,33 @@ def ctx(monkeypatch):
     token = tools.use_context(c)
     yield c
     tools.reset_context(token)
+
+
+def test_get_merchandising_candidates_returns_safe_exposure_buckets(ctx, monkeypatch):
+    """陈列运营 consumes SAFE candidates: raise exposure, lower exposure, or propose a listing.
+    It must not present itself as deleting/unlisting assets."""
+    monkeypatch.setattr(config, "MATCH_MODE", "tag")
+    monkeypatch.setattr(bus, "fetch_briefing", lambda range_days=7: {"insights": {
+        "designPerformance": {
+            "styles": [{"styleId": "style-dead", "title": "旧款", "tryOns": 5, "conversionRate": 0.0}],
+            "highInterestLowConversion": [],
+        },
+        "demandTrends": [],
+    }})
+    monkeypatch.setattr(bus, "fetch_styles", lambda: {"styles": [
+        {"id": "style-hot", "title": "银色猫眼", "merchantId": config.MERCHANT_ID, "tags": ["银色", "镜面"]},
+        {"id": "style-dead", "title": "旧款", "merchantId": config.MERCHANT_ID, "tags": ["卡通"]},
+    ]})
+    monkeypatch.setattr(tools.trends_source, "get_external_trends", lambda trend_type=None: [
+        {"label": "银色镜面猫眼", "tags": ["银色", "镜面"], "strength": 0.8},
+        {"label": "暗黑哥特蝴蝶", "tags": ["暗黑"], "strength": 0.8},
+    ])
+
+    out = json.loads(tools.get_merchandising_candidates())
+    assert out["increaseExposure"][0]["styleId"] == "style-hot"
+    assert out["decreaseExposure"][0]["styleId"] == "style-dead"
+    assert out["proposeListing"][0]["tag"] == "暗黑哥特蝴蝶"
+    assert ctx.transcript[-1]["tool"] == "get_merchandising_candidates"
 
 
 def test_place_ad_creates_a_real_campaign_and_links_the_action(ctx):
@@ -270,19 +297,20 @@ def test_applied_only_run_is_not_awaiting_approval(ctx):
     assert ctx.awaiting_approval is False
 
 
-def test_customer_messages_split_by_class(ctx):
-    """ADR-0016 Stage 3: transactional auto-send is LABELED as the assistant; relationship marketing
-    only ever creates a merchant draft — the boss-impersonation pattern is dead."""
+def test_customer_messages_both_classes_auto_send_labeled(ctx):
+    """Both message classes now AUTO-SEND, always LABELED as the assistant (never impersonating the
+    boss). Transactional stays whitelisted-kind; relationship sends freely via send_relationship_message."""
     tools.send_automated_notification("Amy Lim", "appointment_reminder", "明天 14:00 见！")
     sent = ctx.writes[0]
     assert sent["action_type"] == "send_customer_message" and sent["risk"] == "irreversible"
     assert sent["payload"]["body"].startswith("【Nailed-it 商家助手】")  # authorship never misleads
     with pytest.raises(ValueError, match="notification_kind_invalid"):
-        tools.send_automated_notification("Amy Lim", "win_back_marketing", "好久不见")
-    tools.create_merchant_message_draft("Amy Lim", "好久不见，新到金属感系列…", "60 天未到店＋偏好金属感")
-    draft = ctx.writes[1]
-    assert draft["action_type"] == "draft_customer_message" and draft["status"] == "proposed"
-    assert ctx.awaiting_approval is True  # the merchant gate — nothing reached the customer
+        tools.send_automated_notification("Amy Lim", "win_back_marketing", "好久不见")  # marketing not a transactional kind
+    tools.send_relationship_message("Amy Lim", "好久不见，新到金属感系列…", "60 天未到店＋偏好金属感")
+    rel = ctx.writes[1]
+    assert rel["action_type"] == "send_customer_message" and rel["risk"] == "irreversible"
+    assert rel["payload"]["body"].startswith("【Nailed-it 商家助手】")  # relationship msgs are labeled too
+    assert ctx.awaiting_approval is False  # autonomous send — no merchant gate
 
 
 def test_action_tools_validate_model_supplied_payloads_before_write(ctx):
@@ -391,13 +419,12 @@ def test_dispatch_guardrails_one_per_agent_and_budget(ctx):
     tools.dispatch_agent("trend", "任务", "insight")
     tools.dispatch_agent("decision", "任务", "trend")
     with pytest.raises(ValueError, match="dispatch_budget_exhausted"):
-        tools.dispatch_agent("catalog", "任务", "decision")  # budget=3 spent (non-spend lane:
-        # the reviewer fail-closed gate fires before budget for ad/coupon and would mask this check)
+        tools.dispatch_agent("catalog", "任务", "decision")  # budget=3 spent (catalog is non-spend, so
+        # the deterministic portfolio gate can't mask this budget-exhaustion check)
 
 
 def test_dispatch_many_validates_the_whole_batch_before_running(ctx):
     ctx.round = _round_state()
-    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     import json as _json
     out = tools.dispatch_many(_json.dumps([
         {"agent": "ad", "task": "落地投广", "parent": "decision"},
@@ -418,7 +445,6 @@ def test_dispatch_many_reports_per_lane_and_never_loses_siblings(ctx):
     and drop everything, sending the orchestrator into blind retries that burned its iteration
     budget). The batch reports per-lane: successes recorded, the failure named."""
     ctx.round = _round_state()
-    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     real = ctx.round.dispatch_fn
 
     def flaky(slug, task, parent):
@@ -443,7 +469,6 @@ def test_dispatch_many_retries_stale_connections_once(ctx):
     connections to parallel threads after idling — measured live: a whole batch died on
     RemoteProtocolError). Non-connection errors do not retry."""
     ctx.round = _round_state()
-    ctx.round.reviewer_verdict = "APPROVED"  # spend lanes are fail-closed without an explicit approval
     real = ctx.round.dispatch_fn
     attempts = {"ad": 0}
 
@@ -463,37 +488,33 @@ def test_dispatch_many_retries_stale_connections_once(ctx):
     assert attempts["ad"] == 2 and "run-ad" in out  # died once, retried, succeeded
 
 
-def test_reviewer_revision_required_blocks_spend_lanes():
-    """ADR-0016 §6 硬门：风控 [REVISION_REQUIRED] 后，代码拒绝分派花钱执行者（ad/coupon），
-    不再只靠模型读懂上下文自觉遵守。不花营销钱包的 catalog/customer_ops 放行。"""
+def test_portfolio_conflict_blocks_spend_lanes():
+    """ADR-0016 §6 确定性组合门（取代 LLM 风控）：同款同时投广+团购（归因冲突）时，代码拒绝分派
+    花钱执行者（ad/coupon）。不花营销钱包的 catalog/customer_ops 放行。"""
     from nailed_agents.orchestrator import RoundState
 
-    def fake(slug, task, parent):
-        text = "[REVISION_REQUIRED] 广告与团购争抢同一下午产能" if slug == "reviewer" else f"{slug} 完成"
-        return f"run-{slug}", text
-
-    st = RoundState(dispatch_fn=fake, budget=9)
-    st.dispatch("decision", "定策", None)
-    st.dispatch("reviewer", "审查简报组合", "decision")
-    assert st.reviewer_verdict == "REVISION_REQUIRED"
-    with pytest.raises(ValueError, match="blocked_by_reviewer:REVISION_REQUIRED"):
-        st.dispatch("ad", "投广", "reviewer")
-    with pytest.raises(ValueError, match="blocked_by_reviewer"):
-        st.dispatch("coupon", "团购", "reviewer")
-    _, t = st.dispatch("catalog", "陈列", "reviewer")  # 不花钱，放行
+    st = RoundState(dispatch_fn=lambda slug, task, parent: (f"run-{slug}", f"{slug} 完成"), budget=9)
+    st.briefs = [
+        {"action_type": "ad", "style_id": "style-melissa-img-8284"},
+        {"action_type": "coupon", "style_id": "style-melissa-img-8284"},  # 同款——归因冲突
+    ]
+    with pytest.raises(ValueError, match="blocked_by_portfolio:attribution_conflict"):
+        st.dispatch("ad", "投广", "decision")
+    with pytest.raises(ValueError, match="blocked_by_portfolio"):
+        st.dispatch("coupon", "团购", "decision")
+    _, t = st.dispatch("catalog", "陈列", "decision")  # 不花钱，放行
     assert "catalog" in t
 
 
-def test_reviewer_approved_lets_spend_through():
+def test_no_portfolio_conflict_lets_spend_through():
     from nailed_agents.orchestrator import RoundState
 
-    def fake(slug, task, parent):
-        return f"run-{slug}", ("[APPROVED] 无软风险" if slug == "reviewer" else f"{slug} done")
-
-    st = RoundState(dispatch_fn=fake, budget=9)
-    st.dispatch("reviewer", "审", "decision")
-    assert st.reviewer_verdict == "APPROVED"
-    _, t = st.dispatch("ad", "投广", "reviewer")  # 清白裁决放行
+    st = RoundState(dispatch_fn=lambda slug, task, parent: (f"run-{slug}", f"{slug} done"), budget=9)
+    st.briefs = [
+        {"action_type": "ad", "style_id": "style-melissa-img-8265"},
+        {"action_type": "coupon", "style_id": "style-melissa-img-8284"},  # 不同款——无冲突
+    ]
+    _, t = st.dispatch("ad", "投广", "decision")  # 无冲突放行
     assert "ad" in t
 
 
@@ -692,9 +713,10 @@ def test_monitor_snapshot_barrier_rejects_parallel_batch():
     from nailed_agents.orchestrator import RoundState
 
     state = RoundState(dispatch_fn=lambda s, t, p: (f"run-{s}", "ok"))
+    initial_budget = state.budget
     with pytest.raises(ValueError, match="monitor_must_not_run_in_parallel"):
         state.reserve(["ad", "monitor"])
-    assert state.budget == 9 and not state._taken  # atomic: nothing reserved on rejection
+    assert state.budget == initial_budget and not state._taken  # atomic: nothing reserved on rejection
     state.reserve(["monitor"])  # alone is fine — prior dispatches are blocking, hence terminal
     assert "monitor" in state._taken
 

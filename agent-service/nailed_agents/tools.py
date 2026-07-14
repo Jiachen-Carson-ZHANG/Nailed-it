@@ -175,11 +175,10 @@ def get_customer_intelligence() -> str:
 
 
 def get_external_trends(trend_type: str = "growing") -> str:
-    """Return external/platform nail trends (each: label + tags; live Pinterest rows also carry growth %
-    — wow/mom/yoy — and a momentum-derived strength). Source is fixture (CN-flavored) or live Pinterest
-    per TREND_SOURCE. trend_type picks the Pinterest window: 'growing' (fastest risers now), 'monthly',
-    'seasonal' (current-season/holiday spikes — good for salons), 'yearly'. Ignored for the fixture
-    source. Use to spot what's trending to match against the catalog — never invent trends."""
+    """Return external/platform nail trends. Demo default is a curated visual trend pack: each row has
+    a short label, tags, and a VLM-authored conceptQuery for concept/RAG matching. Pinterest is optional
+    keyword telemetry only; live rows may also carry growth % and a momentum-derived strength. Use this
+    to spot trends to match against the catalog — never invent trends."""
     ctx = _ctx()
     trends = trends_source.get_external_trends(trend_type)
     ctx.transcript.append(
@@ -200,9 +199,9 @@ def get_platform_hot() -> str:
 
 def _trend_report(range_days: int, trend_type: str) -> dict:
     """Shared 选品 report builder — external + internal trends matched to THIS merchant's catalog and
-    classified (amplify/price_test/gap) + a prune list. Applies MATCH_MODE (concept matcher or tag
-    fallback) and attaches matchMeta. BOTH get_trend_opportunities and get_catalog_actions call this, so
-    their prune/gap decisions can never diverge in concept mode (audit)."""
+    classified (amplify/price_test/gap) + a low-performer exposure list. Applies MATCH_MODE (concept matcher or tag
+    fallback) and attaches matchMeta. Trend and merchandising tools both read this deterministic engine;
+    the agents explain/execute different slices instead of re-inventing the math in prompts."""
     ctx = _ctx()
     insights = bus.fetch_briefing(range_days).get("insights", {})
     # Match against THIS merchant's own catalog only — a gap must be a gap in OUR catalog, not hidden by a
@@ -235,10 +234,8 @@ def _trend_report(range_days: int, trend_type: str) -> dict:
 
 def get_trend_opportunities(range_days: int = 7, trend_type: str = "growing") -> str:
     """Return ranked trend opportunities — external trends + internal-rising demand, matched to the
-    catalog and classified (amplify / price_test / gap) + a prune list. The precise menu 决策 acts on.
-    trend_type picks the external (Pinterest) window: 'growing' (default, fastest risers now), 'monthly',
-    'seasonal' (current-season/holiday spikes), 'yearly'. Pre-computed from grounded reads; use as-is,
-    never invent."""
+    catalog and classified (amplify / price_test / gap) + low-performer exposure candidates. The precise
+    menu 决策 acts on. Pre-computed from grounded reads; use as-is, never invent."""
     ctx = _ctx()
     report = _trend_report(range_days, trend_type)
     ctx.transcript.append(
@@ -767,7 +764,7 @@ def send_automated_notification(customer_name: str, kind: str, body: str) -> str
     and accuracy, not personal authorship. kind: appointment_reminder | schedule_change | aftercare |
     coupon_expiry | product_update. The message is LABELED as sent by the shop assistant (code
     prefixes 【Nailed-it 商家助手】— the customer is never misled about who wrote it). IRREVERSIBLE
-    once sent. Relationship/marketing content is REFUSED here — use create_merchant_message_draft."""
+    once sent. Relationship/marketing content is REFUSED here — use send_relationship_message."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
     if kind not in _NOTIFICATION_KINDS:
@@ -788,39 +785,37 @@ def send_automated_notification(customer_name: str, kind: str, body: str) -> str
     return f"Notification ({kind}) sent to {customer_name}, labeled as the shop assistant (irreversible)."
 
 
-def create_merchant_message_draft(customer_name: str, body: str, reason: str) -> str:
-    """Draft a RELATIONSHIP message (re-engagement, personal recommendation, win-back) for the
-    MERCHANT to review, edit, and send themselves. These messages derive their value from the real
-    merchant–customer relationship — the AI finds the right customer and the right moment, writes the
-    draft, and explains WHY now (reason); it never sends as the boss. Written status='proposed';
-    nothing reaches the customer until the merchant acts."""
+def send_relationship_message(customer_name: str, body: str, reason: str) -> str:
+    """Send a RELATIONSHIP message (re-engagement, personal recommendation, win-back) DIRECTLY to the
+    customer, LABELED as the AI assistant (code prefixes 【Nailed-it 商家助手】— the customer is never
+    misled about who wrote it). Find the right customer + the right moment, write it, and explain WHY
+    now (reason). Respect opt-outs: NEVER message a customer whose roster shows 拒收/opted-out.
+    IRREVERSIBLE once sent."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
     body = _clean_text(body, field="body")
     reason = _clean_text(reason, field="reason")
-    payload = {"customerName": customer_name, "body": body, "reason": reason}
+    labeled = f"{_ASSISTANT_LABEL}{body}"
+    payload = {"customerName": customer_name, "body": labeled, "reason": reason}
     bus.write_action(
-        ctx.sb, run_id=ctx.run_id, action_type="draft_customer_message", payload=payload,
-        risk="reversible", status="proposed",
+        ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
     )
     ctx.transcript.append(
-        {"kind": "tool_call", "tool": "create_merchant_message_draft", "input": payload, "output": {"drafted": True}}
+        {"kind": "tool_call", "tool": "send_relationship_message", "input": payload, "output": {"sent": True}}
     )
     ctx.transcript.append(
-        {"kind": "action", "actionType": "draft_customer_message", "status": "proposed",
-         "summary": f"关系消息草稿（待商家亲自发送）：→ {customer_name} — {reason}"}
+        {"kind": "action", "actionType": "send_customer_message", "status": "applied",
+         "summary": f"关系消息（AI 已发送，署名商家助手）：→ {customer_name} — {reason}"}
     )
-    return f"Draft for {customer_name} awaiting the merchant's own review and send — not delivered."
+    return f"Relationship message sent to {customer_name}, labeled as the AI assistant (irreversible)."
 
 
 # ── registries: ONE list of functions → two backend representations + the executable impls ───────
 
 def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str:
-    """Grounded catalog candidates — styles to DEPRIORITIZE (long-term low-conversion & not on any
-    rising trend → they stop earning recommendation slots; the asset itself is never removed) + gap
-    tags to PROPOSE. Uses the SAME shared report builder as 选品 (so prune/gap match the trend agent,
-    incl. MATCH_MODE=concept); ACT on these, do NOT re-judge from raw metrics.
-    Returns {deprioritize:[{styleId,title,reason}], propose:[{tag,reason}], matchMeta}."""
+    """Legacy compatibility wrapper for older eval/run transcripts. New 陈列运营 prompts must call
+    get_merchandising_candidates instead. Returns only the older subset:
+    {deprioritize:[{styleId,title,reason}], propose:[{tag,reason}], matchMeta}."""
     ctx = _ctx()
     report = _trend_report(range_days, trend_type)
     out = {
@@ -831,6 +826,42 @@ def get_catalog_actions(range_days: int = 7, trend_type: str = "growing") -> str
     }
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "get_catalog_actions", "input": {"rangeDays": range_days}, "output": out}
+    )
+    return json.dumps(out, ensure_ascii=False)
+
+
+def get_merchandising_candidates(range_days: int = 7, trend_type: str = "growing") -> str:
+    """Grounded merchandising candidates for SAFE exposure allocation only. This is the preferred
+    陈列运营 input (replaces the older `get_catalog_actions` prompt contract):
+      - increaseExposure: matched styles on rising trends worth considering for more recommendation slots
+      - decreaseExposure: long-term low-conversion styles not on any rising trend; lower exposure only
+      - proposeListing: trend gaps with no matching in-shop style; merchant approval required
+    The agent may choose at most a few candidates or no-op; it must never delete/list/unlist assets."""
+    ctx = _ctx()
+    report = _trend_report(range_days, trend_type)
+    increase = []
+    for o in report.get("opportunities", []):
+        if o.get("action") != "amplify" or not o.get("matchedStyleIds"):
+            continue
+        sid = o["matchedStyleIds"][0]
+        increase.append({
+            "styleId": sid,
+            "trendLabel": o.get("trendLabel"),
+            "reason": o.get("reason"),
+            "score": o.get("score"),
+            "matchSource": o.get("matchSource"),
+            "matchWhy": o.get("matchWhy"),
+        })
+    out = {
+        "increaseExposure": increase,
+        "decreaseExposure": report.get("prune", []),
+        "proposeListing": [{"tag": o["trendLabel"], "reason": o["reason"], "score": o.get("score")}
+                           for o in report.get("opportunities", []) if o.get("action") == "gap"],
+        "matchMeta": report.get("matchMeta"),
+    }
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_merchandising_candidates",
+         "input": {"rangeDays": range_days, "trendType": trend_type}, "output": out}
     )
     return json.dumps(out, ensure_ascii=False)
 
@@ -1251,25 +1282,6 @@ def search_memory(scope_refs: str = "", scope_tags: str = "", domains: str = "",
     return json.dumps({"memories": out}, ensure_ascii=False)
 
 
-def read_blackboard(sections: str = "") -> str:
-    """Read this round's shared blackboard — the sections upstream lanes have concluded so far, plus
-    the derived `executions` snapshot. Written deterministically by the orchestrator; agent_actions
-    stays the authoritative store for executions. sections: comma-separated section names to read
-    (e.g. "insight,trend" or "executions") — omit for the full board. Use for mid-run consultation;
-    your required context is already injected into the task."""
-    ctx = _ctx()
-    if not ctx.round_id:
-        return json.dumps({"note": "no blackboard this round (migration 0030 not applied)"}, ensure_ascii=False)
-    board = bus.fetch_blackboard(ctx.sb, ctx.round_id)
-    wanted = [s.strip() for s in str(sections or "").split(",") if s.strip()]
-    if wanted:
-        board = {"sections": {k: board.get(k) for k in wanted if k in board},
-                 "missingSections": [k for k in wanted if k not in board]}
-    ctx.transcript.append({"kind": "tool_call", "tool": "read_blackboard",
-                           "input": {"sections": wanted}, "output": board})
-    return json.dumps(board, ensure_ascii=False)
-
-
 # ── revision edge (ADR-0013 P3) — available ONLY to the monitor run ──────────────────────────────
 
 def request_revision(action_id: str, feedback: str) -> str:
@@ -1396,6 +1408,7 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_platform_hot,
     get_trend_opportunities,
     get_catalog_actions,
+    get_merchandising_candidates,
     get_coupon_constraints,
     get_ad_account_state,
     list_available_audiences,
@@ -1408,14 +1421,13 @@ _FUNCTIONS: list[Callable[..., str]] = [
     deprioritize_style,
     propose_listing,
     send_automated_notification,
-    create_merchant_message_draft,
+    send_relationship_message,
     dispatch_agent,
     dispatch_many,
     get_campaign_outcomes,
     record_action_outcome,
     record_round_verdict,
     search_memory,
-    read_blackboard,
     request_revision,
 ]
 

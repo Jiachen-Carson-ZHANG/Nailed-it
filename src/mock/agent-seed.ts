@@ -89,19 +89,9 @@ export const AGENT_DEFINITIONS: Agent[] = [
     name: '用户运营 Agent',
     role: 'operator',
     instructions:
-      '你是用户运营代理。消息分两类：事务/产品通知自动发送并署名"商家助手"（send_automated_notification）；关系型/个性化营销只创建草稿（create_merchant_message_draft），找对客户、写好草稿、说明时机，由商家亲自修改发送——AI 不冒充真人。',
+      '你是用户运营代理。两类消息都由你直接自动发送并署名"商家助手"（绝不冒充老板/真人）：事务/产品通知走 send_automated_notification；关系型/个性化营销走 send_relationship_message，找对客户、写好正文、说明时机。opt-out 是硬红线：名册标记拒收的客户绝不发送。',
     tools: AGENT_TOOLS.customer_ops,
     version: 4,
-  },
-  {
-    id: 'agent-reviewer',
-    slug: 'reviewer',
-    name: '风控 Agent',
-    role: 'reviewer',
-    instructions:
-      '你是风控与运营审查代理。审查决策的行动简报组合的软风险：动作冲突、集中度、蚕食、证据质量、可测性与信任边界。裁决以 [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED] 开头。硬规则由代码强制，你不检查数字合规，也不重设计计划。',
-    tools: AGENT_TOOLS.reviewer,
-    version: 1,
   },
   {
     id: 'agent-monitor',

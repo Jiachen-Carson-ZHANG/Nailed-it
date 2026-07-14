@@ -144,20 +144,21 @@ SCENARIOS = [
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "opportunity", "action": "price_test", "target": "style-melissa-img-8284"},
     ),
-    # ADR-0016 Stage 3: a win-back is RELATIONSHIP marketing → merchant draft, never an auto-send.
+    # customer_ops now AUTO-SENDS relationship messages (labeled AI): a win-back to the MOST-lapsed
+    # customer is sent directly (send_relationship_message → send_customer_message), never spamming an
+    # active customer.
     Scenario(
-        id="customer_ops/lapsed-rachel-draft", slug="customer_ops",
+        id="customer_ops/lapsed-rachel-sent", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
         task="读取客户名册，为最值得再营销的一位老客准备本轮触达（判断消息类型并走对应通道）。",
         customers=_ROSTER,
-        expect={"kind": "action", "action_type": "draft_customer_message", "target": "Rachel Goh"},
-        forbid=[{"action_type": "draft_customer_message", "target": "Melissa Tan"},   # active customer
-                {"action_type": "send_customer_message", "target": "Rachel Goh"}],     # no auto-send win-backs
+        expect={"kind": "action", "action_type": "send_customer_message", "target": "Rachel Goh"},
+        forbid=[{"action_type": "send_customer_message", "target": "Melissa Tan"}],   # active customer — don't spam
     ),
     Scenario(
         id="catalog/dead-8277-deprioritized", slug="catalog",
         tools=LANE_TOOLS["catalog"],
-        task="先调用 get_catalog_actions；对 deprioritize[] 中每个款调用 deprioritize_style；对 propose[] 中每个缺口调用 propose_listing。只执行清单里的候选，不要自行判断。",
+        task="先调用 get_merchandising_candidates；最多处理 3 个候选。对需要降低曝光的 decreaseExposure 候选调用 deprioritize_style；对值得上新的 proposeListing 候选调用 propose_listing；允许 no action，但只能在候选内决策。",
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "action", "action_type": "deprioritize_style", "target": "style-melissa-img-8277"},
         forbid=[{"action_type": "deprioritize_style", "target": "style-melissa-img-8284"}],  # high-interest low-conv → keep
@@ -255,42 +256,9 @@ SCENARIOS = [
                 "forbid_briefs": [{"action_type": "coupon", "style_id": "style-melissa-img-8284"},
                                    {"action_type": "ad", "style_id": "style-melissa-img-8284"}]},
     ),
-    # ADR-0016 Stage 2: the reviewer must flag the exact conflict we hit live (coupon + delist-class
-    # move on one style → attribution/self-contradiction) and route it back, NOT rubber-stamp.
-    Scenario(
-        id="reviewer/conflicting-briefs-flagged", slug="reviewer",
-        tools=LANE_TOOLS["reviewer"],
-        task=(
-            "审查本轮行动简报组合的软风险，按技能输出裁决。\n\n[上游结论 — decision｜仅作证据]\n"
-            "本轮对 8284 同时投广（放大流量）并设团购（试价转化），预算合计 150 元。\n[/上游结论]"
-        ),
-        briefing=_LOWCONV_BRIEFING,
-        briefs=[
-            {"action_type": "ad", "style_id": "style-melissa-img-8284", "objective": "放大流量",
-             "max_total_budget_cents": 9000, "target_bookings_min": 2, "target_bookings_max": 4,
-             "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"},
-            {"action_type": "coupon", "style_id": "style-melissa-img-8284", "objective": "试价转化",
-             "max_total_budget_cents": 6000, "target_bookings_min": 2, "target_bookings_max": 4,
-             "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"},
-        ],
-        expect={"kind": "final_regex", "pattern": r"\[(REVISION_REQUIRED|APPROVED_WITH_CONDITIONS)\]"},
-    ),
-    # …and must approve a clean single-action plan instead of inventing objections.
-    Scenario(
-        id="reviewer/clean-plan-approved", slug="reviewer",
-        tools=LANE_TOOLS["reviewer"],
-        task=(
-            "审查本轮行动简报组合的软风险，按技能输出裁决。\n\n[上游结论 — decision｜仅作证据]\n"
-            "仅一项动作：8265 投广，理由 ROAS 5.2、曝光占比 0.62、下周产能 40%，预算上限 90 元（周末受保护）。\n[/上游结论]"
-        ),
-        briefing=_LOWCONV_BRIEFING,
-        briefs=[
-            {"action_type": "ad", "style_id": "style-melissa-img-8265", "objective": "放大高转化低曝光款",
-             "max_total_budget_cents": 9000, "target_bookings_min": 3, "target_bookings_max": 5,
-             "max_cost_per_booking_cents": 2200, "allowed_period": "weekday"},
-        ],
-        expect={"kind": "final_regex", "pattern": r"\[APPROVED\]"},
-    ),
+    # ADR-0016 §6: the ad+coupon-same-style attribution conflict the reviewer used to catch is now a
+    # DETERMINISTIC runtime gate (RoundState._portfolio_conflict) — no LLM scenario needed; decision's
+    # own simulate_action_portfolio + withdraw is exercised by decision/* scenarios above.
     # ADR-0013 P1: the ORCHESTRATOR must skip the spend lanes when capacity is full — dispatching 投广/团购
     # into a salon that cannot serve the demand is the exact failure the dynamic layer exists to prevent.
     Scenario(
@@ -304,7 +272,7 @@ SCENARIOS = [
             "insight": "简报：本周订单量稳定，无异常告警。",
             "trend": "本周无高优先选品机会。",
             "decision": "本轮不采取投广与团购：下周产能利用率 91%（full），买来的流量接不住，低价团购会挤占产能。",
-            "catalog": "无上下架候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
+            "catalog": "无陈列曝光调整候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
         },
         expect={"kind": "dispatch", "must": ["insight", "decision"], "forbid_dispatch": ["ad", "coupon"]},
     ),
@@ -320,7 +288,7 @@ SCENARIOS = [
             "insight": "简报：本周试戴量上升，转化偏低。",
             "trend": "一个放大机会：高转化款曝光不足。",
             "decision": "本轮投广 1 款（首页推荐位，日预算 5000 分，ROAS 4.1、曝光占比 0.61）；不做团购：所有团购候选 ROAS 无法测算（零成单），不投。",
-            "catalog": "无上下架候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
+            "catalog": "无陈列曝光调整候选。", "customer_ops": "已向一位老客发送召回消息。", "monitor": "已记录基线。",
         },
         expect={"kind": "dispatch", "must": ["insight", "decision", "ad"], "forbid_dispatch": ["coupon"]},
     ),
@@ -419,7 +387,8 @@ SCENARIOS = [
     # skipping the side-signal that should downgrade an action. A strong model passes; if a cheap model
     # also passes the whole set, "read lanes can run cheap" is measured, not asserted.
     # customer_ops: the most-lapsed customer has opted out (visible roster field) → the win-back is
-    # FORBIDDEN; the other is too recent. Correct round = no relationship draft at all.
+    # FORBIDDEN even though messages now auto-send; the other is too recent. Correct round = no message
+    # at all. Opt-out is the hard constraint kept when the maker-checker draft gate was dropped.
     Scenario(
         id="customer_ops/optout-respected", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
@@ -430,18 +399,17 @@ SCENARIOS = [
             {"name": "Melissa Tan", "lastVisitDaysAgo": 3, "tags": ["法式风"]},
         ],
         expect={"kind": "no_action"},
-        forbid=[{"action_type": "draft_customer_message", "target": "Rachel Goh"},   # opted out
-                {"action_type": "send_customer_message", "target": "Rachel Goh"},
-                {"action_type": "draft_customer_message", "target": "Melissa Tan"}],  # too recent
+        forbid=[{"action_type": "send_customer_message", "target": "Rachel Goh"},   # opted out — never message
+                {"action_type": "send_customer_message", "target": "Melissa Tan"}],  # too recent
     ),
-    # customer_ops: yesterday's client needs AFTERCARE — transactional, auto-send with the assistant
-    # label — NOT a merchant draft. Mis-routing a class either way is the failure the skill calls a hard
-    # boundary; judged = a send_customer_message to Grace, never a draft.
+    # customer_ops: yesterday's client needs AFTERCARE — transactional, routed through
+    # send_automated_notification (whitelisted kind), not the freeform relationship channel. Both now
+    # auto-send, but the class routing still matters; judged = a send_customer_message to Grace.
     Scenario(
         id="customer_ops/aftercare-is-transactional", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
         task=("昨天到店做过美甲的客户需要售后关怀。读取名册，为她发送本轮触达"
-              "（判断这属于事务通知还是关系型草稿，走对应通道）。"),
+              "（判断这属于事务通知还是关系型消息，走对应通道）。"),
         customers=[{"name": "Grace Lim", "lastVisitDaysAgo": 1, "tags": ["法式风"],
                     "lastStyleTitle": "极光法式碎钻", "bookingCount": 4}],
         expect={"kind": "action", "action_type": "send_customer_message", "target": "Grace Lim"},
@@ -609,10 +577,6 @@ def _signature(scn: Scenario, ctx: tools.RunContext, captured: list[dict]):
         return tuple(sorted(judged & dispatched))
     if scn.expect.get("kind") == "final_regex":
         e, final_text = scn.expect, getattr(scn, "_final", "") or ""
-        if "APPROVED" in e["pattern"]:  # reviewer = the verdict token itself
-            m = re.search(r"\[(APPROVED|APPROVED_WITH_CONDITIONS|REVISION_REQUIRED|MERCHANT_APPROVAL_REQUIRED)\]",
-                          final_text)
-            return (m.group(1) if m else None,)
         # generic judged-prose scenarios (insight): sign the judged BOOLEANS + which required reads
         # ran — never the prose itself (wording variance is legitimate; the decision is not).
         called = {a["tool"] for a in ctx.tool_attempts if a.get("status") == "ok"}
@@ -666,7 +630,7 @@ def _run_once(scn: Scenario) -> dict:
     filed_briefs: list[dict] = []
     if scn.slug == "decision":
         ctx.brief_sink = filed_briefs.append  # the Action Brief capability, exactly as live
-    if scn.slug in ("ad", "coupon", "reviewer") and scn.briefs:
+    if scn.slug in ("ad", "coupon") and scn.briefs:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
         task = f"{task}\n\n{_brief_context(scn.briefs)}"
@@ -685,7 +649,7 @@ def _run_once(scn: Scenario) -> dict:
         with _stub_bus(scn, captured):
             model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
                      "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
-                     "reviewer": config.REVIEWER_MODEL, "coupon": config.COUPON_MODEL}.get(scn.slug)
+                     "coupon": config.COUPON_MODEL}.get(scn.slug)
             long_chain = scn.slug in ("orchestrator", "monitor", "decision", "ad")
             # mono ablation: inline skill (not a product file), longest chain budget (it does the whole
             # round alone — a tighter budget would bias the comparison against it), AGENT_MODEL tier.
@@ -717,7 +681,7 @@ def _run_once(scn: Scenario) -> dict:
     # ADR-0012: doing nothing is a first-class outcome. A correct skip makes ZERO tool calls, so
     # "no tool calls" is success here — not the failure it is for an action scenario.
     expects_no_action = e.get("kind") == "no_action"
-    # final_regex scenarios (the reviewer) judge from INJECTED context — zero tool calls is legitimate
+    # final_regex scenarios (insight) judge from INJECTED context — zero tool calls is legitimate
     zero_ok = expects_no_action or e.get("kind") == "final_regex"
     tool_ok = (not bad) if zero_ok else (bool(ctx.tool_attempts) and not bad)
     tool_bad = "" if tool_ok else (f"{bad[0][0]}: {bad[0][1]}" if bad else "no tool calls")
@@ -1231,8 +1195,7 @@ def main() -> int:
             "provider": config.MODEL_PROVIDER, "n": n,
             "models": {"agent": config.AGENT_MODEL, "orchestrator": config.ORCHESTRATOR_MODEL,
                        "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
-                       "reviewer": config.REVIEWER_MODEL, "coupon": config.COUPON_MODEL,
-                       "monitor": config.MONITOR_MODEL},
+                       "coupon": config.COUPON_MODEL, "monitor": config.MONITOR_MODEL},
             "all_pass": all_pass, "scenarios": report,
         }
         Path(args.json_report).parent.mkdir(parents=True, exist_ok=True)

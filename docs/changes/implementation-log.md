@@ -1,5 +1,27 @@
 # Implementation Log
 
+## 2026-07-14 — Clarify Trend vs Merchandising lanes for the finals demo
+
+What changed:
+- **Trend Agent scope tightened** — it is now the read-only trend sensor: curated visual trend pack
+  (`TREND_SOURCE=curated_visual`) + internal demand → concept/RAG or tag fallback matching → grounded
+  opportunities. Pinterest remains optional keyword telemetry, not the primary demo source.
+- **Merchandising lane renamed and bounded** — `catalog` is now presented as 陈列运营, not 上下架. Its
+  preferred read tool is `get_merchandising_candidates`, returning `increaseExposure`,
+  `decreaseExposure`, and `proposeListing`; existing styles are never deleted/delisted by this lane.
+- **Prompt/data contract aligned** — catalog now parents to trend, handles at most three candidates, and
+  may no-op. Legacy action ids (`feature_style`, `deprioritize_style`) remain for compatibility, but UI
+  copy says 提高/降低推荐曝光.
+
+Why:
+- The old "上下架" language overstated the capability and made the catalog lane look like a deletion
+  agent. The real product value is safer: use trend matching to tune exposure and propose new supply
+  when the catalog has a gap.
+
+Aligned assumptions:
+- Commercial decisions remain in the deterministic brain + Decision Agent; Trend does not execute
+  business actions, and Merchandising does not recompute business economics.
+
 ## 2026-07-14 — Runtime hardening (pre-finals audit): make the claims true in code
 
 Closes the gap between the pitch and the runtime. Each item defends a specific stage claim.
@@ -2533,3 +2555,25 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   status='proposed' action. Previously only `propose_listing` + `create_merchant_message_draft` set the
   flag, so 团购 drafts and over-budget ad drafts (both status='proposed') silently finalized as
   `completed` instead of `awaiting_approval`. Removed the two manual sets; +3 regressions (94 green).
+
+## 2026-07-14 (cont.) — Reviewer removed, read_blackboard removed, customer_ops auto-sends
+
+- **Reviewer lane deleted; deterministic portfolio gate replaces it** (`orchestrator.py`): the LLM
+  风控 verdict is gone. Spend lanes (ad/coupon) now block only on the one portfolio-level risk a single
+  executor can't see — the same style briefed for BOTH ad and coupon (`blocked_by_portfolio:
+  attribution_conflict`). Wallet over-commit, one-campaign-per-style, and brief-law already enforce the
+  rest at the tool layer, so removing the fail-closed reviewer gate opened no spend hole. Removed from
+  lanes / CONTEXT_POLICY / dispatch / config (`REVIEWER_MODEL`, budget 9→8) / skills / eval scenarios;
+  the 3 reviewer runs + the agent row deleted from the DB, blackboards stripped. Gate regressions
+  rewritten to the new contract.
+- **`read_blackboard` tool removed** (`tools.py`): 1 call across 77 stored runs — redundant with the
+  deterministic `CONTEXT_POLICY` injection (决策 sees insight+trend; monitor sees decision). Dropped the
+  tool + registration + decision/monitor allowlists. The blackboard STATE (persisted to agent_rounds,
+  carries briefs/executions for the UI lineage) stays.
+- **customer_ops auto-sends relationship messages** (ADR-0016 Stage 3 reversed): `create_merchant_
+  message_draft` → `send_relationship_message`, which sends directly (applied `send_customer_message`),
+  always labeled 【Nailed-it 商家助手】 (never impersonating the boss). Opt-out kept as the hard red line
+  — an opted-out customer is never messaged. Skill/seed/eval/transcript-describer updated; the merchant
+  gate for this path is gone (autonomous send, no `awaiting_approval`). Demo drafts converted to genuine
+  sent messages so 最近完成 shows 用户运营 activity with the reasoning chain + full message body.
+- **`返回消息列表`** button → full-width pink (`button-primary button-block`), matching 返回团队.

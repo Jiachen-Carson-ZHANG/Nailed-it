@@ -12,23 +12,20 @@
 1. `dispatch_agent("insight", "分析最近 N 天门店数据并产出简报…", "")`
 2. `dispatch_agent("trend", "产出本周优先级选品机会清单…", "insight")`
 3. `dispatch_agent("decision", "读经营事实，综合简报与选品机会，为本轮制定行动组合并提交行动简报（可以为 0 个）…", "trend")`
-4. **决策提交了行动简报时**：`dispatch_agent("reviewer", "审查本轮行动简报组合的软风险…", "decision")`——
-   风控裁决以 [APPROVED]/[APPROVED_WITH_CONDITIONS]/[REVISION_REQUIRED]/[MERCHANT_APPROVAL_REQUIRED] 开头。
-   `[REVISION_REQUIRED]` 时不要分派对应执行环节，在总结中说明原因；其余裁决照常执行（附条件会自动注入执行环节）。
-   代码会硬性兜底：风控 `[REVISION_REQUIRED]` 后再分派投广/团购会被 `blocked_by_reviewer` 拒绝——不要重试，直接在总结里说明「本轮因风控要求修订而暂停花钱动作」。
-   决策未提交任何简报 → 跳过 reviewer（没有可审的东西）。
-5. 读决策与风控结论后，用 `dispatch_many` 并行分派**有简报的**执行环节＋独立环节：
-   - `ad`（parent=decision，仅当有投广简报且风控未要求修订）
-   - `coupon`（parent=decision，仅当有团购简报且风控未要求修订）
-   - `catalog`（parent=insight，上下架建议；提醒它最多提 5 个上新建议）
+   决策自己调用 `simulate_action_portfolio` 核对组合冲突并撤回问题简报——本轮不再有单独的风控 Agent，组合冲突由运行时的确定性门兜底。
+4. 读决策结论后，用 `dispatch_many` 并行分派**有简报的**执行环节＋独立环节：
+   - `ad`（parent=decision，仅当决策有投广简报）
+   - `coupon`（parent=decision，仅当决策有团购简报）
+   - `catalog`（parent=trend，陈列曝光调整；最多处理 3 个候选，上新建议保持商家审批）
    - `customer_ops`（parent=insight，老客召回）
-6. `dispatch_agent("monitor", "衡量本轮动作效果或记录基线…", "decision")`
+   代码会硬性兜底：同款同时被投广+团购简报（归因冲突）时，对应花钱执行会被 `blocked_by_portfolio` 拒绝——不要重试，在总结里说明该款因组合冲突未执行。
+5. `dispatch_agent("monitor", "衡量本轮动作效果或记录基线…", "decision")`
 
 ## 跳过规则（必须引用数字）
 - **不可跳过**：`insight`（数分）与 `decision`（决策）每轮必须分派——没有数据与决策，这一轮就没有依据。
 - **产能满**：`utilizationPct > 90` 或 band=full → **不分派 ad 与 coupon**（买来的流量接不住，低价团购挤占产能）。理由要引用利用率数字。
 - **决策未选**：决策结论里没有投广 → 不分派 `ad`；没有团购 → 不分派 `coupon`。不要分派一个"去确认一下不用做"的空跑。
-- **无机会**：选品结论没有任何 amplify/price_test/gap/prune → 可跳过 `catalog`。
+- **无陈列机会**：趋势选品没有 amplify/gap/prune 信号，或陈列候选为空 → 可跳过 `catalog`。
 - **无告警且刚跑过**：简报无 alerts 且无 focusStyleIds → `monitor` 可只做基线，不可跳过第一轮。
 
 ## 纪律

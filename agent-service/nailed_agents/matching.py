@@ -1,9 +1,10 @@
 """选品 hybrid concept matcher (design: docs/eval/2026-07-01-trend-matching-design.md).
 
-trend keyword → Cohere embed (search_query) → pgvector cosine top-k over the merchant's cached
-style_concept vectors (recall) → Cohere rerank (precision) → threshold. Exposed as an injectable
-match_fn so trend_logic stays a pure function. Any failure (concept mode off, nothing enriched, Cohere
-/ Supabase error) returns None → trend_logic falls back to tag-overlap for that trend (never hard-fails).
+trend label or curated `conceptQuery` → embedding (search_query) → pgvector cosine top-k over the
+merchant's cached style_concept vectors (recall) → Cohere rerank (precision) → threshold. Exposed as
+an injectable match_fn so trend_logic stays a pure function. Any failure (concept mode off, nothing
+enriched, model/Supabase error) returns None → trend_logic falls back to tag-overlap for that trend
+(never hard-fails).
 """
 from __future__ import annotations
 

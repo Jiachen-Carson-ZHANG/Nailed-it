@@ -123,7 +123,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
         conversationId={conversationId}
         onRecommendSent={setConversation}
       />
-      <Link className="button button-secondary" href={getMerchantMessagesPath()}>
+      <Link className="button button-primary button-block" href={getMerchantMessagesPath()}>
         {t('messages.thread.back')}
       </Link>
     </>
@@ -133,7 +133,7 @@ export function MerchantConversationClient({ conversationId }: MerchantConversat
         body={t('messages.merchant.thread.notFoundBody')}
         title={t('messages.thread.notFoundTitle')}
       />
-      <Link className="button button-secondary" href={getMerchantMessagesPath()}>
+      <Link className="button button-primary button-block" href={getMerchantMessagesPath()}>
         {t('messages.thread.back')}
       </Link>
     </section>

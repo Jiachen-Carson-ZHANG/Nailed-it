@@ -161,7 +161,7 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   get_external_trends: (input, output, lang) => {
     const n = isObj(output) ? count((output as { trends?: unknown }).trends) || count(output) : count(output);
     const zh = lang === 'zh-CN';
-    return { label: zh ? '站外趋势' : 'External trends', summary: zh ? `获取站外趋势 ${n ? `${n} 条` : ''}（${String(input.trendType ?? 'growing')}）` : `Fetched ${n || ''} external trends (${String(input.trendType ?? 'growing')})` };
+    return { label: zh ? '趋势素材' : 'Trend pack', summary: zh ? `读取外部趋势素材 ${n ? `${n} 条` : ''}（概念匹配）` : `Read ${n || ''} external trend concepts` };
   },
 
   get_platform_hot: (_i, output, lang) => {
@@ -174,13 +174,14 @@ const SUMMARIZERS: Record<string, Summarizer> = {
     const o = isObj(output) ? output : {};
     const opps = Array.isArray(o.opportunities) ? (o.opportunities as Array<{ action?: string }>) : [];
     const by = (a: string) => opps.filter((x) => x.action === a).length;
+    const lowPerformerCount = Array.isArray(o.prune) ? o.prune.length : by('prune');
     const zh = lang === 'zh-CN';
     if (opps.length === 0) return { label: zh ? '选品机会' : 'Opportunities', summary: zh ? '匹配趋势与库内款式' : 'Matched trends against the library' };
     return {
       label: zh ? '选品机会' : 'Opportunities',
       summary: zh
-        ? `${opps.length} 个机会：放大 ${by('amplify')} · 试价 ${by('price_test')} · 缺口 ${by('gap')} · 下架 ${by('prune')}`
-        : `${opps.length} opportunities: amplify ${by('amplify')} · price ${by('price_test')} · gap ${by('gap')} · prune ${by('prune')}`,
+        ? `${opps.length} 个机会：放大 ${by('amplify')} · 试价 ${by('price_test')} · 上新缺口 ${by('gap')} · 低效保留调整 ${lowPerformerCount}`
+        : `${opps.length} opportunities: amplify ${by('amplify')} · price ${by('price_test')} · gaps ${by('gap')} · low-performer exposure ${lowPerformerCount}`,
     };
   },
 
@@ -188,10 +189,21 @@ const SUMMARIZERS: Record<string, Summarizer> = {
     const o = isObj(output) ? output : {};
     const zh = lang === 'zh-CN';
     return {
-      label: zh ? '上下架建议' : 'Catalog actions',
+      label: zh ? '陈列候选' : 'Merchandising candidates',
       summary: zh
-        ? `下架候选 ${count(o.delist)} · 上新缺口 ${count(o.propose)}`
-        : `delist ${count(o.delist)} · new-listing gaps ${count(o.propose)}`,
+        ? `降低曝光候选 ${count(o.deprioritize ?? o.decreaseExposure)} · 上新缺口 ${count(o.propose ?? o.proposeListing)}`
+        : `lower-exposure ${count(o.deprioritize ?? o.decreaseExposure)} · new-listing gaps ${count(o.propose ?? o.proposeListing)}`,
+    };
+  },
+
+  get_merchandising_candidates: (_i, output, lang) => {
+    const o = isObj(output) ? output : {};
+    const zh = lang === 'zh-CN';
+    return {
+      label: zh ? '陈列候选' : 'Merchandising',
+      summary: zh
+        ? `提高曝光 ${count(o.increaseExposure)} · 降低曝光 ${count(o.decreaseExposure)} · 上新建议 ${count(o.proposeListing)}`
+        : `raise exposure ${count(o.increaseExposure)} · lower exposure ${count(o.decreaseExposure)} · listing ideas ${count(o.proposeListing)}`,
     };
   },
 
@@ -311,11 +323,11 @@ const SUMMARIZERS: Record<string, Summarizer> = {
       : `Sent a labeled ${String(input.kind ?? '')} notification → ${String(input.customerName ?? '')}`,
   }),
 
-  create_merchant_message_draft: (input, _o, lang) => ({
-    label: lang === 'zh-CN' ? '消息草稿' : 'Message draft',
+  send_relationship_message: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '关系消息' : 'Relationship message',
     summary: lang === 'zh-CN'
-      ? `为 ${String(input.customerName ?? '')} 起草关系消息（待你亲自发送）：${truncate(String(input.reason ?? ''), 50)}`
-      : `Drafted a relationship message for ${String(input.customerName ?? '')} (awaiting your send)`,
+      ? `向 ${String(input.customerName ?? '')} 发送关系消息（AI 署名）：${truncate(String(input.reason ?? ''), 50)}`
+      : `Sent an AI-labeled relationship message to ${String(input.customerName ?? '')}`,
   }),
 
   get_coupon_constraints: (input, output, lang) => {
@@ -326,17 +338,17 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   },
 
   feature_style: (input, _o, lang, titles) => ({
-    label: lang === 'zh-CN' ? '推荐加权' : 'Feature',
+    label: lang === 'zh-CN' ? '提高曝光' : 'Raise exposure',
     summary: lang === 'zh-CN'
       ? `提高${styleLabel(input.styleId, lang, titles)}的推荐位曝光`
-      : `Featured ${styleLabel(input.styleId, lang, titles)}`,
+      : `Raised recommendation exposure for ${styleLabel(input.styleId, lang, titles)}`,
   }),
 
   deprioritize_style: (input, _o, lang, titles) => ({
-    label: lang === 'zh-CN' ? '降低曝光' : 'Deprioritize',
+    label: lang === 'zh-CN' ? '降低曝光' : 'Lower exposure',
     summary: lang === 'zh-CN'
       ? `降低${styleLabel(input.styleId, lang, titles)}的推荐曝光（款式保留在库）`
-      : `Deprioritized ${styleLabel(input.styleId, lang, titles)} (asset kept)`,
+      : `Lowered recommendation exposure for ${styleLabel(input.styleId, lang, titles)} (asset kept)`,
   }),
 
   // ── 监测回流 + 记忆 v2 (ADR-0013 P2/P3, ADR-0015) ──────────────────────────────────────────
@@ -432,7 +444,7 @@ const TOOL_ACTION_TYPE: Record<string, AgentActionType> = {
   update_ad_campaign: 'update_ad_campaign', pause_ad_campaign: 'pause_ad_campaign',
   feature_style: 'feature_style', deprioritize_style: 'deprioritize_style',
   send_automated_notification: 'send_customer_message',
-  create_merchant_message_draft: 'draft_customer_message',
+  send_relationship_message: 'send_customer_message',
   set_group_buy_coupon: 'set_group_buy_coupon', setGroupBuyCoupon: 'set_group_buy_coupon',
   list_style: 'list_style', delist_style: 'delist_style',
   propose_listing: 'draft_upload', send_customer_message: 'send_customer_message',
@@ -457,8 +469,8 @@ const ACTION_LABELS: Record<AgentActionType, { 'zh-CN': string; en: string }> = 
   set_group_buy_coupon: { 'zh-CN': '团购券', en: 'Coupon' },
   list_style: { 'zh-CN': '上架', en: 'List' },
   delist_style: { 'zh-CN': '下架', en: 'Delist' },
-  feature_style: { 'zh-CN': '推荐加权', en: 'Feature' },
-  deprioritize_style: { 'zh-CN': '降低曝光', en: 'Deprioritize' },
+  feature_style: { 'zh-CN': '提高曝光', en: 'Raise exposure' },
+  deprioritize_style: { 'zh-CN': '降低曝光', en: 'Lower exposure' },
   draft_upload: { 'zh-CN': '上新草稿', en: 'Draft' },
   send_customer_message: { 'zh-CN': '客户通知', en: 'Message' },
   draft_customer_message: { 'zh-CN': '消息草稿', en: 'Message draft' },
@@ -499,11 +511,11 @@ export function describeAction(type: AgentActionType, payload: Record<string, un
     case 'feature_style':
       return zh
         ? `提高${styleLabel(p.styleId, lang, titles)}的推荐曝光${p.reason ? `：${truncate(String(p.reason), 60)}` : ''}`
-        : `Featured ${styleLabel(p.styleId, lang, titles)}${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
+        : `Raised recommendation exposure for ${styleLabel(p.styleId, lang, titles)}${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
     case 'deprioritize_style':
       return zh
         ? `降低${styleLabel(p.styleId, lang, titles)}的推荐曝光（款式保留在库）${p.reason ? `：${truncate(String(p.reason), 60)}` : ''}`
-        : `Deprioritized ${styleLabel(p.styleId, lang, titles)} (asset kept)${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
+        : `Lowered recommendation exposure for ${styleLabel(p.styleId, lang, titles)} (asset kept)${p.reason ? `: ${truncate(String(p.reason), 60)}` : ''}`;
     case 'draft_customer_message':
       return zh
         ? `为 ${String(p.customerName ?? '')} 起草关系消息（待你亲自发送）：${truncate(String(p.body ?? p.reason ?? ''), 70)}`

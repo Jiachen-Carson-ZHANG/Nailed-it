@@ -10,14 +10,13 @@ panel's lineage tree renders the round exactly as it was decided.
 Division of labor (ADR-0012 §5, unchanged): the LLM chooses WHO runs and WHY; deterministic Python
 bounds WHAT is legal — the lane whitelist + per-lane tool allow-lists live here, one dispatch per agent
 per round, a hard dispatch budget (config.MAX_DISPATCHES_PER_ROUND), and the per-run tool loops are the
-same runner as before. The old fixed chain (数分→选品→决策→投广→团购→上下架→用户运营→监测→数分')
+same runner as before. The old fixed chain (数分→趋势选品→决策→投广→团购→陈列运营→用户运营→监测→数分')
 survives as the DEFAULT PLAN in skills/orchestrator.md — deviation requires a citable signal.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,10 +43,9 @@ LANE_TOOLS: dict[str, list[str]] = {k: v for k, v in _AGENT_TOOLS.items() if k !
 # their own grounded read tools, not the whole round.
 CONTEXT_POLICY: dict[str, list[str]] = {
     "decision": ["insight", "trend"],
-    "reviewer": ["decision"],
-    "ad": ["reviewer"],
-    "coupon": ["reviewer"],
-    "monitor": ["decision", "reviewer"],
+    "ad": ["decision"],
+    "coupon": ["decision"],
+    "monitor": ["decision"],
 }
 
 # Lanes whose tools write agent_actions — after each of these concludes, the round's structured
@@ -118,16 +116,35 @@ ORCH_TASK = (
 )
 
 
-# 花钱执行者——必须拿到风控明确放行才可分派（catalog/customer_ops 不花营销钱包，不受此门）。
+# 花钱执行者——受确定性组合门约束（catalog/customer_ops 不花营销钱包，不受此门）。
 _SPEND_LANES = {"ad", "coupon"}
-_SPEND_APPROVED = {"APPROVED", "APPROVED_WITH_CONDITIONS"}
-_VERDICT_RE = re.compile(r"\[(APPROVED_WITH_CONDITIONS|APPROVED|REVISION_REQUIRED|MERCHANT_APPROVAL_REQUIRED)\]")
+_OPEN_ENDED_TRIGGERS = {"merchant_request", "open_request", "custom_request"}
+_FOLLOWUP_TRIGGERS = {"evidence_matured", "threshold_alarm"}
 
 
-def _parse_verdict(text: str | None) -> str | None:
-    """风控结论首行是裁决 token（reviewer 技能强制）。抽出它，供 RoundState 硬门用。"""
-    m = _VERDICT_RE.search(text or "")
-    return m.group(1) if m else None
+def _trigger_source(trigger_kind: str | None) -> str:
+    return {"cadence": "schedule", "evidence_matured": "event", "threshold_alarm": "event"}.get(
+        trigger_kind or "", "manual"
+    )
+
+
+def _runtime_mode_for_trigger(trigger_kind: str | None, routing_mode: str | None = None) -> str:
+    """Which control plane should own this round.
+
+    The runtime handles known business triggers. The LLM orchestrator is reserved for genuinely open
+    merchant requests where task decomposition is not known in advance.
+    """
+    override = (routing_mode or config.ORCHESTRATION_MODE or "runtime").strip().lower()
+    if override == "llm":
+        return "llm"
+    if override not in {"runtime", "auto"}:
+        raise ValueError(f"orchestration_mode_invalid:{override}")
+    kind = (trigger_kind or "manual").strip().lower()
+    if kind in _OPEN_ENDED_TRIGGERS:
+        return "llm"
+    if kind in _FOLLOWUP_TRIGGERS:
+        return "followup"
+    return "planning"
 
 
 @dataclass
@@ -140,9 +157,19 @@ class RoundState:
     dispatched: dict[str, str] = field(default_factory=dict)  # slug -> run_id
     results: dict[str, str] = field(default_factory=dict)  # slug -> final text
     briefs: list[dict] = field(default_factory=list)  # ADR-0016: Action Briefs filed by 决策
-    reviewer_verdict: str | None = None  # ADR-0016 §6: 风控裁决 token，代码据此硬门花钱执行者
     _taken: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def _portfolio_conflict(self) -> str | None:
+        """Deterministic spend gate (replaces the LLM reviewer): the ONE portfolio-level risk a single
+        executor cannot see is an attribution conflict — the same style briefed for BOTH ad and coupon,
+        so their outcomes can't be attributed. Budget over-commit and one-campaign-per-style are already
+        enforced at the tool layer (wallet + brief-law); capacity is advisory. Returns a block reason or
+        None. 决策 can pre-empt this with simulate_action_portfolio + withdraw before concluding."""
+        ad = {b["style_id"] for b in self.briefs if b.get("action_type") == "ad"}
+        coupon = {b["style_id"] for b in self.briefs if b.get("action_type") == "coupon"}
+        both = sorted(ad & coupon)
+        return f"attribution_conflict:{','.join(both)}" if both else None
 
     def _validate(self, slug: str) -> None:
         if slug not in LANE_TOOLS:
@@ -169,17 +196,17 @@ class RoundState:
                 self.budget -= 1
 
     def dispatch(self, slug: str, task: str, parent: str | None, *, reserved: bool = False) -> tuple[str, str]:
-        # ADR-0016 §6 硬门，fail-closed：花钱执行者只有在风控明确放行（APPROVED / APPROVED_WITH_CONDITIONS）
-        # 后才可分派。裁决缺失、解析失败、REVISION_REQUIRED、MERCHANT_APPROVAL_REQUIRED 一律拦截——
-        # 之前只拦 REVISION_REQUIRED，意味着风控哑火时钱照花（fail-open）。这也在 runtime 层强制了
-        # “风控先于执行者”的顺序。被拦的 lane 不算已分派（reserve 也回滚）——风控稍后放行时，
-        # 编排器仍可重新分派它。硬规则（钱包/简报）仍在工具层兜底。
-        if slug in _SPEND_LANES and self.reviewer_verdict not in _SPEND_APPROVED:
-            if reserved:
-                with self._lock:
-                    self._taken.discard(slug)
-                    self.budget += 1
-            raise ValueError(f"blocked_by_reviewer:{self.reviewer_verdict or 'no_verdict_fail_closed'}")
+        # ADR-0016 §6 硬门（确定性组合门，fail-closed）：花钱执行者只有在其行动简报不存在组合冲突时才可分派。
+        # 唯一的组合级风险——同款同时投广+团购，效果无法归因——由代码判定；预算/单款上限/简报法在工具层兜底。
+        # 被拦的 lane 不算已分派（reserve 也回滚）——决策撤回冲突简报后编排器仍可重新分派。
+        if slug in _SPEND_LANES:
+            conflict = self._portfolio_conflict()
+            if conflict:
+                if reserved:
+                    with self._lock:
+                        self._taken.discard(slug)
+                        self.budget += 1
+                raise ValueError(f"blocked_by_portfolio:{conflict}")
         if not reserved:
             with self._lock:
                 self._validate(slug)
@@ -190,8 +217,6 @@ class RoundState:
         with self._lock:
             self.dispatched[slug] = run_id
             self.results[slug] = text
-            if slug == "reviewer":
-                self.reviewer_verdict = _parse_verdict(text)
         return run_id, text
 
 
@@ -424,8 +449,7 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
         # monitor (outcomes + verdict + revision) and, since ADR-0016, decision (facts → briefs) and
         # ad (forecast loops). Short lanes stay cheap.
         model={"monitor": config.MONITOR_MODEL, "decision": config.DECISION_MODEL,
-               "ad": config.AD_MODEL, "reviewer": config.REVIEWER_MODEL,
-               "coupon": config.COUPON_MODEL}.get(slug),
+               "ad": config.AD_MODEL, "coupon": config.COUPON_MODEL}.get(slug),
         max_iters=12 if slug in ("monitor", "ad", "decision") else 8,
     )
     status = "awaiting_approval" if ctx.awaiting_approval else "completed"
@@ -461,9 +485,6 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         # covers what every decision needs; the agent chooses what to inspect deeper.
         task += _decision_context(sb)
         task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
-    if slug == "reviewer" and state.briefs:
-        # the reviewer judges the PORTFOLIO — every brief, verbatim, same formatter as executors
-        task = f"{task}\n\n{_brief_context(state.briefs)}"
 
     if slug in ("ad", "coupon"):
         # ADR-0016 §2: the executor's contract is the decision agent's Action Brief — objective +
@@ -500,8 +521,8 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
 
     def _withdraw(action_type: str, style_id: str) -> bool:
         # The retraction half of the brief contract: without it, a decision that "withdraws" a brief in
-        # prose after simulate_action_portfolio leaves the shared copy live — reviewer and executors
-        # still see (and act on) it. Returns whether anything was actually removed.
+        # prose after simulate_action_portfolio leaves the shared copy live — the portfolio gate and
+        # executors still see (and act on) it. Returns whether anything was actually removed.
         with state._lock:
             before = len(state.briefs)
             state.briefs[:] = [
@@ -523,8 +544,8 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     )
 
 
-def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
-              trigger_reason: str | None = None) -> dict[str, str]:
+def _run_round_llm_orchestrator(range_days: int = 7, *, trigger_kind: str | None = None,
+                                trigger_reason: str | None = None) -> dict[str, str]:
     """One orchestrated round. `trigger_kind`/`trigger_reason` carry WHY this round fired (cadence /
     evidence_matured / threshold_alarm / merchant button): the reason is injected into the
     orchestrator's task (so lane skipping reacts to the actual signal, not a guess) and the kind maps
@@ -547,8 +568,7 @@ def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
             f"[本轮触发原因 — 系统注入] {trigger_kind or 'event'}: {trigger_reason}\n"
             "编排时优先响应该信号（相关 lane 必须分派；无关 lane 照常按数字理由跳过）。\n\n"
         ) + orch_task
-    trigger_source = {"cadence": "schedule", "evidence_matured": "event", "threshold_alarm": "event"}.get(
-        trigger_kind or "", "manual")
+    trigger_source = _trigger_source(trigger_kind)
     orch_run = bus.start_run(
         sb, agent_id=agents["orchestrator"]["id"], trigger_source=trigger_source,
         parent_run_id=None,
@@ -609,3 +629,164 @@ def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
     print("round complete — " + " ".join(f"{k}={v}" for k, v in runs.items())
           + (f" | skipped: {', '.join(skipped)}" if skipped else ""))
     return runs
+
+
+def _runtime_dispatch_many(
+    state: RoundState,
+    items: list[tuple[str, str, str | None]],
+    transcript: list[dict[str, Any]],
+) -> None:
+    """Runtime-owned parallel dispatch. This is the code equivalent of dispatch_many, used when the
+    control plane is deterministic rather than an LLM tool loop."""
+    if not items:
+        return
+    from concurrent.futures import ThreadPoolExecutor
+
+    state.reserve([slug for slug, _, _ in items])
+
+    def _one(args: tuple[str, str, str | None]) -> tuple[str, str | None, str | None, str | None]:
+        slug, task, parent = args
+        try:
+            run_id, text = state.dispatch(slug, task, parent, reserved=True)
+            return slug, run_id, text, None
+        except Exception as e:  # noqa: BLE001 — one lane failing must not erase sibling lane results
+            return slug, None, None, f"{type(e).__name__}: {e}"
+
+    with ThreadPoolExecutor(max_workers=len(items)) as pool:
+        results = list(pool.map(_one, items))
+    for slug, run_id, text, err in results:
+        if err:
+            transcript.append({"kind": "runtime_dispatch", "agent": slug, "status": "failed", "error": err})
+        else:
+            transcript.append(
+                {"kind": "runtime_dispatch", "agent": slug, "status": "completed",
+                 "runId": run_id, "summary": (text or "")[:280]}
+            )
+
+
+def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
+                       trigger_reason: str | None = None, runtime_mode: str = "planning") -> dict[str, str]:
+    """Deterministic Orchestration Runtime.
+
+    Known business triggers do not need a separate LLM to rediscover the same route. The runtime owns the
+    control plane (trigger mode, lineage, blackboard, budgets, Action Brief routing); lane agents still
+    own their specialized tool loops and context windows.
+    """
+    config.require_env()
+    sb = bus.supabase()
+    agents = bus.agents_by_slug(sb)
+    missing = (set(LANE_TOOLS) | {"orchestrator"}) - set(agents)
+    if missing:
+        raise SystemExit(f"agents missing ({', '.join(sorted(missing))}) — run `npm run seed:agents` after migration 0022")
+
+    bus.sweep_stale_runs(sb, config.MERCHANT_ID)
+    round_id = bus.start_round(sb, config.MERCHANT_ID)
+    trigger_source = _trigger_source(trigger_kind)
+    runtime_system = "deterministic-orchestration-runtime-v1"
+    root_input = {
+        "rangeDays": range_days,
+        "routingMode": runtime_mode,
+        "model": "runtime-router",
+        **({"triggerKind": trigger_kind, "triggerReason": trigger_reason} if trigger_kind else {}),
+    }
+    orch_run = bus.start_run(
+        sb, agent_id=agents["orchestrator"]["id"], trigger_source=trigger_source,
+        parent_run_id=None, input=root_input, started_at=bus.now_iso(), round_id=round_id,
+        prompt_sha=_prompt_sha(runtime_system), agent_version=agents["orchestrator"].get("version"),
+    )
+    state = RoundState(dispatch_fn=None)
+    blackboard: dict[str, object] = {}
+    transcript: list[dict[str, Any]] = [{
+        "kind": "runtime_route",
+        "mode": runtime_mode,
+        "triggerKind": trigger_kind or "manual",
+        "triggerReason": trigger_reason,
+    }]
+    bb_lock = threading.Lock()
+
+    def _dispatch(slug: str, task: str, parent: str | None) -> tuple[str, str]:
+        run_id, text = _run_lane(sb, agents, range_days, state, orch_run, round_id, slug, task, parent)
+        if round_id:
+            with bb_lock:
+                blackboard[slug] = text[:1500]
+                if slug == "decision" and state.briefs:
+                    blackboard["briefs"] = list(state.briefs)
+                if slug in _EXECUTOR_LANES:
+                    blackboard["executions"] = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id)
+                bus.update_blackboard(sb, round_id, dict(blackboard))
+        return run_id, text
+
+    state.dispatch_fn = _dispatch
+
+    def _dispatch_one(slug: str, task: str, parent: str | None = None) -> None:
+        run_id, text = state.dispatch(slug, task, parent)
+        transcript.append(
+            {"kind": "runtime_dispatch", "agent": slug, "status": "completed",
+             "runId": run_id, "summary": text[:280], "parent": parent}
+        )
+
+    try:
+        if runtime_mode == "followup":
+            reason = f"触发原因：{trigger_kind or 'event'}；{trigger_reason or '观测窗/阈值触发'}。"
+            _dispatch_one(
+                "monitor",
+                f"{reason} 只做效果监测与有界修订：读取成熟证据，必要时 request_revision 同一实体；"
+                "不要重新制定广告/团购策略。",
+                None,
+            )
+        else:
+            _dispatch_one("insight", f"分析最近 {range_days} 天门店数据并产出经营简报。", None)
+            _dispatch_one("trend", "产出本周优先级趋势选品机会清单；只读，不落地动作。", "insight")
+            _dispatch_one(
+                "decision",
+                "读经营事实，综合简报与趋势选品机会，为本轮提交结构化 Action Brief；可以为 0 个。",
+                "trend",
+            )
+
+            execution: list[tuple[str, str, str | None]] = []
+            for slug, zh in (("ad", "投广"), ("coupon", "团购")):
+                if any(b.get("action_type") == slug for b in state.briefs):
+                    execution.append((slug, f"只处理决策提交给你的 {zh} Action Brief；在 brief 边界内选择参数并落地。", "decision"))
+            execution.extend([
+                ("catalog", "读取陈列候选，最多处理 3 个安全曝光调整/上新建议；可 no-op。", "trend"),
+                ("customer_ops", "读取客户情报，若有明确老客召回机会则处理；否则说明不发送。", "insight"),
+            ])
+            _runtime_dispatch_many(state, execution, transcript)
+            _dispatch_one("monitor", "衡量本轮动作效果或记录基线；监测必须在执行环节之后单独运行。", "decision")
+
+        text = (
+            f"Deterministic runtime completed {runtime_mode} round. "
+            f"Dispatched: {', '.join(state.dispatched) or 'none'}."
+        )
+        bus.finish_run(sb, orch_run, output={"text": text, "dispatched": dict(state.dispatched),
+                                             "routingMode": runtime_mode},
+                       transcript=transcript, status="completed")
+        if round_id:
+            blackboard["orchestrator"] = text[:1500]
+            bus.finish_round(sb, round_id, status="completed", blackboard=blackboard)
+    except Exception:
+        bus.finish_run(sb, orch_run, output={"error": "round_failed", "dispatched": dict(state.dispatched),
+                                             "routingMode": runtime_mode},
+                       transcript=transcript, status="failed")
+        if round_id:
+            bus.finish_round(sb, round_id, status="failed", blackboard=blackboard)
+        raise
+
+    runs = {"orchestrator": orch_run, **state.dispatched}
+    skipped = sorted(set(LANE_TOOLS) - set(state.dispatched))
+    print("round complete — " + " ".join(f"{k}={v}" for k, v in runs.items())
+          + (f" | skipped: {', '.join(skipped)}" if skipped else ""))
+    return runs
+
+
+def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
+              trigger_reason: str | None = None, routing_mode: str | None = None) -> dict[str, str]:
+    mode = _runtime_mode_for_trigger(trigger_kind, routing_mode)
+    if mode == "llm":
+        return _run_round_llm_orchestrator(
+            range_days=range_days, trigger_kind=trigger_kind, trigger_reason=trigger_reason
+        )
+    return _run_round_runtime(
+        range_days=range_days, trigger_kind=trigger_kind, trigger_reason=trigger_reason,
+        runtime_mode=mode,
+    )

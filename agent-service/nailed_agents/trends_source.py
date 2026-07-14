@@ -1,13 +1,17 @@
-"""External-trend source for the 选品 agent (design spec §4). One seam, two sources via TREND_SOURCE:
+"""External-trend source for the 趋势选品 agent (ADR-0008).
 
-  - "fixture"   (default): authored CN-flavored trends — deterministic, no key, matches the CN catalog.
+One seam, three sources via TREND_SOURCE:
+  - "curated_visual" (default): preselected trend-image concepts. The images are sampled offline for
+                           the demo, run through VLM once into `conceptQuery`, then matched through the
+                           existing style_concept embed/rerank pipeline. No network key, deterministic.
+  - "fixture"   (legacy alias): same deterministic curated pack; kept so older eval scripts keep working.
   - "pinterest" (live):    Pinterest Trends API (user-authorized token). NOTE: regions are Western only
                            (US, GB+IE, CA, AU+NZ, DE, FR, …) — NO China/Asia. Scoped to interest=beauty
-                           so keywords are nail-domain, but they're English and rarely overlap the CN
-                           catalog tags, so live mode mostly surfaces gaps. Use fixture for CN-relevant
-                           matching; pinterest to prove live ingestion of a real external trend signal.
+                           and keyword-only, so it proves live ingestion but is NOT the demo's primary
+                           source.
 
-Returns a list of {"label": str, "tags": [str, ...]} either way — the shape the trend logic consumes.
+Returns a list of {"label": str, "tags": [str, ...], "conceptQuery": str, ...} either way. The trend
+logic displays `label`, falls back to `tags`, and uses `conceptQuery` for concept matching when present.
 """
 from __future__ import annotations
 
@@ -19,14 +23,47 @@ import httpx
 
 from . import config
 
-# CN-flavored authored trends (mirrors src/mock/external-trends.ts).
-FIXTURE: list[dict[str, Any]] = [
-    {"label": "金属感", "tags": ["金属感", "镜面", "银色"]},
-    {"label": "暗黑", "tags": ["暗黑", "Y2K", "黑色"]},
-    {"label": "镜面猫眼", "tags": ["镜面", "猫眼", "金属感"]},
-    {"label": "法式裸色", "tags": ["法式风", "裸色", "清冷感"]},
-    {"label": "甜美奶茶", "tags": ["甜美", "奶茶", "可爱"]},
+# Demo visual trend pack. `sourceImage` is an evidence pointer for docs/decks; matching uses
+# `conceptQuery`, not the filename. Keep it compact: this module is a source fixture, not a dataset.
+CURATED_VISUAL: list[dict[str, Any]] = [
+    {
+        "label": "银色镜面猫眼",
+        "tags": ["银色", "镜面", "猫眼", "金属感", "辣妹风"],
+        "conceptQuery": "银色镜面质感，猫眼光泽，长甲或杏仁形，派对感、辣妹风、金属感强",
+        "sourceImage": "trendpack/silver-mirror-cat-eye.jpg",
+        "strength": 0.88,
+    },
+    {
+        "label": "暗黑哥特蝴蝶",
+        "tags": ["暗黑", "黑色", "蝴蝶", "Y2K", "酷感"],
+        "conceptQuery": "黑色暗黑风，美式哥特或 Y2K，蝴蝶/十字/银饰元素，适合酷感长甲",
+        "sourceImage": "trendpack/dark-goth-butterfly.jpg",
+        "strength": 0.82,
+    },
+    {
+        "label": "水光果冻渐变",
+        "tags": ["果冻感", "透色", "渐变", "水光", "清冷感"],
+        "conceptQuery": "透色果冻质感，水光渐变，低饱和粉紫蓝，清透日常但有细闪",
+        "sourceImage": "trendpack/jelly-aurora-gradient.jpg",
+        "strength": 0.78,
+    },
+    {
+        "label": "奶油裸色微法式",
+        "tags": ["法式风", "裸色", "奶油色", "极简", "通勤"],
+        "conceptQuery": "裸色或奶油色底，极细微笑线法式，短甲/方圆形，干净通勤新娘风",
+        "sourceImage": "trendpack/micro-french-nude.jpg",
+        "strength": 0.76,
+    },
+    {
+        "label": "甜酷蝴蝶结珍珠",
+        "tags": ["甜美", "蝴蝶结", "珍珠", "粉色", "可爱"],
+        "conceptQuery": "粉色甜美风，蝴蝶结、珍珠、小钻装饰，甜酷/可爱，适合约会和拍照",
+        "sourceImage": "trendpack/bow-pearl-sweet.jpg",
+        "strength": 0.72,
+    },
 ]
+# Legacy name used by old eval scripts and docs. Same deterministic visual pack.
+FIXTURE = CURATED_VISUAL
 
 _token: str | None = None
 
@@ -104,19 +141,20 @@ def _fetch_pinterest(limit: int = 8, trend_type: str = "growing") -> list[dict[s
         out.append({
             "label": kw,
             "tags": [t for t in str(kw).split() if t],
+            "conceptQuery": str(kw),
             "strength": round(_strength_from_growth(growth["mom"]), 2),
             "growth": growth,
         })
-    return out or FIXTURE
+    return out or CURATED_VISUAL
 
 
 def get_external_trends(trend_type: str | None = None) -> list[dict[str, Any]]:
-    """The 选品 agent's external trends. trend_type picks the Pinterest window (defaults to
-    PINTEREST_TREND_TYPE; ignored for the fixture source). Degrades to the fixture on any Pinterest
-    error (never blocks)."""
+    """The 选品 agent's external trends. `curated_visual` is the demo path. `pinterest` is optional live
+    keyword telemetry; trend_type picks the Pinterest window (defaults to PINTEREST_TREND_TYPE). Any
+    Pinterest error degrades to the curated visual pack."""
     if config.TREND_SOURCE == "pinterest":
         try:
             return _fetch_pinterest(trend_type=trend_type or config.PINTEREST_TREND_TYPE)
         except Exception:
-            return FIXTURE  # degrade — live ingestion must never break the round
-    return FIXTURE
+            return CURATED_VISUAL  # degrade — live ingestion must never break the round
+    return CURATED_VISUAL

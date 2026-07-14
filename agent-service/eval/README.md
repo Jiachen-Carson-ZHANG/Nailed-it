@@ -26,7 +26,7 @@ Run: `npm run eval:agents` (= `cd agent-service && PYTHONPATH=. .venv/bin/python
 Needs `OPENROUTER_API_KEY` only.
 
 Scenarios: `trend/8284` (read), `customer_ops/lapsed-rachel` (action), `catalog/dead-8277` (action, grounded
-via `get_catalog_actions`). The verdict is a real gate — a FAILURE means the current agent isn't demo-ready, not
+via `get_merchandising_candidates`). The verdict is a real gate — a FAILURE means the current agent isn't demo-ready, not
 that the harness is broken.
 
 **Phase C (`--judge`, non-blocking):** blind multi-judge MOS (1-5, gemini-2.5-flash + gpt-4o, forced JSON) on

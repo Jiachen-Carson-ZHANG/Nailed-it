@@ -20,7 +20,6 @@
     "get_style_business_facts",
     "get_merchant_insights",
     "search_memory",
-    "read_blackboard",
     "submit_action_brief",
     "withdraw_action_brief",
     "simulate_action_portfolio"
@@ -38,7 +37,7 @@
     "set_group_buy_coupon"
   ],
   "catalog": [
-    "get_catalog_actions",
+    "get_merchandising_candidates",
     "feature_style",
     "deprioritize_style",
     "propose_listing",
@@ -47,7 +46,7 @@
   "customer_ops": [
     "get_customer_intelligence",
     "send_automated_notification",
-    "create_merchant_message_draft",
+    "send_relationship_message",
     "search_memory"
   ],
   "monitor": [
@@ -56,11 +55,6 @@
     "record_action_outcome",
     "record_round_verdict",
     "search_memory",
-    "request_revision",
-    "read_blackboard"
-  ],
-  "reviewer": [
-    "read_blackboard",
-    "get_merchant_insights"
+    "request_revision"
   ]
 }

@@ -162,11 +162,11 @@ export function getTrendOpportunities(
   }
   opportunities.sort((a, b) => b.score - a.score);
 
-  // 5) Prune: low-conversion styles not riding any trend.
+  // 5) Prune: low-conversion styles not riding any trend. This is an exposure signal, not deletion.
   const onTrend = new Set(opportunities.flatMap((o) => o.matchedStyleIds));
   const prune = insights.designPerformance.styles
     .filter((s) => s.tryOns >= 1 && (s.conversionRate ?? 0) < 0.1 && !onTrend.has(s.styleId))
-    .map((s) => ({ styleId: s.styleId, title: s.title, reason: '长期低转化且不在任何上升趋势上 → 下架候选' }));
+    .map((s) => ({ styleId: s.styleId, title: s.title, reason: '长期低转化且不在任何上升趋势上 → 降低推荐曝光候选' }));
 
   return { opportunities, prune };
 }

@@ -1,7 +1,8 @@
 """Pre-finals hardening regressions (2026-07-14 audit):
-  1. Reviewer gate is FAIL-CLOSED — spend lanes dispatch only on an explicit approval verdict.
+  1. Deterministic portfolio gate (replaces the LLM reviewer) — a spend lane is blocked ONLY when the
+     same style is briefed for both ad and coupon (attribution conflict); everything else dispatches.
   2. Action Briefs are retractable/replaceable — a prose "withdrawal" after portfolio simulation used
-     to leave the shared brief live for the reviewer + executors.
+     to leave the shared brief live for the portfolio gate + executors.
   3. Evidence maturity is code-enforced (24h / 500 impressions / 15 clicks), not `impressions > 0`.
   4. Trigger kind maps onto the orchestrator run's trigger_source (cadence→schedule, alarm→event).
 """
@@ -15,50 +16,52 @@ from nailed_agents import bus, tools
 from nailed_agents.orchestrator import RoundState
 
 
-# ── 1 · reviewer gate: fail-closed ────────────────────────────────────────────────────────────────
+# ── 1 · deterministic portfolio gate (replaces the LLM reviewer) ──────────────────────────────────
 
-def _state_with_verdict(verdict):
+def _brief(action, style):
+    return {"action_type": action, "style_id": style}
+
+def _state_with_briefs(*briefs):
     s = RoundState(dispatch_fn=lambda slug, task, parent: (f"run-{slug}", "ok"))
-    s.reviewer_verdict = verdict
+    s.briefs = list(briefs)
     return s
 
-@pytest.mark.parametrize("verdict", [None, "REVISION_REQUIRED", "MERCHANT_APPROVAL_REQUIRED"])
-def test_spend_lane_blocked_without_explicit_approval(verdict):
-    s = _state_with_verdict(verdict)
-    with pytest.raises(ValueError, match="blocked_by_reviewer"):
+def test_spend_lane_blocked_on_attribution_conflict():
+    # same style briefed for BOTH ad and coupon → outcomes can't be attributed → block the spend lane
+    s = _state_with_briefs(_brief("ad", "s1"), _brief("coupon", "s1"))
+    with pytest.raises(ValueError, match="blocked_by_portfolio:attribution_conflict:s1"):
         s.dispatch("ad", "task", None)
 
-@pytest.mark.parametrize("verdict", ["APPROVED", "APPROVED_WITH_CONDITIONS"])
-def test_spend_lane_dispatches_on_approval(verdict):
-    s = _state_with_verdict(verdict)
-    run_id, _ = s.dispatch("coupon", "task", None)
-    assert run_id == "run-coupon"
+def test_spend_lane_dispatches_when_styles_differ():
+    # ad on s1, coupon on s2 — no shared style → no conflict → both allowed
+    s = _state_with_briefs(_brief("ad", "s1"), _brief("coupon", "s2"))
+    assert s.dispatch("coupon", "task", None)[0] == "run-coupon"
 
-def test_non_spend_lane_needs_no_verdict():
-    s = _state_with_verdict(None)
-    run_id, _ = s.dispatch("catalog", "task", None)
-    assert run_id == "run-catalog"
+def test_spend_lane_dispatches_with_no_briefs():
+    assert _state_with_briefs().dispatch("ad", "task", None)[0] == "run-ad"
 
-def test_blocked_lane_can_redispatch_after_approval():
-    """A blocked spend lane must NOT count as dispatched — once the reviewer approves, the
-    orchestrator re-dispatches it (the block used to burn the lane's one-per-round slot)."""
-    s = _state_with_verdict(None)
-    with pytest.raises(ValueError, match="blocked_by_reviewer"):
+def test_non_spend_lane_never_blocked_by_conflict():
+    s = _state_with_briefs(_brief("ad", "s1"), _brief("coupon", "s1"))
+    assert s.dispatch("catalog", "task", None)[0] == "run-catalog"
+
+def test_blocked_lane_can_redispatch_after_conflict_withdrawn():
+    """A blocked spend lane must NOT burn its one-per-round slot — once 决策 withdraws the conflicting
+    brief, the orchestrator re-dispatches it (the block used to burn the lane's slot)."""
+    s = _state_with_briefs(_brief("ad", "s1"), _brief("coupon", "s1"))
+    with pytest.raises(ValueError, match="blocked_by_portfolio"):
         s.dispatch("ad", "task", None)
-    s.reviewer_verdict = "APPROVED"
-    run_id, _ = s.dispatch("ad", "task", None)
-    assert run_id == "run-ad"
+    s.briefs = [_brief("ad", "s1")]  # 决策 withdrew the conflicting coupon brief
+    assert s.dispatch("ad", "task", None)[0] == "run-ad"
 
 def test_blocked_reserved_lane_rolls_back_its_slot():
-    s = _state_with_verdict(None)
+    s = _state_with_briefs(_brief("ad", "s1"), _brief("coupon", "s1"))
     s.reserve(["ad"])
     budget_after_reserve = s.budget
-    with pytest.raises(ValueError, match="blocked_by_reviewer"):
+    with pytest.raises(ValueError, match="blocked_by_portfolio"):
         s.dispatch("ad", "task", None, reserved=True)
     assert s.budget == budget_after_reserve + 1 and "ad" not in s._taken
-    s.reviewer_verdict = "APPROVED_WITH_CONDITIONS"
-    run_id, _ = s.dispatch("ad", "task", None)
-    assert run_id == "run-ad"
+    s.briefs = [_brief("ad", "s1")]
+    assert s.dispatch("ad", "task", None)[0] == "run-ad"
 
 
 # ── 2 · brief withdraw / replace ──────────────────────────────────────────────────────────────────
@@ -142,3 +145,91 @@ def test_trigger_kind_maps_to_run_trigger_source():
     assert mapping.get("cadence") == "schedule"
     assert mapping.get("threshold_alarm") == "event"
     assert mapping.get("", "manual") == "manual"
+
+
+# ── 5 · deterministic runtime router (no LLM orchestrator for fixed business rounds) ────────────
+
+def _stub_runtime_bus(monkeypatch):
+    from nailed_agents import config
+    from nailed_agents import orchestrator as orch
+
+    monkeypatch.setattr(config, "require_env", lambda: None)
+    monkeypatch.setattr(bus, "supabase", lambda: object())
+    monkeypatch.setattr(bus, "now_iso", lambda: "2026-07-14T00:00:00Z")
+    monkeypatch.setattr(bus, "sweep_stale_runs", lambda *a, **k: None)
+    monkeypatch.setattr(bus, "start_round", lambda *a, **k: "round-runtime")
+    agents = {
+        slug: {"id": f"agent-{slug}", "instructions": f"{slug} skill", "version": 1}
+        for slug in [*orch.LANE_TOOLS.keys(), "orchestrator"]
+    }
+    monkeypatch.setattr(bus, "agents_by_slug", lambda sb: agents)
+    started: list[dict] = []
+    finished: list[dict] = []
+    monkeypatch.setattr(
+        bus, "start_run",
+        lambda sb, **kw: started.append(kw) or f"run-{kw['agent_id'].replace('agent-', '')}",
+    )
+    monkeypatch.setattr(bus, "finish_run", lambda sb, run_id, **kw: finished.append({"run_id": run_id, **kw}))
+    monkeypatch.setattr(bus, "finish_round", lambda *a, **k: None)
+    monkeypatch.setattr(bus, "update_blackboard", lambda *a, **k: None)
+    monkeypatch.setattr(bus, "fetch_round_actions", lambda *a, **k: [])
+    monkeypatch.setattr(bus, "fetch_due_actions", lambda *a, **k: [])
+    monkeypatch.setattr(bus, "fetch_memory", lambda *a, **k: [])
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda *a, **k: [])
+    return started, finished
+
+
+def test_runtime_planning_routes_decision_briefs_without_llm_orchestrator(monkeypatch):
+    from nailed_agents import runner
+    from nailed_agents import orchestrator as orch
+
+    _stub_runtime_bus(monkeypatch)
+    seen: list[str] = []
+
+    def fake_lane(sb, agents, range_days, state, orch_run_id, round_id, slug, task, parent_slug):
+        seen.append(slug)
+        if slug == "decision":
+            state.briefs.append({"action_type": "ad", "style_id": "style-melissa-img-8265"})
+        return f"run-{slug}", f"{slug} done"
+
+    monkeypatch.setattr(orch, "_run_lane", fake_lane)
+    monkeypatch.setattr(runner, "run_agent", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM orchestrator should not run")))
+
+    runs = orch.run_round(trigger_kind="cadence", routing_mode="runtime")
+
+    assert runs["orchestrator"] == "run-orchestrator"
+    assert seen[:3] == ["insight", "trend", "decision"]
+    assert "ad" in seen and "coupon" not in seen
+    assert "catalog" in seen and "customer_ops" in seen
+    assert seen[-1] == "monitor"
+
+
+def test_runtime_followup_runs_monitor_only(monkeypatch):
+    from nailed_agents import runner
+    from nailed_agents import orchestrator as orch
+
+    _stub_runtime_bus(monkeypatch)
+    seen: list[str] = []
+    monkeypatch.setattr(
+        orch, "_run_lane",
+        lambda sb, agents, range_days, state, orch_run_id, round_id, slug, task, parent_slug:
+            (seen.append(slug) or (f"run-{slug}", f"{slug} done")),
+    )
+    monkeypatch.setattr(runner, "run_agent", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM orchestrator should not run")))
+
+    orch.run_round(trigger_kind="evidence_matured", trigger_reason="ad observation window matured", routing_mode="runtime")
+
+    assert seen == ["monitor"]
+
+
+def test_runtime_router_keeps_llm_orchestrator_for_open_merchant_requests(monkeypatch):
+    from nailed_agents import orchestrator as orch
+
+    called = []
+    monkeypatch.setattr(
+        orch, "_run_round_llm_orchestrator",
+        lambda *a, **k: called.append((a, k)) or {"orchestrator": "run-llm"},
+    )
+
+    assert orch.run_round(trigger_kind="merchant_request") == {"orchestrator": "run-llm"}
+    assert called

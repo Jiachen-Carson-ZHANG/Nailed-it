@@ -37,9 +37,9 @@ const SPINE: readonly ClockPeriod[] = [
     },
     detail: {
       'zh-CN':
-        '决策提交 3 份行动简报，风控 [APPROVED]。投广对「薄荷青法式」预测 4.8–7.1 单（CAC ¥808–1211），日预算 ¥12 自动投放；对「碎冰玫瑰猫眼」，三个受众的预测都低于 4 单门槛，带数字判定该简报不可行。钱包 ¥180。',
+        '决策提交 3 份行动简报，确定性组合门核对无归因冲突后放行。投广对「薄荷青法式」预测 4.8–7.1 单（CAC ¥808–1211），日预算 ¥12 自动投放；对「碎冰玫瑰猫眼」，三个受众的预测都低于 4 单门槛，带数字判定该简报不可行。钱包 ¥180。',
       en:
-        'Decision filed 3 action briefs, risk reviewer [APPROVED]. The ad lane forecast “Mint French” at 4.8–7.1 bookings (CAC ¥808–1211) and auto-launched at ¥12/day; for “Iced Rose Cat-Eye” all three audiences forecast under the 4-booking floor, so it reported the brief infeasible with numbers. Wallet ¥180.',
+        'Decision filed 3 action briefs; the deterministic portfolio gate cleared them (no attribution conflict). The ad lane forecast “Mint French” at 4.8–7.1 bookings (CAC ¥808–1211) and auto-launched at ¥12/day; for “Iced Rose Cat-Eye” all three audiences forecast under the 4-booking floor, so it reported the brief infeasible with numbers. Wallet ¥180.',
     },
     simulated: false,
   },

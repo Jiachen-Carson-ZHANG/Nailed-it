@@ -2,10 +2,11 @@
 is now a tested reference that has DIVERGED: this version de-floods internal trends and makes price_test
 a style-level signal — see below; mirror or retire the TS copy separately).
 
-Combines external trends + internal-rising demand → match to the catalog (tag overlap) → classify into
-an action bucket → score → rank. Plus platform-hot (cross-merchant tag reach). Pure functions over
-inputs the tools fetch (insights from the TS read model; styles from the TS styles endpoint; external
-trends from trends_source) — we do NOT re-derive internal grounded metrics here (ADR-0006)."""
+Combines external trend concepts + internal-rising demand → match to the catalog (concept matcher or
+tag fallback) → classify into an action bucket → score → rank. Plus platform-hot (cross-merchant tag
+reach). Pure functions over inputs the tools fetch (insights from the TS read model; styles from the TS
+styles endpoint; external trends from trends_source) — we do NOT re-derive internal grounded metrics
+here (ADR-0006)."""
 from __future__ import annotations
 
 from typing import Any
@@ -70,7 +71,14 @@ def trend_opportunities(
     # 1) canonical trends: external + internal-rising, deduped by label
     canon: dict[str, dict[str, Any]] = {}
 
-    def add(label: str, tags: list[str], source: str, strength: float, growth: dict[str, Any] | None = None) -> None:
+    def add(
+        label: str,
+        tags: list[str],
+        source: str,
+        strength: float,
+        growth: dict[str, Any] | None = None,
+        concept_query: str | None = None,
+    ) -> None:
         key = _norm(label)
         if key in canon:
             c = canon[key]
@@ -79,14 +87,24 @@ def trend_opportunities(
             c["strength"] = min(1.0, c["strength"] + strength)
             if growth and not c.get("growth"):
                 c["growth"] = growth
+            if concept_query and not c.get("conceptQuery"):
+                c["conceptQuery"] = concept_query
         else:
             canon[key] = {"label": label, "tags": {_norm(t) for t in tags}, "sources": {source},
-                          "strength": strength, "growth": growth}
+                          "strength": strength, "growth": growth, "conceptQuery": concept_query}
 
     for t in external_trends:
         # external trends carry their own momentum-derived strength when available (Pinterest growth %);
         # the fixture has none → default 0.6 (the prior flat value, so fixture behavior is unchanged).
-        add(t.get("label", ""), t.get("tags", []), "external", float(t.get("strength", 0.6)), t.get("growth"))
+        concept_query = t.get("conceptQuery") or t.get("concept_query")
+        add(
+            t.get("label", ""),
+            t.get("tags", []),
+            "external",
+            float(t.get("strength", 0.6)),
+            t.get("growth"),
+            str(concept_query) if concept_query else None,
+        )
     # internal demand: only MEANINGFUL risers, capped — not every tag that ticked up by 1. Without this,
     # ~21 micro-rising attributes each become a "trend" matching 20+ styles → a wall of near-identical rows.
     rising_internal = sorted(
@@ -101,7 +119,10 @@ def trend_opportunities(
     present_ids = {s["id"] for s in styles}
     opportunities: list[dict[str, Any]] = []
     for c in canon.values():
-        scored = match_fn(c["label"], sorted(c["tags"])) if match_fn else None
+        # Curated visual trends carry a VLM-authored conceptQuery. In concept mode, match the concept
+        # text against style_concept rows; the display label remains short and merchant-readable.
+        query = str(c.get("conceptQuery") or c["label"])
+        scored = match_fn(query, sorted(c["tags"])) if match_fn else None
         match_why: str | None = None
         if scored is None:
             # tag-overlap (default, or per-trend degrade from the concept matcher)
@@ -131,6 +152,7 @@ def trend_opportunities(
             "tags": sorted(c["tags"]),
             "sources": sorted(c["sources"]),
             "strength": round(c["strength"], 2),
+            "conceptQuery": c.get("conceptQuery"),
             "growth": c.get("growth"),  # raw Pinterest % (wow/mom/yoy) when external; None for fixture/internal
             "matchedStyleIds": matched,
             "fit": round(best_fit, 2),
@@ -158,10 +180,10 @@ def trend_opportunities(
 
     opportunities.sort(key=lambda o: -o["score"])
 
-    # 5) prune: low-conversion styles on no trend
+    # 5) prune: low-conversion styles on no trend. This is an exposure-allocation signal, not deletion.
     on_trend = {mid for o in opportunities for mid in o["matchedStyleIds"]}
     prune = [
-        {"styleId": s["styleId"], "title": s.get("title", s["styleId"]), "reason": "长期低转化且不在任何上升趋势上 → 下架候选"}
+        {"styleId": s["styleId"], "title": s.get("title", s["styleId"]), "reason": "长期低转化且不在任何上升趋势上 → 降低推荐曝光候选"}
         for s in perf_styles
         if (s.get("tryOns", 0) >= 1 and (s.get("conversionRate") or 0) < 0.1 and s.get("styleId") not in on_trend)
     ]

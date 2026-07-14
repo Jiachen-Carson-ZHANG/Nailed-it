@@ -27,14 +27,13 @@ _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parent.parent
 _OUT = _REPO / "docs" / "eval" / "model-matrix"
 
-# Judgment subset (doc 06): the 7 scenarios where the strong tier earns its cost.
+# Judgment subset (doc 06): the scenarios where the strong tier earns its cost. The two reviewer
+# scenarios were retired when the LLM reviewer was replaced by the deterministic portfolio gate.
 SUBSET = ",".join([
     "decision/briefs-underexposed-ad",
     "ad/no-brief-skip",
     "ad/brief-infeasible-report",
     "ad/retargeting-beats-broad",
-    "reviewer/conflicting-briefs-flagged",
-    "reviewer/clean-plan-approved",
     "coupon/template-restrictions",
 ])
 
@@ -55,7 +54,7 @@ CANDIDATES: dict[str, dict] = {
 }
 
 _TIER_VARS = ("AGENT_MODEL", "ORCHESTRATOR_MODEL", "DECISION_MODEL", "AD_MODEL",
-              "REVIEWER_MODEL", "COUPON_MODEL", "MONITOR_MODEL")
+              "COUPON_MODEL", "MONITOR_MODEL")
 
 
 def _key_usage_usd(api_key: str) -> float | None:

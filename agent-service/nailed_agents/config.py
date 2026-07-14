@@ -41,11 +41,12 @@ APP_URL = os.environ.get("NAILED_APP_URL", "http://localhost:3000")
 MERCHANT_ID = os.environ.get("NAILED_MERCHANT_ID", "merchant-nailed-it")
 
 # 选品 external-trend source (one flag — same agent either way):
-#   "fixture"   (default): authored CN-flavored trends (deterministic, no key) — see trends fixture.
+#   "curated_visual" (default): deterministic trend-image concepts, VLM-authored offline for the demo.
+#   "fixture"   (legacy alias): same deterministic curated pack; keeps older eval scripts valid.
 #   "pinterest" (live):    Pinterest Trends API. Needs PINTEREST_APP_ID + PINTEREST_APP_SECRET + a
 #                          user-authorized refresh token. NOTE: regions are Western only (US, GB+IE,
 #                          CA, AU+NZ, DE, FR, …) — NO China/Asia. Scoped to interest=beauty (nail-domain).
-TREND_SOURCE = os.environ.get("TREND_SOURCE", "fixture").strip().lower()
+TREND_SOURCE = os.environ.get("TREND_SOURCE", "curated_visual").strip().lower()
 PINTEREST_APP_ID = os.environ.get("PINTEREST_APP_ID", "")
 PINTEREST_APP_SECRET = os.environ.get("PINTEREST_APP_SECRET", "")
 PINTEREST_REGION = os.environ.get("PINTEREST_REGION", "US")
@@ -84,6 +85,12 @@ _DEFAULT_ORCH_MODEL = {"anthropic": "claude-sonnet-4-6", "openrouter": "google/g
                        "gemini": "gemini-2.5-pro"}
 ORCHESTRATOR_MODEL = os.environ.get("ORCHESTRATOR_MODEL") or _DEFAULT_ORCH_MODEL.get(MODEL_PROVIDER, AGENT_MODEL)
 
+# Orchestration control plane:
+#   runtime (default): known business triggers use deterministic routing; open merchant requests still
+#                      fall back to the LLM orchestrator.
+#   llm:              force the older LLM orchestrator for every round (debug/backcompat).
+ORCHESTRATION_MODE = os.environ.get("ORCHESTRATION_MODE", "runtime").strip().lower()
+
 # ADR-0015: the monitor is the second long-chain agent (N outcome writes + verdict + bounded revision).
 # Measured live 2026-07-11: on flash it made ONE tool call then NARRATED unperformed memory writes and
 # revisions — the exact orchestrator failure class, so it gets the same fix. One run per round.
@@ -93,8 +100,6 @@ MONITOR_MODEL = os.environ.get("MONITOR_MODEL") or ORCHESTRATOR_MODEL
 # same measured failure class, same fix. Bounded cost: ≤4 strong-tier runs per round.
 DECISION_MODEL = os.environ.get("DECISION_MODEL") or ORCHESTRATOR_MODEL
 AD_MODEL = os.environ.get("AD_MODEL") or ORCHESTRATOR_MODEL
-# ADR-0016 Stage 2: soft-risk review is nuanced judgment over structured briefs — strong tier.
-REVIEWER_MODEL = os.environ.get("REVIEWER_MODEL") or ORCHESTRATOR_MODEL
 # Stage 3: coupon now judges templates + restrictions — measured flash narration flake → strong tier.
 COUPON_MODEL = os.environ.get("COUPON_MODEL") or ORCHESTRATOR_MODEL
 
@@ -143,7 +148,7 @@ MAX_PENDING_PROPOSALS = int(os.environ.get("MAX_PENDING_PROPOSALS", "5"))
 MARKETING_BUDGET_CENTS = int(os.environ.get("MARKETING_BUDGET_CENTS", "18000"))
 
 # ADR-0013 P1: per-round orchestration guardrails (the LLM chooses; code bounds).
-MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "9"))  # 9 lanes since the reviewer (ADR-0016 S2)
+MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "8"))  # 8 lanes (reviewer removed — deterministic portfolio gate)
 
 # Sampling temperature for the OpenAI-compatible loop. Operations agents judge against bright-line
 # thresholds — low temperature is a feature (reproducible rounds, stable eval), not a limitation.
