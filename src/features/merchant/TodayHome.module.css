@@ -68,7 +68,6 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.statUp { font-size: var(--text-xs); color: var(--color-success-ink); font-weight: 800; margin-left: 2px; }
 /* CTA row: pinned to the card's bottom edge (labels always on ONE shared line across cards) and
  * accent-colored with a chevron — it reads as a link, not a caption. */
 .statL {

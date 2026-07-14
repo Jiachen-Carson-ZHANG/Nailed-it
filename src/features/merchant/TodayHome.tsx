@@ -19,7 +19,7 @@ const AGENTS_PATH = '/merchant/agents';
 
 /** Demo stat strip — fixed mock values with navigation targets (not compute-on-read). */
 const STAT_STRIP_MOCK = [
-  { value: '¥27,308', delta: '+3%', metricKey: 'revenueMetric' as const, labelKey: 'revenue' as const, href: '/merchant/messages/ops?range=week' },
+  { value: '¥27,308', metricKey: 'revenueMetric' as const, labelKey: 'revenue' as const, href: '/merchant/messages/ops?range=week' },
   { value: '12', metricKey: 'ordersMetric' as const, labelKey: 'orders' as const, href: FULL_CALENDAR_PATH },
   { valueKey: 'hotElementValue' as const, metricKey: 'hotMetric' as const, labelKey: 'hotElement' as const, href: '/merchant/styles' },
 ] as const;
@@ -180,7 +180,6 @@ export function TodayHome() {
               <div className={styles.statM}>{t[stat.metricKey]}</div>
               <div className={'valueKey' in stat ? `${styles.statN} ${styles.statNText}` : styles.statN}>
                 {value}
-                {'delta' in stat ? <span className={styles.statUp}>{stat.delta}</span> : null}
               </div>
               <div className={styles.statL}>{label}</div>
             </Link>

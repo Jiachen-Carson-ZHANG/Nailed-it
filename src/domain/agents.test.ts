@@ -105,6 +105,61 @@ describe('deriveRunDetail nextRoundDecision (cross-round memory loop)', () => {
   });
 });
 
+describe('deriveRunDetail reviewedBy (executor → round Monitor, inverse of 监测对象)', () => {
+  const at = (id: string, slug: string, role: AgentRunView['agentRole'], iso: string, parent: string | null): AgentRunView =>
+    ({ ...run(id, parent, id, { role }), agentSlug: slug as AgentRunView['agentSlug'], startedAt: iso });
+  const round = [
+    at('decision', 'decision', 'planner', '2026-07-12T03:00:00Z', 'orch'),
+    at('ad', 'ad', 'operator', '2026-07-12T03:02:00Z', 'decision'),
+    at('monitor', 'monitor', 'reviewer', '2026-07-12T03:05:00Z', 'decision'),
+  ];
+  it('an executor names the round monitor as its downstream', () => {
+    const d = deriveRunDetail('ad', round)!;
+    expect(d.reviewedBy?.id).toBe('monitor');
+  });
+  it('non-executors (planner, monitor itself) have no reviewedBy', () => {
+    expect(deriveRunDetail('decision', round)!.reviewedBy).toBeNull();
+    expect(deriveRunDetail('monitor', round)!.reviewedBy).toBeNull();
+  });
+  it('an executor in a round WITHOUT a monitor has no reviewedBy', () => {
+    const noMonitor = [
+      at('decision', 'decision', 'planner', '2026-07-12T03:00:00Z', 'orch'),
+      at('ad', 'ad', 'operator', '2026-07-12T03:02:00Z', 'decision'),
+    ];
+    expect(deriveRunDetail('ad', noMonitor)!.reviewedBy).toBeNull();
+  });
+});
+
+describe('deriveRunDetail round tag (which 经营轮次)', () => {
+  // Two FULL rounds (>= fullRoundMinRuns) newest-first. Use minRuns=3 so small fixtures qualify.
+  const mk = (id: string, slug: string, iso: string, role: AgentRunView['agentRole'] = 'operator', trigger: AgentRunView['triggerSource'] = 'manual'): AgentRunView => ({
+    ...run(id, null), agentSlug: slug as AgentRunView['agentSlug'], agentRole: role, startedAt: iso, triggerSource: trigger,
+  });
+  const runs = [
+    // later (newest) round — event-triggered
+    mk('n-monitor', 'monitor', '2026-07-12T04:10:00Z', 'reviewer'),
+    mk('n-ad', 'ad', '2026-07-12T04:05:00Z', 'operator'),
+    mk('n-decision', 'decision', '2026-07-12T04:00:00Z', 'planner', 'event'),
+    // earlier round — manual
+    mk('p-monitor', 'monitor', '2026-07-12T03:10:00Z', 'reviewer'),
+    mk('p-ad', 'ad', '2026-07-12T03:05:00Z', 'operator'),
+    mk('p-decision', 'decision', '2026-07-12T03:00:00Z', 'planner', 'manual'),
+  ];
+  it('newest full round is the highest ordinal; total counts full rounds', () => {
+    const d = deriveRunDetail('n-ad', runs, 3)!;
+    expect(d.round).toEqual({ ordinal: 2, total: 2, triggerSource: 'event', startedAt: '2026-07-12T04:00:00Z' });
+  });
+  it('earlier round is ordinal 1, trigger from its opener', () => {
+    const d = deriveRunDetail('p-ad', runs, 3)!;
+    expect(d.round?.ordinal).toBe(1);
+    expect(d.round?.triggerSource).toBe('manual');
+  });
+  it('a partial round (below the min) has no round tag', () => {
+    const stray = [mk('s1', 'ad', '2026-07-12T05:00:00Z', 'operator')];
+    expect(deriveRunDetail('s1', stray, 3)!.round).toBeNull();
+  });
+});
+
 describe('groupRunsIntoRounds (runtime record grouped by round)', () => {
   const at = (id: string, slug: string, iso: string): AgentRunView => ({
     ...run(id, null), agentSlug: slug as AgentRunView['agentSlug'], startedAt: iso,

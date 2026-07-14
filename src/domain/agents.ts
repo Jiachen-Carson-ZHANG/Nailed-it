@@ -120,10 +120,16 @@ export type AgentRunDetail = {
   parent: RunRef | null;
   children: RunRef[];
   auditTargets: RunRef[];
+  /** For an EXECUTOR (投广/团购/…): the round's Monitor that measures this action — the executor's real
+   *  downstream (监测), the inverse of the monitor's 监测对象. Null for non-executors. */
+  reviewedBy: RunRef | null;
   /** The NEXT round's 决策 (商分) run — where this round's monitor findings land via memory (ADR-0015).
    *  The cross-round loop's payoff: "what the team decided next, informed by what this round measured".
    *  Null on the newest round. */
   nextRoundDecision: RunRef | null;
+  /** Which 经营轮次 this run belongs to (ordinal among full rounds, newest = highest) + how the round
+   *  was triggered + when — so a thinking chain says which round it's in. Null for stray/partial runs. */
+  round: { ordinal: number; total: number; triggerSource: TriggerSource; startedAt: string } | null;
 };
 
 function toRunRef(r: AgentRunView): RunRef {
@@ -199,5 +205,26 @@ export function deriveRunDetail(runId: string, allRuns: AgentRunView[], fullRoun
     }
   }
 
-  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets, nextRoundDecision };
+  // 下游监测: an executor's downstream is the round's Monitor (the inverse of 监测对象). Symmetric graph:
+  // 商分 ↓ 投广 ↓ Monitor ↺ 商分(next round).
+  const monitorRun = myRound.find((r) => r.agentSlug === 'monitor');
+  const reviewedBy = run.agentRole === 'operator' && monitorRun ? toRunRef(monitorRun) : null;
+
+  // Which 经营轮次: ordinal among FULL rounds (newest = highest), + how it was triggered + when.
+  let round: AgentRunDetail['round'] = null;
+  const fullRounds = rounds.filter((rd) => rd.length >= fullRoundMinRuns);
+  const fullIdx = fullRounds.findIndex((rd) => rd.some((r) => r.id === runId));
+  if (fullIdx >= 0) {
+    const rd = fullRounds[fullIdx];
+    const opener = rd.find((r) => r.agentRole === 'lead')
+      ?? [...rd].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))[0];
+    round = {
+      ordinal: fullRounds.length - fullIdx,
+      total: fullRounds.length,
+      triggerSource: opener?.triggerSource ?? 'manual',
+      startedAt: opener?.startedAt ?? rd[0].startedAt,
+    };
+  }
+
+  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets, reviewedBy, nextRoundDecision, round };
 }

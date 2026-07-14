@@ -30,7 +30,9 @@ const detailCopy = {
     selfStarted: '本轮例行运行的起点',
     spawned: '触发的下游',
     audits: '监测对象',
+    reviewedBy: '下游监测',
     nextRound: '回流下一轮',
+    roundTag: (o: number, tg: string, when: string) => `第 ${o} 轮 · ${tg} · ${when}`,
     triggeredRevision: '触发修订',
     undo: '撤销',
     undone: '已撤销',
@@ -53,7 +55,9 @@ const detailCopy = {
     selfStarted: 'The starting point of this round',
     spawned: 'Spawned',
     nextRound: 'Feeds next round',
+    reviewedBy: 'Monitored by',
     audits: 'Auditing',
+    roundTag: (o: number, tg: string, when: string) => `Round ${o} · ${tg} · ${when}`,
     triggeredRevision: 'Sent back for revision',
     undo: 'Undo',
     undone: 'Undone',
@@ -66,6 +70,18 @@ const detailCopy = {
     proposedNote: 'Awaiting merchant approval (no internal match — needs an image to list)',
   },
 } satisfies Record<AppLanguage, Record<string, unknown>>;
+
+const TRIGGER_LABEL: Record<string, { 'zh-CN': string; en: string }> = {
+  manual: { 'zh-CN': '手动', en: 'Manual' },
+  event: { 'zh-CN': '事件', en: 'Event' },
+  schedule: { 'zh-CN': '定时', en: 'Scheduled' },
+};
+const tTrigger = (s: string, lang: AppLanguage) => TRIGGER_LABEL[s]?.[lang] ?? s;
+function fmtRoundTime(iso: string, lang: AppLanguage): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso
+    : d.toLocaleString(lang === 'zh-CN' ? 'zh-CN' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 function headline(output: unknown, fallback: string): string {
   const o = output as { headline?: string; verdict?: string } | null;
@@ -123,7 +139,14 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
   return (
     <>
       <section className="profile-hero">
-        <p className="section-eyebrow">{run.agentName}</p>
+        <p className="section-eyebrow">
+          {run.agentName}
+          {detail?.round ? (
+            <span className="agent-run-round-tag">
+              {' · '}{copy.roundTag(detail.round.ordinal, tTrigger(detail.round.triggerSource, language), fmtRoundTime(detail.round.startedAt, language))}
+            </span>
+          ) : null}
+        </p>
         <h1>{headline(run.output, run.agentName)}</h1>
         {/* Task context (为什么会有这次运行): the dispatching run + what this one spawned. Without this the
             chain starts mid-air — the merchant can't tell why the agent acted (audit finding). */}
@@ -155,6 +178,15 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
                   ↓ {c.agentName}
                 </Link>
               ))}
+            </>
+          ) : null}
+          {detail?.reviewedBy ? (
+            // An executor's downstream is the round's Monitor (inverse of 监测对象).
+            <>
+              {' · '}{copy.reviewedBy}
+              <Link className="agent-run-context-link" href={getMerchantAgentRunPath(detail.reviewedBy.id)}>
+                ↓ {detail.reviewedBy.agentName}
+              </Link>
             </>
           ) : null}
           {detail?.nextRoundDecision ? (

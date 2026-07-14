@@ -26,14 +26,16 @@ const copy = {
   'zh-CN': {
     title: '智能体推理', loading: '正在加载推理链路…', notFound: '未找到该运行记录',
     why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
-    nextRound: '回流下一轮', actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
+    reviewedBy: '下游监测', nextRound: '回流下一轮', actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
+    roundTag: (o: number, t: string, when: string) => `第 ${o} 轮 · ${t} · ${when}`,
     actionStatus: { proposed: '待你确认', applied: '已执行', approved: '已批准', undone: '已撤销' } as Record<ActionStatus, string>,
     status: { running: '运行中', completed: '已完成', failed: '失败', awaiting_approval: '待批准' } as Record<RunStatus, string>,
   },
   en: {
     title: 'Agent reasoning', loading: 'Loading the reasoning chain…', notFound: 'Run not found',
     why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', audits: 'Auditing', full: 'Full record →',
-    nextRound: 'Feeds next round', actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
+    reviewedBy: 'Monitored by', nextRound: 'Feeds next round', actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
+    roundTag: (o: number, t: string, when: string) => `Round ${o} · ${t} · ${when}`,
     actionStatus: { proposed: 'Awaiting you', applied: 'Applied', approved: 'Approved', undone: 'Undone' } as Record<ActionStatus, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Awaiting approval' } as Record<RunStatus, string>,
   },
@@ -89,6 +91,18 @@ function headline(output: unknown, fallback: string): string {
   const o = output as { headline?: string; verdict?: string } | null;
   const s = o?.headline ?? o?.verdict ?? fallback;
   return s.length > 140 ? `${s.slice(0, 139)}…` : s;
+}
+
+const TRIGGER_LABEL: Record<string, { 'zh-CN': string; en: string }> = {
+  manual: { 'zh-CN': '手动', en: 'Manual' },
+  event: { 'zh-CN': '事件', en: 'Event' },
+  schedule: { 'zh-CN': '定时', en: 'Scheduled' },
+};
+const tTrigger = (s: string, lang: 'zh-CN' | 'en') => TRIGGER_LABEL[s]?.[lang] ?? s;
+function fmtRoundTime(iso: string, lang: 'zh-CN' | 'en'): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso
+    : d.toLocaleString(lang === 'zh-CN' ? 'zh-CN' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
@@ -168,6 +182,11 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
               <span className={styles.statusChip}>{t.status[run.status]}</span>
             </div>
             <h3 className={styles.headline}>{headline(run.output, run.agentName)}</h3>
+            {detail?.round ? (
+              <p className={styles.roundTag}>{t.roundTag(
+                detail.round.ordinal, tTrigger(detail.round.triggerSource, language), fmtRoundTime(detail.round.startedAt, language),
+              )}</p>
+            ) : null}
           </header>
 
           {run.actions.length > 0 ? (
@@ -197,7 +216,7 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
             </section>
           ) : null}
 
-          {(detail?.parent || (detail?.children.length ?? 0) > 0 || (detail?.auditTargets.length ?? 0) > 0 || detail?.nextRoundDecision) ? (
+          {(detail?.parent || (detail?.children.length ?? 0) > 0 || (detail?.auditTargets.length ?? 0) > 0 || detail?.reviewedBy || detail?.nextRoundDecision) ? (
             <section className={styles.section} aria-label={t.lineage}>
               <div className={styles.lane}>{t.lineage}</div>
               {detail && detail.auditTargets.length > 0 ? (
@@ -229,6 +248,15 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
                       </button>
                     ))}
                   </div>
+                </div>
+              ) : null}
+              {detail?.reviewedBy ? (
+                // An executor's downstream is the round's Monitor (inverse of 监测对象).
+                <div className={styles.lineRow}>
+                  <span className={styles.lineLabel}>{t.reviewedBy}</span>
+                  <button type="button" className={styles.chipLink} onClick={() => hop(detail.reviewedBy!.id)}>
+                    ↓ {detail.reviewedBy.agentName}
+                  </button>
                 </div>
               ) : null}
               {detail?.nextRoundDecision ? (
