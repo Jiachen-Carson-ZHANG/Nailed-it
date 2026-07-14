@@ -14,7 +14,7 @@ import { NailLoadingScreen } from './NailLoadingScreen';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DrawerItem = {
+export type DrawerItem = {
   id: string;
   label: string;
   emoji: string;
@@ -22,7 +22,7 @@ type DrawerItem = {
   description: string;
 };
 
-type PlacedDecal = {
+export type PlacedDecal = {
   key: string;
   item: DrawerItem;
   // position on the hand image as % of hand-img wrapper
@@ -38,7 +38,7 @@ type GenState =
 
 // ── Drawer item data ──────────────────────────────────────────────────────────
 
-const DRAWER_ITEMS: Record<DrawerZoneId, DrawerItem[]> = {
+export const DRAWER_ITEMS: Record<DrawerZoneId, DrawerItem[]> = {
   color: [
     { id: 'c_nude',    label: '裸色',   emoji: '🤎', category: '底色', description: '裸色甲油' },
     { id: 'c_pink',    label: '粉色',   emoji: '🩷', category: '底色', description: '粉色甲油' },

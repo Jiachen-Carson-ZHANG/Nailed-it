@@ -3,32 +3,14 @@
 import { useState, useCallback } from 'react';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { type DrawerZoneId, DRAWER_ZONES } from './studio-layout-config';
-
-// 这两个类型待 Task 3 从 CollageHousePanel 导出后替换为 import
-type DrawerItem = {
-  id: string;
-  label: string;
-  emoji: string;
-  category: string;
-  description: string;
-};
-
-type PlacedDecal = {
-  key: string;
-  item: DrawerItem;
-  px: number;
-  py: number;
-};
-
-// DrawerItems 数据待 Task 3 从 CollageHousePanel 导出后替换为 import
-type DrawerItemsMap = Record<DrawerZoneId, DrawerItem[]>;
+import type { DrawerItem, PlacedDecal } from './CollageHousePanel';
 
 export type CollageResultScreenProps = {
   originalImage: SelectedNailImage;
   latestImage: SelectedNailImage;
   decals: PlacedDecal[];
   extraText: string;
-  drawerItems: DrawerItemsMap;
+  drawerItems: Record<DrawerZoneId, DrawerItem[]>;
   onExtraTextChange: (text: string) => void;
   onPartialRegen: (checkedZones: DrawerZoneId[], newDecals: PlacedDecal[], newExtraText: string) => void;
   onFullReset: () => void;
