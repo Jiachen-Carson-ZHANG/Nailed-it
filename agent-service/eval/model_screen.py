@@ -93,9 +93,12 @@ def screen_one(slug: str, model_id: str, n: int, api_key: str,
     # the ledger cross-check only exists on OpenRouter; a native-key run is priced from its own tokens
     before = _key_usage_usd(api_key) if provider == "openrouter" else None
     t0 = time.monotonic()
-    with open(log_path, "w", encoding="utf-8") as log:
+    # -u / PYTHONUNBUFFERED: stream the child's log to disk as it runs. Buffered, a long screen is
+    # invisible while it runs AND loses its whole log if the run is killed on a timeout (measured).
+    env["PYTHONUNBUFFERED"] = "1"
+    with open(log_path, "w", encoding="utf-8", buffering=1) as log:
         proc = subprocess.run(
-            [sys.executable, str(_HERE / "agents_eval.py"), "--n", str(n),
+            [sys.executable, "-u", str(_HERE / "agents_eval.py"), "--n", str(n),
              "--only", only, "--json-report", str(report_path)],
             env=env, cwd=str(_HERE.parent), stdout=log, stderr=subprocess.STDOUT,
         )

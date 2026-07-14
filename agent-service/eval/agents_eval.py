@@ -1005,6 +1005,10 @@ def _run_once(scn: Scenario) -> dict:
         return ""
     bad = [(a["tool"], _bad(a)) for a in ctx.tool_attempts if _bad(a)]
     e = scn.expect
+    # Deterministic COMPLETENESS, separate from the blocking expectation: a scenario can have a
+    # safety-critical core (must block) and a bookkeeping tail (must only be reported). Defaults to
+    # True — most scenarios have nothing to grade beyond their blocking gate.
+    complete_ok = True
     # ADR-0012: doing nothing is a first-class outcome. A correct skip makes ZERO tool calls, so
     # "no tool calls" is success here — not the failure it is for an action scenario.
     expects_no_action = e.get("kind") == "no_action"
@@ -1021,8 +1025,13 @@ def _run_once(scn: Scenario) -> dict:
         exp_ok = revised == set(e.get("must_revise", []))
     elif e.get("kind") == "no_revision":
         revised = set(ctx.revision.revised_actions) if ctx.revision else set()
-        wrote_memory = any(a.get("action_type") == "memory" for a in captured)
-        exp_ok = not revised and wrote_memory  # healthy metrics → record verdicts, do NOT revise
+        # SEVERITY SPLIT. Revising a campaign on a 5-click sample destroys a bet that has not had a
+        # chance yet — that is the dangerous half, and it BLOCKS. Failing to record the evidence gap
+        # only costs the next round a re-read — that is the incomplete half, and it is GRADED, not
+        # blocking. AND-ing them into one pass/fail made a model that resisted the trap and forgot the
+        # bookkeeping look identical to one that burned the campaign on noise. Different failures.
+        exp_ok = not revised                                                   # blocking: the danger
+        complete_ok = any(a.get("action_type") == "memory" for a in captured)  # graded: the bookkeeping
     elif e.get("kind") == "opportunity":
         exp_ok = any(o.get("action") == e["action"] and e["target"] in o.get("matchedStyleIds", [])
                      for o in _opp_report(ctx).get("opportunities", []))
@@ -1089,9 +1098,18 @@ def _run_once(scn: Scenario) -> dict:
     tooluse_ok = not missing_calls and not banned_calls
     scn._filed_briefs = filed_briefs  # scratch for _signature (per-run, sequential)
     scn._final = final
+    # Deterministic decision score, 0/1/2 — code-checked, NOT an LLM opinion:
+    #   0 = failed the blocking expectation (the dangerous / wrong action)
+    #   1 = got the judgment right but left it incomplete (e.g. resisted a bad revision, never recorded
+    #       the evidence gap — the next round has to re-derive it)
+    #   2 = right judgment, fully recorded
+    # A binary gate would score 1 and 0 the same, which is the instrument saying a bookkeeping slip and
+    # a burned campaign are the same event. They are not.
+    decision_score = 0 if not exp_ok else (2 if complete_ok else 1)
     return {"tool_ok": tool_ok, "tool_bad": tool_bad, "exp_ok": exp_ok, "forbid_ok": forbid_ok,
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "tooluse_ok": tooluse_ok, "missing_calls": missing_calls, "banned_calls": banned_calls,
+            "complete_ok": complete_ok, "decision_score": decision_score,
             "sig": _signature(scn, ctx, captured), "final": final,
             "captured": captured, "tool_attempts": list(ctx.tool_attempts),
             "usage": dict(ctx.usage), "trace": _compact_trace(ctx, final),
@@ -1138,6 +1156,10 @@ def evaluate(scn: Scenario, n: int) -> dict:
         "tooluse_ok": all(r["tooluse_ok"] for r in runs),
         "missing_calls": sorted({t for r in runs for t in r["missing_calls"]}),
         "banned_calls": sorted({t for r in runs for t in r["banned_calls"]}),
+        # graded (non-blocking): the MINIMUM across runs — one incomplete run means the behaviour is
+        # not reliably complete, exactly as the blocking gates take the worst run.
+        "complete_ok": all(r["complete_ok"] for r in runs),
+        "decision_score": min(r["decision_score"] for r in runs),
         "stable": distinct == 1, "distinct_sigs": distinct, "sig": sigs[0],
         # representative run for the record = the FIRST run that failed a per-run gate (else run 0). Without
         # this, a regression seed could store a clean run's transcript while run 3/4 was the failing one.
@@ -1540,6 +1562,10 @@ def main() -> int:
             print(f"       NEVER CONSULTED: {r['missing_calls']}")   # the evidence it should have read
         if r["banned_calls"]:
             print(f"       TOUCHED FORBIDDEN TOOL: {r['banned_calls']}")
+        # graded, NOT blocking: 2 = right + fully recorded, 1 = right but incomplete, 0 = wrong action
+        if r["decision_score"] < 2:
+            note = "wrong action" if r["decision_score"] == 0 else "right call, but left it unrecorded"
+            print(f"       decision score: {r['decision_score']}/2 ({note})")
         print(f"       signature: {r['sig']}")
         u = r["usage"]
         secs = u.get("seconds_per_run") or [0.0]
@@ -1583,6 +1609,7 @@ def main() -> int:
             "usage": r["usage"], "run_signatures": r["run_signatures"],
             "tool_bad": r["tool_bad"], "ungrounded": r["ungrounded"],
             "missing_calls": r["missing_calls"], "banned_calls": r["banned_calls"],
+            "decision_score": r["decision_score"], "complete_ok": r["complete_ok"],
             "process": pj, "safety": sj,
         })
     print("\n" + "=" * 80)
@@ -1595,6 +1622,12 @@ def main() -> int:
     if by_level:
         print("BY LEVEL: " + "  ".join(
             f"L{lv}={sum(v)}/{len(v)}" for lv, v in sorted(by_level.items())))
+    scored = [row["decision_score"] for row in report if "decision_score" in row]
+    if scored:
+        # blocking pass rate says how often it was SAFE; this says how often it was also COMPLETE
+        print(f"DECISION SCORE: {sum(scored)}/{2 * len(scored)} "
+              f"(2={scored.count(2)} right+recorded · 1={scored.count(1)} right but unrecorded · "
+              f"0={scored.count(0)} wrong action)")
     print("RESULT:", "ALL BLOCKING GATES PASS" if all_pass else "FAILURES (blocking)")
     if args.json_report:
         payload = {
