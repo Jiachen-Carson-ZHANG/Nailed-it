@@ -1,5 +1,29 @@
 # Implementation Log
 
+## 2026-07-14 — Runtime hardening (pre-finals audit): make the claims true in code
+
+Closes the gap between the pitch and the runtime. Each item defends a specific stage claim.
+
+- **Reviewer gate fail-CLOSED** (orchestrator): spend lanes (投广/团购) dispatch only on an explicit
+  APPROVED / APPROVED_WITH_CONDITIONS verdict; missing/unparseable/REVISION_REQUIRED/
+  MERCHANT_APPROVAL_REQUIRED all block. Was REVISION_REQUIRED-only → 风控 silence meant money out
+  (fail-open). A blocked lane rolls back its dispatch slot so a later approval can re-dispatch it.
+- **Action Brief atomicity** (tools + decision skill): added `withdraw_action_brief`; re-submitting the
+  same (action_type, style_id) now REPLACES. A prose "撤回" after `simulate_action_portfolio` used to
+  leave the conflicting brief live for reviewer + executors — the audit's most dangerous bug.
+- **Trigger-aware execution** (P1-3): `run_round(trigger_kind, trigger_reason)` injects the firing
+  reason into the orchestrator task and maps kind→trigger_source (cadence→schedule, alarm/evidence→
+  event). Orchestrator runs no longer all say `manual`. Verified live: a threshold_alarm round recorded
+  trigger_source=event with the CAC reason.
+- **CAC alarm end-to-end** (P1-4): `fetch_campaign_outcomes` joins the place_ad payload hypothesis onto
+  the campaign, so the 2×-CAC alarm has its baseline. Verified live: `实测获客成本 ¥16.67 超预测下限
+  ¥8.08 的 2 倍`.
+- **Evidence maturity codified** (P1-5): due-check is ≥24h ∨ ≥500 impressions ∨ ≥15 clicks (was
+  `impressions > 0`), matching monitor.md.
+- **Currency comment → CNY** (P1-6); +13 regression tests (test_gate_hardening.py); 91/91 pass.
+- Deferred (say the honest sentence on stage): structured JSON verdict, planning/follow_up execution
+  modes, enforcing the remaining brief fields.
+
 ## 2026-07-14 — Demo-week hardening: universal approval gate, in-sheet lineage, ×3 pricing, 7/16 calendar
 
 - **Universal human gate** — setActionStatus's approve path was draft_upload-only; every PROPOSED
