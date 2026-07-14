@@ -8632,6 +8632,31 @@ button.xhs-card-shape {
   cursor: pointer;
   text-align: center;
   padding: 0;
+  position: relative;
+}
+.crs-drawer-item--selected .crs-drawer-item-img {
+  border-color: #c08030;
+  border-width: 2px;
+  background: rgba(192,128,48,0.14);
+  box-shadow: 0 0 0 2px rgba(192,128,48,0.2);
+}
+.crs-drawer-item--selected .crs-drawer-item-label {
+  color: #c08030;
+  font-weight: 600;
+}
+.crs-drawer-item-check {
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c08030;
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .crs-drawer-item-img {
   width: 52px;

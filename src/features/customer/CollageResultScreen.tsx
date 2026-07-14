@@ -190,15 +190,15 @@ export function CollageResultScreen({
               >
                 <div className="crs-ingredient-left">
                   <span className="crs-ingredient-icon" aria-hidden="true">
-                    {drawerItems[zone.id]?.[0]?.emoji ?? '🎨'}
+                    {currentDecal?.item.emoji ?? drawerItems[zone.id]?.[0]?.emoji ?? '🎨'}
                   </span>
                   <div>
                     <div className="crs-ingredient-name">{zone.label}</div>
                     <div className={`crs-ingredient-value${isChecked ? ' crs-ingredient-value--active' : ''}`}>
-                      {isChecked
-                        ? '已勾选 — 从下方抽屉拖入新元素'
-                        : currentDecal
-                          ? currentDecal.item.label
+                      {currentDecal
+                        ? currentDecal.item.label
+                        : isChecked
+                          ? '从下方选择新元素'
                           : '未选择'}
                     </div>
                   </div>
@@ -222,24 +222,29 @@ export function CollageResultScreen({
                     </button>
                   </div>
                   <div className="crs-drawer-items">
-                    {drawerItems[zone.id].map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="crs-drawer-item"
-                        onClick={() => {
-                          setLocalDecals((prev) => {
-                            const filtered = prev.filter((d) => d.item.category !== item.category);
-                            return [...filtered, { key: `crs-${item.id}`, item, px: 50, py: 50 }];
-                          });
-                        }}
-                      >
-                        <div className="crs-drawer-item-img">{item.emoji}</div>
-                        <div className="crs-drawer-item-label">{item.label}</div>
-                      </button>
-                    ))}
+                    {drawerItems[zone.id].map((item) => {
+                      const isItemSelected = currentDecal?.item.id === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`crs-drawer-item${isItemSelected ? ' crs-drawer-item--selected' : ''}`}
+                          aria-pressed={isItemSelected}
+                          onClick={() => {
+                            setLocalDecals((prev) => {
+                              const filtered = prev.filter((d) => d.item.category !== item.category);
+                              return [...filtered, { key: `crs-${item.id}`, item, px: 50, py: 50 }];
+                            });
+                          }}
+                        >
+                          <div className="crs-drawer-item-img">{item.emoji}</div>
+                          <div className="crs-drawer-item-label">{item.label}</div>
+                          {isItemSelected && <span className="crs-drawer-item-check" aria-hidden="true">✓</span>}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <p className="crs-drawer-hint">点击选择，或返回编辑台拖拽放置</p>
+                  <p className="crs-drawer-hint">点击选中的元素会更新到左侧图标，可继续勾选其他大类</p>
                 </div>
               )}
             </div>

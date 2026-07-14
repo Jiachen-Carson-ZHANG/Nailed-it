@@ -72,6 +72,51 @@ describe('CollageResultScreen', () => {
     expect(document.querySelector('.crs-inline-drawer')).toBeTruthy();
   });
 
+  it('在抽屉里选中新元素后，该元素按键保持选中状态且大类图标更新', () => {
+    render(<CollageResultScreen {...baseProps} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /底色/ }));
+
+    // 选中「蓝色」(💙) — 定位抽屉内的按键
+    const drawer = document.querySelector('.crs-inline-drawer') as HTMLElement;
+    const blueLabel = Array.from(drawer.querySelectorAll('.crs-drawer-item-label'))
+      .find((el) => el.textContent === '蓝色') as HTMLElement;
+    fireEvent.click(blueLabel);
+
+    // 抽屉里蓝色按键被标记为选中
+    const blueBtn = blueLabel.closest('.crs-drawer-item') as HTMLElement;
+    expect(blueBtn.className).toContain('crs-drawer-item--selected');
+    expect(blueBtn.getAttribute('aria-pressed')).toBe('true');
+
+    // 大类行的图标更新为蓝色 emoji
+    const colorRow = screen.getByRole('checkbox', { name: /底色/ });
+    const icon = colorRow.querySelector('.crs-ingredient-icon') as HTMLElement;
+    expect(icon.textContent).toBe('💙');
+
+    // 该行文案显示所选元素 label
+    expect(colorRow.querySelector('.crs-ingredient-value')?.textContent).toBe('蓝色');
+  });
+
+  it('改选同一大类的另一个元素后，选中状态随之切换', () => {
+    render(<CollageResultScreen {...baseProps} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /底色/ }));
+
+    const drawer = document.querySelector('.crs-inline-drawer') as HTMLElement;
+    const labelIn = (text: string) =>
+      Array.from(drawer.querySelectorAll('.crs-drawer-item-label'))
+        .find((el) => el.textContent === text) as HTMLElement;
+
+    fireEvent.click(labelIn('蓝色'));
+    fireEvent.click(labelIn('红色'));
+
+    const blueBtn = labelIn('蓝色').closest('.crs-drawer-item') as HTMLElement;
+    const redBtn = labelIn('红色').closest('.crs-drawer-item') as HTMLElement;
+    expect(blueBtn.className).not.toContain('crs-drawer-item--selected');
+    expect(redBtn.className).toContain('crs-drawer-item--selected');
+
+    const colorRow = screen.getByRole('checkbox', { name: /底色/ });
+    expect((colorRow.querySelector('.crs-ingredient-icon') as HTMLElement).textContent).toBe('❤️');
+  });
+
   it('点「全部重置」触发 onFullReset', () => {
     render(<CollageResultScreen {...baseProps} />);
     fireEvent.click(screen.getByText('↺ 全部重置'));
