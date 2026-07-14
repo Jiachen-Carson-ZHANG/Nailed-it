@@ -378,14 +378,16 @@ export default function MerchantAgentsPage() {
               <div className="detail-surface-header">
                 <h2 id="agents-rounds-title">{copy.roundsTitle as string}</h2>
               </div>
-              {groupRunsIntoRounds(runs).slice(0, 3).map((round) => {
+              {groupRunsIntoRounds(runs).filter((r) => r.length >= 8).slice(0, 3).map((round) => {
                 const head = round[0];
+                // The round's trigger is the ORCHESTRATOR's (who opened it), not the last child's.
+                const opener = round.find((r) => r.agentRole === 'lead') ?? round[round.length - 1];
                 const actions = round.reduce((n, r) => n + r.actions.length, 0);
                 const roundLine = copy.roundLine as (a: number, b: number) => string;
                 return (
                   <div key={head.id} className="agent-round">
                     <p className="agent-round-head">
-                      <span className="agent-round-trigger">{copy.trigger[head.triggerSource]}</span>
+                      <span className="agent-round-trigger">{copy.trigger[opener.triggerSource]}</span>
                       <span>· {fmtTime(head.startedAt, language)}</span>
                       <span>· {roundLine(round.length, actions)}</span>
                     </p>

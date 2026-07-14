@@ -90,7 +90,9 @@ export default function MerchantAgentRunsPage() {
     return () => { active = false; };
   }, []);
 
-  const rounds = useMemo(() => groupIntoRounds(runs), [runs]);
+  // Demo curation: the audit shows FULL rounds (≥4 runs). Stray anchor runs — kept in the DB only
+  // because campaigns/deals/memories cite them as evidence — would render as confusing partial "rounds" (full rounds run 10-11 agents).
+  const rounds = useMemo(() => groupIntoRounds(runs).filter((r) => r.runs.length >= 8), [runs]);
 
   return (
     <MobileLayout role="merchant" title="Nailed-it">
