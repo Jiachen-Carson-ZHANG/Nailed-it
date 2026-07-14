@@ -211,7 +211,7 @@ export function parseBreakdownModelOutput(
     if (!Array.isArray(rawArray)) invalidModelOutput(`${section} must be an array`);
     const glossaryType = sectionTypeMap[section];
 
-    return rawArray.map((rawItem, index) => {
+    return rawArray.flatMap((rawItem, index) => {
       if (!isRecord(rawItem)) invalidModelOutput(`${section}[${index}] must be an object`);
       const keys = Object.keys(rawItem);
       if (keys.length !== 3 || keys.some((key) => !['id', 'quantity', 'unit'].includes(key))) {
@@ -237,8 +237,17 @@ export function parseBreakdownModelOutput(
 
       const id = rawItem.id.trim();
       const entry = glossaryById.get(id);
-      if (!entry || entry.type !== glossaryType || !allowedIdsBySection[section].has(id)) {
+      // Unknown id, or an id whose glossary type doesn't match this section, is a hard error:
+      // the provider ignored the schema in a way we can't safely interpret.
+      if (!entry || entry.type !== glossaryType) {
         invalidModelOutput(`${id} does not belong in ${section}`);
+      }
+      // A real entry of the right type that simply isn't AI-detectable (e.g. ai_detectable:"weak"
+      // components like nail_tip_full_cover). A lenient provider may still report it — drop it
+      // rather than failing the entire breakdown, so the rest of the quote survives.
+      if (!allowedIdsBySection[section].has(id)) {
+        console.warn(`[ai-breakdown] dropping non-ai-detectable ${section} id "${id}" returned by the model`);
+        return [];
       }
       if (seenIds.has(id)) invalidModelOutput(`${id} was returned more than once`);
       seenIds.add(id);
@@ -253,7 +262,7 @@ export function parseBreakdownModelOutput(
       const duration = allowPricing && isEnabled ? (settings?.duration ?? entry.default_duration_min) : 0;
       const parentEntry = glossaryById.get(entry.parent_id);
 
-      return {
+      return [{
         mode: 'glossary' as const,
         glossaryId: id,
         glossaryType,
@@ -266,7 +275,7 @@ export function parseBreakdownModelOutput(
         price,
         duration,
         affectsBookingDuration: entry.affects_booking_duration,
-      };
+      }];
     });
   }
 

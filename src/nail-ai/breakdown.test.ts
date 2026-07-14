@@ -76,6 +76,26 @@ describe('parseBreakdownModelOutput', () => {
     ).toThrow('invalid_model_output');
   });
 
+  it('drops a known-but-not-ai-detectable component (e.g. nail_tip_full_cover) instead of failing the whole breakdown', () => {
+    const output = validOutput();
+    // nail_tip_full_cover is a real billable_component but tagged ai_detectable:"weak",
+    // so the model is not supposed to emit it. A lenient provider may return it anyway.
+    output.billable_components.push({ id: 'nail_tip_full_cover', quantity: 1, unit: 'set' });
+
+    // Must NOT throw — the valid items still parse.
+    const result = parseBreakdownModelOutput(output, settings);
+    expect(result.items.some((item) => item.glossaryId === 'cat_eye')).toBe(true);
+    // The dropped id never enters the result.
+    expect(result.items.some((item) => item.glossaryId === 'nail_tip_full_cover')).toBe(false);
+    expect(result.catalogSelections.some((s) => s.catalogItemId === 'nail_tip_full_cover')).toBe(false);
+  });
+
+  it('still rejects ids that are not in the glossary at all', () => {
+    const output = validOutput();
+    output.billable_components.push({ id: 'totally_made_up_id', quantity: 1, unit: 'set' });
+    expect(() => parseBreakdownModelOutput(output, settings)).toThrow('invalid_model_output');
+  });
+
   it('forces per-set quantities to one and preserves quantity-bearing units', () => {
     const result = parseBreakdownModelOutput(validOutput(), settings);
     expect(result.catalogSelections).toEqual([
