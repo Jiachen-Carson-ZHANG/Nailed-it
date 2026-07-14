@@ -141,6 +141,16 @@ function summarizeDecisions(_input: Record<string, unknown>, output: unknown, la
 const SUMMARIZERS: Record<string, Summarizer> = {
   get_style_business_decisions: summarizeDecisions, // legacy rows
   get_style_business_facts: summarizeDecisions,
+  get_candidate_business_facts: summarizeDecisions,
+
+  submit_analysis_brief: (input, _o, lang) => ({
+    label: lang === 'zh-CN' ? '数分候选' : 'Analysis brief',
+    summary: lang === 'zh-CN'
+      ? `锁定 ${count(input.focus_style_ids)} 个候选款 · ${count(input.alerts)} 条告警` +
+        (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} 处证据缺口` : '')
+      : `Flagged ${count(input.focus_style_ids)} candidate styles · ${count(input.alerts)} alerts` +
+        (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} evidence gaps` : ''),
+  }),
 
   get_merchant_insights: (input, output, lang) => {
     const headline = isObj(output) ? String((output as { headline?: unknown }).headline ?? '') : '';

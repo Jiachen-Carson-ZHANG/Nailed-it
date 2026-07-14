@@ -61,6 +61,10 @@ class RunContext:
     # ADR-0013 P3: set ONLY on the monitor's context — the bounded revision port. None everywhere else,
     # so no other lane can trigger a revision.
     revision: Any = None
+    # Set ONLY on the 数分 (insight) context — a callable that files the round's Analysis Brief
+    # (candidate focus styles + alerts + evidence gaps) so 决策 fetches facts for the handful worth its
+    # Token, not all styles. None everywhere else, so no other lane can author the analysis.
+    analysis_sink: Any = None
     # ADR-0016 §2: set ONLY on the decision agent's context — a callable that files an Action Brief
     # onto the round. None everywhere else, so no other lane can author briefs.
     brief_sink: Any = None
@@ -160,6 +164,38 @@ def get_merchant_insights(range_days: int = 7) -> str:
          "input": {"rangeDays": range_days}, "output": insights}
     )
     return json.dumps(insights, ensure_ascii=False)
+
+
+def submit_analysis_brief(focus_style_ids: str, alerts_json: str = "[]",
+                          evidence_gaps: str = "", memory_check_recommended: bool = False) -> str:
+    """数分's STRUCTURED output — the round's Analysis Brief. Screen the full store DOWN to the handful
+    of styles worth 决策's ad/coupon reasoning this round, so 决策 fetches candidate facts, not all 38.
+      focus_style_ids: comma-separated candidate style ids.
+      alerts_json: JSON array of {type, style_id, evidence} — the machine-checkable reason each is a
+        candidate (e.g. underexposed_high_conversion with the conversion/exposure numbers).
+      evidence_gaps: comma-separated notes where the data is too thin to conclude (决策 may then widen
+        via get_style_business_facts) — an empty list is fine.
+      memory_check_recommended: true if prior rounds' verdicts likely bear on this round.
+    File this as your final step; 决策 consumes it. Filing it is 数分-only."""
+    ctx = _ctx()
+    if ctx.analysis_sink is None:
+        raise ValueError("analysis_brief_not_allowed")  # insight-only, like the sink itself
+    focus = [s.strip() for s in str(focus_style_ids or "").split(",") if s.strip()]
+    try:
+        alerts = json.loads(alerts_json) if alerts_json else []
+        if not isinstance(alerts, list):
+            raise ValueError
+    except Exception:
+        raise ValueError("alerts_json_must_be_a_json_array")
+    gaps = [g.strip() for g in str(evidence_gaps or "").split(",") if g.strip()]
+    brief = {"focus_style_ids": focus, "alerts": alerts, "evidence_gaps": gaps,
+             "memory_check_recommended": bool(memory_check_recommended)}
+    ctx.analysis_sink(brief)
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "submit_analysis_brief", "input": brief, "output": {"filed": True}}
+    )
+    return (f"Analysis brief filed: {len(focus)} focus styles, {len(alerts)} alerts, "
+            f"{len(gaps)} evidence gaps.")
 
 
 def get_customer_intelligence() -> str:
@@ -885,6 +921,27 @@ def get_style_business_facts() -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+def get_candidate_business_facts(style_ids: str) -> str:
+    """The SAME grounded per-style FACTS as get_style_business_facts, but ONLY for the candidate styles
+    the 数分 Analysis Brief flagged (its focus_style_ids) — so 决策 reasons over the handful worth ad/
+    coupon Token, not all published styles. style_ids: comma-separated style ids. Returns
+    {decisions:[...], capacity, missing:[ids not found]}. This is 决策's PREFERRED first read; only widen
+    to get_style_business_facts (all styles) when the analyst flagged an evidence_gap or gave no focus."""
+    ctx = _ctx()
+    wanted = [s.strip() for s in str(style_ids or "").split(",") if s.strip()]
+    if not wanted:
+        raise ValueError("style_ids_required")  # widen via get_style_business_facts instead of empty-calling
+    data = bus.fetch_decisions() or {}
+    by_id = {d.get("styleId"): d for d in data.get("decisions", [])}
+    picked = [by_id[s] for s in wanted if s in by_id]
+    out = {"decisions": picked, "capacity": data.get("capacity"),
+           "missing": [s for s in wanted if s not in by_id]}
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "get_candidate_business_facts", "input": {"styleIds": wanted}, "output": out}
+    )
+    return json.dumps(out, ensure_ascii=False)
+
+
 _BRIEF_ACTIONS = {"ad", "coupon"}
 
 
@@ -1399,7 +1456,9 @@ def dispatch_many(dispatches_json: str) -> str:
 
 _FUNCTIONS: list[Callable[..., str]] = [
     get_merchant_insights,
+    submit_analysis_brief,
     get_style_business_facts,
+    get_candidate_business_facts,
     submit_action_brief,
     withdraw_action_brief,
     simulate_action_portfolio,

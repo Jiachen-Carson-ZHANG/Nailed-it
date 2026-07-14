@@ -1,5 +1,31 @@
 # Implementation Log
 
+## 2026-07-14 — Deterministic Orchestration Runtime replaces default LLM orchestrator
+
+What changed:
+- `run_round()` now defaults to `ORCHESTRATION_MODE=runtime`: known business triggers are routed by
+  code, not by a separate LLM orchestrator call.
+- Planning rounds run insight → trend → decision, then dispatch ad/coupon strictly from structured
+  Action Briefs (`state.briefs`) and run catalog/customer_ops independently; monitor still runs last as
+  the snapshot barrier.
+- Follow-up triggers (`evidence_matured`, `threshold_alarm`) route directly to monitor. Parameter-level
+  fixes continue through the existing bounded edge: monitor `request_revision` → original executor →
+  same entity.
+- The old LLM orchestrator is preserved as `_run_round_llm_orchestrator` for `merchant_request` /
+  `open_request` and for `ORCHESTRATION_MODE=llm`.
+
+Why:
+- A fixed weekly/evidence/threshold workflow does not need an LLM to rediscover routing. The valuable
+  control plane is the runtime: trigger handling, allow-lists, context injection, blackboard, lineage,
+  dispatch budget, Action Brief routing, and persistence.
+
+Aligned assumptions:
+- Decision still does not own dispatch authority; it emits structured intent. Runtime routes it.
+- The runtime never parses agent prose for spend. Only `state.briefs` and code guardrails can route
+  ad/coupon.
+- Open-ended merchant questions can still use the LLM orchestrator because task decomposition is
+  genuinely unknown there.
+
 ## 2026-07-14 — Clarify Trend vs Merchandising lanes for the finals demo
 
 What changed:
@@ -2577,3 +2603,18 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   gate for this path is gone (autonomous send, no `awaiting_approval`). Demo drafts converted to genuine
   sent messages so 最近完成 shows 用户运营 activity with the reasoning chain + full message body.
 - **`返回消息列表`** button → full-width pink (`button-primary button-block`), matching 返回团队.
+
+## 2026-07-14 (cont.) — 数分 Analysis Brief → 决策 candidate facts (search-space narrowing)
+
+- **数分 emits a structured Analysis Brief** (`submit_analysis_brief`, insight-only via `analysis_sink`):
+  `{focus_style_ids, alerts:[{type,style_id,evidence}], evidence_gaps, memory_check_recommended}`. Screens
+  the full store (38 styles) DOWN to the handful worth 决策's reasoning — replaces free-text handoff.
+- **决策 fetches candidate facts, not all** (`get_candidate_business_facts(style_ids)`): the preferred
+  first read returns facts for only the analyst's focus styles; `get_style_business_facts` (all) stays as
+  the escape hatch when the brief has `evidence_gaps` or the candidates come up short. So 决策 no longer
+  reads all 38 styles every round, and doesn't blindly trust the analyst's prose — it pulls deterministic
+  facts for the candidates.
+- Orchestrator wires `analysis_sink` for insight + injects the brief into 决策 via `_analysis_context`
+  (same formatter the eval uses). Skills updated (insight files the brief as its final step; decision
+  reads candidates first). Eval: decision scenario now carries a real Analysis Brief; harness wires the
+  sink so insight scenarios can file it. +4 unit tests (101 green). Frontend describers added.

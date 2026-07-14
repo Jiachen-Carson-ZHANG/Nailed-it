@@ -8,6 +8,7 @@
   ],
   "insight": [
     "get_merchant_insights",
+    "submit_analysis_brief",
     "search_memory"
   ],
   "trend": [
@@ -17,6 +18,7 @@
     "search_memory"
   ],
   "decision": [
+    "get_candidate_business_facts",
     "get_style_business_facts",
     "get_merchant_insights",
     "search_memory",

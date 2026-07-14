@@ -40,6 +40,8 @@ def test_registries_cover_the_same_tools():
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",
         # 陈列运营 grounded-candidates read tools (new preferred + legacy compatibility)
         "get_merchandising_candidates", "get_catalog_actions",
+        # 数分 structured Analysis Brief (candidate narrowing) + 决策 candidate/all facts
+        "submit_analysis_brief", "get_candidate_business_facts",
         # 决策 (ADR-0016) business-engine facts + the Action Brief output contract + portfolio sim
         "get_style_business_facts", "submit_action_brief", "withdraw_action_brief", "simulate_action_portfolio",
         # 编排 (ADR-0013 P1) orchestrator-only dispatch tools
@@ -295,6 +297,43 @@ def test_applied_only_run_is_not_awaiting_approval(ctx):
     tools.place_ad("style-1", "try_on_no_booking", 16000, 4)  # fixture stub → active → applied
     assert ctx.transcript[-1]["status"] == "applied"
     assert ctx.awaiting_approval is False
+
+
+# ── 数分 Analysis Brief → 决策 candidate facts (search-space narrowing) ───────────────────────────
+
+def test_get_candidate_business_facts_filters_to_the_focus_styles(ctx, monkeypatch):
+    """决策's preferred first read: facts for ONLY the analyst's focus styles, never all 38."""
+    monkeypatch.setattr(bus, "fetch_decisions", lambda: {
+        "decisions": [{"styleId": "s1"}, {"styleId": "s2"}, {"styleId": "s3"}],
+        "capacity": {"band": "very_idle"}})
+    out = json.loads(tools.get_candidate_business_facts("s1, s3, s9"))
+    assert [d["styleId"] for d in out["decisions"]] == ["s1", "s3"]
+    assert out["missing"] == ["s9"] and out["capacity"]["band"] == "very_idle"
+    with pytest.raises(ValueError, match="style_ids_required"):
+        tools.get_candidate_business_facts("")  # empty → widen via get_style_business_facts, not empty-call
+
+
+def test_submit_analysis_brief_files_structured_candidates(ctx):
+    filed = {}
+    ctx.analysis_sink = lambda b: filed.update(b)
+    alerts = json.dumps([{"type": "underexposed_high_conversion", "style_id": "s1", "evidence": {"cvr": 0.24}}])
+    out = tools.submit_analysis_brief("s1, s2", alerts, "s7:样本太薄", True)
+    assert "2 focus styles" in out
+    assert filed["focus_style_ids"] == ["s1", "s2"]
+    assert filed["alerts"][0]["type"] == "underexposed_high_conversion"
+    assert filed["evidence_gaps"] == ["s7:样本太薄"] and filed["memory_check_recommended"] is True
+
+
+def test_submit_analysis_brief_is_insight_only(ctx):
+    ctx.analysis_sink = None  # no sink = not the insight lane
+    with pytest.raises(ValueError, match="analysis_brief_not_allowed"):
+        tools.submit_analysis_brief("s1")
+
+
+def test_submit_analysis_brief_rejects_non_array_alerts(ctx):
+    ctx.analysis_sink = lambda b: None
+    with pytest.raises(ValueError, match="alerts_json_must_be_a_json_array"):
+        tools.submit_analysis_brief("s1", '{"not": "a list"}')
 
 
 def test_customer_messages_both_classes_auto_send_labeled(ctx):

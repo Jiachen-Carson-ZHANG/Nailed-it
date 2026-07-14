@@ -87,6 +87,16 @@ def _execution_context(actions: list[dict]) -> str:
     )
 
 
+def _analysis_context(analysis: dict) -> str:
+    """数分's Analysis Brief block injected into 决策 — the candidate focus styles + alerts + evidence
+    gaps. Used verbatim by the eval so the judged context format IS the live one."""
+    return (
+        "[数分 Analysis Brief — 候选款式与告警｜先对 focus_style_ids 调 get_candidate_business_facts 取事实；"
+        "有 evidence_gaps 或候选为空时再用 get_style_business_facts 扩大范围]\n"
+        f"{json.dumps(analysis, ensure_ascii=False)}\n[/Analysis Brief]"
+    )
+
+
 def _brief_context(briefs: list[dict]) -> str:
     """The executor's Action Brief block (ADR-0016 §2) — used verbatim by the eval so the judged
     context format IS the live one."""
@@ -157,6 +167,7 @@ class RoundState:
     dispatched: dict[str, str] = field(default_factory=dict)  # slug -> run_id
     results: dict[str, str] = field(default_factory=dict)  # slug -> final text
     briefs: list[dict] = field(default_factory=list)  # ADR-0016: Action Briefs filed by 决策
+    analysis: dict | None = None  # 数分's Analysis Brief (focus styles + alerts + gaps) → 决策's candidates
     _taken: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -415,6 +426,7 @@ def _prompt_sha(system: str) -> str:
 def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                   slug: str, task: str, parent_run_id: str,
                   revision_port_factory: Callable[[str], "RevisionPort | None"] | None = None,
+                  analysis_sink: Callable[[dict], None] | None = None,
                   brief_sink: Callable[[dict], None] | None = None,
                   brief_withdraw: Callable[[str, str], bool] | None = None,
                   briefs: list[dict] | None = None,
@@ -434,6 +446,8 @@ def _run_lane_raw(sb, agents: dict, range_days: int, round_id: str | None,
                            range_days=range_days, round_id=round_id, agent_slug=slug)
     if revision_port_factory is not None:
         ctx.revision = revision_port_factory(run_id)  # monitor only — needs its own run id as parent
+    if analysis_sink is not None:
+        ctx.analysis_sink = analysis_sink  # insight only — files the round's Analysis Brief
     if brief_sink is not None:
         ctx.brief_sink = brief_sink  # decision only — the Action Brief capability (ADR-0016)
     if brief_withdraw is not None:
@@ -481,8 +495,12 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     if missing:
         task = f"{task}\n\n（上游 {', '.join(missing)} 本轮未运行——按信息缺失处理，不要臆造其结论。）"
     if slug == "decision":
-        # strategic environment first (ADR-0016 Stage 2), then memory priors (ADR-0015) — injection
-        # covers what every decision needs; the agent chooses what to inspect deeper.
+        # 数分's Analysis Brief FIRST — the candidate focus styles 决策 should pull facts for (via
+        # get_candidate_business_facts), so it reasons over the handful worth its Token, not all 38.
+        if state.analysis:
+            task = f"{task}\n\n{_analysis_context(state.analysis)}"
+        # strategic environment (ADR-0016 Stage 2), then memory priors (ADR-0015) — injection covers
+        # what every decision needs; the agent chooses which candidates to inspect deeper.
         task += _decision_context(sb)
         task += _memory_hints(sb, kinds=("merchant_preference", "round_verdict", "calibration", "action_outcome"))
 
@@ -515,6 +533,10 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
                 ),
             )
 
+    def _analysis_sink(brief: dict) -> None:
+        with state._lock:
+            state.analysis = brief
+
     def _sink(brief: dict) -> None:
         with state._lock:
             state.briefs.append(brief)
@@ -534,6 +556,7 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
     return _run_lane_raw(
         sb, agents, range_days, round_id, slug, task, parent_run,
         revision_port_factory=factory,
+        analysis_sink=_analysis_sink if slug == "insight" else None,
         brief_sink=_sink if slug == "decision" else None,
         brief_withdraw=_withdraw if slug == "decision" else None,
         briefs=[b for b in state.briefs if b.get("action_type") == slug] if slug in ("ad", "coupon") else None,

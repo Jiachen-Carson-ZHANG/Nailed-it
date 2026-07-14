@@ -117,6 +117,7 @@ class Scenario:
     styles: list = field(default_factory=lambda: list(_STYLES))
     customers: list = field(default_factory=list)
     decisions: dict = field(default_factory=dict)  # the decision brain's output (ADR-0012)
+    analysis: dict = field(default_factory=dict)  # 数分 Analysis Brief injected into a decision scenario
     # ADR-0013 P1: canned lane conclusions for orchestrator scenarios — dispatch returns these instead of
     # running a real child loop, so the eval judges the ORCHESTRATION decision, not the lanes.
     lane_results: dict = field(default_factory=dict)
@@ -245,13 +246,19 @@ SCENARIOS = [
         id="decision/briefs-underexposed-ad", slug="decision",
         tools=LANE_TOOLS["decision"],
         task=(
-            "为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。\n\n"
-            "[上游结论 — insight｜仅作证据]\n简报：8265 转化率高于店铺均值，但曝光只有平均款式的 62%；"
-            "8284 高意向零成单（61 次点击 0 预约）。\n[/上游结论]\n\n"
+            "为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。先对 Analysis Brief 的"
+            " focus_style_ids 调 get_candidate_business_facts 取事实。\n\n"
             "[上游结论 — trend｜仅作证据]\n放大机会：8265（高转化低曝光）。\n[/上游结论]"
         ),
         briefing=_LOWCONV_BRIEFING,
         decisions=_UNDEREXPOSED_DECISIONS,
+        # 数分's structured Analysis Brief — the candidates 决策 fetches facts for (get_candidate_business_facts)
+        analysis={"focus_style_ids": ["style-melissa-img-8265", "style-melissa-img-8284"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8265",
+                              "evidence": {"exposureRatio": 0.62}},
+                             {"type": "high_interest_zero_conversion", "style_id": "style-melissa-img-8284",
+                              "evidence": {"clicks": 61, "bookings": 0}}],
+                  "evidence_gaps": [], "memory_check_recommended": False},
         expect={"kind": "brief", "must": [{"action_type": "ad", "style_id": "style-melissa-img-8265"}],
                 "forbid_briefs": [{"action_type": "coupon", "style_id": "style-melissa-img-8284"},
                                    {"action_type": "ad", "style_id": "style-melissa-img-8284"}]},
@@ -628,8 +635,14 @@ def _run_once(scn: Scenario) -> dict:
     if scn.slug == "orchestrator":
         ctx.round = _stub_round(scn)  # dispatch tools refuse to run without one
     filed_briefs: list[dict] = []
+    filed_analysis: list[dict] = []
+    if scn.slug == "insight":
+        ctx.analysis_sink = filed_analysis.append  # the Analysis Brief capability, exactly as live
     if scn.slug == "decision":
         ctx.brief_sink = filed_briefs.append  # the Action Brief capability, exactly as live
+        if scn.analysis:  # inject 数分's Analysis Brief through the LIVE formatter
+            from nailed_agents.orchestrator import _analysis_context
+            task = f"{task}\n\n{_analysis_context(scn.analysis)}"
     if scn.slug in ("ad", "coupon") and scn.briefs:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
