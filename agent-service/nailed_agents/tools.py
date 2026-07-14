@@ -71,6 +71,9 @@ class RunContext:
     # The retraction half of the brief contract (decision only): (action_type, style_id) -> bool.
     # Without it a prose "withdrawal" after simulate_action_portfolio changes nothing downstream.
     brief_withdraw: Any = None
+    # Decision-only callback: simulate_action_portfolio writes the combined portfolio result onto the
+    # round state. Runtime routing uses this as the spend gate; prose is not a gate.
+    portfolio_sink: Any = None
     # ADR-0016 §2: the briefs governing THIS executor run. A LIST (even empty) means the lane was
     # dispatched under the briefs contract — spend tools refuse when their action_type has no brief
     # (an empty list is "决策 filed nothing", not "no law"). None = context outside the contract
@@ -167,35 +170,41 @@ def get_merchant_insights(range_days: int = 7) -> str:
 
 
 def submit_analysis_brief(focus_style_ids: str, alerts_json: str = "[]",
-                          evidence_gaps: str = "", memory_check_recommended: bool = False) -> str:
+                          evidence_gaps: str = "", memory_check_recommended: bool = False,
+                          focus_customers_json: str = "[]") -> str:
     """数分's STRUCTURED output — the round's Analysis Brief. Screen the full store DOWN to the handful
-    of styles worth 决策's ad/coupon reasoning this round, so 决策 fetches candidate facts, not all 38.
-      focus_style_ids: comma-separated candidate style ids.
-      alerts_json: JSON array of {type, style_id, evidence} — the machine-checkable reason each is a
+    of candidates worth acting on, so downstream operators reason over a shortlist, not everything.
+      focus_style_ids: comma-separated candidate style ids for 决策 (ad/coupon).
+      alerts_json: JSON array of {type, style_id, evidence} — the machine-checkable reason a STYLE is a
         candidate (e.g. underexposed_high_conversion with the conversion/exposure numbers).
-      evidence_gaps: comma-separated notes where the data is too thin to conclude (决策 may then widen
-        via get_style_business_facts) — an empty list is fine.
+      evidence_gaps: comma-separated notes where the data is too thin to conclude — empty is fine.
       memory_check_recommended: true if prior rounds' verdicts likely bear on this round.
-    File this as your final step; 决策 consumes it. Filing it is 数分-only."""
+      focus_customers_json: JSON array of {name, reason} — the top re-engagement candidates for 用户运营,
+        screened from the roster (most-lapsed / best preference-match first). `reason` is the grounded
+        WHY-now (days lapsed + preference match), NOT the message text. Skip opted-out customers here.
+        Let genuine value be the limit — flag the ones truly worth a message, not the whole roster.
+    File this as your final step; 决策 reads the styles, 用户运营 reads the customers. Filing it is 数分-only."""
     ctx = _ctx()
     if ctx.analysis_sink is None:
         raise ValueError("analysis_brief_not_allowed")  # insight-only, like the sink itself
     focus = [s.strip() for s in str(focus_style_ids or "").split(",") if s.strip()]
     try:
         alerts = json.loads(alerts_json) if alerts_json else []
-        if not isinstance(alerts, list):
+        customers = json.loads(focus_customers_json) if focus_customers_json else []
+        if not isinstance(alerts, list) or not isinstance(customers, list):
             raise ValueError
     except Exception:
-        raise ValueError("alerts_json_must_be_a_json_array")
+        raise ValueError("alerts_json_and_focus_customers_json_must_be_json_arrays")
     gaps = [g.strip() for g in str(evidence_gaps or "").split(",") if g.strip()]
     brief = {"focus_style_ids": focus, "alerts": alerts, "evidence_gaps": gaps,
-             "memory_check_recommended": bool(memory_check_recommended)}
+             "memory_check_recommended": bool(memory_check_recommended),
+             "focus_customers": customers}
     ctx.analysis_sink(brief)
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "submit_analysis_brief", "input": brief, "output": {"filed": True}}
     )
     return (f"Analysis brief filed: {len(focus)} focus styles, {len(alerts)} alerts, "
-            f"{len(gaps)} evidence gaps.")
+            f"{len(gaps)} evidence gaps, {len(customers)} focus customers.")
 
 
 def get_customer_intelligence() -> str:
@@ -233,12 +242,11 @@ def get_platform_hot() -> str:
     return json.dumps(hot, ensure_ascii=False)
 
 
-def _trend_report(range_days: int, trend_type: str) -> dict:
+def _trend_report(range_days: int, trend_type: str, *, sb: Any | None = None) -> dict:
     """Shared 选品 report builder — external + internal trends matched to THIS merchant's catalog and
     classified (amplify/price_test/gap) + a low-performer exposure list. Applies MATCH_MODE (concept matcher or tag
     fallback) and attaches matchMeta. Trend and merchandising tools both read this deterministic engine;
     the agents explain/execute different slices instead of re-inventing the math in prompts."""
-    ctx = _ctx()
     insights = bus.fetch_briefing(range_days).get("insights", {})
     # Match against THIS merchant's own catalog only — a gap must be a gap in OUR catalog, not hidden by a
     # filler shop's supply. (platform_hot stays cross-merchant.)
@@ -247,7 +255,7 @@ def _trend_report(range_days: int, trend_type: str) -> dict:
     match_fn = None
     if config.MATCH_MODE == "concept":  # VLM-concept embed+rerank; degrades to tag-overlap per-trend on error
         from . import matching
-        match_fn = matching.make_match_fn(sb=ctx.sb, merchant_id=config.MERCHANT_ID)
+        match_fn = matching.make_match_fn(sb=sb if sb is not None else _ctx().sb, merchant_id=config.MERCHANT_ID)
     report = trend_logic.trend_opportunities(external, insights, hero, match_fn=match_fn)
     # match transparency (concept-powered vs actually tag-fallback)
     opps = report.get("opportunities", [])
@@ -280,6 +288,34 @@ def get_trend_opportunities(range_days: int = 7, trend_type: str = "growing") ->
          "output": report}
     )
     return json.dumps(report, ensure_ascii=False)
+
+
+def build_merchandising_candidates(range_days: int = 7, trend_type: str = "growing",
+                                   *, sb: Any | None = None) -> dict:
+    """Runtime/read-model helper for safe 陈列运营 candidates. This intentionally is NOT registered as
+    an agent tool: models still call get_merchandising_candidates; the orchestration runtime uses this
+    same deterministic source only to decide whether waking the lane is worth it."""
+    report = _trend_report(range_days, trend_type, sb=sb)
+    increase = []
+    for o in report.get("opportunities", []):
+        if o.get("action") != "amplify" or not o.get("matchedStyleIds"):
+            continue
+        sid = o["matchedStyleIds"][0]
+        increase.append({
+            "styleId": sid,
+            "trendLabel": o.get("trendLabel"),
+            "reason": o.get("reason"),
+            "score": o.get("score"),
+            "matchSource": o.get("matchSource"),
+            "matchWhy": o.get("matchWhy"),
+        })
+    return {
+        "increaseExposure": increase,
+        "decreaseExposure": report.get("prune", []),
+        "proposeListing": [{"tag": o["trendLabel"], "reason": o["reason"], "score": o.get("score")}
+                           for o in report.get("opportunities", []) if o.get("action") == "gap"],
+        "matchMeta": report.get("matchMeta"),
+    }
 
 
 def _decision_hypothesis(style_id: str, *, lever: str) -> dict[str, Any] | None:
@@ -782,9 +818,9 @@ def propose_listing(gap_tag: str, reason: str) -> str:
     return f"Listing proposed for gap '{gap_tag}' (awaiting merchant approval — you cannot list it yourself)."
 
 
-# ADR-0016 Stage 3: message classes. Transactional/product notices are auto-sent and LABELED as the
-# assistant (their value is timeliness, not authorship); relationship marketing is drafted for the
-# MERCHANT to edit and send — the AI never impersonates the boss.
+# ADR-0016 Stage 3: message classes. Transactional/product notices and relationship messages are
+# auto-sent and LABELED as the assistant (their value is timeliness/relationship care, not pretending
+# to be the boss); the AI never impersonates a human owner.
 _NOTIFICATION_KINDS = {
     "appointment_reminder": "预约提醒",
     "schedule_change": "预约变更通知",
@@ -874,27 +910,7 @@ def get_merchandising_candidates(range_days: int = 7, trend_type: str = "growing
       - proposeListing: trend gaps with no matching in-shop style; merchant approval required
     The agent may choose at most a few candidates or no-op; it must never delete/list/unlist assets."""
     ctx = _ctx()
-    report = _trend_report(range_days, trend_type)
-    increase = []
-    for o in report.get("opportunities", []):
-        if o.get("action") != "amplify" or not o.get("matchedStyleIds"):
-            continue
-        sid = o["matchedStyleIds"][0]
-        increase.append({
-            "styleId": sid,
-            "trendLabel": o.get("trendLabel"),
-            "reason": o.get("reason"),
-            "score": o.get("score"),
-            "matchSource": o.get("matchSource"),
-            "matchWhy": o.get("matchWhy"),
-        })
-    out = {
-        "increaseExposure": increase,
-        "decreaseExposure": report.get("prune", []),
-        "proposeListing": [{"tag": o["trendLabel"], "reason": o["reason"], "score": o.get("score")}
-                           for o in report.get("opportunities", []) if o.get("action") == "gap"],
-        "matchMeta": report.get("matchMeta"),
-    }
+    out = build_merchandising_candidates(range_days, trend_type, sb=ctx.sb)
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "get_merchandising_candidates",
          "input": {"rangeDays": range_days, "trendType": trend_type}, "output": out}
@@ -1088,6 +1104,8 @@ def simulate_action_portfolio() -> str:
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "simulate_action_portfolio", "input": {}, "output": out}
     )
+    if ctx.portfolio_sink is not None:
+        ctx.portfolio_sink(out)
     return json.dumps(out, ensure_ascii=False)
 
 

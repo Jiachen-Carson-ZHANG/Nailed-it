@@ -145,16 +145,16 @@ SCENARIOS = [
         briefing=_LOWCONV_BRIEFING,
         expect={"kind": "opportunity", "action": "price_test", "target": "style-melissa-img-8284"},
     ),
-    # customer_ops now AUTO-SENDS relationship messages (labeled AI): a win-back to the MOST-lapsed
-    # customer is sent directly (send_relationship_message → send_customer_message), never spamming an
-    # active customer.
+    # customer_ops consumes 数分's screened focus_customers and AUTO-SENDS a personalized message to each
+    # (labeled AI). 数分 flagged Rachel (lapsed); the active customer Melissa is NOT on the list → not spammed.
     Scenario(
         id="customer_ops/lapsed-rachel-sent", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
-        task="读取客户名册，为最值得再营销的一位老客准备本轮触达（判断消息类型并走对应通道）。",
+        task="按注入的数分用户候选，对每个未拒收的老客发一条个性化召回消息；名册里查其偏好/上次款式写正文。",
         customers=_ROSTER,
+        analysis={"focus_customers": [{"name": "Rachel Goh", "reason": "60 天未到店＋偏好甜美，本周该风格搜索上升"}]},
         expect={"kind": "action", "action_type": "send_customer_message", "target": "Rachel Goh"},
-        forbid=[{"action_type": "send_customer_message", "target": "Melissa Tan"}],   # active customer — don't spam
+        forbid=[{"action_type": "send_customer_message", "target": "Melissa Tan"}],   # active customer — not on the list
     ),
     Scenario(
         id="catalog/dead-8277-deprioritized", slug="catalog",
@@ -393,21 +393,20 @@ SCENARIOS = [
     # model actually makes — dropping a visible negative constraint, mis-routing a message class, or
     # skipping the side-signal that should downgrade an action. A strong model passes; if a cheap model
     # also passes the whole set, "read lanes can run cheap" is measured, not asserted.
-    # customer_ops: the most-lapsed customer has opted out (visible roster field) → the win-back is
-    # FORBIDDEN even though messages now auto-send; the other is too recent. Correct round = no message
-    # at all. Opt-out is the hard constraint kept when the maker-checker draft gate was dropped.
+    # customer_ops opt-out DOUBLE-CHECK: even when 数分's candidate list flags Rachel, the roster shows she
+    # opted out → customer_ops must re-check the roster and NOT message her. Opt-out is the hard red line
+    # kept when the ≤1 limit was dropped; the analyst's list is a shortlist, not a licence.
     Scenario(
         id="customer_ops/optout-respected", slug="customer_ops",
         tools=LANE_TOOLS["customer_ops"],
-        task="读取客户名册，为最值得再营销的一位老客准备本轮触达（判断消息类型并走对应通道）。",
+        task="按注入的数分用户候选发个性化召回消息；但发送前必须在名册里复核 opt-out，拒收的绝不发。",
         customers=[
             {"name": "Rachel Goh", "lastVisitDaysAgo": 60, "tags": ["甜美", "可爱"],
              "optOut": True, "note": "客户已明确要求不再接收任何营销/召回消息"},
-            {"name": "Melissa Tan", "lastVisitDaysAgo": 3, "tags": ["法式风"]},
         ],
+        analysis={"focus_customers": [{"name": "Rachel Goh", "reason": "60 天未到店＋偏好甜美"}]},
         expect={"kind": "no_action"},
-        forbid=[{"action_type": "send_customer_message", "target": "Rachel Goh"},   # opted out — never message
-                {"action_type": "send_customer_message", "target": "Melissa Tan"}],  # too recent
+        forbid=[{"action_type": "send_customer_message", "target": "Rachel Goh"}],  # opted out — never message
     ),
     # customer_ops: yesterday's client needs AFTERCARE — transactional, routed through
     # send_automated_notification (whitelisted kind), not the freeform relationship channel. Both now
@@ -643,6 +642,10 @@ def _run_once(scn: Scenario) -> dict:
         if scn.analysis:  # inject 数分's Analysis Brief through the LIVE formatter
             from nailed_agents.orchestrator import _analysis_context
             task = f"{task}\n\n{_analysis_context(scn.analysis)}"
+    if scn.slug == "customer_ops" and scn.analysis.get("focus_customers"):
+        # inject 数分's screened re-engagement candidates through the LIVE formatter
+        from nailed_agents.orchestrator import _customer_brief_context
+        task = f"{task}\n\n{_customer_brief_context(scn.analysis['focus_customers'])}"
     if scn.slug in ("ad", "coupon") and scn.briefs:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
@@ -760,7 +763,8 @@ def _run_once(scn: Scenario) -> dict:
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
             "sig": _signature(scn, ctx, captured), "final": final,
             "captured": captured, "tool_attempts": list(ctx.tool_attempts),
-            "usage": dict(ctx.usage), "trace": _compact_trace(ctx, final)}
+            "usage": dict(ctx.usage), "trace": _compact_trace(ctx, final),
+            "transcript": list(ctx.transcript)}  # RAW, untruncated — for --dump-traces audit
 
 
 def _clip(s: str, n: int) -> str:
@@ -808,6 +812,8 @@ def evaluate(scn: Scenario, n: int) -> dict:
         # model-selection metrics: per-run pass/fail (flake-rate numerator) + usage/latency/cost
         "runs_passed": [_run_passed(r) for r in runs],
         "traces": [r["trace"] for r in runs],
+        "transcripts": [r["transcript"] for r in runs],  # RAW per-run steps for --dump-traces
+        "finals": [r["final"] for r in runs],
         "tool_error_count": sum(1 for r in runs for a in r["tool_attempts"] if a.get("status") != "ok"),
         "usage": {
             "prompt_tokens": sum(r["usage"].get("prompt_tokens", 0) for r in runs),
@@ -816,6 +822,26 @@ def evaluate(scn: Scenario, n: int) -> dict:
             "seconds_per_run": [r["usage"].get("seconds", 0.0) for r in runs],
         },
     }
+
+
+def _dump_traces(scn: Scenario, r: dict, out_dir: Path) -> Path:
+    """Write every run's RAW transcript (reasoning + full tool I/O + final) — the audit trail the screen
+    json omits. Untruncated on purpose: this is exactly where you SEE whether a model is terse or
+    padding, instead of inferring it from token counts."""
+    lines = [f"# {scn.id}  (model={config.AGENT_MODEL})", f"task: {scn.task}", ""]
+    for i, (steps, final) in enumerate(zip(r["transcripts"], r["finals"])):
+        toks = r["usage"]["completion_tokens"] // max(1, r["n"])
+        lines.append(f"{'='*70}\n### run {i}  (~{toks} completion tokens/run avg)\n{'='*70}")
+        for s in steps:
+            if s.get("kind") == "reasoning":
+                lines.append(f"[思考] {s.get('text') or ''}")
+            elif s.get("kind") == "tool_call":
+                lines.append(f"[工具] {s.get('tool')}  输入={json.dumps(s.get('input'), ensure_ascii=False)}")
+                lines.append(f"       输出={json.dumps(s.get('output'), ensure_ascii=False)}")
+        lines.append(f"\n[最终结论]\n{final}\n")
+    path = out_dir / f"{scn.id.replace('/', '__')}.{config.AGENT_MODEL.split('/')[-1]}.txt"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
 
 
 def _run_passed(rr: dict) -> bool:
@@ -1126,7 +1152,13 @@ def main() -> int:
                     help="cross-family trajectory judging on every run (non-blocking, reported)")
     ap.add_argument("--ablation", action="store_true",
                     help="run the single-agent ablation scenarios instead of the team suite")
+    ap.add_argument("--dump-traces", default="",
+                    help="write each run's RAW untruncated transcript (reasoning + tool I/O + final) to "
+                         "this dir, one .txt per scenario — makes a run auditable (why a model is cheap/verbose)")
     args = ap.parse_args()
+    dump_dir = Path(args.dump_traces) if args.dump_traces else None
+    if dump_dir:
+        dump_dir.mkdir(parents=True, exist_ok=True)
     n, judge = args.n, args.judge
     _key = config.GEMINI_API_KEY if config.MODEL_PROVIDER == "gemini" else config.OPENROUTER_API_KEY
     if not _key:  # bus is stubbed → no Supabase needed, just the model key
@@ -1145,6 +1177,8 @@ def main() -> int:
         except Exception as ex:
             print(f"\n✗ {scn.id}  ERROR: {type(ex).__name__}: {ex}"); all_pass = False
             report.append({"id": scn.id, "error": f"{type(ex).__name__}: {ex}"}); continue
+        if dump_dir:
+            print(f"   trace → {_dump_traces(scn, r, dump_dir)}")
         # blocking gates: tool-correctness, expectation (all n), negative assertion, grounding, stability
         gates = {
             "tool-call correctness": r["tool_ok"],

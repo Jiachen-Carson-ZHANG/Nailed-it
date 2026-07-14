@@ -97,6 +97,17 @@ def _analysis_context(analysis: dict) -> str:
     )
 
 
+def _customer_brief_context(customers: list[dict]) -> str:
+    """数分's screened re-engagement candidates injected into 用户运营 — the top lapsed customers worth a
+    message this round (each {name, reason}). 用户运营 sends ONE personalized message per non-opted-out
+    candidate. Used verbatim by the eval so the judged context format IS the live one."""
+    return (
+        "[数分 用户候选 — 本轮值得召回的老客｜逐个给未拒收的客户发一条个性化消息（send_relationship_message）；"
+        "reason 是依据不是文案，用名册里该客户的偏好/上次款式写正文；拒收的绝不发]\n"
+        f"{json.dumps(customers, ensure_ascii=False)}\n[/用户候选]"
+    )
+
+
 def _brief_context(briefs: list[dict]) -> str:
     """The executor's Action Brief block (ADR-0016 §2) — used verbatim by the eval so the judged
     context format IS the live one."""
@@ -532,6 +543,9 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
             task = f"{task}\n\n{_brief_context(mine)}"
         else:
             task = f"{task}\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，不要调用任何执行工具，说明本轮不{('投广' if slug == 'ad' else '设团购')}。）"
+    if slug == "customer_ops" and state.analysis and state.analysis.get("focus_customers"):
+        # 数分's screened re-engagement shortlist — 用户运营 messages each non-opted-out candidate.
+        task = f"{task}\n\n{_customer_brief_context(state.analysis['focus_customers'])}"
     if slug == "monitor":
         current = bus.fetch_round_actions(sb, config.MERCHANT_ID, round_id) if round_id else []
         if current:
@@ -874,9 +888,11 @@ def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
             customer_signal = _customer_ops_route_signal()
             if customer_signal.get("shouldDispatch"):
                 execution.append(
-                    # parent=None → orchestrator (lead). 用户运营 reads its OWN roster to pick who to
-                    # re-engage; it does NOT consume 数分's style analysis, so it must not hang off insight.
-                    ("customer_ops", "读取客户情报，若有明确老客召回机会则处理；否则说明不发送。", None)
+                    # parent=insight: 数分 screens the roster into focus_customers (injected as the 用户候选
+                    # brief), and 用户运营 sends one personalized message per non-opted-out candidate.
+                    ("customer_ops",
+                     "读取数分给的用户候选（focus_customers），对每个未拒收的老客发一条个性化召回消息；"
+                     "名册里查偏好/上次款式写正文。没有候选就说明本轮不发送。", "insight")
                 )
             else:
                 transcript.append({

@@ -2632,3 +2632,18 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
 - **Roster describer reworded**: "读取 48 位重点客户画像" → "浏览客户名册（48 位，最久未到店优先），从中
   挑本轮值得联系的人" — the agent scans the full roster and contacts ONE (skill: ≤1 relationship msg/round),
   so the old wording made 48 look like targets.
+
+## 2026-07-14 (cont.) — 数分 screens users too → 用户运营 messages each candidate
+
+- **数分 becomes the candidate-screening hub for BOTH sides**: `submit_analysis_brief` gains a
+  `focus_customers_json` section `[{name, reason}]` — the top re-engagement candidates screened from the
+  48-customer roster (most-lapsed / best preference-match), opt-out excluded. 数分 now also holds
+  `get_customer_intelligence`. So 决策 gets candidate styles, 用户运营 gets candidate customers — symmetric.
+- **用户运营 consumes the customer shortlist** and sends ONE personalized message per non-opted-out
+  candidate (no arbitrary ≤1/round cap — the analyst's screening is the bound). Injected via
+  `_customer_brief_context` (same formatter the eval uses). customer_ops re-parented to insight (the link
+  is now a REAL dependency, resolving the earlier "数分 as 上游 is misaligned" complaint by making it
+  aligned rather than cutting it). Runtime + orchestrator.md both dispatch it under insight.
+- Opt-out stays the hard red line — customer_ops re-checks the roster and skips opted-out candidates even
+  if the analyst's list names them. Eval: lapsed-rachel-sent + optout-respected now carry a focus_customers
+  brief; harness injects it. +tests (python 105 green, tsc clean).

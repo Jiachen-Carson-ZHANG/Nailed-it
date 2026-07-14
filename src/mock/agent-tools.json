@@ -8,6 +8,7 @@
   ],
   "insight": [
     "get_merchant_insights",
+    "get_customer_intelligence",
     "submit_analysis_brief",
     "search_memory"
   ],

@@ -146,9 +146,9 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   submit_analysis_brief: (input, _o, lang) => ({
     label: lang === 'zh-CN' ? '数分候选' : 'Analysis brief',
     summary: lang === 'zh-CN'
-      ? `锁定 ${count(input.focus_style_ids)} 个候选款 · ${count(input.alerts)} 条告警` +
+      ? `锁定 ${count(input.focus_style_ids)} 个候选款 · ${count(input.focus_customers)} 位召回候选 · ${count(input.alerts)} 条告警` +
         (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} 处证据缺口` : '')
-      : `Flagged ${count(input.focus_style_ids)} candidate styles · ${count(input.alerts)} alerts` +
+      : `${count(input.focus_style_ids)} candidate styles · ${count(input.focus_customers)} re-engage customers · ${count(input.alerts)} alerts` +
         (count(input.evidence_gaps) ? ` · ${count(input.evidence_gaps)} evidence gaps` : ''),
   }),
 

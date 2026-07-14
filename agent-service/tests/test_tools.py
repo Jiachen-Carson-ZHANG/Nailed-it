@@ -313,14 +313,16 @@ def test_get_candidate_business_facts_filters_to_the_focus_styles(ctx, monkeypat
         tools.get_candidate_business_facts("")  # empty → widen via get_style_business_facts, not empty-call
 
 
-def test_submit_analysis_brief_files_structured_candidates(ctx):
+def test_submit_analysis_brief_files_style_and_customer_candidates(ctx):
     filed = {}
     ctx.analysis_sink = lambda b: filed.update(b)
     alerts = json.dumps([{"type": "underexposed_high_conversion", "style_id": "s1", "evidence": {"cvr": 0.24}}])
-    out = tools.submit_analysis_brief("s1, s2", alerts, "s7:样本太薄", True)
-    assert "2 focus styles" in out
+    customers = json.dumps([{"name": "Rachel Goh", "reason": "60 天未到店＋偏好甜美"},
+                            {"name": "Amy Lim", "reason": "49 天未到店＋偏好金属感"}])
+    out = tools.submit_analysis_brief("s1, s2", alerts, "s7:样本太薄", True, customers)
+    assert "2 focus styles" in out and "2 focus customers" in out
     assert filed["focus_style_ids"] == ["s1", "s2"]
-    assert filed["alerts"][0]["type"] == "underexposed_high_conversion"
+    assert [c["name"] for c in filed["focus_customers"]] == ["Rachel Goh", "Amy Lim"]
     assert filed["evidence_gaps"] == ["s7:样本太薄"] and filed["memory_check_recommended"] is True
 
 
@@ -330,10 +332,12 @@ def test_submit_analysis_brief_is_insight_only(ctx):
         tools.submit_analysis_brief("s1")
 
 
-def test_submit_analysis_brief_rejects_non_array_alerts(ctx):
+def test_submit_analysis_brief_rejects_non_array_alerts_or_customers(ctx):
     ctx.analysis_sink = lambda b: None
-    with pytest.raises(ValueError, match="alerts_json_must_be_a_json_array"):
+    with pytest.raises(ValueError, match="must_be_json_arrays"):
         tools.submit_analysis_brief("s1", '{"not": "a list"}')
+    with pytest.raises(ValueError, match="must_be_json_arrays"):
+        tools.submit_analysis_brief("s1", "[]", "", False, '{"not": "a list"}')
 
 
 def test_customer_messages_both_classes_auto_send_labeled(ctx):
@@ -786,8 +790,11 @@ def test_simulate_action_portfolio_flags_conflicts_budget_and_capacity(ctx, monk
         {"action_type": "ad", "style_id": "s-1", "max_total_budget_cents": 10000, "target_bookings_max": 4},
         {"action_type": "coupon", "style_id": "s-1", "max_total_budget_cents": 1, "target_bookings_max": 3},
     ]
+    captured = []
+    ctx.portfolio_sink = captured.append
     out = json.loads(tools.simulate_action_portfolio())
     assert out["feasible"] is False
+    assert captured == [out]
     text = " ".join(out["warnings"])
     assert "归因冲突" in text        # ad + coupon on the same style
     assert "预算竞争" in text        # 10001 > 18000-12000=6000
