@@ -200,27 +200,33 @@ function AgentProofStrip({
 }
 
 /** Derived roll-up (never stored): Σ brief targets vs Σ measured bookings on the real campaigns. */
-function WeeklyObjectiveCard({ language, objective }: { language: AppLanguage; objective: WeeklyObjective | null }) {
+function WeeklyObjectiveCard({ language, objective, cfg }: { language: AppLanguage; objective: WeeklyObjective | null; cfg: TeamConfig }) {
   const copy = agentsCopy[language];
+  const goal = copy.objectiveGoal as (min: number, max: number) => string;
   if (!objective) {
     return (
       <section className="detail-surface agent-objective">
         <div className="detail-surface-header"><h2>{copy.objectiveTitle as string}</h2></div>
+        <div className="agent-objective-headline">
+          <span className="agent-objective-goal">{goal(cfg.goalMin, cfg.goalMax)}</span>
+        </div>
         <p className="agent-objective-empty">{copy.objectiveEmpty as string}</p>
         <p className="agent-objective-empty-cta">{copy.objectiveEmptyCta as string}</p>
       </section>
     );
   }
-  const goal = copy.objectiveGoal as (min: number, max: number) => string;
   const done = copy.objectiveDone as (n: number) => string;
   const kindMap = copy.objectiveKind as Record<string, string>;
   const statusMap = copy.objectiveStatus as Record<string, string>;
-  const pct = objective.targetMax > 0 ? Math.min(100, Math.round((objective.measuredBookings / objective.targetMax) * 100)) : 0;
+  // The GOAL is the merchant's setting (pref-weekly-focus); progress measures against it. The agents'
+  // per-campaign targets stay on the item chips below — merchant goal ≠ agent plan.
+  const goalMax = cfg.goalMax > 0 ? cfg.goalMax : objective.targetMax;
+  const pct = goalMax > 0 ? Math.min(100, Math.round((objective.measuredBookings / goalMax) * 100)) : 0;
   return (
     <section className="detail-surface agent-objective">
       <div className="detail-surface-header"><h2>{copy.objectiveTitle as string}</h2></div>
       <div className="agent-objective-headline">
-        <span className="agent-objective-goal">{goal(objective.targetMin, objective.targetMax)}</span>
+        <span className="agent-objective-goal">{goal(cfg.goalMin, cfg.goalMax)}</span>
         <span className="agent-objective-done">{done(objective.measuredBookings)} · {pct}%</span>
       </div>
       <div className="agent-objective-bar" aria-hidden="true">
@@ -304,8 +310,8 @@ export default function MerchantAgentsPage() {
     <MobileLayout role="merchant" title="Nailed-it">
       <Link className="merchant-review-back" href="/merchant/calendar">{copy.back as string}</Link>
       <section className="profile-hero">
-        <p className="section-eyebrow">{copy.eyebrow as string}</p>
-        <h1>{copy.title as string}</h1>
+        {/* Single heading: the pink brand line IS the title (the black h1 restated it). */}
+        <h1 className="agent-hero-eyebrow">{copy.eyebrow as string}</h1>
         <p className="section-copy">{copy.body as string}</p>
         <button
           type="button"
@@ -363,7 +369,7 @@ export default function MerchantAgentsPage() {
         <LoadingState title={copy.loading as string} body="" />
       ) : (
         <>
-          <WeeklyObjectiveCard language={language} objective={objective} />
+          <WeeklyObjectiveCard language={language} objective={objective} cfg={cfg} />
 
           {/* Runs grouped by ROUND (trigger + start time) — the runtime record, kept apart from the
            * static team intro below. Same domain grouping the 晚报 uses. */}
