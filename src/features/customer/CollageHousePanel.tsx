@@ -7,7 +7,14 @@ import { getCustomerBookingPath, getCustomerTryOnPath } from '@/domain/session';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { saveTryOnImage } from '@/domain/tryon-image-store';
 import { saveTryOnStyleImage } from '@/domain/tryon-style-store';
-import { saveCollageResult, getCollageResult, clearCollageResult } from '@/domain/collage-result-store';
+import {
+  saveOriginalCollageResult,
+  saveLatestCollageResult,
+  getCollageResult,
+  clearCollageResult,
+  getCollageImages,
+} from '@/domain/collage-result-store';
+import { CollageResultScreen } from './CollageResultScreen';
 import { clearBreakdownResults } from '@/domain/breakdown-store';
 import { DRAWER_ZONES, type DrawerZoneId } from './studio-layout-config';
 import { NailLoadingScreen } from './NailLoadingScreen';
@@ -135,6 +142,9 @@ export function CollageHousePanel() {
     hasRestored ? { phase: 'done', imageBase64: restored.current!.imageBase64 } : { phase: 'idle' }
   );
   const [showResult, setShowResult] = useState(hasRestored);
+  const [latestImageBase64, setLatestImageBase64] = useState<string | null>(
+    hasRestored ? restored.current!.imageBase64 : null
+  );
 
   // Drawer
   const [openDrawer, setOpenDrawer] = useState<DrawerZoneId | null>(null);
@@ -302,11 +312,54 @@ export function CollageHousePanel() {
       }
       const data = await res.json() as { imageBase64: string };
       // 中文注释：记住这张成图，供"返回"时恢复结果页；同时也是给识别/试戴用的同一张图。
-      saveCollageResult({
+      const collageImage = {
         imageBase64: data.imageBase64,
-        mimeType: 'image/png',
+        mimeType: 'image/png' as const,
         previewUrl: `data:image/png;base64,${data.imageBase64}`,
+      };
+      saveOriginalCollageResult(collageImage);
+      setLatestImageBase64(data.imageBase64);
+      setGenState({ phase: 'done', imageBase64: data.imageBase64 });
+    } catch (e) {
+      setGenState({ phase: 'error', message: e instanceof Error ? e.message : '生成失败，请稍后重试' });
+    }
+  };
+
+  const handlePartialRegen = async (
+    _checkedZones: DrawerZoneId[],
+    newDecals: PlacedDecal[],
+    newExtraText: string,
+  ) => {
+    if (newExtraText.trim() && isOffTopic(newExtraText)) {
+      return;
+    }
+    const prompt = buildPrompt(newDecals, newExtraText);
+    setGenState({ phase: 'loading' });
+    setShowResult(false);
+    try {
+      const ingredients = newDecals.map((d) => ({ category: d.item.category, label: d.item.description }));
+      const res = await fetch('/api/ai/collage-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredients: ingredients.length > 0 ? ingredients : [{ category: '风格', label: '精致美甲' }],
+          customText: prompt,
+        }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as { imageBase64: string };
+      const collageImage = {
+        imageBase64: data.imageBase64,
+        mimeType: 'image/png' as const,
+        previewUrl: `data:image/png;base64,${data.imageBase64}`,
+      };
+      saveLatestCollageResult(collageImage);
+      setLatestImageBase64(data.imageBase64);
+      setDecals(newDecals);
+      setExtraText(newExtraText);
       setGenState({ phase: 'done', imageBase64: data.imageBase64 });
     } catch (e) {
       setGenState({ phase: 'error', message: e instanceof Error ? e.message : '生成失败，请稍后重试' });
@@ -331,9 +384,13 @@ export function CollageHousePanel() {
     // 通过模块级 store 交给目标页面预填，免去用户重新上传。
     const collageImage = genState.phase === 'done' ? {
       imageBase64: genState.imageBase64,
-      mimeType: 'image/png',
+      mimeType: 'image/png' as const,
       previewUrl: `data:image/png;base64,${genState.imageBase64}`,
     } : null;
+
+    const collageImages = getCollageImages();
+    const originalImg = collageImages.original ?? collageImage;
+    const latestImg = (latestImageBase64 ? collageImages.latest : null) ?? collageImages.latest ?? collageImage;
 
     // 结果页在加载屏开始出场时就已渲染在后面（z-index 低），加载屏淡出时结果页
     // 自然显现，避免透明过渡期间露出首页。showResult=false 时用 visibility:hidden
@@ -342,21 +399,40 @@ export function CollageHousePanel() {
       <div style={showResult
         ? { position: 'absolute', inset: 0, zIndex: 199 }
         : { position: 'absolute', inset: 0, zIndex: 199, visibility: 'hidden', pointerEvents: 'none' }}>
-        <ResultScreen
-          imageBase64={collageImage.imageBase64}
-          onRetry={() => { clearCollageResult(); setGenState({ phase: 'idle' }); setDecals([]); setExtraText(''); setShowResult(false); }}
-          onBreakdown={() => {
+        <CollageResultScreen
+          originalImage={originalImg!}
+          latestImage={latestImg!}
+          decals={decals}
+          extraText={extraText}
+          drawerItems={DRAWER_ITEMS}
+          onExtraTextChange={setExtraText}
+          onPartialRegen={handlePartialRegen}
+          onFullReset={() => {
+            clearCollageResult();
+            setLatestImageBase64(null);
+            setGenState({ phase: 'idle' });
+            setDecals([]);
+            setExtraText('');
+            setShowResult(false);
+          }}
+          onBreakdown={(img) => {
             clearBreakdownResults();
             clearCollageResult();
-            saveTryOnImage(collageImage);
+            saveTryOnImage(img);
             router.push(getCustomerBookingPath());
           }}
-          onTryOn={() => {
+          onTryOn={(img) => {
             clearCollageResult();
-            saveTryOnStyleImage(collageImage);
+            saveTryOnStyleImage(img);
             router.push(getCustomerTryOnPath());
           }}
-          onClose={() => { clearCollageResult(); setOpen(false); setGenState({ phase: 'idle' }); setShowResult(false); }}
+          onClose={() => {
+            clearCollageResult();
+            setLatestImageBase64(null);
+            setOpen(false);
+            setGenState({ phase: 'idle' });
+            setShowResult(false);
+          }}
         />
       </div>
     ) : null;
@@ -570,42 +646,3 @@ const STUDIO_LAYOUT_HAND = {
   width: '32%',
   transform: 'translate(-50%, -50%)',
 };
-
-// ── Result screen ─────────────────────────────────────────────────────────────
-type ResultScreenProps = {
-  imageBase64: string;
-  onRetry: () => void;
-  onBreakdown: () => void;
-  onTryOn: () => void;
-  onClose: () => void;
-};
-
-function ResultScreen({ imageBase64, onRetry, onBreakdown, onTryOn, onClose }: ResultScreenProps) {
-  return (
-    <div className="collage-house-overlay collage-result-screen">
-      <div className="collage-bg-sparkles" aria-hidden="true">
-        {['✦','✧','✦','✧','✦','✧','✦','✧','✦','✧'].map((s, i) => (
-          <span key={i} className="collage-bg-sparkle" style={{ '--i': i } as React.CSSProperties}>{s}</span>
-        ))}
-      </div>
-      <div className="collage-result-topbar">
-        <h1 className="collage-result-title">你的专属美甲 ✨</h1>
-        <button type="button" className="collage-close-btn" aria-label="关闭" onClick={onClose}>✕</button>
-      </div>
-      <div className="collage-result-image-wrap">
-        <img src={`data:image/png;base64,${imageBase64}`} alt="AI生成的专属美甲效果图" className="collage-result-image" />
-        <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
-      </div>
-      <p className="collage-result-hint">喜欢这个方案？可以直接进行AI识别报价或试戴体验</p>
-      <div className="collage-result-actions">
-        <button type="button" className="collage-result-action-btn collage-result-action-primary" onClick={onBreakdown}>
-          <span aria-hidden="true">🔍</span> AI 识别报价
-        </button>
-        <button type="button" className="collage-result-action-btn collage-result-action-secondary" onClick={onTryOn}>
-          <span aria-hidden="true">🖐️</span> 虚拟试戴
-        </button>
-      </div>
-      <button type="button" className="collage-result-retry-btn" onClick={onRetry}>↺ 重新搭配</button>
-    </div>
-  );
-}
