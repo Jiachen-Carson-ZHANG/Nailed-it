@@ -117,6 +117,17 @@ def _brief_context(briefs: list[dict]) -> str:
     )
 
 
+def _coupon_constraints_context(items: list[dict]) -> str:
+    """团购's deterministic hard constraints (templates + profit floor + redemption windows), injected
+    per briefed style so the lane picks within them without a read tool. Used verbatim by the eval so the
+    judged context format IS the live one."""
+    return (
+        "[团购硬约束 — 每个款的可用模板/券后价/利润底线/核销时段｜只能用 clears_profit_floor=true 的模板；"
+        "价格由代码算；周末受保护]\n"
+        f"{json.dumps(items, ensure_ascii=False)}\n[/团购硬约束]"
+    )
+
+
 def _due_context(actions: list[dict]) -> str:
     """Measurable past actions (ADR-0015 two-phase monitor): observation windows with data — evaluate
     each with record_action_outcome (compare measured vs payload.hypothesis); revise only past the
@@ -541,6 +552,12 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
         mine = [b for b in state.briefs if b.get("action_type") == slug]
         if mine:
             task = f"{task}\n\n{_brief_context(mine)}"
+            if slug == "coupon":
+                # 团购硬约束 is a deterministic per-style read the lane always needs — inject it (the style
+                # is fixed by the brief), rather than making the agent call a tool. set_group_buy_coupon
+                # still hard-enforces template validity + the profit floor.
+                cons = [tools.coupon_constraints(b["style_id"]) for b in mine]
+                task = f"{task}\n\n{_coupon_constraints_context(cons)}"
         else:
             task = f"{task}\n\n（决策本轮未提交属于你的行动简报——若上游结论也未指明动作，不要调用任何执行工具，说明本轮不{('投广' if slug == 'ad' else '设团购')}。）"
     if slug == "customer_ops" and state.analysis and state.analysis.get("focus_customers"):

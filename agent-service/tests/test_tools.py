@@ -33,8 +33,8 @@ def test_registries_cover_the_same_tools():
         # 投广沙盒 (ADR-0016): forecast loop + in-place campaign mutation
         "get_ad_account_state", "list_available_audiences", "forecast_ad_plan",
         "update_ad_campaign", "pause_ad_campaign",
-        # 团购模板 + 陈列动词 + 消息分级 (ADR-0016 Stage 3)
-        "get_coupon_constraints", "feature_style", "deprioritize_style", "propose_listing",
+        # 陈列动词 + 消息分级 (ADR-0016 Stage 3) — 团购硬约束现在注入，不再是工具
+        "feature_style", "deprioritize_style", "propose_listing",
         "send_automated_notification", "send_relationship_message",
         # 选品 (trend) read tools
         "get_external_trends", "get_platform_hot", "get_trend_opportunities",

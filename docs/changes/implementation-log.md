@@ -2660,3 +2660,14 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   with a 查看更多/收起 toggle. Sheet lineage header 上下游 → 上下游 Agent.
 - **Demo data**: 9 monitor runs' leaked English chain-of-thought rewritten to Chinese; the showcase
   round's Amy + Rachel win-backs seeded into their chat threads.
+
+## 2026-07-14 (cont.) — 团购 hard constraints injected, not a tool call
+
+- **`get_coupon_constraints` tool → injected `[团购硬约束]`**: the coupon guardrails (pre-approved
+  templates + computed prices + profit floor + redemption windows) are a deterministic per-style read the
+  lane always needs, and the style is already fixed by the Action Brief — so the runtime computes them
+  (`tools.coupon_constraints`) and injects them alongside the brief (`_coupon_constraints_context`),
+  instead of the agent spending a tool call. Same principle as the Action/Analysis Briefs. The HARD guard
+  is unchanged: `set_group_buy_coupon` still refuses unknown templates + below-floor prices. Dropped the
+  tool from the coupon lane + registry + mono-ablation union; eval harness injects the constraints; skill
+  updated. python 105 green.

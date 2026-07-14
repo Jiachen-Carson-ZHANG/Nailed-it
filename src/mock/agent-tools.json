@@ -36,7 +36,6 @@
     "pause_ad_campaign"
   ],
   "coupon": [
-    "get_coupon_constraints",
     "set_group_buy_coupon"
   ],
   "catalog": [
