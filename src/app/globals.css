@@ -7744,7 +7744,10 @@ button.xhs-card-shape {
 
 /* Full-screen overlay */
 .collage-house-overlay {
-  position: absolute;
+  /* 移动端相对视口锚定：shell 会被首页 feed 撑到远超一屏（实测 ~7278px），
+     absolute+inset:0 会铺满整个 shell 导致界面「过长」。fixed 锁定视口高度。
+     桌面端在 @media(min-width:48rem) 内还原为 absolute（相对 375px 模拟框）。 */
+  position: fixed;
   inset: 0;
   z-index: 200;
   display: flex;
@@ -8216,7 +8219,8 @@ button.xhs-card-shape {
 
 /* ── Nail loading screen ─────────────────────────────────────────────────── */
 .nail-loading {
-  position: absolute;
+  /* 同 .collage-house-overlay：移动端 fixed 锁视口，桌面端媒体查询内还原 absolute。 */
+  position: fixed;
   inset: 0;
   z-index: 200;
   display: flex;
@@ -8329,6 +8333,17 @@ button.xhs-card-shape {
   from { opacity: 1; transform: scale(1);    }
   to   { opacity: 0; transform: scale(1.04); }
 }
+
+/* 桌面端把拼贴小屋 overlay/加载屏还原为相对模拟框(absolute)，不再相对浏览器视口(fixed)。
+   必须放在 .collage-house-overlay / .nail-loading 基础规则「之后」——等特异性下靠源码顺序取胜，
+   否则会被上方的 position:fixed 覆盖。移动端 fixed 修复保持不变。 */
+@media (min-width: 48rem) {
+  .collage-house-overlay,
+  .nail-loading {
+    position: absolute;
+  }
+}
+
 
 /* ── Result screen ──────────────────────────────────────────────────────── */
 .collage-result-screen {

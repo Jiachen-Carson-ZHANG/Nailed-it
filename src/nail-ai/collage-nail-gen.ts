@@ -80,6 +80,7 @@ export function buildNailPrompt(
       `This is a refinement of the provided reference image. ` +
       `Keep the overall composition, hand pose, lighting, and nail style IDENTICAL to the reference image. ` +
       `While keeping the hand pose from the reference, ensure the hand still clearly shows exactly five fingers (thumb, index, middle, ring, and pinky) with all five nails visible. ` +
+      `Keep every fingernail's full design and fine details clearly visible and in sharp focus, as front-facing as the reference pose allows. ` +
       `ONLY change the following aspect(s): ${changed}. ` +
       `The updated design should be — ${description}. ` +
       `Leave every other element exactly as it appears in the reference image. ` +
@@ -92,6 +93,7 @@ export function buildNailPrompt(
   return (
     `A close-up product-style photo of beautiful nail art on a woman's hand. ` +
     `The hand MUST show exactly five fingers (thumb, index, middle, ring, and pinky), with all five nails fully visible. Never render more or fewer than five fingers. ` +
+    `Pose the hand so that all five nails face the camera as front-on as possible — each fingernail should be clearly and fully visible with its complete design and fine details, not foreshortened, tilted away, or hidden behind other fingers. ` +
     `Nail design: ${description}. ` +
     `Render EXACTLY and ONLY the nail design elements listed above. ` +
     `Do NOT invent, add, or embellish with any extra decorations, charms, patterns, glitter, or nail art that is not explicitly listed. ` +
