@@ -20,7 +20,7 @@ import {
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
-import { groupRunsIntoRounds, type Agent, type AgentRole, type AgentRunView, type RunStatus, type TriggerSource } from '@/domain/agents';
+import { groupRunsIntoRounds, FULL_ROUND_MIN_RUNS, type Agent, type AgentRole, type AgentRunView, type RunStatus, type TriggerSource } from '@/domain/agents';
 
 const agentsCopy = {
   'zh-CN': {
@@ -412,7 +412,7 @@ export default function MerchantAgentsPage() {
               <div className="detail-surface-header">
                 <h2 id="agents-rounds-title">{copy.roundsTitle as string}</h2>
               </div>
-              {groupRunsIntoRounds(runs).filter((r) => r.length >= 8).slice(0, 3).map((round) => {
+              {groupRunsIntoRounds(runs).filter((r) => r.length >= FULL_ROUND_MIN_RUNS).slice(0, 3).map((round) => {
                 const head = round[0];
                 // The round's trigger is the ORCHESTRATOR's (who opened it), not the last child's.
                 const opener = round.find((r) => r.agentRole === 'lead') ?? round[round.length - 1];

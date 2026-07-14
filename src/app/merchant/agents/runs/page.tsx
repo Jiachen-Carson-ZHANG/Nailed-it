@@ -9,6 +9,7 @@ import { listAgentRunsAction } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
+import { FULL_ROUND_MIN_RUNS } from '@/domain/agents';
 import type { AgentRunView, RunStatus, TriggerSource } from '@/domain/agents';
 
 const copy = {
@@ -92,7 +93,7 @@ export default function MerchantAgentRunsPage() {
 
   // Demo curation: the audit shows FULL rounds (≥4 runs). Stray anchor runs — kept in the DB only
   // because campaigns/deals/memories cite them as evidence — would render as confusing partial "rounds" (full rounds run 10-11 agents).
-  const rounds = useMemo(() => groupIntoRounds(runs).filter((r) => r.runs.length >= 8), [runs]);
+  const rounds = useMemo(() => groupIntoRounds(runs).filter((r) => r.runs.length >= FULL_ROUND_MIN_RUNS), [runs]);
 
   return (
     <MobileLayout role="merchant" title="Nailed-it">

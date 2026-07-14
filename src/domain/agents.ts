@@ -132,6 +132,11 @@ function toRunRef(r: AgentRunView): RunRef {
 
 const ROUND_GAP_MS = 30 * 60 * 1000;
 
+/** A "full" round runs the whole pipeline (~10–11 lanes). Anything smaller is a partial/rehearsal or a
+ *  stray anchor run — the UI (run audit, 最近轮次) hides them, and the cross-round 回流下一轮 link skips
+ *  them, so it always lands on a real next round. Single source shared by the domain + those pages. */
+export const FULL_ROUND_MIN_RUNS = 8;
+
 /** Newest-first ROUNDS, reconstructed from the runs list by the dispatcher's own rule: RoundState runs
  *  each agent AT MOST ONCE per round, so a repeated slug marks the previous round's start; a >30min gap
  *  is the secondary cut (rounds complete in minutes — gap-only grouping chained rehearsal rounds). */
@@ -156,33 +161,39 @@ export function groupRunsIntoRounds(runs: AgentRunView[]): AgentRunView[][] {
 
 /** Pure: from the full run list, resolve one run + its parent + its children. Deterministic → testable.
  *  The I/O shell (getAgentRunDetailAction) just supplies `allRuns`. */
-export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRunDetail | null {
+export function deriveRunDetail(runId: string, allRuns: AgentRunView[], fullRoundMinRuns: number = FULL_ROUND_MIN_RUNS): AgentRunDetail | null {
   const run = allRuns.find((r) => r.id === runId);
   if (!run) return null;
   const parent = run.parentRunId ? allRuns.find((r) => r.id === run.parentRunId) ?? null : null;
-  const children = allRuns.filter((r) => r.parentRunId === runId);
-  // A monitor is dispatched by the planner but OVERSEES the executors — its true subjects are the
-  // operator-role lanes in the same round (its same-parent siblings), not the planner that dispatched
-  // it. Shown on the run page as "监测对象" instead of a misleading "由商分触发" parent line. Included even
-  // when a lane didn't act this round: "did 投广 act? no" is itself part of what the monitor reviews.
+  // The monitor is dispatch-parented to 商分 (it runs after the round is planned) but it OVERSEES the
+  // round's executors — its subjects are its 监测对象, not a downstream ACTION of 商分. Exclude it from
+  // every run's 下游 so 商分→下游 doesn't misleadingly list Monitor. (Its OWN children — the executors it
+  // re-dispatches on a revision — are unaffected: those are parented to the monitor run, not filtered.)
+  const children = allRuns.filter((r) => r.parentRunId === runId && r.agentSlug !== 'monitor');
+
+  // 监测对象 + 回流下一轮 are both scoped by ROUND, so group once. Round membership (not exact
+  // parentRunId) is the right key: within a round, executors and the monitor are dispatched under
+  // different parent runs, so an exact-parent match dropped the monitor's real subjects (measured live).
+  const ordered = [...allRuns].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+  const rounds = groupRunsIntoRounds(ordered);
+  const idx = rounds.findIndex((rd) => rd.some((r) => r.id === runId));
+  const myRound = idx >= 0 ? rounds[idx] : [];
+
+  // 监测对象: ONLY the monitor (slug), and it audits the EXECUTORS in its round — not 风控 (which reviews
+  // 商分's briefs, a different relationship). Shown instead of the misleading "由商分触发" parent line.
   const auditTargets =
-    run.agentRole === 'reviewer'
-      ? allRuns
-          .filter((r) => r.id !== runId && r.parentRunId !== null && r.parentRunId === run.parentRunId && r.agentRole === 'operator')
-          .map(toRunRef)
+    run.agentSlug === 'monitor'
+      ? myRound.filter((r) => r.id !== runId && r.agentRole === 'operator').map(toRunRef)
       : [];
 
-  // Cross-round link ONLY on the monitor (reviewer): it MEASURES the round, writes 实测结论 to memory,
-  // and an 偏差 can trip the next round's alarm — so the monitor is the one agent whose output causally
-  // feeds the NEXT round's 决策 (商分). Executors (投广/团购/上下架) stay within their round: showing them
-  // a "下一轮" link is not self-consistent (they don't trigger anything downstream of the round).
-  // rounds are newest-first, so the round BEFORE this one in the array is the LATER (next) round.
+  // 回流下一轮 — ONLY the monitor: it MEASURES the round, writes 实测结论 to memory, and an 偏差 can trip
+  // the next round's alarm, so it is the one agent whose output causally feeds the NEXT round's 决策
+  // (商分). Executors stay within their round (no cross-round link). rounds are newest-first, so the
+  // round BEFORE this one in the array is the LATER (next) round.
   let nextRoundDecision: RunRef | null = null;
-  if (run.agentRole === 'reviewer') {
-    const ordered = [...allRuns].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-    const rounds = groupRunsIntoRounds(ordered);
-    const idx = rounds.findIndex((rd) => rd.some((r) => r.id === runId));
+  if (run.agentSlug === 'monitor') {
     for (let j = idx - 1; idx > 0 && j >= 0; j -= 1) {
+      if (rounds[j].length < fullRoundMinRuns) continue; // skip partial/rehearsal rounds — link to a REAL next round
       const decision = rounds[j].find((r) => r.agentSlug === 'decision') ?? rounds[j].find((r) => r.agentRole === 'planner');
       if (decision) { nextRoundDecision = toRunRef(decision); break; }
     }

@@ -19,6 +19,22 @@ function run(
   };
 }
 
+describe('deriveRunDetail: monitor is not listed as a 下游 child', () => {
+  // monitor is dispatch-parented to decision but oversees the executors — it must not appear in
+  // decision's children (its relationship is 监测对象, shown from its own side).
+  const withSlug = (r: AgentRunView, slug: string): AgentRunView => ({ ...r, agentSlug: slug as AgentRunView['agentSlug'] });
+  const runs = [
+    withSlug(run('decision', 'orch', '商分', { role: 'planner' }), 'decision'),
+    withSlug(run('ad', 'decision', '投广', { role: 'operator' }), 'ad'),
+    withSlug(run('monitor', 'decision', 'Monitor', { role: 'reviewer' }), 'monitor'),
+  ];
+  it('decision children exclude the monitor', () => {
+    const kids = deriveRunDetail('decision', runs)!.children.map((c) => c.agentName);
+    expect(kids).toContain('投广');
+    expect(kids).not.toContain('Monitor');
+  });
+});
+
 describe('deriveRunDetail (run lineage)', () => {
   const runs = [run('orch', null, '编排'), run('child-a', 'orch', '投广'), run('child-b', 'orch', '团购')];
 
@@ -45,18 +61,22 @@ describe('deriveRunDetail (run lineage)', () => {
     expect(deriveRunDetail('x', orphan)!.parent).toBeNull();
   });
 
-  it('a monitor oversees its operator-lane siblings (even idle ones), not the planner that dispatched it', () => {
+  it('a monitor oversees the operator lanes IN ITS ROUND (by round, not exact parent), not the planner or 风控', () => {
+    // Distinct slugs + close timestamps so grouping keeps them one round. Operators are parented to a
+    // DIFFERENT run than the monitor — the point of the round-based (not exact-parent) audit.
+    const at = (id: string, slug: string, role: AgentRunView['agentRole'], iso: string, parent: string | null): AgentRunView =>
+      ({ ...run(id, parent, id, { role }), agentSlug: slug as AgentRunView['agentSlug'], startedAt: iso });
     const round = [
-      run('decision', 'orch', '商分', { role: 'planner' }),
-      run('ad', 'decision', '投广', { role: 'operator', actions: 1 }),
-      run('coupon', 'decision', '团购', { role: 'operator', actions: 0 }), // dispatched, didn't place → still overseen
-      run('reviewer', 'decision', '风控', { role: 'reviewer' }), // a reviewer sibling is not an audit target
-      run('monitor', 'decision', 'Monitor', { role: 'reviewer' }),
+      at('decision', 'decision', 'planner', '2026-07-12T03:00:00Z', 'orch'),
+      at('ad', 'ad', 'operator', '2026-07-12T03:02:00Z', 'decision'),
+      at('coupon', 'coupon', 'operator', '2026-07-12T03:03:00Z', 'decision'),
+      at('reviewer', 'reviewer', 'reviewer', '2026-07-12T03:04:00Z', 'decision'), // 风控 — NOT an audit target
+      at('monitor', 'monitor', 'reviewer', '2026-07-12T03:05:00Z', 'reviewer'),   // monitor: different parent
     ];
     const d = deriveRunDetail('monitor', round)!;
-    expect(d.auditTargets.map((t) => t.agentName).sort()).toEqual(['团购', '投广']);
-    // a non-reviewer run has no audit targets
-    expect(deriveRunDetail('ad', round)!.auditTargets).toEqual([]);
+    expect(d.auditTargets.map((t) => t.agentName).sort()).toEqual(['ad', 'coupon']);
+    expect(deriveRunDetail('ad', round)!.auditTargets).toEqual([]); // operators have no audit targets
+    expect(deriveRunDetail('reviewer', round)!.auditTargets).toEqual([]); // 风控 is not the monitor
   });
 });
 
@@ -76,12 +96,12 @@ describe('deriveRunDetail nextRoundDecision (cross-round memory loop)', () => {
     mk('p-insight', 'insight', '2026-07-12T03:00:00Z', 'analyst'),
   ];
   it("only the MONITOR links to the next round's 决策 (executors do not)", () => {
-    expect(deriveRunDetail('p-monitor', runs)!.nextRoundDecision?.id).toBe('n-decision');
-    expect(deriveRunDetail('p-insight', runs)!.nextRoundDecision).toBeNull(); // analyst — no cross-round
-    expect(deriveRunDetail('p-decision', runs)!.nextRoundDecision).toBeNull(); // planner — no cross-round
+    expect(deriveRunDetail('p-monitor', runs, 2)!.nextRoundDecision?.id).toBe('n-decision');
+    expect(deriveRunDetail('p-insight', runs, 2)!.nextRoundDecision).toBeNull(); // analyst — no cross-round
+    expect(deriveRunDetail('p-decision', runs, 2)!.nextRoundDecision).toBeNull(); // planner — no cross-round
   });
   it('the newest round monitor has no next round', () => {
-    expect(deriveRunDetail('n-monitor', runs)!.nextRoundDecision).toBeNull();
+    expect(deriveRunDetail('n-monitor', runs, 2)!.nextRoundDecision).toBeNull();
   });
 });
 
