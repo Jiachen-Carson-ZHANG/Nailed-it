@@ -1420,10 +1420,17 @@ def dispatch_many(dispatches_json: str) -> str:
     from concurrent.futures import ThreadPoolExecutor
 
     ctx, rnd = _require_round()
-    try:
-        items = json.loads(dispatches_json)
-    except json.JSONDecodeError as e:
-        raise ValueError("dispatches_json_invalid") from e
+    # A JSON-in-a-string parameter invites the model to send the ARRAY ITSELF rather than a string of
+    # it — the most natural way to call this, and function-calling layers happily pass the parsed list
+    # through. Rejecting that is the tool being pedantic, not the model being wrong (measured: a run
+    # whose dispatch decision was entirely correct still tripped `dispatches_json_invalid`). Accept both.
+    if isinstance(dispatches_json, (list, tuple)):
+        items = list(dispatches_json)
+    else:
+        try:
+            items = json.loads(dispatches_json)
+        except (json.JSONDecodeError, TypeError) as e:
+            raise ValueError("dispatches_json_invalid") from e
     if not isinstance(items, list) or not (1 <= len(items) <= 4):
         raise ValueError("dispatches_json_must_be_1_to_4_items")
     cleaned: list[tuple[str, str, str]] = []

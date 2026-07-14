@@ -951,10 +951,7 @@ def _run_once(scn: Scenario) -> dict:
     if scn.slug in ("ad", "coupon") and scn.briefs:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
-        task = f"{task}\n\n{_brief_context(scn.briefs)}"
-        if scn.slug == "coupon":  # inject 团购硬约束 through the LIVE formatter (no read tool anymore)
-            from nailed_agents.orchestrator import _coupon_constraints_context
-            task = f"{task}\n\n{_coupon_constraints_context([tools.coupon_constraints(b['style_id']) for b in scn.briefs])}"
+        task = f"{task}\n\n{_brief_context(scn.briefs)}"  # pure formatting — needs no bus
     if scn.slug == "monitor":
         from nailed_agents.orchestrator import RevisionPort, _execution_context
         # REAL RevisionPort guardrails; the re-dispatch returns a canned conclusion.
@@ -979,6 +976,14 @@ def _run_once(scn: Scenario) -> dict:
                 env = _decision_context(ctx.sb)
                 if env:
                     task = f"{task}\n\n{env}"
+            # 团购硬约束: coupon_constraints() DERIVES the profit floor from the decision brain, so it
+            # must be computed with the scenario's fixtures in place. Built outside the stub it read an
+            # empty brain, returned floorPriceCents=null + clears_profit_floor=false on every template,
+            # and the lane — correctly, on that garbage — refused to discount at all. The model was
+            # right; the harness fed it a lie. (Same class of bug as _decision_context above.)
+            if scn.slug == "coupon" and scn.briefs:
+                from nailed_agents.orchestrator import _coupon_constraints_context
+                task = f"{task}\n\n{_coupon_constraints_context([tools.coupon_constraints(b['style_id']) for b in scn.briefs])}"
             model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
                      "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
                      "coupon": config.COUPON_MODEL}.get(scn.slug)
@@ -1625,6 +1630,7 @@ def main() -> int:
             "id": scn.id, "level": scn.level, "slug": scn.slug,
             "n": n, "gates": {k: bool(v) for k, v in gates.items()}, "all_gates": ok,
             "runs_passed": r["runs_passed"], "tool_error_count": r["tool_error_count"],
+            "tool_call_count": r["tool_call_count"], "tools_used": r["tools_used"],
             "usage": r["usage"], "run_signatures": r["run_signatures"],
             "tool_bad": r["tool_bad"], "ungrounded": r["ungrounded"],
             "missing_calls": r["missing_calls"], "banned_calls": r["banned_calls"],
