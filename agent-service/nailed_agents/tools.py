@@ -847,6 +847,7 @@ def send_automated_notification(customer_name: str, kind: str, body: str) -> str
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
     )
+    bus.deliver_customer_message(ctx.sb, customer_name, labeled)  # mirror into the customer's chat thread
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "send_automated_notification", "input": payload, "output": {"sent": True}}
     )
@@ -872,6 +873,7 @@ def send_relationship_message(customer_name: str, body: str, reason: str) -> str
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
     )
+    bus.deliver_customer_message(ctx.sb, customer_name, labeled)  # mirror into the customer's chat thread
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "send_relationship_message", "input": payload, "output": {"sent": True}}
     )

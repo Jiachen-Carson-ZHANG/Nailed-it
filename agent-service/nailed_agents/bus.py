@@ -2,6 +2,7 @@
 write agent_runs + agent_actions back. No business rules here — just I/O."""
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 
@@ -486,3 +487,25 @@ def write_action(
     if entity_id is not None:
         row["entity_id"] = entity_id
     sb.table("agent_actions").insert(row).execute()
+
+
+def deliver_customer_message(sb: Client, customer_name: str, body: str) -> None:
+    """Best-effort: also drop the AI-sent message into the customer's chat thread, so the merchant sees
+    it in the conversation window — not only in the agent action log. Non-fatal: the agent_action stays
+    the authoritative record; if there's no thread for this customer (or the write fails) we log and
+    move on rather than break the send."""
+    try:
+        res = sb.table("conversation_threads").select("id").eq("customer_name", customer_name).limit(1).execute()
+        rows = res.data or []
+        if not rows:
+            print(f"WARN no chat thread for {customer_name} — message recorded as action only")
+            return
+        sb.table("messages").insert({
+            "id": f"msg-ai-{uuid.uuid4().hex[:12]}",
+            "thread_id": rows[0]["id"],
+            "author_role": "merchant",  # sent by the shop side, AI-authored (body carries the 商家助手 label)
+            "body": body,
+            "sent_at": now_iso(),
+        }).execute()
+    except Exception as e:  # noqa: BLE001 — delivery is best-effort; never fail the send over the chat mirror
+        print(f"WARN deliver_customer_message failed for {customer_name}: {e}")

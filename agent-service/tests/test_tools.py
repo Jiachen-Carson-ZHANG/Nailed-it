@@ -83,6 +83,7 @@ def ctx(monkeypatch):
     writes = []
     monkeypatch.setattr(bus, "write_action",
                         lambda sb, **kw: writes.append(kw))
+    monkeypatch.setattr(bus, "deliver_customer_message", lambda sb, name, body: None)  # chat mirror — no-op in tests
     monkeypatch.setattr(bus, "fetch_briefing", lambda range_days=7: {"insights": {"trendingUp": ["金属感"]}})
     monkeypatch.setattr(bus, "fetch_customers", lambda: {"customers": [{"name": "Amy Lim", "lastVisitDaysAgo": 40}]})
     # place_ad / set_group_buy_coupon now create REAL entities through the TS routes (ADR-0012) — stub the hop.

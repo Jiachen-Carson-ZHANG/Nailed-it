@@ -2647,3 +2647,16 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
 - Opt-out stays the hard red line — customer_ops re-checks the roster and skips opted-out candidates even
   if the analyst's list names them. Eval: lapsed-rachel-sent + optout-respected now carry a focus_customers
   brief; harness injects it. +tests (python 105 green, tsc clean).
+
+## 2026-07-14 (cont.) — AI customer messages mirror into the chat thread + monitor de-English
+
+- **`bus.deliver_customer_message`**: after an AI send (send_relationship_message / send_automated_
+  notification) writes its agent_action, it now also drops the message into the customer's chat thread
+  (conversation_threads → messages, author_role='merchant', body carries the 商家助手 label). Best-effort:
+  the agent_action stays authoritative; a missing thread or write error logs and never fails the send. So
+  the merchant actually sees the AI-sent message in the conversation window, not only the action log.
+- **Message describer**: '以老板身份给 X 发送' → '向 X 发送（AI 署名）' (messages are AI-labeled, never
+  impersonate the boss); action describer returns the FULL body, and the run sheet clamps it to 2 lines
+  with a 查看更多/收起 toggle. Sheet lineage header 上下游 → 上下游 Agent.
+- **Demo data**: 9 monitor runs' leaked English chain-of-thought rewritten to Chinese; the showcase
+  round's Amy + Rachel win-backs seeded into their chat threads.
