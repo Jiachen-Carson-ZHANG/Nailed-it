@@ -12,7 +12,8 @@ export type CollageResultScreenProps = {
   extraText: string;
   drawerItems: Record<DrawerZoneId, DrawerItem[]>;
   onExtraTextChange: (text: string) => void;
-  onPartialRegen: (checkedZones: DrawerZoneId[], newDecals: PlacedDecal[], newExtraText: string) => void;
+  /** 返回新生成图的 imageBase64，由子组件自己管理 loading 状态 */
+  onPartialRegen: (checkedZones: DrawerZoneId[], newDecals: PlacedDecal[], newExtraText: string) => Promise<string>;
   onFullReset: () => void;
   onBreakdown: (image: SelectedNailImage) => void;
   onTryOn: (image: SelectedNailImage) => void;
@@ -38,6 +39,12 @@ export function CollageResultScreen({
   const [checkedZones, setCheckedZones] = useState<Set<DrawerZoneId>>(new Set());
   const [localDecals, setLocalDecals] = useState<PlacedDecal[]>(decals);
   const [localExtraText, setLocalExtraText] = useState(extraText);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  // 局部重新生成后的最新图，优先于 prop 传入的 latestImage
+  const [localLatestImage, setLocalLatestImage] = useState<SelectedNailImage | null>(null);
+
+  const displayLatest = localLatestImage ?? latestImage;
 
   const toggleZone = useCallback((zoneId: DrawerZoneId) => {
     setCheckedZones((prev) => {
@@ -51,16 +58,28 @@ export function CollageResultScreen({
     });
   }, []);
 
-  const handleRegen = useCallback(() => {
-    onPartialRegen([...checkedZones], localDecals, localExtraText);
+  const handleRegen = useCallback(async () => {
+    setIsRegenerating(true);
+    setRegenError(null);
+    try {
+      const newBase64 = await onPartialRegen([...checkedZones], localDecals, localExtraText);
+      setLocalLatestImage({ imageBase64: newBase64, mimeType: 'image/png', previewUrl: `data:image/png;base64,${newBase64}` });
+      // 重新生成成功后切换到双图对比模式，自动选用最新版本
+      setSelectedVersion('latest');
+      setCheckedZones(new Set());
+    } catch (e) {
+      setRegenError(e instanceof Error ? e.message : '生成失败，请稍后重试');
+    } finally {
+      setIsRegenerating(false);
+    }
   }, [checkedZones, localDecals, localExtraText, onPartialRegen]);
 
-  // 首次生成时 original === latest，单图模式；重新生成后 latest 不同，切换为双图对比模式
-  const isSameImage = originalImage.imageBase64 === latestImage.imageBase64;
+  // 首次生成时（尚未局部重新生成）original === latest，单图模式；局部重新生成后切换为双图对比
+  const isSameImage = localLatestImage === null && originalImage.imageBase64 === latestImage.imageBase64;
 
   // 单图模式下视为已选用 latest，双图模式下需用户主动选用
   const effectiveSelectedVersion: SelectedVersion = isSameImage ? 'latest' : selectedVersion;
-  const selectedImage = effectiveSelectedVersion === 'original' ? originalImage : latestImage;
+  const selectedImage = effectiveSelectedVersion === 'original' ? originalImage : displayLatest;
   const canRegen = checkedZones.size > 0;
 
   return (
@@ -81,11 +100,11 @@ export function CollageResultScreen({
       {/* ① 图片区：首次生成单图大图，重新生成后双图对比 */}
       <div className="crs-compare-zone">
         {isSameImage ? (
-          /* 单图模式 */
+          /* 单图模式：首次生成，只展示一张 */
           <>
             <div className="crs-single-img-wrap">
               <img
-                src={`data:${latestImage.mimeType};base64,${latestImage.imageBase64}`}
+                src={`data:${displayLatest.mimeType};base64,${displayLatest.imageBase64}`}
                 alt="AI生成的专属美甲效果图"
                 className="crs-single-img"
               />
@@ -96,7 +115,7 @@ export function CollageResultScreen({
             </p>
           </>
         ) : (
-          /* 双图对比模式 */
+          /* 双图对比模式：局部重新生成后 */
           <>
             <p className="crs-compare-label">点击「选用」确认满意的版本</p>
             <div className="crs-images-row">
@@ -121,18 +140,26 @@ export function CollageResultScreen({
 
               <div className={`crs-img-card${selectedVersion === 'latest' ? ' crs-img-card--selected' : ''}`}>
                 <div className="crs-img-wrap">
-                  <img
-                    src={`data:${latestImage.mimeType};base64,${latestImage.imageBase64}`}
-                    alt="最新版本"
-                    className="crs-img"
-                  />
+                  {isRegenerating ? (
+                    <div className="crs-img crs-img-loading" aria-label="生成中">
+                      <span className="crs-img-loading-spinner" aria-hidden="true">✦</span>
+                      <span style={{ fontSize: '0.75rem', color: '#8b6030', marginTop: '8px' }}>生成中…</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={`data:${displayLatest.mimeType};base64,${displayLatest.imageBase64}`}
+                      alt="最新版本"
+                      className="crs-img"
+                    />
+                  )}
                   <span className="crs-img-tag crs-img-tag--latest">最新</span>
-                  <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
+                  {!isRegenerating && <div className="collage-result-badge" aria-hidden="true">AI 生成</div>}
                 </div>
                 <button
                   type="button"
                   className={`crs-select-btn${selectedVersion === 'latest' ? ' crs-select-btn--active' : ''}`}
-                  onClick={() => setSelectedVersion('latest')}
+                  onClick={() => !isRegenerating && setSelectedVersion('latest')}
+                  disabled={isRegenerating}
                 >
                   {selectedVersion === 'latest' ? '✓ 已选用' : '选用最新'}
                 </button>
@@ -238,18 +265,21 @@ export function CollageResultScreen({
 
       {/* ④ 重新生成行 */}
       <div className="crs-regen-zone">
-        <button type="button" className="crs-reset-btn" onClick={onFullReset}>
+        <button type="button" className="crs-reset-btn" onClick={onFullReset} disabled={isRegenerating}>
           ↺ 全部重置
         </button>
         <button
           type="button"
           className="crs-regen-btn"
           onClick={handleRegen}
-          disabled={!canRegen}
+          disabled={!canRegen || isRegenerating}
         >
-          重新生成选中部分 →
+          {isRegenerating ? '生成中…' : '重新生成选中部分 →'}
         </button>
       </div>
+      {regenError && (
+        <p className="crs-regen-error">{regenError}</p>
+      )}
 
       {/* ⑤ 继续区 — 单图模式始终可见；双图模式需选用后才可见 */}
       <div

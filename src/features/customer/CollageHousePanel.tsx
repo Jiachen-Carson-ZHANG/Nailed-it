@@ -325,45 +325,42 @@ export function CollageHousePanel() {
     }
   };
 
+  // 局部重新生成：不切换到 loading phase，避免卸载 CollageResultScreen（会丢失勾选状态）。
+  // 子组件自己管理 isRegenerating，这里只负责 fetch + 更新 store/state，返回新图 base64。
   const handlePartialRegen = async (
     _checkedZones: DrawerZoneId[],
     newDecals: PlacedDecal[],
     newExtraText: string,
-  ) => {
+  ): Promise<string> => {
     if (newExtraText.trim() && isOffTopic(newExtraText)) {
-      return;
+      throw new Error('请输入与美甲相关的内容');
     }
     const prompt = buildPrompt(newDecals, newExtraText);
-    setGenState({ phase: 'loading' });
-    setShowResult(false);
-    try {
-      const ingredients = newDecals.map((d) => ({ category: d.item.category, label: d.item.description }));
-      const res = await fetch('/api/ai/collage-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ingredients: ingredients.length > 0 ? ingredients : [{ category: '风格', label: '精致美甲' }],
-          customText: prompt,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json() as { imageBase64: string };
-      const collageImage = {
-        imageBase64: data.imageBase64,
-        mimeType: 'image/png' as const,
-        previewUrl: `data:image/png;base64,${data.imageBase64}`,
-      };
-      saveLatestCollageResult(collageImage);
-      setLatestImageBase64(data.imageBase64);
-      setDecals(newDecals);
-      setExtraText(newExtraText);
-      setGenState({ phase: 'done', imageBase64: data.imageBase64 });
-    } catch (e) {
-      setGenState({ phase: 'error', message: e instanceof Error ? e.message : '生成失败，请稍后重试' });
+    const ingredients = newDecals.map((d) => ({ category: d.item.category, label: d.item.description }));
+    const res = await fetch('/api/ai/collage-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ingredients: ingredients.length > 0 ? ingredients : [{ category: '风格', label: '精致美甲' }],
+        customText: prompt,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
     }
+    const data = await res.json() as { imageBase64: string };
+    const collageImage = {
+      imageBase64: data.imageBase64,
+      mimeType: 'image/png' as const,
+      previewUrl: `data:image/png;base64,${data.imageBase64}`,
+    };
+    saveLatestCollageResult(collageImage);
+    setLatestImageBase64(data.imageBase64);
+    setDecals(newDecals);
+    setExtraText(newExtraText);
+    setGenState({ phase: 'done', imageBase64: data.imageBase64 });
+    return data.imageBase64;
   };
 
   // ── Entry card ────────────────────────────────────────────────────────────

@@ -8714,6 +8714,24 @@ button.xhs-card-shape {
   cursor: not-allowed;
   box-shadow: none;
 }
+.crs-regen-error {
+  margin: 0 var(--space-4) var(--space-2);
+  font-size: 0.75rem;
+  color: #c0392b;
+  text-align: center;
+}
+.crs-img-loading {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 239, 224, 0.7);
+}
+.crs-img-loading-spinner {
+  font-size: 1.6rem;
+  animation: collageTwinkle 1s ease-in-out infinite;
+}
 .crs-continue-zone {
   margin: 0 var(--space-4) var(--space-4);
   border-radius: 1rem;
