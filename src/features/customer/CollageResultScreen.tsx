@@ -55,11 +55,13 @@ export function CollageResultScreen({
     onPartialRegen([...checkedZones], localDecals, localExtraText);
   }, [checkedZones, localDecals, localExtraText, onPartialRegen]);
 
-  const selectedImage = selectedVersion === 'original' ? originalImage : latestImage;
-  const canRegen = checkedZones.size > 0;
-
-  // 如果 original 和 latest 是同一张图（首次生成），自动选用 latest
+  // 首次生成时 original === latest，单图模式；重新生成后 latest 不同，切换为双图对比模式
   const isSameImage = originalImage.imageBase64 === latestImage.imageBase64;
+
+  // 单图模式下视为已选用 latest，双图模式下需用户主动选用
+  const effectiveSelectedVersion: SelectedVersion = isSameImage ? 'latest' : selectedVersion;
+  const selectedImage = effectiveSelectedVersion === 'original' ? originalImage : latestImage;
+  const canRegen = checkedZones.size > 0;
 
   return (
     <div className="collage-house-overlay collage-result-screen">
@@ -76,50 +78,68 @@ export function CollageResultScreen({
         <button type="button" className="collage-close-btn" aria-label="关闭" onClick={onClose}>✕</button>
       </div>
 
-      {/* ① 双图对比 */}
+      {/* ① 图片区：首次生成单图大图，重新生成后双图对比 */}
       <div className="crs-compare-zone">
-        <p className="crs-compare-label">
-          {isSameImage ? '生成完成！选择满意后继续' : '点击「选用」确认满意的版本'}
-        </p>
-        <div className="crs-images-row">
-          <div className={`crs-img-card${selectedVersion === 'original' ? ' crs-img-card--selected' : ''}`}>
-            <div className="crs-img-wrap">
-              <img
-                src={`data:${originalImage.mimeType};base64,${originalImage.imageBase64}`}
-                alt="原始版本"
-                className="crs-img"
-              />
-              <span className="crs-img-tag crs-img-tag--original">原始</span>
-              <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
-            </div>
-            <button
-              type="button"
-              className={`crs-select-btn${selectedVersion === 'original' ? ' crs-select-btn--active' : ''}`}
-              onClick={() => setSelectedVersion('original')}
-            >
-              {selectedVersion === 'original' ? '✓ 已选用' : '选用原始'}
-            </button>
-          </div>
-
-          <div className={`crs-img-card${selectedVersion === 'latest' ? ' crs-img-card--selected' : ''}`}>
-            <div className="crs-img-wrap">
+        {isSameImage ? (
+          /* 单图模式 */
+          <>
+            <div className="crs-single-img-wrap">
               <img
                 src={`data:${latestImage.mimeType};base64,${latestImage.imageBase64}`}
-                alt="最新版本"
-                className="crs-img"
+                alt="AI生成的专属美甲效果图"
+                className="crs-single-img"
               />
-              <span className="crs-img-tag crs-img-tag--latest">最新</span>
               <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
             </div>
-            <button
-              type="button"
-              className={`crs-select-btn${selectedVersion === 'latest' ? ' crs-select-btn--active' : ''}`}
-              onClick={() => setSelectedVersion('latest')}
-            >
-              {selectedVersion === 'latest' ? '✓ 已选用' : '选用最新'}
-            </button>
-          </div>
-        </div>
+            <p className="crs-compare-label" style={{ marginTop: 'var(--space-2)' }}>
+              喜欢这个方案？可以继续，或修改元素重新生成
+            </p>
+          </>
+        ) : (
+          /* 双图对比模式 */
+          <>
+            <p className="crs-compare-label">点击「选用」确认满意的版本</p>
+            <div className="crs-images-row">
+              <div className={`crs-img-card${selectedVersion === 'original' ? ' crs-img-card--selected' : ''}`}>
+                <div className="crs-img-wrap">
+                  <img
+                    src={`data:${originalImage.mimeType};base64,${originalImage.imageBase64}`}
+                    alt="原始版本"
+                    className="crs-img"
+                  />
+                  <span className="crs-img-tag crs-img-tag--original">原始</span>
+                  <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
+                </div>
+                <button
+                  type="button"
+                  className={`crs-select-btn${selectedVersion === 'original' ? ' crs-select-btn--active' : ''}`}
+                  onClick={() => setSelectedVersion('original')}
+                >
+                  {selectedVersion === 'original' ? '✓ 已选用' : '选用原始'}
+                </button>
+              </div>
+
+              <div className={`crs-img-card${selectedVersion === 'latest' ? ' crs-img-card--selected' : ''}`}>
+                <div className="crs-img-wrap">
+                  <img
+                    src={`data:${latestImage.mimeType};base64,${latestImage.imageBase64}`}
+                    alt="最新版本"
+                    className="crs-img"
+                  />
+                  <span className="crs-img-tag crs-img-tag--latest">最新</span>
+                  <div className="collage-result-badge" aria-hidden="true">AI 生成</div>
+                </div>
+                <button
+                  type="button"
+                  className={`crs-select-btn${selectedVersion === 'latest' ? ' crs-select-btn--active' : ''}`}
+                  onClick={() => setSelectedVersion('latest')}
+                >
+                  {selectedVersion === 'latest' ? '✓ 已选用' : '选用最新'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ② 元素勾选面板 */}
@@ -231,14 +251,16 @@ export function CollageResultScreen({
         </button>
       </div>
 
-      {/* ⑤ 继续区 — 仅 selectedVersion 非 null 时可见 */}
+      {/* ⑤ 继续区 — 单图模式始终可见；双图模式需选用后才可见 */}
       <div
         className="crs-continue-zone"
-        style={{ display: selectedVersion !== null ? 'block' : 'none' }}
-        aria-hidden={selectedVersion === null}
+        style={{ display: effectiveSelectedVersion !== null ? 'block' : 'none' }}
+        aria-hidden={effectiveSelectedVersion === null}
       >
         <div className="crs-continue-header">
-          ✓ 已选用「{selectedVersion === 'original' ? '原始' : '最新'}」版本，可以继续了
+          {isSameImage
+            ? '满意这个方案？可以直接继续'
+            : `✓ 已选用「${effectiveSelectedVersion === 'original' ? '原始' : '最新'}」版本，可以继续了`}
         </div>
         <div className="crs-continue-actions">
           <button
