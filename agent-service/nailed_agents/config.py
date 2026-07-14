@@ -149,6 +149,9 @@ MARKETING_BUDGET_CENTS = int(os.environ.get("MARKETING_BUDGET_CENTS", "18000"))
 
 # ADR-0013 P1: per-round orchestration guardrails (the LLM chooses; code bounds).
 MAX_DISPATCHES_PER_ROUND = int(os.environ.get("MAX_DISPATCHES_PER_ROUND", "8"))  # 8 lanes (reviewer removed — deterministic portfolio gate)
+# Cross-round trigger cooldown (P0 idempotency): the same (kind:entity) trigger won't re-fire a round
+# within this window — stops a threshold_alarm that stays red from firing every cron tick (event storm).
+TRIGGER_COOLDOWN_MINUTES = int(os.environ.get("TRIGGER_COOLDOWN_MINUTES", "180"))
 
 # Sampling temperature for the OpenAI-compatible loop. Operations agents judge against bright-line
 # thresholds — low temperature is a feature (reproducible rounds, stable eval), not a limitation.

@@ -624,7 +624,8 @@ def _run_lane(sb, agents: dict, range_days: int, state: RoundState, orch_run_id:
 
 
 def _run_round_llm_orchestrator(range_days: int = 7, *, trigger_kind: str | None = None,
-                                trigger_reason: str | None = None) -> dict[str, str]:
+                                trigger_reason: str | None = None,
+                                trigger_entity: str | None = None) -> dict[str, str]:
     """One orchestrated round. `trigger_kind`/`trigger_reason` carry WHY this round fired (cadence /
     evidence_matured / threshold_alarm / merchant button): the reason is injected into the
     orchestrator's task (so lane skipping reacts to the actual signal, not a guess) and the kind maps
@@ -658,6 +659,8 @@ def _run_round_llm_orchestrator(range_days: int = 7, *, trigger_kind: str | None
     )
     state = RoundState(dispatch_fn=None, require_portfolio_check=True)
     blackboard: dict[str, object] = {}
+    if trigger_kind:  # P0 idempotency: stamp WHAT fired this round, so the cooldown check can de-dupe it
+        blackboard["triggerFingerprint"] = bus.trigger_fingerprint(trigger_kind, trigger_entity)
     bb_lock = threading.Lock()  # dispatch_many completes lanes concurrently — serialize the
     # read-modify-write, else a stale full-JSON write can erase another lane's entry (lost update).
 
@@ -808,7 +811,8 @@ def _customer_ops_route_signal() -> dict[str, Any]:
 
 
 def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
-                       trigger_reason: str | None = None, runtime_mode: str = "planning") -> dict[str, str]:
+                       trigger_reason: str | None = None, trigger_entity: str | None = None,
+                       runtime_mode: str = "planning") -> dict[str, str]:
     """Deterministic Orchestration Runtime.
 
     Known business triggers do not need a separate LLM to rediscover the same route. The runtime owns the
@@ -839,6 +843,8 @@ def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
     )
     state = RoundState(dispatch_fn=None, require_portfolio_check=True)
     blackboard: dict[str, object] = {}
+    if trigger_kind:  # P0 idempotency: stamp WHAT fired this round, so the cooldown check can de-dupe it
+        blackboard["triggerFingerprint"] = bus.trigger_fingerprint(trigger_kind, trigger_entity)
     transcript: list[dict[str, Any]] = [{
         "kind": "runtime_route",
         "mode": runtime_mode,
@@ -947,13 +953,23 @@ def _run_round_runtime(range_days: int = 7, *, trigger_kind: str | None = None,
 
 
 def run_round(range_days: int = 7, *, trigger_kind: str | None = None,
-              trigger_reason: str | None = None, routing_mode: str | None = None) -> dict[str, str]:
+              trigger_reason: str | None = None, trigger_entity: str | None = None,
+              routing_mode: str | None = None) -> dict[str, str]:
+    # P0 cross-round concurrency guard: never start a round while one is already in flight for this
+    # merchant (cron + manual button, or two cron ticks). Best-effort check at the single entry point;
+    # a true DB advisory lock is the production hardening. sweep_stale_runs + the staleness cutoff in
+    # has_active_round keep a crashed round from wedging this forever.
+    config.require_env()
+    if bus.has_active_round(bus.supabase(), config.MERCHANT_ID):
+        print("→ a round is already in flight for this merchant — skipping (one round per merchant)")
+        return {}
     mode = _runtime_mode_for_trigger(trigger_kind, routing_mode)
     if mode == "llm":
         return _run_round_llm_orchestrator(
-            range_days=range_days, trigger_kind=trigger_kind, trigger_reason=trigger_reason
+            range_days=range_days, trigger_kind=trigger_kind, trigger_reason=trigger_reason,
+            trigger_entity=trigger_entity,
         )
     return _run_round_runtime(
         range_days=range_days, trigger_kind=trigger_kind, trigger_reason=trigger_reason,
-        runtime_mode=mode,
+        trigger_entity=trigger_entity, runtime_mode=mode,
     )

@@ -3,7 +3,7 @@ write agent_runs + agent_actions back. No business rules here — just I/O."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, TypedDict
 
 import httpx
@@ -422,7 +422,80 @@ def fetch_due_actions(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
         .order("id")
         .execute()
     )
-    return res.data or []
+    actions = res.data or []
+    # Cross-round idempotency (P0): drop actions already evaluated — an action_outcome memory row keyed
+    # by the action id means the monitor already measured it. Without this, evidence_matured re-fires a
+    # monitor round for the same action every cron tick (a revision creates a NEW action id, which is
+    # correctly still due). This is the 幂等键 that makes evidence_matured safe to poll repeatedly.
+    evaluated = evaluated_action_ids(sb, merchant_id)
+    return [a for a in actions if a["id"] not in evaluated]
+
+
+def evaluated_action_ids(sb: Client, merchant_id: str) -> set[str]:
+    """Action ids the monitor has already recorded an outcome for (agent_memory kind='action_outcome',
+    key=action_id) — the idempotency key set for evidence_matured de-duplication."""
+    res = (
+        sb.table("agent_memory")
+        .select("key")
+        .eq("merchant_id", merchant_id)
+        .eq("kind", "action_outcome")
+        .execute()
+    )
+    return {r["key"] for r in (res.data or []) if r.get("key")}
+
+
+_ACTIVE_ROUND_STALE_MINUTES = 15  # rounds complete in minutes; an unfinished one older than this is a
+                                  # crash-zombie, not a live round — ignore it so the guard can't wedge.
+
+
+def has_active_round(sb: Client, merchant_id: str) -> bool:
+    """Is a round already in flight for this merchant? Cross-round concurrency guard (P0): cron + manual
+    button (or two cron ticks) must not run overlapping rounds. Counts an unfinished round only if it
+    started RECENTLY — an older unfinished row is a crashed round, not a live one, so the guard never
+    wedges. Best-effort (a true DB advisory lock is the production hardening)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_ACTIVE_ROUND_STALE_MINUTES)).isoformat()
+    try:
+        res = (
+            sb.table("agent_rounds")
+            .select("id")
+            .eq("merchant_id", merchant_id)
+            .is_("finished_at", "null")
+            .gte("started_at", cutoff)
+            .limit(1)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:  # noqa: BLE001 — never block a round on a lock-check failure; log + proceed
+        print(f"WARN has_active_round check failed ({e}) — proceeding")
+        return False
+
+
+def trigger_fingerprint(kind: str, entity_id: str | None) -> str:
+    """The idempotency key for a trigger: what fired, on what. cadence has no entity → global."""
+    return f"{kind}:{entity_id or 'global'}"
+
+
+def trigger_fired_recently(sb: Client, merchant_id: str, fingerprint: str, cooldown_minutes: int) -> bool:
+    """Has a round already fired for this exact trigger fingerprint (kind:entity) within the cooldown?
+    Cross-round cooldown (P0): a threshold_alarm that stays red, or evidence that stays mature, must not
+    re-fire a round every cron tick (event storm). The ROUND ROW is the record — each triggered round
+    stamps its fingerprint into agent_rounds.blackboard.triggerFingerprint, so no separate store is
+    needed. Best-effort: a read failure de-dupes nothing (fail-open — never swallow a real alarm)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)).isoformat()
+    try:
+        res = (
+            sb.table("agent_rounds")
+            .select("id")
+            .eq("merchant_id", merchant_id)
+            .eq("blackboard->>triggerFingerprint", fingerprint)
+            .gte("started_at", cutoff)
+            .limit(1)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:  # noqa: BLE001
+        print(f"WARN trigger cooldown check failed ({e}) — not de-duping")
+        return False
 
 
 def fetch_action(sb: Client, action_id: str, merchant_id: str) -> dict[str, Any] | None:
