@@ -192,6 +192,12 @@ const enMessages = {
   'handMatch.errorInvalidImage': 'Please upload a clear photo of your hand',
   'handMatch.errorNoStyles': 'No matching styles found, please try again later',
   'handMatch.errorGeneric': 'Something went wrong, please try again',
+  'handMatch.bookNow': 'Book Now',
+  'handMatch.aiAnalysis': 'AI Analysis',
+  'handMatch.aiRecommend': 'AI Pick',
+  'handMatch.loadingPhrase1': 'Reading your skin tone…',
+  'handMatch.loadingPhrase2': 'Matching colours and shapes for you…',
+  'handMatch.loadingPhrase3': 'Almost ready with your perfect nail picks…',
 } satisfies UiMessages;
 
 export default enMessages;

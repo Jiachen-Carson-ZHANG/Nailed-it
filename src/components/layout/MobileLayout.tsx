@@ -18,6 +18,7 @@ import { ResetLink } from '@/components/ui/ResetLink';
 type MobileLayoutProps = {
   brandHref?: string;
   children: ReactNode;
+  mainClassName?: string;
   role: UserRole;
   showTabs?: boolean;
   subtitle?: string;
@@ -28,6 +29,7 @@ type MobileLayoutProps = {
 export function MobileLayout({
   brandHref,
   children,
+  mainClassName,
   role,
   showTabs = true,
   subtitle,
@@ -77,6 +79,7 @@ export function MobileLayout({
           'mobile-content',
           showTabs && 'mobile-content-with-tabs',
           wide && 'mobile-content-workspace',
+          mainClassName,
         ].filter(Boolean).join(' ')}
         onScroll={handleScroll}
       >

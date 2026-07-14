@@ -192,6 +192,12 @@ export const uiMessageKeys = [
   'handMatch.errorInvalidImage',
   'handMatch.errorNoStyles',
   'handMatch.errorGeneric',
+  'handMatch.bookNow',
+  'handMatch.aiAnalysis',
+  'handMatch.aiRecommend',
+  'handMatch.loadingPhrase1',
+  'handMatch.loadingPhrase2',
+  'handMatch.loadingPhrase3',
 ] as const;
 
 export type UiMessageKey = (typeof uiMessageKeys)[number];
@@ -390,6 +396,12 @@ const zhCNMessages = {
   'handMatch.errorInvalidImage': '请上传清晰的手部照片',
   'handMatch.errorNoStyles': '暂无匹配款式，请稍后再试',
   'handMatch.errorGeneric': '出错了，请重试',
+  'handMatch.bookNow': '直接预约',
+  'handMatch.aiAnalysis': 'AI 分析',
+  'handMatch.aiRecommend': 'AI 推荐',
+  'handMatch.loadingPhrase1': '正在读取你的肤色信息…',
+  'handMatch.loadingPhrase2': '匹配最适合你的色系与甲型…',
+  'handMatch.loadingPhrase3': '即将为你揭晓专属美甲…',
 } satisfies UiMessages;
 
 type UiMessageDictionary = Record<AppLanguage, UiMessages>;

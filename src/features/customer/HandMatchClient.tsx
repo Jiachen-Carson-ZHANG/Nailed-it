@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/i18n/context';
 import { getCustomerStylePath } from '@/domain/session';
@@ -21,6 +21,8 @@ type PageState =
   | { kind: 'error'; code: string; message: string };
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'];
+
+const LOADING_PRINTS = ['💅', '🌸', '✨', '🌷', '💎', '🎀', '🪷', '⭐'];
 
 export function HandMatchClient() {
   const { t, language } = useLanguage();
@@ -74,7 +76,6 @@ export function HandMatchClient() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) void handleFile(file);
-    // reset so same file can be re-uploaded
     e.target.value = '';
   }
 
@@ -98,17 +99,24 @@ export function HandMatchClient() {
       )}
 
       {state.kind === 'loading' && (
-        <LoadingView label={t('handMatch.analyzing')} />
+        <LoadingView
+          phrase1={t('handMatch.loadingPhrase1')}
+          phrase2={t('handMatch.loadingPhrase2')}
+          phrase3={t('handMatch.loadingPhrase3')}
+          title={t('handMatch.title')}
+        />
       )}
 
       {state.kind === 'results' && (
-        <ResultsView
-          language={language}
-          recommendations={state.recommendations}
-          skinProfile={state.skinProfile}
-          onRetry={handleUploadClick}
-          t={t}
-        />
+        <div className="hand-match-body">
+          <ResultsView
+            language={language}
+            recommendations={state.recommendations}
+            skinProfile={state.skinProfile}
+            onRetry={handleUploadClick}
+            t={t}
+          />
+        </div>
       )}
 
       {state.kind === 'error' && (
@@ -122,30 +130,87 @@ export function HandMatchClient() {
   );
 }
 
+// ─── Entry card rendered on the home page ──────────────────────────────────
+export function HandMatchEntryCard({ onClick }: { onClick: () => void }) {
+  const { t } = useLanguage();
+  return (
+    <button className="hand-match-entry" type="button" onClick={onClick}>
+      <span className="hand-match-entry-text">
+        <span className="hand-match-entry-title">{t('handMatch.title')}</span>
+        <span className="hand-match-entry-sub">{t('handMatch.uploadSubtitle')}</span>
+      </span>
+      <span className="hand-match-entry-arrow">›</span>
+    </button>
+  );
+}
+
+// ─── Idle ──────────────────────────────────────────────────────────────────
 function IdleView({ title, subtitle, onUpload }: { title: string; subtitle: string; onUpload: () => void }) {
   return (
     <div className="hand-match-idle">
-      <div className="hand-match-upload-slot" role="button" tabIndex={0} onClick={onUpload} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onUpload()}>
+      <div
+        className="hand-match-upload-card"
+        role="button"
+        tabIndex={0}
+        onClick={onUpload}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onUpload()}
+      >
         <span className="hand-match-upload-icon" aria-hidden="true">🤚</span>
         <p className="hand-match-upload-title">{title}</p>
         <p className="hand-match-upload-subtitle">{subtitle}</p>
-        <button className="hand-match-btn" type="button" onClick={(e) => { e.stopPropagation(); onUpload(); }}>
-          + {title}
+        <button
+          className="hand-match-upload-btn"
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onUpload(); }}
+        >
+          💅 {title}
         </button>
       </div>
     </div>
   );
 }
 
-function LoadingView({ label }: { label: string }) {
+// ─── Loading ───────────────────────────────────────────────────────────────
+function LoadingView({ title, phrase1, phrase2, phrase3 }: {
+  title: string; phrase1: string; phrase2: string; phrase3: string;
+}) {
+  const phrases = [phrase1, phrase2, phrase3];
+  const [phraseIdx, setPhraseIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setPhraseIdx((i) => (i + 1) % phrases.length), 3200);
+    return () => clearInterval(id);
+  }, [phrases.length]);
+
   return (
     <div className="hand-match-loading" aria-live="polite">
-      <div className="hand-match-spinner" aria-hidden="true" />
-      <p>{label}</p>
+      <div className="hand-match-loading-prints" aria-hidden="true">
+        {LOADING_PRINTS.map((emoji, i) => (
+          <span
+            key={emoji}
+            className="hand-match-loading-print"
+            style={{
+              '--i': i,
+              left: `${10 + (i * 11) % 80}%`,
+              top: `${15 + (i * 17) % 60}%`,
+            } as React.CSSProperties}
+          >
+            {emoji}
+          </span>
+        ))}
+      </div>
+
+      <span className="hand-match-loading-icon" aria-hidden="true">💅</span>
+      <p className="hand-match-loading-label">{title}</p>
+      <p className="hand-match-loading-phrase" key={phraseIdx}>{phrases[phraseIdx]}</p>
+      <div className="hand-match-loading-bar" aria-hidden="true">
+        <div className="hand-match-loading-bar-fill" />
+      </div>
     </div>
   );
 }
 
+// ─── Results ───────────────────────────────────────────────────────────────
 function ResultsView({
   skinProfile,
   recommendations,
@@ -160,10 +225,23 @@ function ResultsView({
   t: (key: UiMessageKey) => string;
 }) {
   const summary = language === 'zh-CN' ? skinProfile.summaryZh : skinProfile.summaryEn;
+
+  const toneLabel = language === 'zh-CN'
+    ? (skinProfile.toneCategory === 'warm' ? '暖调' : skinProfile.toneCategory === 'cool' ? '冷调' : '中性')
+    : skinProfile.toneCategory;
+  const depthLabel = language === 'zh-CN'
+    ? (skinProfile.depth === 'light' ? '浅肤' : skinProfile.depth === 'deep' ? '深肤' : '中肤')
+    : skinProfile.depth;
+
   return (
     <div className="hand-match-results">
       <section className="hand-match-skin-card" aria-label={t('handMatch.skinSummaryTitle')}>
+        <span className="hand-match-skin-badge">{t('handMatch.aiAnalysis')}</span>
         <h2 className="hand-match-skin-title">{t('handMatch.skinSummaryTitle')}</h2>
+        <div className="hand-match-tone-chips">
+          <span className="hand-match-tone-chip">🌡 {toneLabel}</span>
+          <span className="hand-match-tone-chip">✨ {depthLabel}</span>
+        </div>
         <p className="hand-match-skin-summary">{summary}</p>
         {skinProfile.recommendedPalettes.length > 0 && (
           <div className="hand-match-chips">
@@ -184,20 +262,35 @@ function ResultsView({
       </section>
 
       <ul className="hand-match-recs" aria-label="recommendations">
-        {recommendations.map(({ style, reasonZh, reasonEn }) => {
+        {recommendations.map(({ style, reasonZh, reasonEn }, idx) => {
           const reason = language === 'zh-CN' ? reasonZh : reasonEn;
-          const title = (language === 'zh-CN' && style.titleLocalized?.['zh-CN']) ? style.titleLocalized['zh-CN'] : style.title;
+          const title = (language === 'zh-CN' && style.titleLocalized?.['zh-CN'])
+            ? style.titleLocalized['zh-CN']
+            : style.title;
+          const stylePath = getCustomerStylePath(style.id);
           return (
-            <li key={style.id} className="hand-match-rec-card">
+            <li
+              key={style.id}
+              className="hand-match-rec-card"
+              style={{ '--rec-i': idx } as React.CSSProperties}
+            >
               {style.imageUrl && (
-                <img alt={title} className="hand-match-rec-img" src={style.imageUrl} />
+                <div className="hand-match-rec-img-wrap">
+                  <img alt={title} className="hand-match-rec-img" src={style.imageUrl} />
+                  <span className="hand-match-rec-badge">{t('handMatch.aiRecommend')}</span>
+                </div>
               )}
               <div className="hand-match-rec-body">
                 <p className="hand-match-rec-name">{title}</p>
                 <p className="hand-match-rec-reason">{reason}</p>
-                <Link className="hand-match-rec-cta" href={getCustomerStylePath(style.id)}>
-                  {t('handMatch.viewDetail')}
-                </Link>
+                <div className="hand-match-rec-actions">
+                  <Link className="hand-match-rec-action-primary" href={stylePath}>
+                    {t('handMatch.viewDetail')}
+                  </Link>
+                  <Link className="hand-match-rec-action-secondary" href={stylePath}>
+                    {t('handMatch.bookNow')}
+                  </Link>
+                </div>
               </div>
             </li>
           );
@@ -205,19 +298,23 @@ function ResultsView({
       </ul>
 
       <button className="hand-match-retry-btn" type="button" onClick={onRetry}>
-        {t('handMatch.retry')}
+        ↺ {t('handMatch.retry')}
       </button>
     </div>
   );
 }
 
+// ─── Error ─────────────────────────────────────────────────────────────────
 function ErrorView({ message, retryLabel, onRetry }: { message: string; retryLabel: string; onRetry: () => void }) {
   return (
-    <div className="hand-match-error" role="alert">
-      <p>{message}</p>
-      <button className="hand-match-retry-btn" type="button" onClick={onRetry}>
-        {retryLabel}
-      </button>
+    <div className="hand-match-error-backdrop" role="alert">
+      <div className="hand-match-error-dialog">
+        <span className="hand-match-error-icon">🚫</span>
+        <p className="hand-match-error-msg">{message}</p>
+        <button className="hand-match-error-btn" type="button" onClick={onRetry}>
+          {retryLabel}
+        </button>
+      </div>
     </div>
   );
 }
@@ -227,7 +324,6 @@ async function fileToBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // strip the data URL prefix (data:<mime>;base64,)
       resolve(result.split(',')[1] ?? '');
     };
     reader.onerror = reject;

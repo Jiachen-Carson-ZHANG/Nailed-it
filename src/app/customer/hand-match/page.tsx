@@ -3,7 +3,7 @@ import { HandMatchClient } from '@/features/customer/HandMatchClient';
 
 export default function HandMatchPage() {
   return (
-    <MobileLayout role="customer" title="Nailed-it">
+    <MobileLayout role="customer" title="Nailed-it" mainClassName="mobile-content-hand-match">
       <HandMatchClient />
     </MobileLayout>
   );
