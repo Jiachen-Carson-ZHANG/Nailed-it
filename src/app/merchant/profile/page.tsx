@@ -79,7 +79,7 @@ function MerchantProfileContent() {
       role="merchant"
       title="Nailed-it"
     >
-      <section className="profile-hero">
+      <section className="profile-hero profile-studio-hero">
         <h1>{copy.studioProfile}</h1>
       </section>
 

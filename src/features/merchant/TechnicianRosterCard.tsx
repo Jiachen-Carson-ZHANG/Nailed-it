@@ -68,7 +68,7 @@ export function TechnicianRosterCard({
 
   return (
     <section className="summary-card" aria-label={title}>
-      <strong>{title}</strong>
+      <strong className="roster-title">{title}</strong>
       {description ? <p>{description}</p> : null}
       <ul className="technician-roster">
         {technicians.map((technician) => {

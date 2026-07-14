@@ -9720,3 +9720,9 @@ button.xhs-card-shape {
 .agent-config-unit { font-size: var(--text-xs); color: var(--color-muted); }
 .agent-config-cadence { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .agent-config-inline { font-size: var(--text-sm); color: var(--color-text); }
+
+/* Profile (我的) page: studio title + 美甲师状态 in brand pink, sized down from the browser-default h1,
+ * left-aligned to the card content. Scoped so the shared .profile-hero on other pages is untouched. */
+.profile-studio-hero { padding: 0.9rem; } /* match the summary cards' padding so 门店资料 left-aligns with 美甲师状态 */
+.profile-studio-hero h1 { font-size: var(--text-xl); color: var(--color-accent-strong); line-height: 1.2; text-align: left; }
+.roster-title { color: var(--color-accent-strong); }
