@@ -318,10 +318,10 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   }),
 
   send_customer_message: (input, _o, lang) => ({
-    label: lang === 'zh-CN' ? '老板消息' : 'Message',
+    label: lang === 'zh-CN' ? '客户消息' : 'Message',
     summary: lang === 'zh-CN'
-      ? `以老板身份联系 ${String(input.customerName ?? '')}：${truncate(String(input.body ?? ''), 60)}`
-      : `Messaged ${String(input.customerName ?? '')} as the boss: ${truncate(String(input.body ?? ''), 60)}`,
+      ? `向 ${String(input.customerName ?? '')} 发送（AI 署名）：${truncate(String(input.body ?? ''), 60)}`
+      : `Sent to ${String(input.customerName ?? '')} (AI-signed): ${truncate(String(input.body ?? ''), 60)}`,
   }),
 
   // ── Stage 3 (ADR-0016): message classes + merchandising verbs + coupon templates ──────────
@@ -543,9 +543,11 @@ export function describeAction(type: AgentActionType, payload: Record<string, un
       return zh ? `生成上新草稿：${what}` : `Drafted a new listing: ${what}`;
     }
     case 'send_customer_message':
+      // Full body (no truncation) — the sheet/page clamps + expands. The body carries its own
+      // 【Nailed-it 商家助手】 label, so authorship is clear (never claims to be the boss).
       return zh
-        ? `以老板身份给 ${String(p.customerName ?? '')} 发送：${truncate(String(p.body ?? ''), 80)}`
-        : `Messaged ${String(p.customerName ?? '')}: ${truncate(String(p.body ?? ''), 80)}`;
+        ? `向 ${String(p.customerName ?? '')} 发送（AI 署名）：${String(p.body ?? '')}`
+        : `Sent to ${String(p.customerName ?? '')} (AI-signed): ${String(p.body ?? '')}`;
     default:
       return compactJson(p, 100);
   }

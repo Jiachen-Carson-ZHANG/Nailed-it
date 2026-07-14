@@ -25,8 +25,9 @@ import styles from './AgentRunSheet.module.css';
 const copy = {
   'zh-CN': {
     title: '智能体推理', loading: '正在加载推理链路…', notFound: '未找到该运行记录',
-    why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
+    why: '推理链路', lineage: '上下游 Agent', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
     reviewedBy: '下游监测', nextRound: '回流下一轮', actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
+    more: '查看更多', less: '收起',
     roundTag: (o: number, t: string, when: string) => `第 ${o} 轮 · ${t} · ${when}`,
     actionStatus: { proposed: '待你确认', applied: '已执行', approved: '已批准', undone: '已撤销' } as Record<ActionStatus, string>,
     status: { running: '运行中', completed: '已完成', failed: '失败', awaiting_approval: '待批准' } as Record<RunStatus, string>,
@@ -35,6 +36,7 @@ const copy = {
     title: 'Agent reasoning', loading: 'Loading the reasoning chain…', notFound: 'Run not found',
     why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', audits: 'Auditing', full: 'Full record →',
     reviewedBy: 'Monitored by', nextRound: 'Feeds next round', actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
+    more: 'More', less: 'Less',
     roundTag: (o: number, t: string, when: string) => `Round ${o} · ${t} · ${when}`,
     actionStatus: { proposed: 'Awaiting you', applied: 'Applied', approved: 'Approved', undone: 'Undone' } as Record<ActionStatus, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Awaiting approval' } as Record<RunStatus, string>,
@@ -91,6 +93,21 @@ function headline(output: unknown, fallback: string): string {
   const o = output as { headline?: string; verdict?: string } | null;
   const s = o?.headline ?? o?.verdict ?? fallback;
   return s.length > 140 ? `${s.slice(0, 139)}…` : s;
+}
+
+// A long action summary (a full customer message body) clamps to a couple of lines with a 查看更多
+// toggle — the merchant can read the exact message the AI sent, not a cut-off preview.
+function ExpandableText({ text, more, less }: { text: string; more: string; less: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 90;
+  return (
+    <div>
+      <p className={!open && long ? `${styles.actionSummary} ${styles.actionSummaryClamp}` : styles.actionSummary}>{text}</p>
+      {long ? (
+        <button type="button" className={styles.moreBtn} onClick={() => setOpen((v) => !v)}>{open ? less : more}</button>
+      ) : null}
+    </div>
+  );
 }
 
 const TRIGGER_LABEL: Record<string, { 'zh-CN': string; en: string }> = {
@@ -203,7 +220,7 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
                       {t.actionStatus[a.status] ?? a.status}
                     </span>
                   </div>
-                  <p className={styles.actionSummary}>{describeAction(a.type, a.payload, language, titles)}</p>
+                  <ExpandableText text={describeAction(a.type, a.payload, language, titles)} more={t.more} less={t.less} />
                   <ActionParams action={a} language={language} />
                   {a.status === 'proposed' ? (
                     <div className={styles.actionCtl}>
