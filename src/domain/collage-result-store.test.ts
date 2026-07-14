@@ -3,6 +3,7 @@ import {
   saveOriginalCollageResult,
   saveLatestCollageResult,
   getCollageImages,
+  getCollageResult,
   clearCollageResult,
 } from './collage-result-store';
 
@@ -40,4 +41,17 @@ describe('collage-result-store', () => {
     clearCollageResult();
     expect(getCollageImages()).toEqual({ original: null, latest: null });
   });
+
+  it('getCollageResult returns latestImage', () => {
+    saveOriginalCollageResult(img1);
+    saveLatestCollageResult(img2);
+    expect(getCollageResult()).toEqual(img2);
+  });
+
+  it('getCollageResult returns null before any save', () => {
+    expect(getCollageResult()).toBeNull();
+  });
+
+  // NOTE: CollageHousePanel.tsx still imports saveCollageResult (Task 5 will fix all CollageHousePanel imports).
+  // This is a known cross-task transition state and not a blocker for this test coverage fix.
 });
