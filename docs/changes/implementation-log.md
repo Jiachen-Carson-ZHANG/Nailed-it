@@ -2514,3 +2514,22 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   hallucination/compliance demoted to a footnote (identical across models → no selection value),
   architecture-ablation cut from the slide (weakest data, kept in doc/verbal), scenario inventory (20)
   shown. Exported via ppt-master svg_to_pptx (native-SVG pptx). Preview verified, no overflow.
+
+## 2026-07-14 (cont.) — Demo run-lineage symmetry + round labels + unified approval gate
+
+- **Executor → Monitor downstream** (`src/domain/agents.ts` `deriveRunDetail`): an operator run now
+  resolves `reviewedBy` = its round's Monitor (the inverse of the monitor's 监测对象), so the graph is
+  symmetric — 商分 ↓ 投广 ↓ Monitor ↺ 商分(next round). Rendered as 下游监测 → Monitor Agent on both the
+  run sheet and the full run page. Fixes "投广/团购 has no 下游".
+- **经营轮次 label** (`deriveRunDetail.round`): each run in a FULL round (≥ `FULL_ROUND_MIN_RUNS`) carries
+  its ordinal (newest = highest), the round's trigger source, and opener time — shown as
+  「第 N 轮 · 手动/事件/定时 · 时间」 in the run eyebrow. Partial/alarm rounds carry no tag (correct: a
+  5-run threshold_alarm round with 0 operators shows neither 监测对象 nor a round tag). +6 domain tests.
+- **今日经营 stat strip**: removed the ambiguous bare `+3%` delta on 本周营收 (no baseline shown); dropped
+  the now-dead `.statUp` render branch + CSS.
+- **门店资料 title** back to black (kept 28px + left-align); 美甲师状态 stays brand pink.
+- **`awaiting_approval` is now derived, not a per-tool flag** (`nailed_agents/tools.py`): the run-level
+  merchant gate (ADR-0007 §4) is computed from the transcript — true iff the run wrote any
+  status='proposed' action. Previously only `propose_listing` + `create_merchant_message_draft` set the
+  flag, so 团购 drafts and over-budget ad drafts (both status='proposed') silently finalized as
+  `completed` instead of `awaiting_approval`. Removed the two manual sets; +3 regressions (94 green).
