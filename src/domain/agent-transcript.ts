@@ -165,7 +165,7 @@ const SUMMARIZERS: Record<string, Summarizer> = {
   get_customer_intelligence: (_i, output, lang) => {
     const n = isObj(output) ? count((output as { customers?: unknown }).customers) || count(output) : count(output);
     const zh = lang === 'zh-CN';
-    return { label: zh ? '客户画像' : 'Customers', summary: zh ? `读取 ${n || '若干'} 位重点客户画像` : `Read ${n || 'key'} customer profiles` };
+    return { label: zh ? '客户名册' : 'Customer roster', summary: zh ? `浏览客户名册（${n || '全部'} 位，最久未到店优先），从中挑本轮值得联系的人` : `Scanned the roster (${n || 'all'}, most-lapsed first) to pick who to reach this round` };
   },
 
   get_external_trends: (input, output, lang) => {

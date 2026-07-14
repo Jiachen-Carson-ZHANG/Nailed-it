@@ -6,8 +6,10 @@ What changed:
 - `run_round()` now defaults to `ORCHESTRATION_MODE=runtime`: known business triggers are routed by
   code, not by a separate LLM orchestrator call.
 - Planning rounds run insight → trend → decision, then dispatch ad/coupon strictly from structured
-  Action Briefs (`state.briefs`) and run catalog/customer_ops independently; monitor still runs last as
-  the snapshot barrier.
+  Action Briefs (`state.briefs`) **after** 决策 has completed `simulate_action_portfolio` with
+  `feasible=true`; catalog/customer_ops run through independent non-spend candidate gates (陈列候选 /
+  可召回老客候选) rather than the marketing portfolio gate; monitor still runs last as the snapshot
+  barrier.
 - Follow-up triggers (`evidence_matured`, `threshold_alarm`) route directly to monitor. Parameter-level
   fixes continue through the existing bounded edge: monitor `request_revision` → original executor →
   same entity.
@@ -21,8 +23,10 @@ Why:
 
 Aligned assumptions:
 - Decision still does not own dispatch authority; it emits structured intent. Runtime routes it.
-- The runtime never parses agent prose for spend. Only `state.briefs` and code guardrails can route
-  ad/coupon.
+- The runtime never parses agent prose for spend. Only feasible, simulated `state.briefs` and code
+  guardrails can route ad/coupon.
+- Non-spend executors should not run just to discover emptiness. Runtime may skip catalog/customer_ops
+  when their grounded candidate gates are empty, and must record the skip reason in the transcript.
 - Open-ended merchant questions can still use the LLM orchestrator because task decomposition is
   genuinely unknown there.
 
@@ -2618,3 +2622,13 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   (same formatter the eval uses). Skills updated (insight files the brief as its final step; decision
   reads candidates first). Eval: decision scenario now carries a real Analysis Brief; harness wires the
   sink so insight scenarios can file it. +4 unit tests (101 green). Frontend describers added.
+
+## 2026-07-14 (cont.) — customer_ops lineage + roster describer fix
+
+- **customer_ops now parents to the orchestrator, not insight**: it reads its OWN customer roster
+  (get_customer_intelligence) to pick who to re-engage — it does NOT consume 数分's style analysis, so
+  showing 数分 as its 上游 was a misleading lineage. It's an independent 老客召回 lane dispatched by the
+  lead. Default plan updated (parent=""); the 3 demo runs re-parented to their round's orchestrator run.
+- **Roster describer reworded**: "读取 48 位重点客户画像" → "浏览客户名册（48 位，最久未到店优先），从中
+  挑本轮值得联系的人" — the agent scans the full roster and contacts ONE (skill: ≤1 relationship msg/round),
+  so the old wording made 48 look like targets.
