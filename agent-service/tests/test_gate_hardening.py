@@ -176,6 +176,16 @@ def _stub_runtime_bus(monkeypatch):
     monkeypatch.setattr(bus, "fetch_due_actions", lambda *a, **k: [])
     monkeypatch.setattr(bus, "fetch_memory", lambda *a, **k: [])
     monkeypatch.setattr(bus, "fetch_campaign_outcomes", lambda *a, **k: [])
+    monkeypatch.setattr(
+        orch,
+        "_merchandising_route_signal",
+        lambda sb, range_days: {"shouldDispatch": True, "reason": "test merchandising candidate"},
+    )
+    monkeypatch.setattr(
+        orch,
+        "_customer_ops_route_signal",
+        lambda: {"shouldDispatch": True, "reason": "test customer candidate"},
+    )
     return started, finished
 
 
@@ -190,6 +200,8 @@ def test_runtime_planning_routes_decision_briefs_without_llm_orchestrator(monkey
         seen.append(slug)
         if slug == "decision":
             state.briefs.append({"action_type": "ad", "style_id": "style-melissa-img-8265"})
+            state.portfolio_simulated = True
+            state.portfolio_result = {"feasible": True, "warnings": []}
         return f"run-{slug}", f"{slug} done"
 
     monkeypatch.setattr(orch, "_run_lane", fake_lane)
@@ -202,6 +214,108 @@ def test_runtime_planning_routes_decision_briefs_without_llm_orchestrator(monkey
     assert "ad" in seen and "coupon" not in seen
     assert "catalog" in seen and "customer_ops" in seen
     assert seen[-1] == "monitor"
+
+
+def test_runtime_planning_does_not_route_spend_without_business_portfolio_check(monkeypatch):
+    from nailed_agents import runner
+    from nailed_agents import orchestrator as orch
+
+    _stub_runtime_bus(monkeypatch)
+    seen: list[str] = []
+
+    def fake_lane(sb, agents, range_days, state, orch_run_id, round_id, slug, task, parent_slug):
+        seen.append(slug)
+        if slug == "decision":
+            state.briefs.append({"action_type": "ad", "style_id": "style-melissa-img-8265"})
+            # Deliberately no simulate_action_portfolio result.
+        return f"run-{slug}", f"{slug} done"
+
+    monkeypatch.setattr(orch, "_run_lane", fake_lane)
+    monkeypatch.setattr(runner, "run_agent", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM orchestrator should not run")))
+
+    orch.run_round(trigger_kind="cadence", routing_mode="runtime")
+
+    assert "decision" in seen
+    assert "ad" not in seen and "coupon" not in seen
+    assert "catalog" in seen and "customer_ops" in seen
+
+
+def test_runtime_planning_skips_non_spend_lanes_without_grounded_candidates(monkeypatch):
+    from nailed_agents import runner
+    from nailed_agents import orchestrator as orch
+
+    _stub_runtime_bus(monkeypatch)
+    monkeypatch.setattr(
+        orch,
+        "_merchandising_route_signal",
+        lambda sb, range_days: {"shouldDispatch": False, "reason": "no merchandising candidates"},
+    )
+    monkeypatch.setattr(
+        orch,
+        "_customer_ops_route_signal",
+        lambda: {"shouldDispatch": False, "reason": "no customer ops candidates"},
+    )
+    seen: list[str] = []
+
+    def fake_lane(sb, agents, range_days, state, orch_run_id, round_id, slug, task, parent_slug):
+        seen.append(slug)
+        if slug == "decision":
+            state.briefs.append({"action_type": "ad", "style_id": "style-melissa-img-8265"})
+            state.portfolio_simulated = True
+            state.portfolio_result = {"feasible": True, "warnings": []}
+        return f"run-{slug}", f"{slug} done"
+
+    monkeypatch.setattr(orch, "_run_lane", fake_lane)
+    monkeypatch.setattr(runner, "run_agent", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM orchestrator should not run")))
+
+    runs = orch.run_round(trigger_kind="cadence", routing_mode="runtime")
+
+    assert "ad" in seen
+    assert "catalog" not in seen and "customer_ops" not in seen
+    assert seen[-1] == "monitor"
+    assert runs["orchestrator"] == "run-orchestrator"
+
+
+def test_merchandising_route_signal_depends_on_grounded_candidates(monkeypatch):
+    from nailed_agents import orchestrator as orch
+
+    monkeypatch.setattr(
+        tools,
+        "build_merchandising_candidates",
+        lambda range_days, sb=None: {"increaseExposure": [], "decreaseExposure": [], "proposeListing": []},
+    )
+    assert orch._merchandising_route_signal(object(), 7)["shouldDispatch"] is False
+
+    monkeypatch.setattr(
+        tools,
+        "build_merchandising_candidates",
+        lambda range_days, sb=None: {
+            "increaseExposure": [{"styleId": "s1"}],
+            "decreaseExposure": [],
+            "proposeListing": [],
+        },
+    )
+    signal = orch._merchandising_route_signal(object(), 7)
+    assert signal["shouldDispatch"] is True
+    assert signal["counts"]["increaseExposure"] == 1
+
+
+def test_customer_ops_route_signal_requires_lapsed_grounded_customer(monkeypatch):
+    from nailed_agents import orchestrator as orch
+
+    monkeypatch.setattr(bus, "fetch_customers", lambda: {"customers": [
+        {"name": "New", "lastVisitDaysAgo": 12, "bookingCount": 1},
+        {"name": "Opted Out", "lastVisitDaysAgo": 90, "bookingCount": 3, "optOut": True},
+        {"name": "Prospect", "lastVisitDaysAgo": None, "bookingCount": 0},
+    ]})
+    assert orch._customer_ops_route_signal()["shouldDispatch"] is False
+
+    monkeypatch.setattr(bus, "fetch_customers", lambda: {"customers": [
+        {"name": "Rachel Goh", "lastVisitDaysAgo": 45, "bookingCount": 2},
+    ]})
+    signal = orch._customer_ops_route_signal()
+    assert signal["shouldDispatch"] is True
+    assert signal["topCustomers"] == ["Rachel Goh"]
 
 
 def test_runtime_followup_runs_monitor_only(monkeypatch):
@@ -233,3 +347,64 @@ def test_runtime_router_keeps_llm_orchestrator_for_open_merchant_requests(monkey
 
     assert orch.run_round(trigger_kind="merchant_request") == {"orchestrator": "run-llm"}
     assert called
+
+
+# ── 6 · cross-round idempotency (P0): no duplicate follow-up rounds / event storm ────────────────
+
+class _Res:
+    def __init__(self, data): self.data = data
+
+class _Q:
+    """Chainable fake PostgREST query — filters are DB-side, so the fake just returns its canned rows;
+    what we pin here is the PYTHON-side de-duplication logic."""
+    def __init__(self, data): self._data = data
+    def select(self, *a, **k): return self
+    def eq(self, *a, **k): return self
+    def in_(self, *a, **k): return self
+    def is_(self, *a, **k): return self
+    def gte(self, *a, **k): return self
+    def order(self, *a, **k): return self
+    def limit(self, *a, **k): return self
+    def execute(self): return _Res(self._data)
+
+class _SB:
+    def __init__(self, **tables): self.tables = tables
+    def table(self, name): return _Q(self.tables.get(name, []))
+
+
+def test_due_actions_exclude_already_evaluated_actions(monkeypatch):
+    """The evidence_matured storm: once the monitor has recorded an action_outcome for an action, that
+    action must STOP coming back as 'due' — otherwise every cron tick re-fires a monitor round for it.
+    The idempotency key is the action id (agent_memory kind='action_outcome', key=action_id)."""
+    monkeypatch.setattr(bus, "fetch_campaign_outcomes",
+                        lambda sb, m: [{"id": "ad-1", "impressions": 900, "clicks": 40,
+                                        "created_at": datetime.now(timezone.utc).isoformat()}])
+    sb = _SB(
+        agent_actions=[{"id": "act-old", "entity_id": "ad-1"}, {"id": "act-new", "entity_id": "ad-1"}],
+        agent_memory=[{"key": "act-old"}],  # already measured
+    )
+    due = bus.fetch_due_actions(sb, "m-1")
+    assert [d["id"] for d in due] == ["act-new"]  # the evaluated one is gone; a revision's NEW id is still due
+
+
+def test_evaluated_action_ids_reads_the_outcome_keys():
+    sb = _SB(agent_memory=[{"key": "act-1"}, {"key": "act-2"}, {"key": None}])
+    assert bus.evaluated_action_ids(sb, "m-1") == {"act-1", "act-2"}
+
+
+def test_trigger_fingerprint_is_kind_plus_entity():
+    assert bus.trigger_fingerprint("threshold_alarm", "ad-9") == "threshold_alarm:ad-9"
+    assert bus.trigger_fingerprint("cadence", None) == "cadence:global"  # no entity → global key
+
+
+def test_trigger_cooldown_reads_the_round_that_already_fired():
+    """A round stamps its trigger fingerprint into agent_rounds.blackboard — so a threshold_alarm that
+    stays red does NOT re-fire a round every tick."""
+    assert bus.trigger_fired_recently(_SB(agent_rounds=[{"id": "r-1"}]), "m-1", "threshold_alarm:ad-9", 180) is True
+    assert bus.trigger_fired_recently(_SB(agent_rounds=[]), "m-1", "threshold_alarm:ad-9", 180) is False
+
+
+def test_active_round_guard_blocks_overlapping_rounds():
+    """cron + manual button must not run two rounds at once."""
+    assert bus.has_active_round(_SB(agent_rounds=[{"id": "r-live"}]), "m-1") is True
+    assert bus.has_active_round(_SB(agent_rounds=[]), "m-1") is False

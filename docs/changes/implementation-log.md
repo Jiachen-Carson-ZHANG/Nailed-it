@@ -2671,3 +2671,27 @@ measured today. `agent-service/eval/agents_eval.py`, `model_screen.py`, tests 76
   is unchanged: `set_group_buy_coupon` still refuses unknown templates + below-floor prices. Dropped the
   tool from the coupon lane + registry + mono-ablation union; eval harness injects the constraints; skill
   updated. python 105 green.
+
+## 2026-07-14 (cont.) — P0 cross-round idempotency (no duplicate follow-up rounds / event storm)
+
+Audit found: `fetch_due_actions` kept returning already-measured actions, so evidence_matured could
+re-fire a monitor round for the same action every cron tick; a threshold_alarm that stayed red could
+re-fire indefinitely; and nothing stopped cron + the manual button from running overlapping rounds.
+Three P0 defenses, none needing a migration:
+
+- **Idempotency key (evidence)**: `fetch_due_actions` now excludes actions the monitor already recorded
+  an `action_outcome` for (`bus.evaluated_action_ids` — agent_memory kind='action_outcome', key=action_id).
+  A revision creates a NEW action id, so a genuinely re-run action is correctly still due. Verified live:
+  evaluated=14, due=5, overlap=0.
+- **Trigger fingerprint + cooldown**: fingerprint = `kind:entity` (`bus.trigger_fingerprint`). Each
+  triggered round stamps it into `agent_rounds.blackboard.triggerFingerprint`, so **the round row IS the
+  cooldown record** — no new table. `check_triggers` drops any signal whose fingerprint fired a round
+  within `config.TRIGGER_COOLDOWN_MINUTES` (default 180). Fail-open on read error (never swallow a real alarm).
+- **One round per merchant**: `bus.has_active_round` (unfinished round started within 15 min — older =
+  crash-zombie, so the guard can't wedge), checked at the single `run_round` entry AND in `check_triggers`.
+  **Best-effort, not a DB lock** — a small check-then-insert race remains; a partial unique index /
+  advisory lock is the production hardening.
+
+Honest claim for the defense: *the single-round execution graph is bounded and non-recursive; cross-round
+triggers are de-duplicated by an idempotency key + cooldown; concurrent rounds are guarded best-effort.*
++5 regressions (python 110 green).

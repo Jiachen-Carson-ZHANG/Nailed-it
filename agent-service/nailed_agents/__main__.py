@@ -74,21 +74,35 @@ def check_triggers(run: bool = False) -> None:
     if not signals:
         print("no triggers active")
         return
+    # P0 cross-round cooldown: drop signals whose (kind:entity) fingerprint already fired a round within
+    # TRIGGER_COOLDOWN_MINUTES. Stops a threshold_alarm that stays red (or evidence that stays mature)
+    # from re-firing every cron tick. cadence has no entity → its fingerprint is global. The round row
+    # itself carries the fingerprint (blackboard.triggerFingerprint), so no separate store is needed.
+    cooling = {
+        s.entity_id or s.kind: bus.trigger_fired_recently(
+            sb, config.MERCHANT_ID, bus.trigger_fingerprint(s.kind, s.entity_id),
+            config.TRIGGER_COOLDOWN_MINUTES)
+        for s in signals
+    }
+    fresh = [s for s in signals if not cooling[s.entity_id or s.kind]]
     for s in signals:
-        print(f"[{s.urgency}] {s.kind}: {s.reason}")
-    urgent = [s for s in signals if s.urgency == "urgent"]
-    if run and urgent:
-        # The firing signal travels INTO the round: reason → orchestrator context, kind → trigger_source.
-        first = urgent[0]
-        extra = f"（另有 {len(urgent) - 1} 个并发信号）" if len(urgent) > 1 else ""
-        print(f"→ {len(urgent)} urgent signal(s) — firing a round")
-        run_round(trigger_kind=first.kind, trigger_reason=f"{first.reason}{extra}")
-    elif run and signals:
-        # routine-only signals (cadence / matured evidence) also fire under --run — previously routine
-        # evidence never started a round automatically.
-        first = signals[0]
-        print(f"→ routine signal — firing a round ({first.kind})")
-        run_round(trigger_kind=first.kind, trigger_reason=first.reason)
+        cool = cooling[s.entity_id or s.kind]
+        print(f"[{s.urgency}] {s.kind}: {s.reason}" + (" (cooldown — skip)" if cool else ""))
+    if not fresh:
+        print("→ all active triggers are within cooldown — no round (idempotent)")
+        return
+    urgent = [s for s in fresh if s.urgency == "urgent"]
+    to_fire = urgent[0] if urgent else fresh[0]
+    if run:
+        # P0: don't stack a round on top of one already in flight (run_round re-checks at the entry).
+        if bus.has_active_round(sb, config.MERCHANT_ID):
+            print("→ a round is already in flight — skipping (one round per merchant)")
+            return
+        extra = f"（另有 {len(urgent) - 1} 个并发信号）" if urgent and len(urgent) > 1 else ""
+        label = "urgent" if urgent else "routine"
+        print(f"→ {label} signal — firing a round ({to_fire.kind})")
+        run_round(trigger_kind=to_fire.kind, trigger_reason=f"{to_fire.reason}{extra}",
+                  trigger_entity=to_fire.entity_id)
     elif urgent:
         print(f"→ {len(urgent)} urgent signal(s); pass --run to fire a round")
 
