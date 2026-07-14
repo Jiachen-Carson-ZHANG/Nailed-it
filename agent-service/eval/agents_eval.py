@@ -450,7 +450,7 @@ SCENARIOS = [
 MONO_TOOLS = [
     "get_merchant_insights", "get_style_business_facts", "get_trend_opportunities", "search_memory",
     "get_ad_account_state", "list_available_audiences", "forecast_ad_plan", "place_ad",
-    "update_ad_campaign", "get_coupon_constraints", "set_group_buy_coupon",
+    "update_ad_campaign", "set_group_buy_coupon",
 ]
 _MONO_SKILL = """# 全能运营 Agent（单智能体基线）
 你是美甲店唯一的运营 agent：自己分析数据、自己决策、需要时自己执行投广/团购。
@@ -651,6 +651,9 @@ def _run_once(scn: Scenario) -> dict:
         from nailed_agents.orchestrator import _brief_context
         ctx.briefs = scn.briefs
         task = f"{task}\n\n{_brief_context(scn.briefs)}"
+        if scn.slug == "coupon":  # inject 团购硬约束 through the LIVE formatter (no read tool anymore)
+            from nailed_agents.orchestrator import _coupon_constraints_context
+            task = f"{task}\n\n{_coupon_constraints_context([tools.coupon_constraints(b['style_id']) for b in scn.briefs])}"
     if scn.slug == "monitor":
         from nailed_agents.orchestrator import RevisionPort, _execution_context
         # REAL RevisionPort guardrails; the re-dispatch returns a canned conclusion.

@@ -645,19 +645,16 @@ COUPON_TEMPLATES: dict[str, dict[str, Any]] = {
 _REDEMPTION_WINDOWS = {"weekday_afternoon": "周一至周四 12:00–17:00", "weekday_any": "周一至周五全天"}
 
 
-def get_coupon_constraints(style_id: str) -> str:
-    """The merchant's coupon guardrails for ONE style: the pre-approved offer templates (you may only
-    use these — inventing a discount is refused), the allowed redemption windows (weekends are
-    protected), and the style's coupon ECONOMICS from the business engine: floorPriceCents (the lowest
-    legal post-coupon price — below it the discount is unprofitable) and what each template's computed
-    price would be. Demand response is NOT predicted here — coupon effects are measured by the monitor
-    after publish, not promised before it."""
-    ctx = _ctx()
+def coupon_constraints(style_id: str) -> dict[str, Any]:
+    """Deterministic coupon guardrails for ONE style — INJECTED into 团购's task (no longer a tool call,
+    since the style is fixed by its Action Brief and this is a pure per-style read): the pre-approved
+    templates (each with its code-computed price + a clears_profit_floor flag), the profit floor, and the
+    allowed redemption windows. The HARD guard stays at set_group_buy_coupon — it refuses unknown
+    templates + below-floor prices regardless of what was injected. Demand response is NOT predicted."""
     style_id = _clean_style_id(style_id)
     facts = _style_facts(style_id)
     price = facts["price_cents"]
-    coupon = facts["coupon"]
-    floor = coupon.get("floorPriceCents")
+    floor = (facts["coupon"] or {}).get("floorPriceCents")
     templates = []
     for tid, t in COUPON_TEMPLATES.items():
         computed = round(price * (1 - t["discount_pct"]))
@@ -667,7 +664,7 @@ def get_coupon_constraints(style_id: str) -> str:
             "audience": t.get("audience", "any"),
             "clears_profit_floor": floor is not None and computed >= floor,
         })
-    out = {
+    return {
         "styleId": style_id, "listPriceCents": price,
         "floorPriceCents": floor,
         "floor_note": "null 表示原价本身已低于利润底线——该款不应打折" if floor is None else None,
@@ -675,16 +672,14 @@ def get_coupon_constraints(style_id: str) -> str:
         "redemption_windows": _REDEMPTION_WINDOWS,
         "max_coupons_limit": 10,
     }
-    ctx.transcript.append({"kind": "tool_call", "tool": "get_coupon_constraints",
-                           "input": {"styleId": style_id}, "output": out})
-    return json.dumps(out, ensure_ascii=False)
 
 
 def set_group_buy_coupon(style_id: str, template_id: str, redemption_window: str = "weekday_afternoon",
                          max_coupons: int = 4, valid_days: int = 7) -> str:
-    """Configure a 团购 draft from a merchant-approved TEMPLATE (get_coupon_constraints first). Your
-    judgment is the RESTRICTIONS — which template, redemption window, how many coupons, expiry — not
-    the price: code computes it from the template and refuses it below the style's profit floor.
+    """Configure a 团购 draft from a merchant-approved TEMPLATE (the guardrails — templates/floor/windows
+    — are INJECTED into your task as 团购硬约束). Your judgment is the RESTRICTIONS — which template,
+    redemption window, how many coupons, expiry — not the price: code computes it from the template and
+    refuses it below the style's profit floor.
     Creates a REAL editable draft deal the merchant reviews and publishes in 团购管理; it never claims
     the deal is live, and it never promises a precise booking count (the monitor measures that after
     publish)."""
@@ -1488,7 +1483,6 @@ _FUNCTIONS: list[Callable[..., str]] = [
     get_trend_opportunities,
     get_catalog_actions,
     get_merchandising_candidates,
-    get_coupon_constraints,
     get_ad_account_state,
     list_available_audiences,
     forecast_ad_plan,
