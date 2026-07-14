@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { useLanguage } from '@/i18n/context';
 import { getCustomerStylePath } from '@/domain/session';
 import type { UiMessageKey } from '@/i18n/messages/ui/zh-CN';
@@ -276,7 +277,7 @@ function ResultsView({
             >
               {style.imageUrl && (
                 <div className="hand-match-rec-img-wrap">
-                  <img alt={title} className="hand-match-rec-img" src={style.imageUrl} />
+                  <ZoomableImage alt={title} className="hand-match-rec-img" src={style.imageUrl} maxScale={3} />
                   <span className="hand-match-rec-badge">{t('handMatch.aiRecommend')}</span>
                 </div>
               )}

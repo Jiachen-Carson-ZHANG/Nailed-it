@@ -62,3 +62,6 @@ test-results/
 
 # agent eval regression log (generated, 问题闭环)
 agent-service/eval/regressions.jsonl
+
+# AI 试戴测试 — local eval artifacts, never in GitHub
+AI试戴测试/

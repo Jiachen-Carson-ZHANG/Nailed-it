@@ -40,7 +40,7 @@ const tryOnPrompt =
   'Apply the nail style shown in the second image (nail style) to the nails in the first image (your hand). ' +
   'Keep the hand, skin tone, fingers, and lighting completely realistic and unchanged. ' +
   'Only change the nail appearance. ' +
-  'Pay attention to which nail matches which finger and keep the same finger-to-nail matching as the second image. ' +
+  'FINGER MAPPING (critical): Identify which nail in the style reference belongs to which finger, then map each design onto the ANATOMICALLY CORRESPONDING finger of the hand in image 1 — thumb→thumb, index→index, middle→middle, ring→ring, pinky→pinky. Do NOT copy nails by their top-to-bottom screen order. If the style reference is photographed upside-down or rotated relative to the hand, mentally orient it upright first, then match finger by finger. If the style reference shows two hands but image 1 shows only one, use the per-finger design from only ONE hand in the reference (the one whose orientation best matches image 1); never merge nails from two different reference hands onto a single hand. ' +
   'ADDITIONAL RULES: ' +
   '(1) If any nails are missing or obscured in the hand photo, fill those nail positions with the closest natural nude color matching the person\'s skin tone — do not leave any finger without a nail. ' +
   '(2) If the hand photo contains hands from multiple different people, focus on the hand where the fingers and nails are most clearly visible. If it is one person\'s two hands shown together, treat them normally.' +
@@ -78,6 +78,7 @@ export async function runTryOn(
     ? 'Apply nail art to the hand in image 1. ' +
       `The user has made the following specific requests — these take PRIORITY over the reference image for the aspects they mention: "${userComment}". ` +
       'Then, strictly apply image 2 (nail style reference) for aspects NOT covered by the user\'s request. ' +
+      'FINGER MAPPING (critical): When applying image 2 for aspects not covered by the user\'s request, identify which nail in the style reference belongs to which finger, then map each design onto the ANATOMICALLY CORRESPONDING finger of the hand in image 1 — thumb→thumb, index→index, middle→middle, ring→ring, pinky→pinky. Do NOT copy nails by their top-to-bottom screen order. If the style reference is photographed upside-down or rotated relative to the hand, mentally orient it upright first, then match finger by finger. If the style reference shows two hands but image 1 shows only one, use the per-finger design from only ONE hand in the reference (the one whose orientation best matches image 1); never merge nails from two different reference hands onto a single hand. ' +
       'Keep the hand, skin tone, fingers, and lighting completely realistic and unchanged. Only change the nail appearance. ' +
       'ADDITIONAL RULES: ' +
       '(1) If any nails are missing or obscured in the hand photo, fill those nail positions with the closest natural nude color matching the person\'s skin tone — do not leave any finger without a nail. ' +

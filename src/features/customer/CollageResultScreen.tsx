@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import type { SelectedNailImage } from '@/components/ui/ImageUploader';
 import { type DrawerZoneId, DRAWER_ZONES } from './studio-layout-config';
 import type { DrawerItem, PlacedDecal } from './CollageHousePanel';
@@ -103,7 +104,7 @@ export function CollageResultScreen({
           /* 单图模式：首次生成，只展示一张 */
           <>
             <div className="crs-single-img-wrap">
-              <img
+              <ZoomableImage
                 src={`data:${displayLatest.mimeType};base64,${displayLatest.imageBase64}`}
                 alt="AI生成的专属美甲效果图"
                 className="crs-single-img"
@@ -121,7 +122,7 @@ export function CollageResultScreen({
             <div className="crs-images-row">
               <div className={`crs-img-card${selectedVersion === 'original' ? ' crs-img-card--selected' : ''}`}>
                 <div className="crs-img-wrap">
-                  <img
+                  <ZoomableImage
                     src={`data:${originalImage.mimeType};base64,${originalImage.imageBase64}`}
                     alt="原始版本"
                     className="crs-img"
@@ -146,7 +147,7 @@ export function CollageResultScreen({
                       <span style={{ fontSize: '0.75rem', color: '#8b6030', marginTop: '8px' }}>生成中…</span>
                     </div>
                   ) : (
-                    <img
+                    <ZoomableImage
                       src={`data:${displayLatest.mimeType};base64,${displayLatest.imageBase64}`}
                       alt="最新版本"
                       className="crs-img"
