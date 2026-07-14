@@ -60,6 +60,30 @@ describe('deriveRunDetail (run lineage)', () => {
   });
 });
 
+describe('deriveRunDetail nextRoundDecision (cross-round memory loop)', () => {
+  // rounds newest-first by started_at; the monitor of an EARLIER round links to the LATER round's 决策.
+  const mk = (id: string, slug: string, iso: string, role: AgentRunView['agentRole'] = 'operator'): AgentRunView => ({
+    ...run(id, null), agentSlug: slug as AgentRunView['agentSlug'], agentRole: role, startedAt: iso,
+  });
+  const runs = [
+    // later round (newer)
+    mk('n-monitor', 'monitor', '2026-07-12T04:10:00Z', 'reviewer'),
+    mk('n-decision', 'decision', '2026-07-12T04:02:00Z', 'planner'),
+    mk('n-insight', 'insight', '2026-07-12T04:00:00Z', 'analyst'),
+    // earlier round
+    mk('p-monitor', 'monitor', '2026-07-12T03:10:00Z', 'reviewer'),
+    mk('p-decision', 'decision', '2026-07-12T03:02:00Z', 'planner'),
+    mk('p-insight', 'insight', '2026-07-12T03:00:00Z', 'analyst'),
+  ];
+  it("an earlier round's run links to the next round's 决策", () => {
+    expect(deriveRunDetail('p-monitor', runs)!.nextRoundDecision?.id).toBe('n-decision');
+    expect(deriveRunDetail('p-insight', runs)!.nextRoundDecision?.id).toBe('n-decision');
+  });
+  it('the newest round has no next round', () => {
+    expect(deriveRunDetail('n-monitor', runs)!.nextRoundDecision).toBeNull();
+  });
+});
+
 describe('groupRunsIntoRounds (runtime record grouped by round)', () => {
   const at = (id: string, slug: string, iso: string): AgentRunView => ({
     ...run(id, null), agentSlug: slug as AgentRunView['agentSlug'], startedAt: iso,

@@ -5165,7 +5165,10 @@ select {
 .agent-chain-pill-thinking { background: #f0e9fb; color: #5b3aa8; }
 .agent-chain-pill-tool { background: #e7eefc; color: #2456c8; }
 .agent-chain-pill-action { background: #e3f5ee; color: var(--color-success-ink); }
-.agent-chain-text { margin: 4px 0 0; font-size: var(--text-sm); color: var(--color-text); line-height: 1.5; }
+/* pre-wrap so humanizeReasoning's structure (bullet lines "· …", heading breaks, paragraph gaps) renders
+ * as actual line breaks instead of collapsing into a wall of text — the transforms already exist, the
+ * <p> was just discarding the newlines. Long chains now read as a scannable list. */
+.agent-chain-text { margin: 4px 0 0; font-size: var(--text-sm); color: var(--color-text); line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .agent-chain-details { margin-top: 4px; }
 .agent-chain-details summary {
   cursor: pointer;
@@ -9708,3 +9711,6 @@ button.xhs-card-shape {
 
 /* Agents hero: the pink brand line promoted to the single (slightly larger) heading. */
 .agent-hero-eyebrow { font-size: var(--text-md); font-weight: 800; color: var(--color-accent-strong); letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 var(--space-2); }
+
+/* Cross-round jump on the run detail (下一轮 · 商分): accent-tinted, distinct from neutral lineage links. */
+.agent-run-context-next { color: var(--color-accent-strong); font-weight: 700; }

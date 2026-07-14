@@ -30,6 +30,7 @@ const detailCopy = {
     selfStarted: '本轮例行运行的起点',
     spawned: '触发的下游',
     audits: '监测对象',
+    nextRound: '下一轮 · 商分',
     triggeredRevision: '触发修订',
     undo: '撤销',
     undone: '已撤销',
@@ -51,6 +52,7 @@ const detailCopy = {
     dispatchedBy: (name: string) => `Dispatched by "${name}"`,
     selfStarted: 'The starting point of this round',
     spawned: 'Spawned',
+    nextRound: 'Next round · Decision',
     audits: 'Auditing',
     triggeredRevision: 'Sent back for revision',
     undo: 'Undo',
@@ -120,7 +122,6 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
 
   return (
     <>
-      <Link className="detail-back-link detail-back-top" href={getMerchantAgentsPath()}>← {copy.back}</Link>
       <section className="profile-hero">
         <p className="section-eyebrow">{run.agentName}</p>
         <h1>{headline(run.output, run.agentName)}</h1>
@@ -154,6 +155,14 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
                   ↓ {c.agentName}
                 </Link>
               ))}
+            </>
+          ) : null}
+          {detail?.nextRoundDecision ? (
+            <>
+              {' · '}{copy.nextRound}
+              <Link className="agent-run-context-link agent-run-context-next" href={getMerchantAgentRunPath(detail.nextRoundDecision.id)}>
+                ⟳ {detail.nextRoundDecision.agentName} →
+              </Link>
             </>
           ) : null}
         </p>

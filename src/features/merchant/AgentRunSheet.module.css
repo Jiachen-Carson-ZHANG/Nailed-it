@@ -49,3 +49,6 @@
   display: inline-flex; align-items: center; margin-top: var(--space-4);
   font-size: var(--text-xs); font-weight: 700; color: var(--color-accent-strong); text-decoration: none;
 }
+/* Cross-round jump chip (下一轮 · 商分): accent-filled so it reads as "forward in time", distinct
+ * from the neutral 上下游 chips. */
+.chipNext { background: var(--color-accent-soft); border-color: var(--color-accent); color: var(--color-accent-ink); }

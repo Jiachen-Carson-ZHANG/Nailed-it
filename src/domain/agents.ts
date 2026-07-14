@@ -115,7 +115,16 @@ export type RunRef = { id: string; agentName: string; agentSlug: AgentSlug; stat
 
 /** A run with its upstream (who spawned it) + downstream (who it spawned) — the drill-down's lineage.
  *  `auditTargets` is set only for a reviewer (monitor): the executor lanes it actually measures. */
-export type AgentRunDetail = { run: AgentRunView; parent: RunRef | null; children: RunRef[]; auditTargets: RunRef[] };
+export type AgentRunDetail = {
+  run: AgentRunView;
+  parent: RunRef | null;
+  children: RunRef[];
+  auditTargets: RunRef[];
+  /** The NEXT round's 决策 (商分) run — where this round's monitor findings land via memory (ADR-0015).
+   *  The cross-round loop's payoff: "what the team decided next, informed by what this round measured".
+   *  Null on the newest round. */
+  nextRoundDecision: RunRef | null;
+};
 
 function toRunRef(r: AgentRunView): RunRef {
   return { id: r.id, agentName: r.agentName, agentSlug: r.agentSlug, status: r.status };
@@ -162,5 +171,18 @@ export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRu
           .filter((r) => r.id !== runId && r.parentRunId !== null && r.parentRunId === run.parentRunId && r.agentRole === 'operator')
           .map(toRunRef)
       : [];
-  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets };
+
+  // Cross-round link: rounds newest-first, so the round BEFORE this one in the array is the LATER round.
+  // Target its 决策 run — the monitor's memory from this round is injected there next round. Sort
+  // defensively so the derivation doesn't depend on the caller's ordering.
+  const ordered = [...allRuns].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+  const rounds = groupRunsIntoRounds(ordered);
+  const idx = rounds.findIndex((rd) => rd.some((r) => r.id === runId));
+  let nextRoundDecision: RunRef | null = null;
+  for (let j = idx - 1; idx > 0 && j >= 0; j -= 1) {
+    const decision = rounds[j].find((r) => r.agentSlug === 'decision') ?? rounds[j].find((r) => r.agentRole === 'planner');
+    if (decision) { nextRoundDecision = toRunRef(decision); break; }
+  }
+
+  return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets, nextRoundDecision };
 }

@@ -26,14 +26,14 @@ const copy = {
   'zh-CN': {
     title: '智能体推理', loading: '正在加载推理链路…', notFound: '未找到该运行记录',
     why: '推理链路', lineage: '上下游', from: '上游触发', spawned: '触发的下游', audits: '监测对象', full: '查看完整记录 →',
-    actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
+    nextRound: '下一轮 · 商分', actions: '动作设置', approve: '批准', reject: '拒绝', back: '‹ 返回',
     actionStatus: { proposed: '待你确认', applied: '已执行', approved: '已批准', undone: '已撤销' } as Record<ActionStatus, string>,
     status: { running: '运行中', completed: '已完成', failed: '失败', awaiting_approval: '待批准' } as Record<RunStatus, string>,
   },
   en: {
     title: 'Agent reasoning', loading: 'Loading the reasoning chain…', notFound: 'Run not found',
     why: 'Reasoning chain', lineage: 'Lineage', from: 'Triggered by', spawned: 'Spawned', audits: 'Auditing', full: 'Full record →',
-    actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
+    nextRound: 'Next round · Decision', actions: 'Action settings', approve: 'Approve', reject: 'Reject', back: '‹ Back',
     actionStatus: { proposed: 'Awaiting you', applied: 'Applied', approved: 'Approved', undone: 'Undone' } as Record<ActionStatus, string>,
     status: { running: 'Running', completed: 'Done', failed: 'Failed', awaiting_approval: 'Awaiting approval' } as Record<RunStatus, string>,
   },
@@ -197,7 +197,7 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
             </section>
           ) : null}
 
-          {(detail?.parent || (detail?.children.length ?? 0) > 0 || (detail?.auditTargets.length ?? 0) > 0) ? (
+          {(detail?.parent || (detail?.children.length ?? 0) > 0 || (detail?.auditTargets.length ?? 0) > 0 || detail?.nextRoundDecision) ? (
             <section className={styles.section} aria-label={t.lineage}>
               <div className={styles.lane}>{t.lineage}</div>
               {detail && detail.auditTargets.length > 0 ? (
@@ -229,6 +229,15 @@ export function AgentRunSheet({ open, runId, onClose, onActionsChanged }: {
                       </button>
                     ))}
                   </div>
+                </div>
+              ) : null}
+              {detail?.nextRoundDecision ? (
+                // Cross-round memory loop: this round's monitor findings inform the next round's 商分.
+                <div className={styles.lineRow}>
+                  <span className={styles.lineLabel}>{t.nextRound}</span>
+                  <button type="button" className={`${styles.chipLink} ${styles.chipNext}`} onClick={() => hop(detail.nextRoundDecision!.id)}>
+                    ⟳ {detail.nextRoundDecision.agentName} →
+                  </button>
                 </div>
               ) : null}
             </section>
