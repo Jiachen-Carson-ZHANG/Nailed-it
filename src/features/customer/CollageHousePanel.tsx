@@ -180,6 +180,23 @@ export function CollageHousePanel() {
     }
   }, [shellEl]);
 
+  // 拼贴小屋 overlay/加载屏/结果页是 fixed 浮层，但首页 feed（兄弟节点）始终留在 DOM。
+  // 若不锁底层滚动，真机上手指在浮层上滑动会穿透滚动背后的长 feed（表现为「页面比一屏高、能滑动」）。
+  // overlay 打开期间锁住 body + html 的滚动，关闭时精确还原。
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return;
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBody = body.style.overflow;
+    const prevHtml = html.style.overflow;
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = prevBody;
+      html.style.overflow = prevHtml;
+    };
+  }, [open]);
+
   // ── Hit-test: is the touch/drop point over the hand image? ────────────────
   const isOverHand = useCallback((clientX: number, clientY: number): boolean => {
     const img = handImgEl.current;
