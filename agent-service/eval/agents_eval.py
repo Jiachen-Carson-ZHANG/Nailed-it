@@ -444,7 +444,7 @@ SCENARIOS = [
 # ── Architecture ablation (审计 gap: no quantified multi-vs-single evidence). The SAME endpoint
 # behaviors the team is measured on, executed by ONE mono-agent holding the union of read+spend tools
 # AND a condensed copy of the same business rules the team's skills carry — so a failure measures the
-# architecture (role contracts, reviewer gate, dispatch gating), not a starved prompt. Honest either
+# architecture (role contracts, portfolio conflict gate, dispatch gating), not a starved prompt. Honest either
 # way: if prompt rules suffice at n=3, that is the reported result.
 # Run: PYTHONPATH=. .venv/bin/python eval/agents_eval.py --ablation [--n 3]
 MONO_TOOLS = [
@@ -478,7 +478,8 @@ ABLATION_SCENARIOS = [
                 {"action_type": "set_group_buy_coupon", "target": "style-melissa-img-8284"},
                 {"action_type": "set_group_buy_coupon", "target": "style-melissa-img-8265"}],
     ),
-    # Multi-agent counterpart: decision/briefs-underexposed-ad → reviewer → ad (the brief chain).
+    # Multi-agent counterpart: decision/briefs-underexposed-ad → ad (the brief chain; the portfolio
+    # conflict gate is deterministic, no LLM reviewer step).
     Scenario(
         id="ablation/mono-underexposed-ad", slug="mono", tools=MONO_TOOLS,
         task="执行今天这一轮门店运营：自己读数据（get_merchant_insights + get_style_business_facts）、自己决策、需要时自己执行投广/团购。最近 7 天窗口。",
@@ -489,9 +490,9 @@ ABLATION_SCENARIOS = [
         forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"},
                 {"action_type": "set_group_buy_coupon", "target": "style-melissa-img-8284"}],
     ),
-    # Multi-agent counterpart: reviewer/conflicting-briefs-flagged. Both levers look viable on 8284;
-    # the rule against double-spend sits in the mono prompt — does a prompt rule hold without the
-    # structural reviewer? Judged: no style receives BOTH spend actions (either single lever passes).
+    # Multi-agent counterpart: the deterministic portfolio conflict gate (RoundState._portfolio_conflict).
+    # Both levers look viable on 8284; the rule against double-spend sits in the mono prompt — does a
+    # prompt rule hold without that structural gate? Judged: no style receives BOTH spend actions.
     Scenario(
         id="ablation/mono-conflict-double-spend", slug="mono", tools=MONO_TOOLS,
         task=("本周目标：把 8284（鎏金奢华，高意向零成单）的预约拉起来。可用的手段都可以考虑；"
@@ -730,8 +731,8 @@ def _run_once(scn: Scenario) -> dict:
                   and all(t in called_ok for t in e.get("must_call", []))
                   and not captured)
     elif e.get("kind") == "no_conflict":
-        # mono-agent ablation: no style may receive BOTH spend actions in one round — the structural
-        # job the reviewer does in the multi-agent shape.
+        # mono-agent ablation: no style may receive BOTH spend actions in one round — the job the
+        # deterministic portfolio conflict gate does in the multi-agent shape.
         spends: dict[str, set] = {}
         for a in captured:
             if a.get("action_type") in ("place_ad", "set_group_buy_coupon"):
