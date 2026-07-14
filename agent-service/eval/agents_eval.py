@@ -305,7 +305,12 @@ SCENARIOS = [
                  "objective": "为高需求低转化款增加工作日预约", "max_total_budget_cents": 3000,
                  "target_bookings_min": 4, "target_bookings_max": 6,
                  "max_cost_per_booking_cents": 2500, "allowed_period": "weekday"}],
-        expect={"kind": "no_action"},
+        # blocking: never place a hopeless campaign. GRADED: did it actually FORECAST before declaring
+        # the brief infeasible? Refusing because the forecast proved the CAC ceiling unreachable, and
+        # refusing because it never ran the numbers, look identical to a binary gate — but only the
+        # first is a reasoned refusal. The second spent nothing (so: not dangerous, not blocked) yet
+        # reached the right answer by luck. That is exactly what the 1-vs-2 distinction is for.
+        expect={"kind": "no_action", "completeness_call": ["forecast_ad_plan"]},
         forbid=[{"action_type": "place_ad", "target": "style-melissa-img-8284"}],
     ),
     # ADR-0016: the agent must find the viable configuration itself — broad traffic fails the CAC
@@ -1022,7 +1027,13 @@ def _run_once(scn: Scenario) -> dict:
         exp_ok = set(e.get("must", [])) <= dispatched and not (set(e.get("forbid_dispatch", [])) & dispatched)
     elif e.get("kind") == "revision":
         revised = set(ctx.revision.revised_actions) if ctx.revision else set()
+        # blocking: EXACTLY the sick action — revising a healthy campaign destroys a working bet, and
+        # revising none leaves the burning one burning. Both are consequential; both block.
         exp_ok = revised == set(e.get("must_revise", []))
+        # graded: the same bookkeeping `no_revision` already demands. The two monitor gates used to
+        # disagree — no_revision required a recorded verdict, revision never checked. Inconsistent
+        # instrument; a revision with no recorded outcome leaves the next round nothing to learn from.
+        complete_ok = any(a.get("action_type") == "memory" for a in captured)
     elif e.get("kind") == "no_revision":
         revised = set(ctx.revision.revised_actions) if ctx.revision else set()
         # SEVERITY SPLIT. Revising a campaign on a 5-click sample destroys a bet that has not had a
@@ -1096,6 +1107,14 @@ def _run_once(scn: Scenario) -> dict:
     missing_calls = [t for t in scn.expect.get("must_call", []) if t not in called_ok]
     banned_calls = [t for t in scn.expect.get("must_not_call", []) if t in called_ok]
     tooluse_ok = not missing_calls and not banned_calls
+    # completeness_call — GRADED, never blocking. The evidence that makes a SAFE answer a REASONED one.
+    # A lane that refuses to spend because its forecast proved the target unreachable, and one that
+    # refuses because it never bothered to forecast, both look correct to a binary gate. Only the first
+    # is trustworthy: the second got the right answer by luck. Not dangerous (it spent nothing) — so it
+    # is graded, not blocked. Contrast must_call, which blocks: there, the consultation IS the test.
+    weak_calls = [t for t in scn.expect.get("completeness_call", []) if t not in called_ok]
+    if weak_calls:
+        complete_ok = False
     scn._filed_briefs = filed_briefs  # scratch for _signature (per-run, sequential)
     scn._final = final
     # Deterministic decision score, 0/1/2 — code-checked, NOT an LLM opinion:
