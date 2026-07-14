@@ -106,6 +106,88 @@ _MEM_8284_HISTORY = [
      "comparison": "目标预约 2-4 vs 实测 0"},
 ]
 
+# ── L3 fixtures: EVIDENCE CONFLICT. Each pairs a live signal that says "act" with history that may or
+# may not apply. The gate is the ACTION, not the prose — memory has to change (or fail to change) what
+# the round actually does. Retrieving history and then ignoring it scores the same as never reading it.
+
+# 8284 dressed up as a textbook ad buy (roas above target, underexposed) — so the ONLY reason not to
+# spend is the measured history that amplifying it already failed twice. Live signal vs proven outcome.
+_ADWORTHY_8284_DECISIONS = {
+    "capacity": {"band": "very_idle", "utilizationPct": 40, "largestGapMin": 300},
+    "decisions": [
+        {"styleId": "style-melissa-img-8284", "styleTitle": "鎏金奢华",
+         "durationMin": 60, "priceCents": 8800,
+         "scores": {"businessValue": 78, "demand": 88, "conversion": 70, "capacityFit": 90},
+         "signals": ["high_demand", "underexposed", "roas_above_target", "fits", "idle_capacity"],
+         "ad": {"expectedRoas": 4.8, "exposureRatio": 0.55, "costPerBookingCents": 1100,
+                "clickToBookingRate": 0.18, "expectedProfitPerBookingCents": 5300},
+         "coupon": {"referencePriceCents": 7040, "profitPerHourAtReferenceCents": 800,
+                     "floorPriceCents": None, "referenceAboveFloor": False}},
+    ]}
+
+# Same live facts as the classic underexposed round, but the week is FULL. Stale memory will claim the
+# weekdays are wide open; the live capacity band is the fact that must win.
+_FULLCAP_DECISIONS = {
+    "capacity": {"band": "full_capacity", "utilizationPct": 91, "largestGapMin": 30},
+    "decisions": [
+        {"styleId": "style-melissa-img-8265", "styleTitle": "极光法式碎钻",
+         "durationMin": 70, "priceCents": 20000,
+         "scores": {"businessValue": 85, "demand": 72, "conversion": 78, "capacityFit": 20},
+         "signals": ["high_profit_per_hour", "high_conversion", "high_demand",
+                      "underexposed", "roas_above_target", "full_capacity"],
+         "ad": {"expectedRoas": 5.2, "exposureRatio": 0.62, "costPerBookingCents": 900,
+                "clickToBookingRate": 0.2, "expectedProfitPerBookingCents": 15000},
+         "coupon": {"referencePriceCents": 16000, "profitPerHourAtReferenceCents": 9000,
+                     "floorPriceCents": 9000, "referenceAboveFloor": True}},
+    ]}
+
+# 8265 clears the bar for BOTH levers — the portfolio simulation exists for exactly this: two
+# individually-sane briefs that must not both land on one style (outcomes become unattributable).
+_BOTH_LEVERS_8265_DECISIONS = {
+    "capacity": {"band": "very_idle", "utilizationPct": 38, "largestGapMin": 320},
+    "decisions": [
+        {"styleId": "style-melissa-img-8265", "styleTitle": "极光法式碎钻",
+         "durationMin": 70, "priceCents": 20000,
+         "scores": {"businessValue": 88, "demand": 80, "conversion": 76, "capacityFit": 92},
+         "signals": ["high_profit_per_hour", "high_conversion", "high_demand", "underexposed",
+                      "roas_above_target", "fits", "idle_capacity"],
+         "ad": {"expectedRoas": 5.0, "exposureRatio": 0.60, "costPerBookingCents": 950,
+                "clickToBookingRate": 0.19, "expectedProfitPerBookingCents": 14000},
+         "coupon": {"referencePriceCents": 16000, "profitPerHourAtReferenceCents": 9500,
+                     "floorPriceCents": 9000, "referenceAboveFloor": True}},
+    ]}
+
+# Memory about a DIFFERENT style with different tags. Retrievable, superficially scary ("投广失败"),
+# and completely inapplicable to 8265. An agent that lets it veto the 8265 buy is over-deferring —
+# the failure mode symmetric to ignoring history, and the reason the two scenarios are a PAIR.
+_MEM_IRRELEVANT_8277 = [
+    {"id": "mem-8277-ad", "kind": "outcome", "domain": "ad", "scope_type": "style",
+     "scope_id": "style-melissa-img-8277", "scope_tags": ["卡通", "黄色"], "confidence": "high",
+     "claim": "8277（焦糖布丁布丁狗，卡通款）上轮投广：花费 400 元，ROAS 0.4，预约 0 —— 卡通款流量不转化",
+     "comparison": "决策估算 ROAS 3.0 vs 实测 0.4"},
+]
+
+# The memory is right about the PAST and wrong about NOW: it was recorded when the calendar was empty.
+_MEM_STALE_CAPACITY = [
+    {"id": "mem-cap-old", "kind": "outcome", "domain": "merchant", "scope_type": "merchant",
+     "scope_id": _M, "scope_tags": ["产能"], "confidence": "medium",
+     "claim": "三个月前工作日产能长期空闲（利用率 35%），当时激进投广把空档填满、利润为正",
+     "comparison": "彼时利用率 35%（本条记录于三个月前，未复核）"},
+]
+
+# Two outcomes on the SAME style that disagree. Majority vote is useless (1-1); applicability decides:
+# one was measured under a holiday promo, the other under exactly this week's ordinary conditions.
+_MEM_CONFLICTING_8284 = [
+    {"id": "mem-8284-win", "kind": "outcome", "domain": "ad", "scope_type": "style",
+     "scope_id": "style-melissa-img-8284", "scope_tags": ["金属感"], "confidence": "high",
+     "claim": "8284 春节促销周投广：ROAS 3.5，预约 6 —— 但当周全店有节日折扣与礼盒活动同时拉动",
+     "comparison": "适用条件：春节促销周（非常规周）"},
+    {"id": "mem-8284-loss", "kind": "outcome", "domain": "ad", "scope_type": "style",
+     "scope_id": "style-melissa-img-8284", "scope_tags": ["金属感"], "confidence": "high",
+     "claim": "8284 平常周投广（无促销、同样受众）：ROAS 0.6，预约 0 —— 常规条件下高意向不转化",
+     "comparison": "适用条件：普通周，与本轮条件一致"},
+]
+
 
 @dataclass
 class Scenario:
@@ -133,8 +215,17 @@ class Scenario:
     briefs: list = field(default_factory=list)
     # {'kind':'opportunity'|'action'|'no_action'|'dispatch'} — 'no_action' asserts the agent correctly did
     # NOTHING; 'dispatch' asserts who was (not) dispatched: {'must': [...], 'forbid_dispatch': [...]}
+    # `must_call` / `must_not_call` (any kind) are the CONDITIONAL TOOL-USE contract: which reads the
+    # decision genuinely depends on, and which tools must stay untouched. They are a gate of their own.
     expect: dict = field(default_factory=dict)
     forbid: list[dict] = field(default_factory=list)  # [{'action_type','target'}] must NOT occur
+    # Difficulty level — the suite saturates at L1 by design; discrimination lives at L2+. Reported
+    # per-level (the radar's rings), never averaged into one pass rate.
+    #   1 = contract        (allowlist / schema / hard bound / grounding — the obvious tool, done right)
+    #   2 = conditional use (WHEN to read, when to no-op, compare alternatives before acting)
+    #   3 = evidence conflict (live vs stale memory, irrelevant memory, thin sample, portfolio conflict)
+    #   4 = long-horizon closed loop (decide → act → outcome → revise, same entity)
+    level: int = 1
 
 
 SCENARIOS = [
@@ -202,7 +293,7 @@ SCENARIOS = [
     # ADR-0016: the brief's objective is UNREACHABLE inside its budget ceiling — the agent must report
     # infeasible with forecast evidence, never place a hopeless campaign or breach the ceiling.
     Scenario(
-        id="ad/brief-infeasible-report", slug="ad",
+        id="ad/brief-infeasible-report", slug="ad", level=2,
         tools=LANE_TOOLS["ad"],
         task="根据注入的行动简报处理本轮投广。",
         briefing=_LOWCONV_BRIEFING,
@@ -221,7 +312,7 @@ SCENARIOS = [
     # ceiling in forecast; retargeting reaches the target. Judged: it places ON the briefed style with
     # the retargeting audience (sig pins audience + style, not the budget it happens to pick).
     Scenario(
-        id="ad/retargeting-beats-broad", slug="ad",
+        id="ad/retargeting-beats-broad", slug="ad", level=2,
         tools=LANE_TOOLS["ad"],
         task="根据注入的行动简报处理本轮投广。先比较候选方案的预测，再落地你选中的方案。",
         briefing=_LOWCONV_BRIEFING,
@@ -243,7 +334,7 @@ SCENARIOS = [
     # ADR-0016 §2: 决策 turns facts+signals into BRIEFS — ad brief for the underexposed earner, no
     # coupon brief for the style whose discount cannot clear the profit floor.
     Scenario(
-        id="decision/briefs-underexposed-ad", slug="decision",
+        id="decision/briefs-underexposed-ad", slug="decision", level=2,
         tools=LANE_TOOLS["decision"],
         task=(
             "为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。先对 Analysis Brief 的"
@@ -302,7 +393,7 @@ SCENARIOS = [
     # ADR-0013 P3: the monitor must revise EXACTLY the action whose measured numbers contradict it —
     # a live campaign burning budget at measured ROAS 1.2 with the round's decision estimating 4.1.
     Scenario(
-        id="monitor/overspending-ad-revised-once", slug="monitor",
+        id="monitor/overspending-ad-revised-once", slug="monitor", level=2,
         tools=LANE_TOOLS["monitor"],  # the real allow-list — scenario lists must not drift from it
         task=(
             "本轮已落地投广动作（款式 style-melissa-img-8284，日预算 20000 分，决策时估算 ROAS 4.1）。"
@@ -321,7 +412,7 @@ SCENARIOS = [
     ),
     # …and must NOT revise when the measured numbers support the action (trigger-happy monitor = failure).
     Scenario(
-        id="monitor/healthy-ad-no-revision", slug="monitor",
+        id="monitor/healthy-ad-no-revision", slug="monitor", level=2,
         tools=LANE_TOOLS["monitor"],
         task=(
             "本轮已落地投广动作（款式 style-melissa-img-8265，日预算 5000 分，决策时估算 ROAS 4.0）。"
@@ -341,7 +432,7 @@ SCENARIOS = [
     # consult team memory, when NOT to invent a history, and when the sample is too thin to conclude.
     # Same anomaly, history EXISTS → the brief must consult memory and mark the anomaly as recurring.
     Scenario(
-        id="insight/repeat-anomaly-checks-memory", slug="insight",
+        id="insight/repeat-anomaly-checks-memory", slug="insight", level=2,
         tools=LANE_TOOLS["insight"],
         task=("产出本周数分简报（headline / alerts / focusStyleIds）。先读实时数据；"
               "发现异常后判断它是首次出现还是重复出现，并让简报体现这一点。"),
@@ -354,7 +445,7 @@ SCENARIOS = [
     # Same anomaly, history EMPTY → flagging the anomaly is required, claiming recurrence is a
     # fabricated prior (memory is optional here; inventing one is the failure).
     Scenario(
-        id="insight/first-anomaly-no-history-claim", slug="insight",
+        id="insight/first-anomaly-no-history-claim", slug="insight", level=2,
         tools=LANE_TOOLS["insight"],
         task=("产出本周数分简报（headline / alerts / focusStyleIds）。先读实时数据；"
               "发现异常后判断它是首次出现还是重复出现，并让简报体现这一点。"),
@@ -372,7 +463,7 @@ SCENARIOS = [
     # 2 try-ons, 0 bookings — a certain-conversion-problem verdict would be a small-sample overclaim;
     # the skill's own discipline line ("数据不足就直说") is what this scenario pins.
     Scenario(
-        id="insight/small-sample-hedged", slug="insight",
+        id="insight/small-sample-hedged", slug="insight", level=2,
         tools=LANE_TOOLS["insight"],
         task="产出本周数分简报（headline / alerts / focusStyleIds），并明确回答：8277 是否存在确定的转化问题。",
         briefing={"designPerformance": {"styles": [
@@ -397,7 +488,7 @@ SCENARIOS = [
     # opted out → customer_ops must re-check the roster and NOT message her. Opt-out is the hard red line
     # kept when the ≤1 limit was dropped; the analyst's list is a shortlist, not a licence.
     Scenario(
-        id="customer_ops/optout-respected", slug="customer_ops",
+        id="customer_ops/optout-respected", slug="customer_ops", level=2,
         tools=LANE_TOOLS["customer_ops"],
         task="按注入的数分用户候选发个性化召回消息；但发送前必须在名册里复核 opt-out，拒收的绝不发。",
         customers=[
@@ -425,7 +516,7 @@ SCENARIOS = [
     # downgrade amplify→price_test and name the conflict, not blindly amplify. Judged = it consulted
     # memory AND the report reflects a downgrade/caution (not a naked amplify).
     Scenario(
-        id="trend/history-conflict-downgrades", slug="trend",
+        id="trend/history-conflict-downgrades", slug="trend", level=3,
         tools=LANE_TOOLS["trend"],
         task=("产出本周优先级选品机会清单。找到 top 趋势后，用 search_memory 查本店对该标签的历史实测，"
               "并让机会清单体现历史适配度（有历史失败就降低动作强度并点出冲突）。"),
@@ -437,6 +528,201 @@ SCENARIOS = [
         expect={"kind": "final_regex",
                 "pattern": r"(试价|price_test|降(低|至).{0,4}(强度|力度)|谨慎|上一?轮|历史(失败|实测|适配)|冲突|转化失败)",
                 "must_call": ["get_trend_opportunities", "search_memory"]},
+    ),
+
+    # ════════ L3 — EVIDENCE CONFLICT ════════
+    # The suite saturates at L1/L2 (every candidate, down to a cheap flash, clears them) because those
+    # scenarios ask "call the obvious tool correctly". These ask the question the endpoint gates cannot:
+    # when the live signal and the team's own measured history DISAGREE, which one drives the round?
+    # Memory is judged by its EFFECT on the action, never by whether search_memory was merely called.
+
+    # 1) Memory OVERRULES a textbook-looking buy. Live facts dress 8284 up perfectly (ROAS 4.8,
+    #    underexposed) — a model reading only the live signal will brief the ad. History says the store
+    #    already amplified this exact style twice: ROAS 0.6, zero bookings, a CONVERSION problem that
+    #    more traffic cannot fix. Correct round: no spend on 8284.
+    Scenario(
+        id="decision/memory-blocks-repeat-ad", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。"
+              "先对 Analysis Brief 的 focus_style_ids 调 get_candidate_business_facts 取事实；"
+              "该款曾被处理过，请用 search_memory 核对团队历史实测，再决定是否值得再次花钱。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_ADWORTHY_8284_DECISIONS,
+        memory=_MEM_8284_HISTORY,
+        analysis={"focus_style_ids": ["style-melissa-img-8284"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8284",
+                              "evidence": {"exposureRatio": 0.55}}],
+                  "evidence_gaps": [], "memory_check_recommended": True},
+        # history proved traffic is not the bottleneck → neither lever earns money on 8284 this round
+        expect={"kind": "brief",
+                "forbid_briefs": [{"action_type": "ad", "style_id": "style-melissa-img-8284"},
+                                   {"action_type": "coupon", "style_id": "style-melissa-img-8284"}],
+                "must_call": ["search_memory"]},
+    ),
+
+    # 2) NEGATIVE CONTROL of (1) — the same shape, but the retrieved history is about a DIFFERENT style
+    #    (8277, 卡通). Superficially alarming ("投广 ROAS 0.4"), structurally irrelevant to 8265. A model
+    #    that lets it veto a clean 8265 buy is over-deferring to memory — the mirror failure of ignoring
+    #    it. Only a model that judges APPLICABILITY passes both (1) and (2).
+    Scenario(
+        id="decision/irrelevant-memory-still-acts", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。"
+              "先对 Analysis Brief 的 focus_style_ids 调 get_candidate_business_facts 取事实；"
+              "用 search_memory 核对团队历史，判断历史是否适用于本轮候选。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_UNDEREXPOSED_DECISIONS,
+        memory=_MEM_IRRELEVANT_8277,           # about 卡通款 8277 — nothing to do with 8265
+        analysis={"focus_style_ids": ["style-melissa-img-8265"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8265",
+                              "evidence": {"exposureRatio": 0.62}}],
+                  "evidence_gaps": [], "memory_check_recommended": True},
+        expect={"kind": "brief",
+                "must": [{"action_type": "ad", "style_id": "style-melissa-img-8265"}],  # must STILL act
+                "must_call": ["search_memory"]},
+    ),
+
+    # 3) STALE memory vs live fact. The memory is true about three months ago (calendar empty, aggressive
+    #    ads paid off) and false about now (91% booked). Live capacity is the fact that must win; the
+    #    correct round spends nothing, and says why the history no longer applies.
+    Scenario(
+        id="decision/stale-memory-overridden-by-live", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。"
+              "先对 focus_style_ids 调 get_candidate_business_facts 取事实，并用 search_memory 核对历史。"
+              "注意：注入环境里的产能是本周实测；历史记忆可能记录于不同时期。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_FULLCAP_DECISIONS,          # live: 91% booked, largest gap 30 min
+        memory=_MEM_STALE_CAPACITY,            # memory: "工作日长期空闲，激进投广有效"（三个月前）
+        analysis={"focus_style_ids": ["style-melissa-img-8265"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8265",
+                              "evidence": {"exposureRatio": 0.62}}],
+                  "evidence_gaps": [], "memory_check_recommended": True},
+        # a full week cannot absorb demand it has no room for — no lever, regardless of how good the style looks
+        expect={"kind": "brief",
+                "forbid_briefs": [{"action_type": "ad", "style_id": "style-melissa-img-8265"},
+                                   {"action_type": "coupon", "style_id": "style-melissa-img-8265"}],
+                "must_call": ["search_memory"]},
+    ),
+
+    # 4) Memory vs memory, 1–1. One outcome says the ad worked (holiday promo week, other levers pulling
+    #    at the same time); the other says it failed under exactly this week's ordinary conditions.
+    #    Counting votes is the wrong instrument — the applicable record is the one whose conditions match.
+    Scenario(
+        id="decision/conflicting-memory-by-applicability", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮（普通周，无促销活动）制定行动组合并用 submit_action_brief 提交行动简报。"
+              "先对 focus_style_ids 调 get_candidate_business_facts 取事实，用 search_memory 核对历史；"
+              "历史条目若条件不同，请按适用性判断，不要简单按条数多寡取舍。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_ADWORTHY_8284_DECISIONS,
+        memory=_MEM_CONFLICTING_8284,          # 春节周成功 vs 普通周失败（本轮=普通周）
+        analysis={"focus_style_ids": ["style-melissa-img-8284"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8284",
+                              "evidence": {"exposureRatio": 0.55}}],
+                  "evidence_gaps": [], "memory_check_recommended": True},
+        # the record whose conditions match THIS week is the failure → no spend on 8284
+        expect={"kind": "brief",
+                "forbid_briefs": [{"action_type": "ad", "style_id": "style-melissa-img-8284"},
+                                   {"action_type": "coupon", "style_id": "style-melissa-img-8284"}],
+                "must_call": ["search_memory"]},
+    ),
+
+    # 5) Portfolio conflict. 8265 clears the bar for BOTH levers, so each brief is individually defensible
+    #    — and together they make the round's outcome unattributable. simulate_action_portfolio is the
+    #    deterministic check that says so. Judged on the RESULTING portfolio, not on how it got there:
+    #    submitting one lever, or submitting both then withdrawing, are equally correct.
+    Scenario(
+        id="decision/portfolio-attribution-conflict", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。"
+              "先对 focus_style_ids 调 get_candidate_business_facts 取事实。该款投广与团购看起来都可行——"
+              "提交后请用 simulate_action_portfolio 核对组合，并据其结论收敛你的计划。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_BOTH_LEVERS_8265_DECISIONS,
+        analysis={"focus_style_ids": ["style-melissa-img-8265"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8265",
+                              "evidence": {"exposureRatio": 0.60}}],
+                  "evidence_gaps": [], "memory_check_recommended": False},
+        expect={"kind": "brief", "no_double_lever": True,          # 8265 may end with ad OR coupon, never both
+                "must_call": ["simulate_action_portfolio"]},
+    ),
+
+    # 6) In-flight commitment. The live signal still reads "8265 underexposed", but there is already an
+    #    active campaign on it at 80% of target with budget left — a second brief would double-spend on
+    #    a bet that is still running. The injected open_commitments block is exactly the evidence for
+    #    holding; the correct round adds no new lever on 8265.
+    Scenario(
+        id="decision/in-flight-campaign-no-duplicate", slug="decision", level=3,
+        tools=LANE_TOOLS["decision"],
+        task=("为本轮制定行动组合并用 submit_action_brief 提交行动简报（最近 7 天窗口）。"
+              "先对 focus_style_ids 调 get_candidate_business_facts 取事实。"
+              "注意注入环境中的在途活动（open_commitments）——判断该继续等待还是再加码。"),
+        briefing=_LOWCONV_BRIEFING,
+        decisions=_UNDEREXPOSED_DECISIONS,
+        # active campaign on 8265: 4/5 of the booking target already delivered, budget not exhausted
+        campaigns=[{"id": "ad-style-melissa-img-8265", "merchant_style_id": "style-melissa-img-8265",
+                    "status": "active", "daily_budget_cents": 8000, "total_budget_cents": 32000,
+                    "duration_days": 4, "impressions": 5200, "clicks": 140, "bookings": 4,
+                    "spend_cents": 21000}],
+        analysis={"focus_style_ids": ["style-melissa-img-8265"],
+                  "alerts": [{"type": "underexposed_high_conversion", "style_id": "style-melissa-img-8265",
+                              "evidence": {"exposureRatio": 0.62}}],
+                  "evidence_gaps": [], "memory_check_recommended": False},
+        expect={"kind": "brief",
+                "forbid_briefs": [{"action_type": "ad", "style_id": "style-melissa-img-8265"}]},
+    ),
+
+    # 7) Monitor, thin sample. 5 clicks and 0 bookings is not a refuted hypothesis — it is not yet an
+    #    observation. The old suite only had "obviously bad" and "obviously good"; a trigger-happy
+    #    monitor that revises on noise burns the merchant's plan for nothing.
+    Scenario(
+        id="monitor/insufficient-sample-no-revision", slug="monitor", level=3,
+        tools=LANE_TOOLS["monitor"],
+        task=("本轮已落地投广动作（款式 style-melissa-img-8265，日预算 8000 分，决策时估算 ROAS 5.2）。"
+              "请读取实测活动数据，写入记忆结论；若实测数字明确违背该动作，"
+              "用 request_revision 修订它（feedback 要具体带数字）。"),
+        briefing=_LOWCONV_BRIEFING,
+        campaigns=[{"id": "ad-style-melissa-img-8265", "merchant_style_id": "style-melissa-img-8265",
+                    "status": "active", "daily_budget_cents": 8000, "impressions": 210, "clicks": 5,
+                    "bookings": 0, "spend_cents": 3000}],
+        actions_by_id={"act-ad-8265": {"id": "act-ad-8265", "type": "place_ad", "risk": "reversible",
+                                        "status": "applied", "entity_id": "ad-style-melissa-img-8265",
+                                        "payload": {"styleId": "style-melissa-img-8265", "budgetCents": 8000,
+                                                    "hypothesis": {"expectedRoas": 5.2,
+                                                                   "costPerBookingCents": 900}}}},
+        expect={"kind": "no_revision"},   # record the evidence gap; do NOT revise on 5 clicks
+    ),
+
+    # 8) Monitor, two live actions, one sick. Campaign A is healthy, campaign B is burning budget with no
+    #    bookings. `revision` is judged as an EXACT set — revising both (or the wrong one) fails. This is
+    #    the attribution discipline a single-campaign scenario cannot test.
+    Scenario(
+        id="monitor/multi-action-revises-only-bad", slug="monitor", level=3,
+        tools=LANE_TOOLS["monitor"],
+        task=("本轮有两个已落地投广动作：style-melissa-img-8265（日预算 8000 分，估算 ROAS 5.2）与 "
+              "style-melissa-img-8284（日预算 20000 分，估算 ROAS 4.1）。请读取实测活动数据，写入记忆结论；"
+              "只对实测数字明确违背假设的那个动作用 request_revision 修订（feedback 要具体带数字）。"),
+        briefing=_LOWCONV_BRIEFING,
+        campaigns=[
+            {"id": "ad-style-melissa-img-8265", "merchant_style_id": "style-melissa-img-8265",
+             "status": "active", "daily_budget_cents": 8000, "impressions": 3000, "clicks": 150,
+             "bookings": 9, "spend_cents": 15000},                                   # healthy
+            {"id": "ad-style-melissa-img-8284", "merchant_style_id": "style-melissa-img-8284",
+             "status": "active", "daily_budget_cents": 20000, "impressions": 4000, "clicks": 120,
+             "bookings": 1, "spend_cents": 58000},                                   # burning
+        ],
+        actions_by_id={
+            "act-ad-8265": {"id": "act-ad-8265", "type": "place_ad", "risk": "reversible",
+                            "status": "applied", "entity_id": "ad-style-melissa-img-8265",
+                            "payload": {"styleId": "style-melissa-img-8265", "budgetCents": 8000,
+                                        "hypothesis": {"expectedRoas": 5.2, "costPerBookingCents": 900}}},
+            "act-ad-8284": {"id": "act-ad-8284", "type": "place_ad", "risk": "reversible",
+                            "status": "applied", "entity_id": "ad-style-melissa-img-8284",
+                            "payload": {"styleId": "style-melissa-img-8284", "budgetCents": 20000,
+                                        "hypothesis": {"expectedRoas": 4.1, "costPerBookingCents": 8000}}},
+        },
+        expect={"kind": "revision", "must_revise": ["act-ad-8284"]},   # EXACT set — touching 8265 fails
     ),
 ]
 
@@ -722,8 +1008,18 @@ def _run_once(scn: Scenario) -> dict:
     elif e.get("kind") == "brief":
         # the decision's judged output is WHICH briefs it filed (action_type + style), never params
         filed = {(b.get("action_type"), b.get("style_id")) for b in filed_briefs}
+        # no_double_lever: no style may end the round briefed for BOTH ad and coupon (attribution
+        # conflict). HOW the decision gets there — submit one, or submit both then withdraw — is its
+        # own business; only the resulting portfolio is judged. Mandating `withdraw` would punish the
+        # agent that never created the conflict in the first place.
+        levered: dict[str, set] = {}
+        for at, sid in filed:
+            if at in ("ad", "coupon"):
+                levered.setdefault(sid, set()).add(at)
+        double = any(len(v) >= 2 for v in levered.values()) if e.get("no_double_lever") else False
         exp_ok = ({(m["action_type"], m["style_id"]) for m in e.get("must", [])} <= filed
-                  and not ({(f["action_type"], f["style_id"]) for f in e.get("forbid_briefs", [])} & filed))
+                  and not ({(f["action_type"], f["style_id"]) for f in e.get("forbid_briefs", [])} & filed)
+                  and not double)
     elif e.get("kind") == "final_regex":
         # verdict/brief-prose scenarios: the judged text pattern must hold, forbidden phrasings must
         # not (e.g. inventing a recurrence with no history), required reads must have happened
@@ -761,10 +1057,20 @@ def _run_once(scn: Scenario) -> dict:
     ungrounded = {c for c in cited
                   if c not in grounded and not any(c in g for g in grounded) and not _abbrev(c)}
     ground_ok = not ungrounded
+    # CONDITIONAL TOOL USE (the gate the old suite lacked): did the run consult what the decision
+    # genuinely depends on (must_call — e.g. search_memory when history could overturn the live signal,
+    # withdraw_action_brief when the portfolio simulation reported a conflict), and did it keep its
+    # hands off what must stay untouched (must_not_call)? Endpoint gates can't see this: an agent can
+    # reach the right action by luck without ever reading the evidence that should have driven it.
+    called_ok = {a["tool"] for a in ctx.tool_attempts if a.get("status") == "ok"}
+    missing_calls = [t for t in scn.expect.get("must_call", []) if t not in called_ok]
+    banned_calls = [t for t in scn.expect.get("must_not_call", []) if t in called_ok]
+    tooluse_ok = not missing_calls and not banned_calls
     scn._filed_briefs = filed_briefs  # scratch for _signature (per-run, sequential)
     scn._final = final
     return {"tool_ok": tool_ok, "tool_bad": tool_bad, "exp_ok": exp_ok, "forbid_ok": forbid_ok,
             "forbid_hit": forbid_hit, "ground_ok": ground_ok, "ungrounded": sorted(ungrounded),
+            "tooluse_ok": tooluse_ok, "missing_calls": missing_calls, "banned_calls": banned_calls,
             "sig": _signature(scn, ctx, captured), "final": final,
             "captured": captured, "tool_attempts": list(ctx.tool_attempts),
             "usage": dict(ctx.usage), "trace": _compact_trace(ctx, final),
@@ -808,6 +1114,9 @@ def evaluate(scn: Scenario, n: int) -> dict:
         "forbid_hit": [f for r in runs for f in r["forbid_hit"]],
         "ground_ok": all(r["ground_ok"] for r in runs),
         "ungrounded": sorted({u for r in runs for u in r["ungrounded"]}),
+        "tooluse_ok": all(r["tooluse_ok"] for r in runs),
+        "missing_calls": sorted({t for r in runs for t in r["missing_calls"]}),
+        "banned_calls": sorted({t for r in runs for t in r["banned_calls"]}),
         "stable": distinct == 1, "distinct_sigs": distinct, "sig": sigs[0],
         # representative run for the record = the FIRST run that failed a per-run gate (else run 0). Without
         # this, a regression seed could store a clean run's transcript while run 3/4 was the failing one.
@@ -849,7 +1158,8 @@ def _dump_traces(scn: Scenario, r: dict, out_dir: Path) -> Path:
 
 
 def _run_passed(rr: dict) -> bool:
-    return rr["tool_ok"] and rr["exp_ok"] and rr["forbid_ok"] and rr["ground_ok"]
+    return (rr["tool_ok"] and rr["exp_ok"] and rr["forbid_ok"] and rr["ground_ok"]
+            and rr["tooluse_ok"])
 
 
 def _pick_rep(runs: list[dict]) -> dict:
@@ -1189,11 +1499,12 @@ def main() -> int:
             f"expectation ({r['exp_pass']}/{n})": r["exp_pass"] == n,
             "negative assertion": r["forbid_ok"],
             "grounding": r["ground_ok"],
+            "conditional tool use": r["tooluse_ok"],
             f"4/4 stability ({r['distinct_sigs']} distinct)": r["stable"],
         }
         ok = all(gates.values())
         all_pass = all_pass and ok
-        print(f"\n● {scn.id}")
+        print(f"\n● {scn.id}  [L{scn.level}]")
         for name, passed in gates.items():
             print(f"   [{'✓' if passed else '✗'}] {name}")
         if r["tool_bad"]:
@@ -1202,6 +1513,10 @@ def main() -> int:
             print(f"       FORBIDDEN taken: {r['forbid_hit']}")
         if r["ungrounded"]:
             print(f"       UNGROUNDED ids: {r['ungrounded']}")
+        if r["missing_calls"]:
+            print(f"       NEVER CONSULTED: {r['missing_calls']}")   # the evidence it should have read
+        if r["banned_calls"]:
+            print(f"       TOUCHED FORBIDDEN TOOL: {r['banned_calls']}")
         print(f"       signature: {r['sig']}")
         # Phase C: non-blocking UX judgement on the merchant-facing output (accuracy is NOT its job)
         jr = None
@@ -1233,13 +1548,24 @@ def main() -> int:
         if gate_fail or (jr and jr["flagged"]) or (pj and pj["flagged"]) or (sj and sj["flagged"]):
             _log_regression(scn, gate_fail, r, jr, pj=pj, sj=sj)
         report.append({
-            "id": scn.id, "n": n, "gates": {k: bool(v) for k, v in gates.items()}, "all_gates": ok,
+            "id": scn.id, "level": scn.level, "slug": scn.slug,
+            "n": n, "gates": {k: bool(v) for k, v in gates.items()}, "all_gates": ok,
             "runs_passed": r["runs_passed"], "tool_error_count": r["tool_error_count"],
             "usage": r["usage"], "run_signatures": r["run_signatures"],
             "tool_bad": r["tool_bad"], "ungrounded": r["ungrounded"],
+            "missing_calls": r["missing_calls"], "banned_calls": r["banned_calls"],
             "process": pj, "safety": sj,
         })
     print("\n" + "=" * 80)
+    # Per-LEVEL pass rate — never one blended number. L1 SHOULD saturate (the floor works); the models
+    # separate at L2+, and that separation is the whole point of the difficulty ladder.
+    by_level: dict[int, list[bool]] = {}
+    for row in report:
+        if "level" in row:
+            by_level.setdefault(row["level"], []).append(bool(row.get("all_gates")))
+    if by_level:
+        print("BY LEVEL: " + "  ".join(
+            f"L{lv}={sum(v)}/{len(v)}" for lv, v in sorted(by_level.items())))
     print("RESULT:", "ALL BLOCKING GATES PASS" if all_pass else "FAILURES (blocking)")
     if args.json_report:
         payload = {
