@@ -48,14 +48,21 @@ const agentsCopy = {
     runsEntryBody: '每次运行的思考链与动作',
     demoEntry: '演示控制台',
     runRound: '生成本周经营计划',
-    runSubline: (day: string) => `支持每周${day}自动运行（定时任务）`,
+    runSubline: (freq: string) => `${freq}自动运行（定时任务）`,
     configEdit: '设置',
     configTitle: '经营目标与运行节奏',
-    configGoal: '目标预约（单）',
+    configGoal: '本周目标预约量',
+    configGoalHint: 'AI 团队会围绕这个区间制定投广 / 团购计划，并按此衡量达成进度。',
     configGoalTo: '至',
-    configFocus: '本周经营重点（决策 Agent 下一轮会读取）',
-    configCadence: '自动运行日',
-    configDay: (d: string) => `每周${d}`,
+    configGoalUnit: '单',
+    configFocus: '本周经营重点（可留空）',
+    configFocusHint: '一句话告诉团队本周侧重什么，决策 Agent 下一轮会参考。例：主推夏季清透款，提升周中产能。',
+    configFocusPlaceholder: '例：主推夏季清透款，提升周中产能',
+    configCadence: '自动运行频率',
+    configCadenceHint: '团队多久自动跑一轮经营计划。你也可随时手动点「生成本周经营计划」。',
+    cadenceOpts: { 1: '每天', 2: '每 2 天', 3: '每 3 天', 7: '每周', 14: '每 2 周' } as Record<number, string>,
+    configWeekday: '在星期',
+    configDay: (d: string) => `周${d}`,
     configSave: '保存',
     runningRound: '运行中…',
     runConfirm: '生成本周经营计划会调用模型并产生少量费用，确认运行？',
@@ -92,14 +99,21 @@ const agentsCopy = {
     runsEntryBody: 'Every run’s thinking chain and actions',
     demoEntry: 'Demo console',
     runRound: 'Generate this week’s plan',
-    runSubline: (day: string) => `Auto-runs weekly on ${day} (scheduled)`,
+    runSubline: (freq: string) => `Auto-runs ${freq.toLowerCase()} (scheduled)`,
     configEdit: 'Configure',
     configTitle: 'Goal & cadence',
-    configGoal: 'Target bookings',
+    configGoal: 'This week’s booking target',
+    configGoalHint: 'The AI team plans ads / group-buys around this range and measures progress against it.',
     configGoalTo: 'to',
-    configFocus: 'Weekly focus (read by the decision agent next round)',
-    configCadence: 'Auto-run day',
-    configDay: (d: string) => `Weekly ${d}`,
+    configGoalUnit: 'bookings',
+    configFocus: 'Weekly focus (optional)',
+    configFocusHint: 'One line telling the team what to prioritize; the decision agent reads it next round.',
+    configFocusPlaceholder: 'e.g. push summer sheer looks, fill midweek capacity',
+    configCadence: 'Auto-run frequency',
+    configCadenceHint: 'How often the team auto-runs a plan. You can also tap “Generate this week’s plan” anytime.',
+    cadenceOpts: { 1: 'Daily', 2: 'Every 2 days', 3: 'Every 3 days', 7: 'Weekly', 14: 'Every 2 weeks' } as Record<number, string>,
+    configWeekday: 'on',
+    configDay: (d: string) => `${d}`,
     configSave: 'Save',
     runningRound: 'Running…',
     runConfirm: 'Generating this week’s plan calls the model (small cost). Proceed?',
@@ -255,7 +269,7 @@ export default function MerchantAgentsPage() {
   const [triggering, setTriggering] = useState(false);
   const [memory, setMemory] = useState<TeamMemoryView[]>([]);
   const [objective, setObjective] = useState<WeeklyObjective | null>(null);
-  const [cfg, setCfg] = useState<TeamConfig>({ goalMin: 8, goalMax: 16, focusText: '', cadenceDay: '五' });
+  const [cfg, setCfg] = useState<TeamConfig>({ goalMin: 8, goalMax: 16, focusText: '', cadenceEveryDays: 7, cadenceDay: '五' });
   const [cfgOpen, setCfgOpen] = useState(false);
   const [cfgSaving, setCfgSaving] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -322,7 +336,8 @@ export default function MerchantAgentsPage() {
           {triggering ? (copy.runningRound as string) : (copy.runRound as string)}
         </button>
         <p className="agent-run-subline">
-          {(copy.runSubline as (d: string) => string)(cfg.cadenceDay)}
+          {(copy.runSubline as (d: string) => string)(
+            cfg.cadenceEveryDays === 7 ? (copy.configDay as (d: string) => string)(cfg.cadenceDay).replace(/^/, language === 'zh-CN' ? '每' : 'weekly ') : (copy.cadenceOpts as Record<number, string>)[cfg.cadenceEveryDays])}
           <button type="button" className="agent-config-edit" onClick={() => setCfgOpen(true)}>{copy.configEdit as string}</button>
         </p>
       </section>
@@ -333,22 +348,41 @@ export default function MerchantAgentsPage() {
       <BottomSheet open={cfgOpen} onClose={() => setCfgOpen(false)} title={copy.configTitle as string}>
         <div className="agent-config-form">
           <label className="agent-config-label">{copy.configGoal as string}</label>
+          <p className="agent-config-hint">{copy.configGoalHint as string}</p>
           <div className="agent-config-range">
             <input type="number" min={1} max={99} value={cfg.goalMin}
               onChange={(e) => setCfg((c) => ({ ...c, goalMin: Number(e.target.value) }))} />
             <span>{copy.configGoalTo as string}</span>
             <input type="number" min={1} max={99} value={cfg.goalMax}
               onChange={(e) => setCfg((c) => ({ ...c, goalMax: Number(e.target.value) }))} />
+            <span className="agent-config-unit">{copy.configGoalUnit as string}</span>
           </div>
+
           <label className="agent-config-label">{copy.configFocus as string}</label>
-          <textarea rows={4} value={cfg.focusText}
+          <p className="agent-config-hint">{copy.configFocusHint as string}</p>
+          <textarea rows={3} value={cfg.focusText} placeholder={copy.configFocusPlaceholder as string}
             onChange={(e) => setCfg((c) => ({ ...c, focusText: e.target.value }))} />
+
           <label className="agent-config-label">{copy.configCadence as string}</label>
-          <select value={cfg.cadenceDay} onChange={(e) => setCfg((c) => ({ ...c, cadenceDay: e.target.value }))}>
-            {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
-              <option key={d} value={d}>{(copy.configDay as (d: string) => string)(d)}</option>
-            ))}
-          </select>
+          <p className="agent-config-hint">{copy.configCadenceHint as string}</p>
+          <div className="agent-config-cadence">
+            <select value={cfg.cadenceEveryDays}
+              onChange={(e) => setCfg((c) => ({ ...c, cadenceEveryDays: Number(e.target.value) }))}>
+              {[1, 2, 3, 7, 14].map((n) => (
+                <option key={n} value={n}>{(copy.cadenceOpts as Record<number, string>)[n]}</option>
+              ))}
+            </select>
+            {cfg.cadenceEveryDays === 7 ? (
+              <>
+                <span className="agent-config-inline">{copy.configWeekday as string}</span>
+                <select value={cfg.cadenceDay} onChange={(e) => setCfg((c) => ({ ...c, cadenceDay: e.target.value }))}>
+                  {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
+                    <option key={d} value={d}>{(copy.configDay as (d: string) => string)(d)}</option>
+                  ))}
+                </select>
+              </>
+            ) : null}
+          </div>
           <button
             type="button"
             className="button button-primary button-block"

@@ -172,16 +172,20 @@ export function deriveRunDetail(runId: string, allRuns: AgentRunView[]): AgentRu
           .map(toRunRef)
       : [];
 
-  // Cross-round link: rounds newest-first, so the round BEFORE this one in the array is the LATER round.
-  // Target its 决策 run — the monitor's memory from this round is injected there next round. Sort
-  // defensively so the derivation doesn't depend on the caller's ordering.
-  const ordered = [...allRuns].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-  const rounds = groupRunsIntoRounds(ordered);
-  const idx = rounds.findIndex((rd) => rd.some((r) => r.id === runId));
+  // Cross-round link ONLY on the monitor (reviewer): it MEASURES the round, writes 实测结论 to memory,
+  // and an 偏差 can trip the next round's alarm — so the monitor is the one agent whose output causally
+  // feeds the NEXT round's 决策 (商分). Executors (投广/团购/上下架) stay within their round: showing them
+  // a "下一轮" link is not self-consistent (they don't trigger anything downstream of the round).
+  // rounds are newest-first, so the round BEFORE this one in the array is the LATER (next) round.
   let nextRoundDecision: RunRef | null = null;
-  for (let j = idx - 1; idx > 0 && j >= 0; j -= 1) {
-    const decision = rounds[j].find((r) => r.agentSlug === 'decision') ?? rounds[j].find((r) => r.agentRole === 'planner');
-    if (decision) { nextRoundDecision = toRunRef(decision); break; }
+  if (run.agentRole === 'reviewer') {
+    const ordered = [...allRuns].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+    const rounds = groupRunsIntoRounds(ordered);
+    const idx = rounds.findIndex((rd) => rd.some((r) => r.id === runId));
+    for (let j = idx - 1; idx > 0 && j >= 0; j -= 1) {
+      const decision = rounds[j].find((r) => r.agentSlug === 'decision') ?? rounds[j].find((r) => r.agentRole === 'planner');
+      if (decision) { nextRoundDecision = toRunRef(decision); break; }
+    }
   }
 
   return { run, parent: parent ? toRunRef(parent) : null, children: children.map(toRunRef), auditTargets, nextRoundDecision };

@@ -243,7 +243,11 @@ export function toActionView(action: AgentAction, styleTitles: Record<string, st
   };
 }
 
-/** Split raw actions into the pin (proposed) and the done roll (applied, last 48h, capped). */
+// The done-roll window. Widened from 48h so the roll stays populated across a demo/eval week where the
+// last real round was seeded a few days before it's shown (the count cap is the real limiter anyway).
+const RECENT_DONE_WINDOW_MS = 7 * DAY_MS;
+
+/** Split raw actions into the pin (proposed) and the done roll (applied, last week, capped). */
 export function splitActions(
   actions: AgentAction[],
   nowMs: number,
@@ -257,7 +261,7 @@ export function splitActions(
   const pending = dedupeActionsByEntity(actions.filter((a) => a.status === 'proposed'))
     .map((a) => toActionView(a, styleTitles));
   const recent = dedupeActionsByEntity(
-    actions.filter((a) => a.status === 'applied' && nowMs - Date.parse(a.createdAt) <= 2 * DAY_MS),
+    actions.filter((a) => a.status === 'applied' && nowMs - Date.parse(a.createdAt) <= RECENT_DONE_WINDOW_MS),
   )
     .slice(0, recentLimit)
     .map((a) => toActionView(a, styleTitles));

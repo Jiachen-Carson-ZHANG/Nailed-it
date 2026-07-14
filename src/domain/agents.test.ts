@@ -75,11 +75,12 @@ describe('deriveRunDetail nextRoundDecision (cross-round memory loop)', () => {
     mk('p-decision', 'decision', '2026-07-12T03:02:00Z', 'planner'),
     mk('p-insight', 'insight', '2026-07-12T03:00:00Z', 'analyst'),
   ];
-  it("an earlier round's run links to the next round's 决策", () => {
+  it("only the MONITOR links to the next round's 决策 (executors do not)", () => {
     expect(deriveRunDetail('p-monitor', runs)!.nextRoundDecision?.id).toBe('n-decision');
-    expect(deriveRunDetail('p-insight', runs)!.nextRoundDecision?.id).toBe('n-decision');
+    expect(deriveRunDetail('p-insight', runs)!.nextRoundDecision).toBeNull(); // analyst — no cross-round
+    expect(deriveRunDetail('p-decision', runs)!.nextRoundDecision).toBeNull(); // planner — no cross-round
   });
-  it('the newest round has no next round', () => {
+  it('the newest round monitor has no next round', () => {
     expect(deriveRunDetail('n-monitor', runs)!.nextRoundDecision).toBeNull();
   });
 });

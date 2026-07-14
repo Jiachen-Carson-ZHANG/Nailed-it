@@ -124,11 +124,11 @@ describe('splitActions', () => {
 
   it('routes proposed → pin, recent applied → roll, and drops stale applied', () => {
     const { pending, recent } = splitActions(
-      [mk('p', 'proposed', 0), mk('a', 'applied', 3600_000), mk('old', 'applied', 3 * 86_400_000)],
+      [mk('p', 'proposed', 0), mk('a', 'applied', 3600_000), mk('old', 'applied', 8 * 86_400_000)],
       NOW,
     );
     expect(pending.map((v) => v.id)).toEqual(['p']);
-    expect(recent.map((v) => v.id)).toEqual(['a']); // 'old' (3d > 48h) excluded
+    expect(recent.map((v) => v.id)).toEqual(['a']); // 'old' (8d > 7d window) excluded
   });
 
   it('collapses repeated proposals of the same entity to the latest (demo-data hygiene)', () => {

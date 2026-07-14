@@ -9714,3 +9714,9 @@ button.xhs-card-shape {
 
 /* Cross-round jump on the run detail (下一轮 · 商分): accent-tinted, distinct from neutral lineage links. */
 .agent-run-context-next { color: var(--color-accent-strong); font-weight: 700; }
+
+/* Team config sheet: helper text under each label + inline cadence row. */
+.agent-config-hint { margin: 2px 0 var(--space-2); font-size: var(--text-xs); color: var(--color-muted); line-height: 1.45; }
+.agent-config-unit { font-size: var(--text-xs); color: var(--color-muted); }
+.agent-config-cadence { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.agent-config-inline { font-size: var(--text-sm); color: var(--color-text); }

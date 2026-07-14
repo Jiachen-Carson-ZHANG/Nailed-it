@@ -32,7 +32,8 @@ export type TeamConfig = {
   goalMin: number;
   goalMax: number;
   focusText: string;
-  cadenceDay: string; // 一/二/三/四/五/六/日
+  cadenceEveryDays: number; // 1 (每天) | 2 | 3 | 7 (每周) | 14 — how OFTEN the team auto-runs
+  cadenceDay: string;       // 一…日 — the weekday, used only when cadenceEveryDays === 7
 };
 
 const CADENCE_KEY = 'pref-run-cadence';
@@ -40,7 +41,7 @@ const FOCUS_KEY = 'pref-weekly-focus';
 const GOAL_RE = /本周经营目标：预约 (\d+)–(\d+) 单。?/;
 
 export async function getTeamConfigAction(): Promise<TeamConfig> {
-  const fallback: TeamConfig = { goalMin: 8, goalMax: 16, focusText: '', cadenceDay: '五' };
+  const fallback: TeamConfig = { goalMin: 8, goalMax: 16, focusText: '', cadenceEveryDays: 7, cadenceDay: '五' };
   if (!usesSupabaseBackend()) return fallback;
   const { data } = await getServiceClient()
     .from('agent_memory')
@@ -51,13 +52,25 @@ export async function getTeamConfigAction(): Promise<TeamConfig> {
   const byKey = new Map((data ?? []).map((r: { key: string; claim: string | null }) => [r.key, r.claim ?? '']));
   const focusClaim = byKey.get(FOCUS_KEY) ?? '';
   const goal = GOAL_RE.exec(focusClaim);
-  const day = /每周([一二三四五六日])/.exec(byKey.get(CADENCE_KEY) ?? '')?.[1];
+  const cadenceText = byKey.get(CADENCE_KEY) ?? '';
+  const day = /每周([一二三四五六日])/.exec(cadenceText)?.[1];
+  const everyN = /每\s*(\d+)\s*天/.exec(cadenceText)?.[1];
+  const cadenceEveryDays = /每天/.test(cadenceText) ? 1 : everyN ? Number(everyN) : day ? 7 : fallback.cadenceEveryDays;
   return {
     goalMin: goal ? Number(goal[1]) : fallback.goalMin,
     goalMax: goal ? Number(goal[2]) : fallback.goalMax,
     focusText: focusClaim.replace(GOAL_RE, '').trim() || focusClaim,
+    cadenceEveryDays,
     cadenceDay: day ?? fallback.cadenceDay,
   };
+}
+
+/** The merchant's cadence rendered as the natural-language pref the decision agent reads.
+ *  Module-private: a `'use server'` file may only EXPORT async functions, and this is used only here. */
+function cadenceText(cfg: Pick<TeamConfig, 'cadenceEveryDays' | 'cadenceDay'>): string {
+  if (cfg.cadenceEveryDays === 1) return '每天自动运行一轮经营计划。';
+  if (cfg.cadenceEveryDays === 7) return `每周${cfg.cadenceDay}自动运行一轮经营计划。`;
+  return `每 ${cfg.cadenceEveryDays} 天自动运行一轮经营计划。`;
 }
 
 export async function setTeamConfigAction(cfg: TeamConfig): Promise<boolean> {
@@ -76,7 +89,7 @@ export async function setTeamConfigAction(cfg: TeamConfig): Promise<boolean> {
   };
   const focus = `本周经营目标：预约 ${cfg.goalMin}–${cfg.goalMax} 单。${cfg.focusText.trim()}`.trim();
   await upsertPref(FOCUS_KEY, focus);
-  await upsertPref(CADENCE_KEY, `每周${cfg.cadenceDay}自动运行一轮经营计划。`);
+  await upsertPref(CADENCE_KEY, cadenceText(cfg));
   return true;
 }
 
