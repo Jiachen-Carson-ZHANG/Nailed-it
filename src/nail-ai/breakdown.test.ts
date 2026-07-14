@@ -40,17 +40,19 @@ const settings: MerchantPricingSetting[] = [
   },
 ];
 
+type RawItem = { id: string; quantity: number; unit: string };
+
 function validOutput() {
   return {
-    service_modules: [],
+    service_modules: [] as RawItem[],
     billable_components: [
       { id: 'cat_eye', quantity: 8, unit: 'set' },
       { id: 'gradient', quantity: 3, unit: 'finger' },
-    ],
-    procedures: [],
-    visual_attributes: [],
-    complexity_level: [],
-    style_tags: [],
+    ] as RawItem[],
+    procedures: [] as RawItem[],
+    visual_attributes: [] as RawItem[],
+    complexity_level: [] as RawItem[],
+    style_tags: [] as RawItem[],
   };
 }
 
@@ -60,20 +62,24 @@ describe('parseBreakdownModelOutput', () => {
     expect(() => parseBreakdownModelOutput(missingSection, settings)).toThrow('invalid_model_output');
   });
 
-  it('rejects malformed items and ids placed in the wrong section', () => {
+  it('rejects malformed items', () => {
     expect(() =>
       parseBreakdownModelOutput(
         { ...validOutput(), billable_components: [{ id: 'cat_eye', quantity: 'many', unit: 'set' }] },
         settings,
       ),
     ).toThrow('invalid_model_output');
+  });
 
-    expect(() =>
-      parseBreakdownModelOutput(
-        { ...validOutput(), procedures: [{ id: 'cat_eye', quantity: 1, unit: 'set' }] },
-        settings,
-      ),
-    ).toThrow('invalid_model_output');
+  it('drops a real id placed in the wrong section instead of failing the whole breakdown', () => {
+    // cat_eye is a billable_component; the model wrongly put it in procedures. Skip it, keep the rest.
+    const result = parseBreakdownModelOutput(
+      { ...validOutput(), procedures: [{ id: 'cat_eye', quantity: 1, unit: 'set' }] },
+      settings,
+    );
+    expect(result.items.some((item) => item.glossaryId === 'cat_eye' && item.glossaryType === 'billable_component')).toBe(true);
+    // It must NOT have been accepted as a procedure.
+    expect(result.items.some((item) => item.glossaryType === 'procedure')).toBe(false);
   });
 
   it('drops a known-but-not-ai-detectable component (e.g. nail_tip_full_cover) instead of failing the whole breakdown', () => {
@@ -90,10 +96,14 @@ describe('parseBreakdownModelOutput', () => {
     expect(result.catalogSelections.some((s) => s.catalogItemId === 'nail_tip_full_cover')).toBe(false);
   });
 
-  it('still rejects ids that are not in the glossary at all', () => {
+  it('drops a hallucinated id that is not in the glossary at all (e.g. color_clear)', () => {
+    // The model can invent ids by extrapolating naming patterns (color_nude/pink → color_clear).
+    // Such an id must be dropped, not crash the entire breakdown.
     const output = validOutput();
-    output.billable_components.push({ id: 'totally_made_up_id', quantity: 1, unit: 'set' });
-    expect(() => parseBreakdownModelOutput(output, settings)).toThrow('invalid_model_output');
+    output.visual_attributes.push({ id: 'color_clear', quantity: 1, unit: 'set' });
+    const result = parseBreakdownModelOutput(output, settings);
+    expect(result.items.some((item) => item.glossaryId === 'cat_eye')).toBe(true);
+    expect(result.items.some((item) => item.glossaryId === 'color_clear')).toBe(false);
   });
 
   it('forces per-set quantities to one and preserves quantity-bearing units', () => {

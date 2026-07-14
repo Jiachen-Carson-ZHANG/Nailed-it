@@ -237,16 +237,15 @@ export function parseBreakdownModelOutput(
 
       const id = rawItem.id.trim();
       const entry = glossaryById.get(id);
-      // Unknown id, or an id whose glossary type doesn't match this section, is a hard error:
-      // the provider ignored the schema in a way we can't safely interpret.
-      if (!entry || entry.type !== glossaryType) {
-        invalidModelOutput(`${id} does not belong in ${section}`);
-      }
-      // A real entry of the right type that simply isn't AI-detectable (e.g. ai_detectable:"weak"
-      // components like nail_tip_full_cover). A lenient provider may still report it — drop it
-      // rather than failing the entire breakdown, so the rest of the quote survives.
-      if (!allowedIdsBySection[section].has(id)) {
-        console.warn(`[ai-breakdown] dropping non-ai-detectable ${section} id "${id}" returned by the model`);
+      // The model routinely invents ids (extrapolating naming patterns, e.g. color_clear) or puts a
+      // real id in the wrong section. The provider does not strictly enforce our schema enum, so this
+      // is expected. Drop any id we can't confidently resolve rather than failing the whole breakdown —
+      // a partial quote beats a hard error. Cases dropped here:
+      //   - unknown id (not in glossary)
+      //   - right id, wrong section (glossary type != this section's type)
+      //   - real entry that simply isn't AI-detectable (e.g. ai_detectable:"weak")
+      if (!entry || entry.type !== glossaryType || !allowedIdsBySection[section].has(id)) {
+        console.warn(`[ai-breakdown] dropping unrecognized ${section} id "${id}" returned by the model`);
         return [];
       }
       if (seenIds.has(id)) invalidModelOutput(`${id} was returned more than once`);
@@ -386,7 +385,13 @@ function buildPrompt(): string {
     '}',
     '',
     'GENERAL RULES:',
-    '- Use ONLY exact IDs from the lists below. Never invent IDs.',
+    '- CRITICAL: Use ONLY the exact IDs copied verbatim from the lists below. These IDs are the ONLY',
+    '  valid values — they come directly from our product database. NEVER invent, guess, translate, or',
+    '  extrapolate an ID. If something you see has no matching ID in the lists, DO NOT report it at all.',
+    '- Do NOT infer an id from a naming pattern. For example there is NO "color_clear": a clear/translucent',
+    '  finish is a TEXTURE, so use texture_translucent (透感) — never a made-up color_* id.',
+    '- If you are unsure which id fits, pick the closest EXISTING id from the lists, or omit it. An omitted',
+    '  item is fine; a fabricated id is not.',
     '- Be COMPREHENSIVE — go through every section carefully. Missing items is a bigger error than including an uncertain one.',
     '- solid_color: include if any solid base color is visible (almost always yes).',
     '- Rhinestones/charms: estimate total count across all nails.',
