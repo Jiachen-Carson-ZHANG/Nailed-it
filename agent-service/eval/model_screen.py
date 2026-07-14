@@ -37,7 +37,12 @@ SUBSET = ",".join([
     "coupon/template-restrictions",
 ])
 
-# Candidate strong-tier models (OpenRouter ids verified 2026-07-13; $/1M from the models API).
+# Candidate models. `provider` picks the API the run actually goes through:
+#   openrouter → per-call usage.cost + a key-usage ledger snapshot → DOUBLE-ENTRY cost verification.
+#   gemini     → the merchant's own Google key (native OpenAI-compat endpoint). No cost field and no
+#                ledger, so cost is COMPUTED from tokens × published price and cannot be cross-checked.
+# Mixing providers in one matrix confounds cost/latency (different routing + caching): those two columns
+# are provider-dependent for non-OpenRouter rows, and the matrix says so. Gate results are unaffected.
 CANDIDATES: dict[str, dict] = {
     "gemini-2.5-pro": {"model": "google/gemini-2.5-pro", "price": (1.25, 10.00), "note": "incumbent"},
     "gemini-3.1-pro": {"model": "google/gemini-3.1-pro-preview", "price": (2.00, 12.00), "note": "newest gemini"},
@@ -45,6 +50,14 @@ CANDIDATES: dict[str, dict] = {
     "qwen3.7-max": {"model": "qwen/qwen3.7-max", "price": (1.25, 3.75), "note": "CN-strong"},
     "claude-sonnet-5": {"model": "anthropic/claude-sonnet-5", "price": (2.00, 10.00), "note": "tool-use reference"},
     "gpt-5.6-terra": {"model": "openai/gpt-5.6-terra", "price": (2.50, 15.00), "note": "mainstream reference"},
+    # Same gemini models, run on the OWNER'S OWN Google key (native API) instead of through OpenRouter.
+    "gemini-3.1-pro-native": {"model": "gemini-3.1-pro-preview", "provider": "gemini",
+                              "price": (2.00, 12.00), "note": "newest gemini · own key"},
+    "gemini-2.5-flash-native": {"model": "gemini-2.5-flash", "provider": "gemini",
+                                "price": (0.30, 2.50), "note": "light-tier · own key"},
+    # there is no plain `gemini-3.1-flash` on the native API — the 3.1 flash tier ships as flash-lite
+    "gemini-3.1-flash-native": {"model": "gemini-3.1-flash-lite", "provider": "gemini",
+                                "price": (0.10, 0.40), "note": "newest flash (lite) · own key"},
     # light-tier candidates — screened ONLY on the read lanes (insight/trend/catalog/customer_ops) to
     # test whether the cheap tier is adequate there (分档实测), never on the judgment subset.
     "gemini-2.5-flash": {"model": "google/gemini-2.5-flash", "price": (0.30, 2.50), "note": "light-tier"},
@@ -70,13 +83,15 @@ def _key_usage_usd(api_key: str) -> float | None:
 
 
 def screen_one(slug: str, model_id: str, n: int, api_key: str,
-               only: str = SUBSET, tag: str = "") -> dict:
+               only: str = SUBSET, tag: str = "", provider: str = "openrouter",
+               price: tuple[float, float] | None = None) -> dict:
     _OUT.mkdir(parents=True, exist_ok=True)
     suffix = f"-{tag}" if tag else ""
     report_path = _OUT / f"{slug}{suffix}.json"
     log_path = _OUT / f"{slug}{suffix}.log"
-    env = {**os.environ, "MODEL_PROVIDER": "openrouter", **{v: model_id for v in _TIER_VARS}}
-    before = _key_usage_usd(api_key)
+    env = {**os.environ, "MODEL_PROVIDER": provider, **{v: model_id for v in _TIER_VARS}}
+    # the ledger cross-check only exists on OpenRouter; a native-key run is priced from its own tokens
+    before = _key_usage_usd(api_key) if provider == "openrouter" else None
     t0 = time.monotonic()
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.run(
@@ -85,22 +100,41 @@ def screen_one(slug: str, model_id: str, n: int, api_key: str,
             env=env, cwd=str(_HERE.parent), stdout=log, stderr=subprocess.STDOUT,
         )
     wall = round(time.monotonic() - t0, 1)
-    after = _key_usage_usd(api_key)
+    after = _key_usage_usd(api_key) if provider == "openrouter" else None
     rep = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {"scenarios": []}
     scns = rep.get("scenarios", [])
     total_runs = sum(len(s.get("runs_passed", [])) for s in scns)
     failed_runs = sum(sum(1 for p in s.get("runs_passed", []) if not p) for s in scns)
     seconds = [x for s in scns for x in s.get("usage", {}).get("seconds_per_run", [])]
+    tok_in = sum(s.get("usage", {}).get("prompt_tokens", 0) for s in scns)
+    tok_out = sum(s.get("usage", {}).get("completion_tokens", 0) for s in scns)
+    # OpenRouter reports what it actually charged (incl. caching discounts). A native-key run has no
+    # cost field, so it is priced from ITS OWN tokens at list price — an UPPER bound (no cache credit),
+    # and not comparable like-for-like with a charged OpenRouter figure. The matrix flags which is which.
+    reported = round(sum(s.get("usage", {}).get("cost_usd", 0.0) for s in scns), 4)
+    if provider != "openrouter" and not reported and price:
+        reported = round(tok_in * price[0] / 1e6 + tok_out * price[1] / 1e6, 4)
+    # per-LEVEL gate results — the difficulty ladder is the whole point; never one blended pass rate
+    by_level: dict[str, str] = {}
+    lv: dict[int, list[bool]] = {}
+    for s in scns:
+        if "level" in s:
+            lv.setdefault(s["level"], []).append(bool(s.get("all_gates")))
+    for k, v in sorted(lv.items()):
+        by_level[f"L{k}"] = f"{sum(v)}/{len(v)}"
     row = {
-        "slug": slug, "model": model_id, "exit_code": proc.returncode,
+        "slug": slug, "model": model_id, "provider": provider, "exit_code": proc.returncode,
         "scenarios_green": sum(1 for s in scns if s.get("all_gates")),
         "scenarios_total": len(scns),
+        "by_level": by_level,
         "runs_failed": failed_runs, "runs_total": total_runs,
         "flake_rate": round(failed_runs / total_runs, 3) if total_runs else None,
         "tool_errors": sum(s.get("tool_error_count", 0) for s in scns),
-        "prompt_tokens": sum(s.get("usage", {}).get("prompt_tokens", 0) for s in scns),
-        "completion_tokens": sum(s.get("usage", {}).get("completion_tokens", 0) for s in scns),
-        "cost_reported_usd": round(sum(s.get("usage", {}).get("cost_usd", 0.0) for s in scns), 4),
+        "tool_calls": sum(s.get("tool_call_count", 0) for s in scns),
+        "prompt_tokens": tok_in, "completion_tokens": tok_out,
+        "completion_tokens_per_run": round(tok_out / total_runs) if total_runs else None,
+        "cost_reported_usd": reported,
+        "cost_basis": "charged (openrouter)" if provider == "openrouter" else "computed from tokens (list price, upper bound)",
         "cost_ledger_usd": round(after - before, 4) if before is not None and after is not None else None,
         "mean_run_seconds": round(sum(seconds) / len(seconds), 1) if seconds else None,
         "wall_seconds": wall,
@@ -111,24 +145,40 @@ def screen_one(slug: str, model_id: str, n: int, api_key: str,
 
 def matrix_md(rows: list[dict], n: int, only: str = SUBSET, tag: str = "") -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    title = f"Model screen — {tag or 'judgment subset'} ({len(only.split(','))} scenarios × n={n})"
+    title = f"Model screen — {tag or 'judgment subset'} (n={n})"
+    mixed = len({r.get("provider", "openrouter") for r in rows}) > 1
     lines = [
         f"# {title}",
         f"Scenarios: {only}",
         f"Generated {ts}. Protocol: doc 06 (floor: all gates green → flake rate → cost → latency).",
+        "Per-LEVEL gates are reported separately — L1 (contract) is EXPECTED to saturate; the models",
+        "are supposed to separate at L2 (conditional tool use) and L3 (evidence conflict).",
         "",
-        "| model | gates green | failed runs (flake) | tool errs | cost measured $ | ledger $ | mean s/run | tokens in/out |",
-        "|---|---|---|---|---|---|---|---|",
+        "| model | provider | L1 | L2 | L3 | gates green | flake | tool errs | tool calls | cost $ | ledger $ | s/run | out-tok/run | tokens in/out |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
+        bl = r.get("by_level", {})
         lines.append(
-            f"| {r['slug']} | {r['scenarios_green']}/{r['scenarios_total']} "
+            f"| {r['slug']} | {r.get('provider', 'openrouter')} "
+            f"| {bl.get('L1', '—')} | {bl.get('L2', '—')} | {bl.get('L3', '—')} "
+            f"| {r['scenarios_green']}/{r['scenarios_total']} "
             f"| {r['runs_failed']}/{r['runs_total']} ({r['flake_rate']}) "
-            f"| {r['tool_errors']} | {r['cost_reported_usd']} | {r['cost_ledger_usd']} "
-            f"| {r['mean_run_seconds']} | {r['prompt_tokens']}/{r['completion_tokens']} |"
+            f"| {r['tool_errors']} | {r.get('tool_calls', '—')} "
+            f"| {r['cost_reported_usd']} | {r['cost_ledger_usd']} "
+            f"| {r['mean_run_seconds']} | {r.get('completion_tokens_per_run', '—')} "
+            f"| {r['prompt_tokens']}/{r['completion_tokens']} |"
         )
         if r["errors"]:
-            lines.append(f"|  | failing: {', '.join(r['errors'])} | | | | | | |")
+            lines.append(f"|  | failing: {', '.join(r['errors'])} | | | | | | | | | | | | |")
+    if mixed:
+        lines += [
+            "",
+            "> **Cost/latency are NOT like-for-like across providers.** OpenRouter rows are what the",
+            "> gateway actually CHARGED (caching discounts included) and are cross-checked against its",
+            "> ledger. Native-key rows have no cost field or ledger: they are priced from their own",
+            "> tokens at list price — an UPPER bound. Gate results (the selection floor) are unaffected.",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -145,16 +195,22 @@ def main() -> int:
     if args.only != SUBSET and not args.tag:
         raise SystemExit("--only without --tag would overwrite the frozen screen rows; pass --tag")
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
+    wanted = {CANDIDATES[s].get("provider", "openrouter") for s in args.candidates if s in CANDIDATES}
+    if "openrouter" in wanted and not api_key:
         raise SystemExit("OPENROUTER_API_KEY missing from environment")
+    if "gemini" in wanted and not os.environ.get("GEMINI_API_KEY", ""):
+        raise SystemExit("GEMINI_API_KEY missing — a *-native candidate runs on the owner's own Google key")
     _OUT.mkdir(parents=True, exist_ok=True)
     matrix_name = f"matrix-{args.tag}.md" if args.tag else "matrix.md"
     rows = []
     for slug in args.candidates:
         if slug not in CANDIDATES:
             raise SystemExit(f"unknown candidate '{slug}' — known: {', '.join(CANDIDATES)}")
-        print(f"=== {slug} ({CANDIDATES[slug]['model']}) — {args.tag or 'subset'} × n={args.n} ===", flush=True)
-        row = screen_one(slug, CANDIDATES[slug]["model"], args.n, api_key, only=args.only, tag=args.tag)
+        cand = CANDIDATES[slug]
+        prov = cand.get("provider", "openrouter")
+        print(f"=== {slug} ({cand['model']} via {prov}) — {args.tag or 'subset'} × n={args.n} ===", flush=True)
+        row = screen_one(slug, cand["model"], args.n, api_key, only=args.only, tag=args.tag,
+                         provider=prov, price=cand.get("price"))
         rows.append(row)
         print(json.dumps(row, ensure_ascii=False), flush=True)
         (_OUT / matrix_name).write_text(matrix_md(rows, args.n, only=args.only, tag=args.tag),

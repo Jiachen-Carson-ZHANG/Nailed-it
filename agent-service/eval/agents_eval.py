@@ -926,6 +926,16 @@ def _run_once(scn: Scenario) -> dict:
         ctx.analysis_sink = filed_analysis.append  # the Analysis Brief capability, exactly as live
     if scn.slug == "decision":
         ctx.brief_sink = filed_briefs.append  # the Action Brief capability, exactly as live
+
+        def _withdraw(action_type: str, style_id: str) -> bool:
+            """Retract a filed brief — the capability withdraw_action_brief needs. Without it the tool
+            raises `briefs_not_allowed` and a model that correctly resolves a portfolio conflict by
+            withdrawing gets marked wrong for the harness's omission (measured, then fixed)."""
+            before = len(filed_briefs)
+            filed_briefs[:] = [b for b in filed_briefs
+                               if not (b.get("action_type") == action_type and b.get("style_id") == style_id)]
+            return len(filed_briefs) < before
+        ctx.brief_withdraw = _withdraw
         if scn.analysis:  # inject 数分's Analysis Brief through the LIVE formatter
             from nailed_agents.orchestrator import _analysis_context
             task = f"{task}\n\n{_analysis_context(scn.analysis)}"
@@ -953,6 +963,17 @@ def _run_once(scn: Scenario) -> dict:
     token = tools.use_context(ctx)
     try:
         with _stub_bus(scn, captured):
+            # 决策's strategic environment — merchant policy, capacity band, candidate index, and
+            # OPEN COMMITMENTS (in-flight campaigns → hold-vs-push). Built inside the stub so it reads
+            # the scenario's own fixtures through the SAME formatter the live lane uses. It has to be
+            # here and not in the task assembly above: the bus is only stubbed inside this block.
+            # Without it the decision agent could not see an active campaign at all, and the
+            # "don't re-brief a bet that is still running" scenario was unwinnable (measured, fixed).
+            if scn.slug == "decision":
+                from nailed_agents.orchestrator import _decision_context
+                env = _decision_context(ctx.sb)
+                if env:
+                    task = f"{task}\n\n{env}"
             model = {"orchestrator": config.ORCHESTRATOR_MODEL, "monitor": config.MONITOR_MODEL,
                      "decision": config.DECISION_MODEL, "ad": config.AD_MODEL,
                      "coupon": config.COUPON_MODEL}.get(scn.slug)
@@ -1128,6 +1149,8 @@ def evaluate(scn: Scenario, n: int) -> dict:
         "transcripts": [r["transcript"] for r in runs],  # RAW per-run steps for --dump-traces
         "finals": [r["final"] for r in runs],
         "tool_error_count": sum(1 for r in runs for a in r["tool_attempts"] if a.get("status") != "ok"),
+        "tool_call_count": sum(len(r["tool_attempts"]) for r in runs),   # radar: 工具调用次数
+        "tools_used": sorted({a["tool"] for r in runs for a in r["tool_attempts"]}),
         "usage": {
             "prompt_tokens": sum(r["usage"].get("prompt_tokens", 0) for r in runs),
             "completion_tokens": sum(r["usage"].get("completion_tokens", 0) for r in runs),
@@ -1518,6 +1541,12 @@ def main() -> int:
         if r["banned_calls"]:
             print(f"       TOUCHED FORBIDDEN TOOL: {r['banned_calls']}")
         print(f"       signature: {r['sig']}")
+        u = r["usage"]
+        secs = u.get("seconds_per_run") or [0.0]
+        print(f"       cost ${u.get('cost_usd', 0):.4f} · {sum(secs) / len(secs):.1f}s/run · "
+              f"tok {u.get('prompt_tokens', 0)}in/{u.get('completion_tokens', 0)}out "
+              f"({u.get('completion_tokens', 0) // max(1, n)}out/run) · "
+              f"{r['tool_call_count']} tool calls: {','.join(r['tools_used']) or '—'}")
         # Phase C: non-blocking UX judgement on the merchant-facing output (accuracy is NOT its job)
         jr = None
         if judge:
