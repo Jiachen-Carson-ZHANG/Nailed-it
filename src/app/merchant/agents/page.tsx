@@ -17,7 +17,7 @@ import {
   type TeamMemoryView,
   type WeeklyObjectiveItem,
 } from '@/lib/actions/agent-actions';
-import { getMerchantAgentRunPath } from '@/domain/session';
+import { getMerchantAgentRunPath, getMerchantAgentHistoryPath } from '@/domain/session';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import { groupRunsIntoRounds, FULL_ROUND_MIN_RUNS, type Agent, type AgentRole, type AgentRunView, type RunStatus, type TriggerSource } from '@/domain/agents';
@@ -408,13 +408,13 @@ export default function MerchantAgentsPage() {
             {(() => {
               const bySlug = new Map(agents.map((a) => [a.slug, a]));
               // Presence (Multica pattern): tie 团队成员 to 最近运行 — live dot + the agent's last outcome.
-              // The card links to that agent's most recent run detail (its thinking chain).
+              // The card links to that agent's HISTORY (every round it ran), not just its latest run.
               const card = (slug: string) => {
                 const a = bySlug.get(slug as Agent['slug']);
                 if (!a) return null;
                 const mine = runs.filter((r) => r.agentSlug === a.slug);
                 const isRunning = mine.some((r) => r.status === 'running');
-                const last = mine[0]; // runs are newest-first
+                const hasRuns = mine.length > 0;
                 // Team INTRO card: name + role + live presence only. Per-run status/time moved to the
                 // 最近轮次 section — mixing timestamps from different rounds here read as chaos.
                 const inner = (
@@ -426,8 +426,8 @@ export default function MerchantAgentsPage() {
                     <span className={`agent-role-chip agent-role-${a.role}`}>{copy.role[a.role]}</span>
                   </>
                 );
-                return last ? (
-                  <Link key={a.slug} className="agent-card agent-card--link" href={getMerchantAgentRunPath(last.id)}>
+                return hasRuns ? (
+                  <Link key={a.slug} className="agent-card agent-card--link" href={getMerchantAgentHistoryPath(a.slug)}>
                     {inner}
                   </Link>
                 ) : (

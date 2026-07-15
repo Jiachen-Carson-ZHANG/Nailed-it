@@ -60,7 +60,8 @@ const merchantPaths = {
   messageDetail: (conversationId: string) => `/merchant/messages/${conversationId}`,
   styleDetail: (id: string) => `/merchant/styles/${id}/review`,
   agents: '/merchant/agents',
-  agentRun: (id: string) => `/merchant/agents/runs/${id}`
+  agentRun: (id: string) => `/merchant/agents/runs/${id}`,
+  agentHistory: (slug: string) => `/merchant/agents/history/${slug}`
 };
 
 const mockSessionTemplatesByRole: Record<UserRole, MockSessionTemplate> = {
@@ -256,6 +257,11 @@ export function getMerchantAgentsPath(): string {
 
 export function getMerchantAgentRunPath(id: string): string {
   return merchantPaths.agentRun(id);
+}
+
+/** All rounds a single agent has run — its history across rounds (newest first). */
+export function getMerchantAgentHistoryPath(slug: string): string {
+  return merchantPaths.agentHistory(slug);
 }
 
 export function getCustomerTryOnPath(styleId?: string): string {
