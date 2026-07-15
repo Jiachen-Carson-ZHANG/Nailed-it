@@ -31,7 +31,17 @@ function ImageSlot({ label, description, uploadAria, image, prefillImageUrl, onI
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // TEMP DIAGNOSTIC: log the picked file's type/size so we can see what iPhone camera delivers.
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[诊断 upload]', label, 'type=', JSON.stringify(file.type), 'size=', file.size, 'name=', file.name);
+    } catch { /* ignore */ }
+
     const reader = new FileReader();
+    reader.addEventListener('error', () => {
+      // eslint-disable-next-line no-console
+      console.log('[诊断 upload] FileReader error', reader.error?.name, reader.error?.message);
+    });
     reader.addEventListener('load', () => {
       const previewUrl = typeof reader.result === 'string' ? reader.result : '';
       const imageBase64 = previewUrl.split(',')[1] ?? '';
@@ -140,14 +150,32 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   async function generate() {
     if (!handImage) return;
 
+    // ── TEMP DIAGNOSTIC (remove after root-causing the mobile "did not match the expected pattern" error) ──
+    // 中文注释：临时诊断——把走到哪一步、图片类型/大小、真实错误 name+stack 全部暴露出来，
+    // 用于在 iPhone 上复现时定位真正的抛出点。定位后整段删除。
+    let __diagStep = 'start';
+    const __diag = (s: string) => { __diagStep = s; };
+    const __diagInfo = () => ({
+      step: __diagStep,
+      handMime: handImage?.mimeType,
+      handLen: handImage?.imageBase64?.length,
+      styleMime: styleImage?.mimeType,
+      styleLen: styleImage?.imageBase64?.length,
+      hasPrefill: Boolean(prefillStyleImageUrl),
+      prefill: prefillStyleImageUrl?.slice(0, 40),
+    });
+
     let finalStyleBase64 = styleImage?.imageBase64 ?? null;
     let finalStyleMime = styleImage?.mimeType ?? null;
 
     if (!finalStyleBase64 && prefillStyleImageUrl) {
       try {
+        __diag('fetch-prefill');
         const res = await fetch(prefillStyleImageUrl);
+        __diag('prefill-blob');
         const blob = await res.blob();
         const reader = new FileReader();
+        __diag('prefill-readAsDataURL');
         finalStyleBase64 = await new Promise<string>((resolve) => {
           reader.addEventListener('load', () => {
             const dataUrl = typeof reader.result === 'string' ? reader.result : '';
@@ -156,8 +184,9 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
           reader.readAsDataURL(blob);
         });
         finalStyleMime = blob.type || 'image/jpeg';
-      } catch {
-        setError(t('tryOn.prefillLoadError'));
+      } catch (e) {
+        // TEMP DIAGNOSTIC: surface the real error instead of the generic prefill message.
+        setError(`[诊断 prefill] ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)} | info=${JSON.stringify(__diagInfo())}`);
         return;
       }
     }
@@ -172,18 +201,22 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
     setResult(null);
 
     try {
+      __diag('build-body');
+      const requestBody = JSON.stringify({
+        handImageBase64: handImage.imageBase64,
+        handMimeType: handImage.mimeType,
+        styleImageBase64: finalStyleBase64,
+        styleMimeType: finalStyleMime,
+        userComment: userComment.trim(),
+      });
+      __diag('fetch-tryon');
       const response = await fetch('/api/ai/try-on', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handImageBase64: handImage.imageBase64,
-          handMimeType: handImage.mimeType,
-          styleImageBase64: finalStyleBase64,
-          styleMimeType: finalStyleMime,
-          userComment: userComment.trim(),
-        })
+        body: requestBody,
       });
 
+      __diag('parse-json');
       const body = (await response.json()) as TryOnResult & { error?: string; code?: string };
 
       if (!response.ok) {
@@ -193,6 +226,7 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
         throw new Error(body.error ?? t('tryOn.tryOnFailed'));
       }
 
+      __diag('set-result');
       setResult(body);
       track('try_on_completed', {
         styleId,
@@ -200,7 +234,9 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
         eventSource: 'try_on',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('tryOn.tryOnFailed'));
+      // TEMP DIAGNOSTIC: show error name + step + image info so the real WebKit throw point is visible on-device.
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      setError(`[诊断 generate] ${detail} | info=${JSON.stringify(__diagInfo())}`);
     } finally {
       setIsGenerating(false);
     }
