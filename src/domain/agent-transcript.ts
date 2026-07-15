@@ -460,6 +460,31 @@ const TOOL_ACTION_TYPE: Record<string, AgentActionType> = {
   propose_listing: 'draft_upload', send_customer_message: 'send_customer_message',
 };
 
+// ── 选品 (trend) demo copy patch ────────────────────────────────────────────────
+// Display-only rewrite for the 选品 thinking chain: the live external-trend fetch stored off-brand
+// labels + English trends (4th-of-july …) in the run. This rewrites the RENDERED prose only — the
+// stored run is untouched — so the on-stage chain reads clean. Scoped to trend runs (AgentRunDetailClient).
+const TREND_DEMO_RELABEL: ReadonlyArray<readonly [RegExp, string]> = [
+  [/金属感/g, '千金风'],
+  [/暗黑/g, '玫瑰'],
+];
+
+export function patchTrendDemoText(text: string): string {
+  let t = text ?? '';
+  for (const [re, to] of TREND_DEMO_RELABEL) t = t.replace(re, to);
+  // Drop priority-list items numbered 5+ (the off-brand live-fetched trends below 「鎏金奢华」).
+  t = t.replace(/\n\s*[5-9]\.\s*趋势[：:][\s\S]*$/, '');
+  return t;
+}
+
+export function patchTrendDemoTranscript(steps: TranscriptStep[]): TranscriptStep[] {
+  return steps.map((s) => {
+    if (s.kind === 'reasoning') return { ...s, text: patchTrendDemoText(s.text) };
+    if (s.kind === 'action') return { ...s, summary: patchTrendDemoText(s.summary) };
+    return s; // tool_call labels live in the raw-JSON expander — leave the exhaust alone
+  });
+}
+
 /** Drop 'action' steps that restate the tool_call right before them. The action's status still shows on
  *  the run's 执行动作 list — the chain reads as a narrative, not a double-entry ledger. */
 export function condenseTranscript(steps: TranscriptStep[]): TranscriptStep[] {
