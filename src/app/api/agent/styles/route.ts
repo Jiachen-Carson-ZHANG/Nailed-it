@@ -12,6 +12,8 @@ export async function GET() {
       title: s.title,
       merchantId: s.merchantId,
       tags: s.discoveryFacets.map((f) => f.label),
+      // imageUrl lets 用户运营 attach the recommended style's photo to a relationship message.
+      imageUrl: s.imageUrl,
     })),
   });
 }

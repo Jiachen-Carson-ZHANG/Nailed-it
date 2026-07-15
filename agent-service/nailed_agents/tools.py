@@ -427,6 +427,25 @@ def forecast_ad_plan(style_id: str, audience: str, total_budget_cents: int, dura
     style_id = _clean_style_id(style_id)
     total_budget_cents = _bounded_int(total_budget_cents, field="total_budget_cents", maximum=_MAX_AD_BUDGET_CENTS)
     duration_days = _bounded_int(duration_days, field="duration_days", maximum=30)
+    fc = _forecast_for_ad_plan(style_id, audience, total_budget_cents, duration_days)
+    # brief guardrails surface as warnings at forecast time (hard refusal happens at place time)
+    for b in _my_briefs(ctx, "ad"):
+        if b.get("style_id") == style_id:
+            if total_budget_cents > b["max_total_budget_cents"]:
+                fc["warnings"].append("该预算超出行动简报的硬上限——place_ad 会拒绝。")
+            cap = b.get("max_cost_per_booking_cents")
+            if cap and fc["expected_cost_per_booking_cents"] and fc["expected_cost_per_booking_cents"][1] > cap:
+                fc["warnings"].append("预计每单成本区间上限超简报 CAC 上限——place_ad 会拒绝该方案。")
+    ctx.transcript.append(
+        {"kind": "tool_call", "tool": "forecast_ad_plan",
+         "input": {"styleId": style_id, "audience": audience, "totalBudgetCents": total_budget_cents,
+                    "durationDays": duration_days},
+         "output": fc}
+    )
+    return json.dumps(fc, ensure_ascii=False)
+
+
+def _forecast_for_ad_plan(style_id: str, audience: str, total_budget_cents: int, duration_days: int) -> dict[str, Any]:
     facts = _style_facts(style_id)
     fc = sandbox.forecast(
         audience=audience, total_budget_cents=total_budget_cents, duration_days=duration_days,
@@ -436,21 +455,24 @@ def forecast_ad_plan(style_id: str, audience: str, total_budget_cents: int, dura
     if not facts["cvr_measured"]:
         fc["confidence"] = min(fc["confidence"], 0.4)
         fc["warnings"].append("该款没有实测点击→预约样本，预测使用保守默认值——不确定性很高。")
-    # brief guardrails surface as warnings at forecast time (hard refusal happens at place time)
-    for b in _my_briefs(ctx, "ad"):
-        if b.get("style_id") == style_id:
-            if total_budget_cents > b["max_total_budget_cents"]:
-                fc["warnings"].append("该预算超出行动简报的硬上限——place_ad 会拒绝。")
-            cap = b.get("max_cost_per_booking_cents")
-            if cap and fc["expected_cost_per_booking_cents"] and fc["expected_cost_per_booking_cents"][0] > cap:
-                fc["warnings"].append("预计每单成本区间下限已超简报 CAC 上限——考虑换受众或降预算。")
-    ctx.transcript.append(
-        {"kind": "tool_call", "tool": "forecast_ad_plan",
-         "input": {"styleId": style_id, "audience": audience, "totalBudgetCents": total_budget_cents,
-                    "durationDays": duration_days},
-         "output": fc}
-    )
-    return json.dumps(fc, ensure_ascii=False)
+    return fc
+
+
+def _enforce_ad_brief_forecast(brief: dict[str, Any], forecast: dict[str, Any]) -> None:
+    target_min = brief.get("target_bookings_min")
+    bookings = forecast.get("expected_bookings") or []
+    if target_min and (len(bookings) < 2 or bookings[0] < target_min):
+        raise ValueError("forecast_misses_booking_target")
+
+    cac_cap = brief.get("max_cost_per_booking_cents")
+    cpa = forecast.get("expected_cost_per_booking_cents")
+    if cac_cap and (not isinstance(cpa, list) or len(cpa) < 2 or cpa[1] > cac_cap):
+        raise ValueError("forecast_exceeds_cac_brief")
+
+    minutes_cap = brief.get("max_booked_minutes")
+    minutes = forecast.get("expected_booked_minutes") or []
+    if minutes_cap and (len(minutes) < 2 or minutes[1] > minutes_cap):
+        raise ValueError("forecast_exceeds_booked_minutes_brief")
 
 
 def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_days: int = 4) -> str:
@@ -483,6 +505,12 @@ def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_day
             raise ValueError("style_not_in_brief")
         if total_budget_cents > mine["max_total_budget_cents"]:
             raise ValueError("budget_exceeds_brief")
+    else:
+        mine = None
+
+    fc = _forecast_for_ad_plan(style_id, audience, total_budget_cents, duration_days)
+    if mine is not None:
+        _enforce_ad_brief_forecast(mine, fc)
 
     # The wallet is a hard rule too (ADR-0016): brief ceilings bound each action separately, but
     # they compete for ONE marketing budget — placement refuses what the wallet can't honor.
@@ -517,11 +545,6 @@ def place_ad(style_id: str, audience: str, total_budget_cents: int, duration_day
     except Exception:
         print("WARN campaign sandbox columns missing — apply migration 0033_ad_sandbox.sql")
 
-    facts = _style_facts(style_id)
-    fc = sandbox.forecast(audience=audience, total_budget_cents=total_budget_cents,
-                          duration_days=duration_days, style_cvr=facts["style_cvr"],
-                          service_minutes=facts["service_minutes"],
-                          contribution_profit_cents=facts["contribution_profit_cents"])
     payload = {
         "styleId": style_id, "audience": audience, "totalBudgetCents": total_budget_cents,
         "durationDays": duration_days, "dailyBudgetCents": daily_budget_cents,
@@ -853,30 +876,56 @@ def send_automated_notification(customer_name: str, kind: str, body: str) -> str
     return f"Notification ({kind}) sent to {customer_name}, labeled as the shop assistant (irreversible)."
 
 
-def send_relationship_message(customer_name: str, body: str, reason: str) -> str:
+def _resolve_style_card(style_id: str, *, reason: str = "") -> dict[str, Any] | None:
+    """Look up a published style → the style-card attachment the chat renders as a photo. Best-effort:
+    returns None if the id is unknown or has no image, so a send never fails over the attachment."""
+    sid = str(style_id or "").strip()
+    if not sid:
+        return None
+    try:
+        styles = (bus.fetch_styles() or {}).get("styles", [])
+    except Exception as e:  # noqa: BLE001 — attachment is best-effort; text still sends
+        print(f"WARN _resolve_style_card fetch failed for {sid}: {e}")
+        return None
+    match = next((s for s in styles if s.get("id") == sid), None)
+    if not match or not match.get("imageUrl"):
+        return None
+    card = {"type": "style", "styleId": sid, "title": match.get("title") or sid, "imageUrl": match["imageUrl"]}
+    if reason:
+        card["reason"] = reason
+    return card
+
+
+def send_relationship_message(customer_name: str, body: str, reason: str, style_id: str = "") -> str:
     """Send a RELATIONSHIP message (re-engagement, personal recommendation, win-back) DIRECTLY to the
     customer, LABELED as the AI assistant (code prefixes 【Nailed-it 商家助手】— the customer is never
     misled about who wrote it). Find the right customer + the right moment, write it, and explain WHY
     now (reason). Respect opt-outs: NEVER message a customer whose roster shows 拒收/opted-out.
-    IRREVERSIBLE once sent."""
+    OPTIONAL style_id: when recommending a specific look (e.g. their last style or a fresh match),
+    pass the published style's id — its PHOTO is attached to the message so the customer sees the look,
+    not just text. IRREVERSIBLE once sent."""
     ctx = _ctx()
     customer_name = _clean_text(customer_name, field="customer_name", max_chars=80)
     body = _clean_text(body, field="body")
     reason = _clean_text(reason, field="reason")
+    card = _resolve_style_card(style_id, reason=reason)
     labeled = f"{_ASSISTANT_LABEL}{body}"
     payload = {"customerName": customer_name, "body": labeled, "reason": reason}
+    if card:
+        payload["attachment"] = card
     bus.write_action(
         ctx.sb, run_id=ctx.run_id, action_type="send_customer_message", payload=payload, risk="irreversible"
     )
-    bus.deliver_customer_message(ctx.sb, customer_name, labeled)  # mirror into the customer's chat thread
+    bus.deliver_customer_message(ctx.sb, customer_name, labeled, card)  # mirror into the customer's chat thread
     ctx.transcript.append(
         {"kind": "tool_call", "tool": "send_relationship_message", "input": payload, "output": {"sent": True}}
     )
     ctx.transcript.append(
         {"kind": "action", "actionType": "send_customer_message", "status": "applied",
-         "summary": f"关系消息（AI 已发送，署名商家助手）：→ {customer_name} — {reason}"}
+         "summary": f"关系消息（AI 已发送，署名商家助手{'·附款式照片' if card else ''}）：→ {customer_name} — {reason}"}
     )
-    return f"Relationship message sent to {customer_name}, labeled as the AI assistant (irreversible)."
+    tail = f" with style card {card['styleId']}" if card else ""
+    return f"Relationship message sent to {customer_name}, labeled as the AI assistant{tail} (irreversible)."
 
 
 # ── registries: ONE list of functions → two backend representations + the executable impls ───────
@@ -975,9 +1024,10 @@ def submit_action_brief(
     own audience/budget/duration inside them via forecast loops, and may report the objective
     infeasible. action_type: ad | coupon. objective: the business problem this action solves, in one
     sentence citing numbers. max_total_budget_cents: hard spend ceiling (ad) or price floor context
-    (coupon). target_bookings_min/max: the outcome range that would count as success.
-    max_cost_per_booking_cents: CAC ceiling. allowed_period: weekday | any (weekend stays protected).
-    Call once per action; multiple briefs are allowed; no briefs (do nothing) is a valid round."""
+    (coupon). For ads, place_ad enforces the budget ceiling plus forecasted booking floor, CAC ceiling,
+    and booked-minute ceiling before any side effect. allowed_period is a policy intent until campaign
+    calendar targeting exists. Call once per action; multiple briefs are allowed; no briefs (do
+    nothing) is a valid round."""
     ctx = _ctx()
     if ctx.brief_sink is None:
         raise ValueError("briefs_not_allowed")  # only the decision agent's context carries the sink
