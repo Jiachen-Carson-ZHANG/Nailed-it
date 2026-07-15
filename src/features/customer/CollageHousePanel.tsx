@@ -446,14 +446,12 @@ export function CollageHousePanel() {
           }}
           onBreakdown={(img) => {
             clearBreakdownResults();
-            clearCollageResult();
             saveTryOnImage(img);
             router.push(getCustomerBookingPath());
           }}
           onTryOn={(img) => {
-            clearCollageResult();
             saveTryOnStyleImage(img);
-            router.push(getCustomerTryOnPath());
+            router.push(`${getCustomerTryOnPath()}?from=collage`);
           }}
           onClose={() => {
             clearCollageResult();

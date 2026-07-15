@@ -78,9 +78,11 @@ function ImageSlot({ label, description, uploadAria, image, prefillImageUrl, onI
 type TryOnPanelProps = {
   prefillStyleImageUrl?: string;
   styleId?: string;
+  /** 来源页面标识：'collage' = 从拼贴小屋直接进入；'booking' = 从报价页进入 */
+  from?: string;
 };
 
-export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
+export function TryOnPanel({ prefillStyleImageUrl, styleId, from }: TryOnPanelProps) {
   const router = useRouter();
   const { t, language } = useLanguage();
   const [handImage, setHandImage] = useState<SelectedNailImage | null>(null);
@@ -245,9 +247,14 @@ export function TryOnPanel({ prefillStyleImageUrl, styleId }: TryOnPanelProps) {
   function analyzeAndBook() {
     if (!result) return;
     saveTryOnImage({ imageBase64: result.imageBase64, mimeType: result.mimeType, previewUrl: `data:${result.mimeType};base64,${result.imageBase64}` });
+    // 从报价页来的，返回报价页并直接跳到结果步骤（已有 breakdown 结果）
+    if (from === 'booking') {
+      router.push(`${getCustomerBookingPath()}?skipToResult=1&from=tryon&t=${Date.now()}`);
+      return;
+    }
     const base = styleId ? `${getCustomerBookingPath()}?styleId=${styleId}` : getCustomerBookingPath();
     const sep = styleId ? '&' : '?';
-    router.push(`${base}${sep}t=${Date.now()}`);
+    router.push(`${base}${sep}from=tryon&t=${Date.now()}`);
   }
 
   const handLabel = t('tryOn.handLabel');

@@ -9,6 +9,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { saveCustomerBookingDraft } from '@/domain/booking-draft';
 import { saveBreakdownResult, getBreakdownResult } from '@/domain/breakdown-store';
 import { consumeTryOnImage } from '@/domain/tryon-image-store';
+import { saveTryOnStyleImage } from '@/domain/tryon-style-store';
 import type { AIRecognitionResult, BreakdownResult, RuleBasedQuote, StylePreviewQuote } from '@/domain/nail';
 import { calculateEstimate } from '@/domain/pricing';
 import {
@@ -73,6 +74,8 @@ type CustomerBookingContentProps = {
   liveDurationMin?: number;
   defaultExampleImageUrl?: string;
   skipToResult?: boolean;
+  /** 来源标识：'tryon' = 从试戴页进入（含"试戴→报价"路径），影响返回按钮行为 */
+  from?: string;
 };
 
 export function CustomerBookingContent({
@@ -86,6 +89,7 @@ export function CustomerBookingContent({
   liveDurationMin,
   defaultExampleImageUrl,
   skipToResult,
+  from,
 }: CustomerBookingContentProps) {
   const { t, language } = useLanguage();
   const { currency } = useCurrency();
@@ -303,8 +307,6 @@ function persistCurrentDraft() {
             onReset={resetUpload}
             hideControls={hasPrefill}
             tryOnHref={
-              // 中文注释：把当前参考图（示例图或已上传图）作为款式图带到试戴页，避免用户重新上传。
-              // data URL 太长不能进 query string，只带 http(s) 图片地址（示例图属于这种）。
               imageUrl && !imageUrl.startsWith('data:')
                 ? `${getCustomerTryOnPath()}?imageUrl=${encodeURIComponent(imageUrl)}`
                 : getCustomerTryOnPath()
@@ -315,6 +317,13 @@ function persistCurrentDraft() {
               </Button>
             }
           />
+          {from === 'tryon' && (
+            <div className="booking-step-actions">
+              <Button block variant="secondary" onClick={() => router.back()}>
+                ← {t('booking.quote.back')}
+              </Button>
+            </div>
+          )}
         </>
       )}
 
@@ -339,13 +348,22 @@ function persistCurrentDraft() {
               ← {t('booking.upload.changePhoto')}
             </Button>
             {hasQuoteResult ? (
-              <Link
-                className="button button-primary button-block"
-                href={getCustomerBookingConfirmPath()}
-                onClick={persistCurrentDraft}
-              >
-                {t('booking.quote.next')}
-              </Link>
+              <>
+                <Link
+                  className="button button-secondary button-block"
+                  href={`${getCustomerTryOnPath()}?from=booking${selectedImage && !selectedImage.previewUrl.startsWith('data:') ? `&imageUrl=${encodeURIComponent(selectedImage.previewUrl)}` : ''}`}
+                  onClick={() => { if (selectedImage) { saveTryOnStyleImage(selectedImage); } }}
+                >
+                  🖐️ {t('booking.result.tryOn')}
+                </Link>
+                <Link
+                  className="button button-primary button-block"
+                  href={getCustomerBookingConfirmPath()}
+                  onClick={persistCurrentDraft}
+                >
+                  {t('booking.quote.next')}
+                </Link>
+              </>
             ) : null}
           </div>
         </>

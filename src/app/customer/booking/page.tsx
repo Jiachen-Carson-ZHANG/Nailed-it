@@ -5,11 +5,11 @@ import { CustomerBookingContent } from './booking-content';
 const DEFAULT_BOOKING_EXAMPLE_STYLE_ID = 'style-melissa-img-8265';
 
 type BookingPageProps = {
-  searchParams: Promise<{ styleId?: string; t?: string; skipToResult?: string; livePrice?: string; liveDuration?: string }>;
+  searchParams: Promise<{ styleId?: string; t?: string; skipToResult?: string; livePrice?: string; liveDuration?: string; from?: string }>;
 };
 
 export default async function CustomerBookingPage({ searchParams }: BookingPageProps) {
-  const { styleId, t, skipToResult, livePrice, liveDuration } = await searchParams;
+  const { styleId, t, skipToResult, livePrice, liveDuration, from } = await searchParams;
   const [style, defaultExampleStyle] = await Promise.all([
     styleId ? getCustomerPublishedStyleAction(styleId) : Promise.resolve(null),
     getCustomerPublishedStyleAction(DEFAULT_BOOKING_EXAMPLE_STYLE_ID),
@@ -33,6 +33,7 @@ export default async function CustomerBookingPage({ searchParams }: BookingPageP
         livePriceCents={livePriceCents}
         liveDurationMin={liveDurationMin}
         skipToResult={skipToResult === '1'}
+        from={from}
       />
     </Suspense>
   );

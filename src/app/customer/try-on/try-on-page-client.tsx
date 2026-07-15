@@ -8,9 +8,10 @@ import { useLanguage } from '@/i18n/context';
 type TryOnPageClientProps = {
   prefillStyleImageUrl?: string;
   styleId?: string;
+  from?: string;
 };
 
-export function TryOnPageClient({ prefillStyleImageUrl, styleId }: TryOnPageClientProps) {
+export function TryOnPageClient({ prefillStyleImageUrl, styleId, from }: TryOnPageClientProps) {
   const { t } = useLanguage();
   const router = useRouter();
 
@@ -22,7 +23,7 @@ export function TryOnPageClient({ prefillStyleImageUrl, styleId }: TryOnPageClie
         </button>
         <h1>{t('tryOn.page.title')}</h1>
       </section>
-      <TryOnPanel prefillStyleImageUrl={prefillStyleImageUrl} styleId={styleId} />
+      <TryOnPanel prefillStyleImageUrl={prefillStyleImageUrl} styleId={styleId} from={from} />
     </MobileLayout>
   );
 }

@@ -26,6 +26,7 @@ const enMessages = {
   'booking.result.loadingBody': 'Detecting shape, colors, and finish…',
   'booking.result.errorTitle': 'Recognition needs attention',
   'booking.result.quoteCta': 'See my quote',
+  'booking.result.tryOn': 'Virtual try-on',
   'booking.quote.title': 'Your quote',
   'booking.quote.back': 'Back',
   'booking.quote.next': 'Choose a time',
