@@ -12,7 +12,7 @@ import {
   rejectAgentActionAction,
 } from '@/lib/actions/agent-actions';
 import { getMerchantAgentRunPath, getMerchantAgentsPath, getMerchantStylesPath } from '@/domain/session';
-import { actionEntityHref, actionTypeLabel, describeAction, type StyleTitleMap } from '@/domain/agent-transcript';
+import { actionEntityHref, actionTypeLabel, describeAction, patchTrendDemoTranscript, type StyleTitleMap } from '@/domain/agent-transcript';
 import { useLanguage } from '@/i18n/context';
 import type { AppLanguage } from '@/i18n/types';
 import type { AgentRunDetail } from '@/domain/agents';
@@ -110,6 +110,10 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
     };
   }, [runId]);
   const run = detail?.run ?? null;
+  // 选品 chain only: display-only copy patch (千金风/玫瑰 relabel + drop off-brand trends). See agent-transcript.
+  const transcript = run
+    ? (run.agentSlug === 'trend' ? patchTrendDemoTranscript(run.transcript) : run.transcript)
+    : [];
 
   async function undo(actionId: string) {
     setUndone((prev) => new Set(prev).add(actionId));
@@ -202,7 +206,7 @@ export function AgentRunDetailClient({ runId }: { runId: string }) {
 
       <section className="detail-surface" aria-label={copy.thinking}>
         <div className="detail-surface-header"><h2>{copy.thinking}</h2></div>
-        <TranscriptChain steps={run.transcript} language={language} titles={titles} />
+        <TranscriptChain steps={transcript} language={language} titles={titles} />
       </section>
 
       {run.actions.length > 0 ? (
