@@ -359,6 +359,91 @@ def update_campaign(sb: Client, campaign_id: str, merchant_id: str, fields: dict
         .eq("id", campaign_id).eq("merchant_id", merchant_id).execute()
 
 
+def update_campaign_versioned(
+    sb: Client,
+    campaign_id: str,
+    merchant_id: str,
+    fields: dict[str, Any],
+    *,
+    expected_version: int,
+) -> None:
+    """Compare-and-swap update for managed executor jobs (ADR-0017).
+
+    Worker-pool writes must not overwrite a merchant/manual edit or another executor's newer revision.
+    The synchronous demo path still uses update_campaign(); managed jobs should use this helper.
+    """
+    res = (
+        sb.table("style_ad_campaign")
+        .update({**fields, "updated_at": now_iso()})
+        .eq("id", campaign_id)
+        .eq("merchant_id", merchant_id)
+        .eq("version", expected_version)
+        .execute()
+    )
+    if not (res.data or []):
+        raise ValueError(f"entity_version_conflict:{campaign_id}:expected={expected_version}")
+
+
+_GROUPBUY_COLS = (
+    "id, merchant_id, title, status, original_price_cents, deal_price_cents, currency, "
+    "source_run_id, created_at, updated_at"
+)
+_GROUPBUY_COLS_V2 = (
+    _GROUPBUY_COLS
+    + ", version, published_at, unlisted_at, redemptions, bookings, revenue_cents, refunds, next_review_at"
+)
+
+
+def fetch_groupbuy_outcomes(sb: Client, merchant_id: str) -> list[dict[str, Any]]:
+    """Live group-buy entity metrics for managed post-publish monitoring.
+
+    The P2 outcome/version columns are optional during rollout; pre-0034 rows degrade to version=1
+    with zero measured outcomes so monitors can record a baseline but cannot invent a failure.
+    """
+    def _q(cols: str):
+        return (
+            sb.table("groupbuy_deal")
+            .select(cols)
+            .eq("merchant_id", merchant_id)
+            .order("updated_at", desc=True)
+            .execute()
+        )
+    try:
+        return _q(_GROUPBUY_COLS_V2).data or []
+    except Exception as e:  # noqa: BLE001 — pre-0034 DBs lack outcome/version columns
+        if not _is_missing_column(e):
+            raise
+        rows = _q(_GROUPBUY_COLS).data or []
+        for row in rows:
+            row.setdefault("version", 1)
+            row.setdefault("redemptions", 0)
+            row.setdefault("bookings", 0)
+            row.setdefault("revenue_cents", 0)
+            row.setdefault("refunds", 0)
+        return rows
+
+
+def update_groupbuy_versioned(
+    sb: Client,
+    deal_id: str,
+    merchant_id: str,
+    fields: dict[str, Any],
+    *,
+    expected_version: int,
+) -> None:
+    """Compare-and-swap update for managed group-buy executor jobs."""
+    res = (
+        sb.table("groupbuy_deal")
+        .update({**fields, "updated_at": now_iso()})
+        .eq("id", deal_id)
+        .eq("merchant_id", merchant_id)
+        .eq("version", expected_version)
+        .execute()
+    )
+    if not (res.data or []):
+        raise ValueError(f"entity_version_conflict:{deal_id}:expected={expected_version}")
+
+
 def apply_campaign_delivery(sb: Client, campaign_id: str, merchant_id: str, deltas: dict[str, int]) -> None:
     """Accumulate the delivery simulator's deltas onto the campaign row. Single writer (the clock
     advance), so read-modify-write is safe."""
@@ -562,23 +647,29 @@ def write_action(
     sb.table("agent_actions").insert(row).execute()
 
 
-def deliver_customer_message(sb: Client, customer_name: str, body: str) -> None:
+def deliver_customer_message(
+    sb: Client, customer_name: str, body: str, attachment: dict[str, Any] | None = None
+) -> None:
     """Best-effort: also drop the AI-sent message into the customer's chat thread, so the merchant sees
     it in the conversation window — not only in the agent action log. Non-fatal: the agent_action stays
     the authoritative record; if there's no thread for this customer (or the write fails) we log and
-    move on rather than break the send."""
+    move on rather than break the send. `attachment` (optional) is a style card jsonb the chat renders
+    as a photo — same shape the TS conversation repo reads (migration 0019)."""
     try:
         res = sb.table("conversation_threads").select("id").eq("customer_name", customer_name).limit(1).execute()
         rows = res.data or []
         if not rows:
             print(f"WARN no chat thread for {customer_name} — message recorded as action only")
             return
-        sb.table("messages").insert({
+        row = {
             "id": f"msg-ai-{uuid.uuid4().hex[:12]}",
             "thread_id": rows[0]["id"],
             "author_role": "merchant",  # sent by the shop side, AI-authored (body carries the 商家助手 label)
             "body": body,
             "sent_at": now_iso(),
-        }).execute()
+        }
+        if attachment:
+            row["attachment"] = attachment  # nullable column — plain text messages omit it
+        sb.table("messages").insert(row).execute()
     except Exception as e:  # noqa: BLE001 — delivery is best-effort; never fail the send over the chat mirror
         print(f"WARN deliver_customer_message failed for {customer_name}: {e}")

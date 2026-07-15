@@ -77,7 +77,11 @@ export async function sendCustomerStyleAttachmentAction(
 
 export async function listMerchantConversationsAction(): Promise<Conversation[]> {
   const threads = await getRepositories().conversations.list();
-  return threads.map((t) => toConversationForRole(t, 'merchant'));
+  // Demo inbox: hide the demo customer's own booking-confirmation threads (Melissa Tan) so the merchant
+  // view leads with real relationship threads (Amy Lim, Rachel Goh) instead of one customer's self-spam.
+  return threads
+    .filter((t) => t.customerName !== demoCustomerName)
+    .map((t) => toConversationForRole(t, 'merchant'));
 }
 
 export async function getMerchantConversationAction(conversationId: string): Promise<Conversation | null> {

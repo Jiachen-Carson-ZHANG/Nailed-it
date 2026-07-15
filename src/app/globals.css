@@ -1002,6 +1002,40 @@ select {
   gap: 0.75rem;
 }
 
+/* 最近轮次 pager — ‹ N/M › to step between rounds instead of stacking them. */
+.agent-round-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+}
+.agent-round-pager-count {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+  text-align: center;
+}
+.agent-round-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: var(--color-accent, #d95e92);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.agent-round-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .discovery-hero h1,
 .section-heading h2,
 .style-detail-summary h1,

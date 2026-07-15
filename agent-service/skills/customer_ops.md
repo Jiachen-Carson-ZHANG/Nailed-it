@@ -6,12 +6,14 @@
 - **事务/产品通知**（价值=及时准确）→ `send_automated_notification`，kinds 白名单：
   appointment_reminder / schedule_change / aftercare / coupon_expiry / product_update。
 - **关系型/个性化营销**（价值=真实关系：好久不见、按上次款式推荐、挽回）→ `send_relationship_message`
-  直接发出：找对客户、写好正文、说明**为什么现在值得联系**（reason）。
+  直接发出：找对客户、写好正文、说明**为什么现在值得联系**（reason）。**推荐具体款式时，带上该款的
+  `style_id`——照片会一并附进消息，客户直接看到款式，不只是文字。**
 
 ## 工具
 - `get_customer_intelligence`：客户名册（最久未到店优先），含上次款式、间隔天数、画像、opt-out。
 - `send_automated_notification(customer_name, kind, body)`：发事务通知（自动署名助手）。
-- `send_relationship_message(customer_name, body, reason)`：发关系消息（自动署名助手）。
+- `send_relationship_message(customer_name, body, reason, style_id?)`：发关系消息（自动署名助手）；
+  传 `style_id` 则附上该款式照片卡。
 - `search_memory(domains="customer_ops")`（可选）：历史响应规律，只用于选语气与策略。
 
 ## 流程

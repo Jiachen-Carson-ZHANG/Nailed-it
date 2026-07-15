@@ -150,12 +150,6 @@ const TEAM_LANES: ReadonlyArray<{
       { label: { 'zh-CN': '匹配 → 召回私信', en: 'Match → recall message' }, slugs: ['customer_ops'] },
     ],
   },
-  {
-    key: 'booking',
-    name: { 'zh-CN': '预约运营', en: 'Booking ops' },
-    stages: [],
-    planned: true,
-  },
 ];
 
 function fmtTime(iso: string, language: AppLanguage): string {
@@ -272,6 +266,7 @@ export default function MerchantAgentsPage() {
   const [cfg, setCfg] = useState<TeamConfig>({ goalMin: 8, goalMax: 16, focusText: '', cadenceEveryDays: 7, cadenceDay: '五' });
   const [cfgOpen, setCfgOpen] = useState(false);
   const [cfgSaving, setCfgSaving] = useState(false);
+  const [roundIdx, setRoundIdx] = useState(0); // 最近轮次 pager: one round at a time, ‹ › to move
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -405,49 +400,6 @@ export default function MerchantAgentsPage() {
         <>
           <WeeklyObjectiveCard language={language} objective={objective} cfg={cfg} />
 
-          {/* Runs grouped by ROUND (trigger + start time) — the runtime record, kept apart from the
-           * static team intro below. Same domain grouping the 晚报 uses. */}
-          {runs.length > 0 ? (
-            <section className="detail-surface" aria-labelledby="agents-rounds-title">
-              <div className="detail-surface-header">
-                <h2 id="agents-rounds-title">{copy.roundsTitle as string}</h2>
-              </div>
-              {groupRunsIntoRounds(runs).filter((r) => r.length >= FULL_ROUND_MIN_RUNS).slice(0, 3).map((round) => {
-                const head = round[0];
-                // The round's trigger is the ORCHESTRATOR's (who opened it), not the last child's.
-                const opener = round.find((r) => r.agentRole === 'lead') ?? round[round.length - 1];
-                const actions = round.reduce((n, r) => n + r.actions.length, 0);
-                const roundLine = copy.roundLine as (a: number, b: number) => string;
-                return (
-                  <div key={head.id} className="agent-round">
-                    <p className="agent-round-head">
-                      <span className="agent-round-trigger">{copy.trigger[opener.triggerSource]}</span>
-                      <span>· {fmtTime(head.startedAt, language)}</span>
-                      <span>· {roundLine(round.length, actions)}</span>
-                    </p>
-                    <ul className="agent-run-list">
-                      {/* Dispatch order (oldest first): the pipeline reads 数分 → … → Monitor top-down —
-                        * newest-first put Monitor 完成 above executors still 待审批, which read as broken. */}
-                      {[...round].reverse().map((run) => (
-                        <li key={run.id}>
-                          <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
-                            <div className="agent-run-main">
-                              <span className="agent-run-name">{run.agentName}</span>
-                              <span className={`agent-run-status agent-run-status-${run.status}`}>{copy.status[run.status]}</span>
-                            </div>
-                            {run.actions.length > 0 ? (
-                              <div className="agent-run-meta"><span className="agent-run-actions-count">{copy.actionsN(run.actions.length)}</span></div>
-                            ) : null}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </section>
-          ) : null}
-
           <section className="detail-surface" aria-labelledby="agents-team-title">
             <div className="detail-surface-header">
               <h2 id="agents-team-title">{copy.teamTitle as string}</h2>
@@ -508,6 +460,59 @@ export default function MerchantAgentsPage() {
               );
             })()}
           </section>
+
+          {/* 最近轮次 as a pager — one round at a time, ‹ › to step between rounds (no vertical stack). */}
+          {(() => {
+            const rounds = groupRunsIntoRounds(runs).filter((r) => r.length >= FULL_ROUND_MIN_RUNS);
+            if (rounds.length === 0) return null;
+            const idx = Math.min(roundIdx, rounds.length - 1);
+            const round = rounds[idx];
+            const head = round[0];
+            // The round's trigger is the ORCHESTRATOR's (who opened it), not the last child's.
+            const opener = round.find((r) => r.agentRole === 'lead') ?? round[round.length - 1];
+            const actions = round.reduce((n, r) => n + r.actions.length, 0);
+            const roundLine = copy.roundLine as (a: number, b: number) => string;
+            return (
+              <section className="detail-surface" aria-labelledby="agents-rounds-title">
+                <div className="detail-surface-header">
+                  <h2 id="agents-rounds-title">{copy.roundsTitle as string}</h2>
+                  {rounds.length > 1 ? (
+                    <div className="agent-round-pager">
+                      <button type="button" className="agent-round-pager-btn" aria-label="上一轮"
+                        disabled={idx === 0} onClick={() => setRoundIdx(idx - 1)}>‹</button>
+                      <span className="agent-round-pager-count">{idx + 1} / {rounds.length}</span>
+                      <button type="button" className="agent-round-pager-btn" aria-label="下一轮"
+                        disabled={idx >= rounds.length - 1} onClick={() => setRoundIdx(idx + 1)}>›</button>
+                    </div>
+                  ) : null}
+                </div>
+                <div key={head.id} className="agent-round">
+                  <p className="agent-round-head">
+                    <span className="agent-round-trigger">{copy.trigger[opener.triggerSource]}</span>
+                    <span>· {fmtTime(head.startedAt, language)}</span>
+                    <span>· {roundLine(round.length, actions)}</span>
+                  </p>
+                  <ul className="agent-run-list">
+                    {/* Dispatch order (oldest first): the pipeline reads 数分 → … → Monitor top-down —
+                      * newest-first put Monitor 完成 above executors still 待审批, which read as broken. */}
+                    {[...round].reverse().map((run) => (
+                      <li key={run.id}>
+                        <Link className="agent-run-row" href={getMerchantAgentRunPath(run.id)}>
+                          <div className="agent-run-main">
+                            <span className="agent-run-name">{run.agentName}</span>
+                            <span className={`agent-run-status agent-run-status-${run.status}`}>{copy.status[run.status]}</span>
+                          </div>
+                          {run.actions.length > 0 ? (
+                            <div className="agent-run-meta"><span className="agent-run-actions-count">{copy.actionsN(run.actions.length)}</span></div>
+                          ) : null}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            );
+          })()}
 
           {/* Entry rows to the pages we split off the main scroll — same pattern as the 款式图鉴 arrow. */}
           <nav className="agent-entry-rows" aria-label="pages">
